@@ -12,3 +12,8 @@
 - Never open, copy or test against the owner's real database without asking; tests use `fixtures/`
   (password `pw`).
 - Report honestly what was verified on the phone and what was only built.
+- Starting a ROADMAP step or a new feature (usually a new session): do not start the work at once. First
+  say in a few lines what the step will do, and which effort level it needs (the step's "Effort" in
+  ROADMAP.md is the starting point; say so if it should differ and why). Then wait for the owner to set
+  the level and say "ok". Mid-step, if a part turns out to need more (or less) depth, say so before doing
+  it. The current level cannot be read reliably, so ask rather than assume.
