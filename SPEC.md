@@ -28,15 +28,19 @@ Goals (v1)
   countdown, notes, custom fields in file order with the Mac app's layout rules (sections, lists of codes,
   dates, links), attachments.
 - Copy any field; the clipboard is marked sensitive and cleared after 30 s.
-- Edit, create, recycle and restore entries (delete is undoable from a snackbar; emptying the recycle bin
-  is left to the Mac); custom fields; attachments: open and save. One-time codes: show and copy (setting
-  them up is optional, later).
+- Attachments: open and save a copy. One-time codes: show and copy (setting them up is optional, later).
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
   warning.
-- Autofill (§7): fill logins in apps and browsers, fill one-time codes, offer to save a new login or update a
-  changed password, with a simple password generator for sign-ups.
+- Autofill (§7): fill logins in apps and browsers, fill one-time codes.
 - Quick access to one-time codes: a code pinned to the notification shade (§6.3) and a "Codes" launcher
   shortcut.
+
+The first releases only read the database, so they cannot damage it; the owner rarely edits on the phone.
+Writing comes after them (ROADMAP step 7) and must be done before a Google Play release:
+- Edit, create, recycle and restore entries (delete is undoable from a snackbar; emptying the recycle bin
+  is left to the Mac); custom fields.
+- Autofill's offer to save a new login or update a changed password, with a simple password generator for
+  sign-ups.
 
 Non-goals (v1): SSH agent, a password generator beyond the one in the autofill save, e-mail aliases,
 reports, history UI, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
@@ -205,8 +209,18 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
 ## 6. The interface
 
 Design, UI and UX matter as much as the file handling: the app must look and feel great, not merely work.
-Screens are designed as clickable mock-ups first and agreed with the owner before they are built (ROADMAP
-step "Design").
+Screens are designed as clickable mock-ups first and agreed with the owner before they are built. The
+agreed mock-ups (light and dark, every screen of §6.2–6.3 including the editor for step 7) are the canvas
+https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
+- Lock: the fingerprint is the large main button; the password field below it, in thumb reach, with an
+  arrow button to unlock; the reason of the last lock as a chip.
+- List and card: Expressive segmented groups (rows with small gaps, large outer corners); a list row with a
+  one-time code shows the live code and its ring as a button that copies it.
+- Card: a tinted tile per field kind; the password row has an eye, copy and a menu; recovery codes are a
+  numbered grid with one eye; a copy confirms in a snackbar ("Password copied · clears in 30 s").
+- Show as QR can also show the password as text; the Share… warning points to Show as QR as the safer way.
+- The code in the notification: the code, a draining bar, Copy and Unpin; on the lock screen only
+  "Code ready".
 
 ### 6.1 Look and feel
 
@@ -260,7 +274,7 @@ autofill, and in Chrome sets "Autofill using another service" (Firefox needs not
   fills.
 - **Inline suggestions** in the keyboard (Gboard) where offered, else the dropdown.
 - **One-time code**: a field recognised as a code gets the matching entry's current code.
-- **Save**: `SaveInfo` for username + password; on `onSaveRequest` a screen asks: update the matching entry's
+- **Save** (comes with writing, ROADMAP step 7): `SaveInfo` for username + password; on `onSaveRequest` a screen asks: update the matching entry's
   password (when the username matches) or create a new entry (title from the site, URL, username,
   password, group chosen), written through the normal save path (§3.3). For an app, the URL is
   `androidapp://<package>`. For a sign-up the password field can be filled with a generated password
