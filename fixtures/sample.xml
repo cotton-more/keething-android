@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<KeePassFile>
+	<Meta>
+		<Generator>KeePassXC</Generator>
+		<RecycleBinEnabled>True</RecycleBinEnabled>
+		<RecycleBinUUID>RECYCLEBIN-UUID-000000==</RecycleBinUUID>
+		<Binaries>
+			<Binary ID="0" Compressed="False">SGVsbG8gUERGIGRhdGE=</Binary>
+		</Binaries>
+	</Meta>
+	<Root>
+		<Group>
+			<UUID>ROOTGROUP-UUID-0000000==</UUID>
+			<Name>Passwords</Name>
+				<Entry>
+					<UUID>ROOT-UUID-00000000000000==</UUID>
+					<Tags></Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value/></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">r-pw</Value></String>
+					<String><Key>Title</Key><Value>Root Entry</Value></String>
+					<String><Key>URL</Key><Value>https://root.example</Value></String>
+					<String><Key>UserName</Key><Value>r</Value></String>
+					<History>
+					</History>
+				</Entry>
+			<Group>
+				<UUID>G-WORK</UUID>
+				<Name>Work</Name>
+				<Entry>
+					<UUID>GITHUB-UUID-0000000000==</UUID>
+					<Tags>dev;work</Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value>Work account</Value></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">gh-secret-pw</Value></String>
+					<String><Key>Title</Key><Value>GitHub</Value></String>
+					<String><Key>URL</Key><Value>https://github.com/login</Value></String>
+					<String><Key>UserName</Key><Value>octocat</Value></String>
+					<String><Key>Recovery code</Key><Value ProtectInMemory="True">abcd-efgh-ijkl</Value></String>
+					<String><Key>Org</Key><Value>Acme GmbH</Value></String>
+					<String><Key>Empty field</Key><Value/></String>
+					<String><Key>otp</Key><Value ProtectInMemory="True">otpauth://totp/GitHub:octocat?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&amp;issuer=GitHub&amp;period=30&amp;digits=6</Value></String>
+					<History>
+						<Entry>
+					<UUID>GITHUB-UUID-0000000000==</UUID>
+					<Tags></Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value/></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">old-password</Value></String>
+					<String><Key>Title</Key><Value>GitHub (old title)</Value></String>
+					<String><Key>URL</Key><Value>https://github.com</Value></String>
+					<String><Key>UserName</Key><Value>octocat</Value></String>
+					<History>
+					</History>
+				</Entry>
+					</History>
+				</Entry>
+				<Group>
+					<UUID>G-GIT</UUID>
+					<Name>Git</Name>
+				<Entry>
+					<UUID>LEGACY-UUID-0000000000==</UUID>
+					<Tags></Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value/></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">legacy-pw</Value></String>
+					<String><Key>Title</Key><Value>Legacy 2FA</Value></String>
+					<String><Key>URL</Key><Value>https://legacy.example</Value></String>
+					<String><Key>UserName</Key><Value>legacy</Value></String>
+					<String><Key>TOTP Seed</Key><Value ProtectInMemory="True">GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ</Value></String>
+					<String><Key>TOTP Settings</Key><Value>30;8</Value></String>
+					<History>
+					</History>
+				</Entry>
+				</Group>
+			</Group>
+			<Group>
+				<UUID>G-VERS</UUID>
+				<Name>Versicherung</Name>
+				<Entry>
+					<UUID>ILAY-UUID-00000000000==</UUID>
+					<Tags>versicherung;kind</Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value/></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">ilay-pw</Value></String>
+					<String><Key>Title</Key><Value>ILAY - Continentale</Value></String>
+					<String><Key>URL</Key><Value>https://continentale.de</Value></String>
+					<String><Key>UserName</Key><Value>user@example.com</Value></String>
+					<String><Key>Versicherungsnummer</Key><Value>VN-123456</Value></String>
+					<History>
+					</History>
+				</Entry>
+			</Group>
+			<Group>
+				<UUID>G-SHOP</UUID>
+				<Name>Shopping</Name>
+				<Entry>
+					<UUID>PYATEROCHKA-UUID-000000==</UUID>
+					<Tags>магазин</Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value>Карта лояльности</Value></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">pyat-pw</Value></String>
+					<String><Key>Title</Key><Value>Пятёрочка</Value></String>
+					<String><Key>URL</Key><Value>https://5ka.ru</Value></String>
+					<String><Key>UserName</Key><Value>ivan</Value></String>
+					<History>
+					</History>
+				</Entry>
+			</Group>
+			<Group>
+				<UUID>G-CONTRACTS</UUID>
+				<Name>Verträge</Name>
+				<Entry>
+					<UUID>SUWAG-UUID-000000000000==</UUID>
+					<Tags></Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value>Vertragsnummer 4711 — nur Notiz</Value></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True"/></String>
+					<String><Key>Title</Key><Value>Süwag</Value></String>
+					<String><Key>URL</Key><Value/></String>
+					<String><Key>UserName</Key><Value/></String>
+					<History>
+					</History>
+				</Entry>
+			</Group>
+			<Group>
+				<UUID>G-DOCS</UUID>
+				<Name>Documents</Name>
+				<Entry>
+					<UUID>PASSPORT-UUID-00000000==</UUID>
+					<Tags></Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value/></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True"/></String>
+					<String><Key>Title</Key><Value>Passport scan</Value></String>
+					<String><Key>URL</Key><Value/></String>
+					<String><Key>UserName</Key><Value/></String>
+					<Binary><Key>passport.pdf</Key><Value Ref="0"/></Binary>
+					<History>
+					</History>
+				</Entry>
+				<Entry>
+					<UUID>EXPIRED-UUID-0000000000==</UUID>
+					<Tags></Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2025-01-01T00:00:00Z</ExpiryTime><Expires>True</Expires></Times>
+					<String><Key>Notes</Key><Value/></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">old-pw</Value></String>
+					<String><Key>Title</Key><Value>Old Forum</Value></String>
+					<String><Key>URL</Key><Value>https://forum.example</Value></String>
+					<String><Key>UserName</Key><Value>olduser</Value></String>
+					<History>
+					</History>
+				</Entry>
+				<Entry>
+					<UUID>UNTITLED-UUID-00000000==</UUID>
+					<Tags></Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value/></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">x</Value></String>
+					<String><Key>Title</Key><Value/></String>
+					<String><Key>URL</Key><Value>https://www.example.org/path</Value></String>
+					<String><Key>UserName</Key><Value>nobody</Value></String>
+					<History>
+					</History>
+				</Entry>
+			</Group>
+			<Group>
+				<UUID>RECYCLEBIN-UUID-000000==</UUID>
+				<Name>Recycle Bin</Name>
+				<Entry>
+					<UUID>DELETED-UUID-0000000000==</UUID>
+					<Tags></Tags>
+					<Times><CreationTime>2026-01-01T00:00:00Z</CreationTime><ExpiryTime>2026-10-15T13:32:00Z</ExpiryTime><Expires>False</Expires></Times>
+					<String><Key>Notes</Key><Value/></String>
+					<String><Key>Password</Key><Value ProtectInMemory="True">gone-pw</Value></String>
+					<String><Key>Title</Key><Value>Deleted Thing</Value></String>
+					<String><Key>URL</Key><Value>https://gone.example</Value></String>
+					<String><Key>UserName</Key><Value>gone</Value></String>
+					<History>
+					</History>
+				</Entry>
+			</Group>
+		</Group>
+	</Root>
+</KeePassFile>
