@@ -1,15 +1,99 @@
 package dev.keepassbar.android.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import dev.keepassbar.android.R
 
+/**
+ * Material 3 Expressive with the wallpaper's colours (SPEC §6.1), plus the few colours Material has no
+ * role for: warnings, the digits and symbols of a shown password, the background of list and card rows.
+ */
 @Composable
 fun KeePassBarTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
-    val colors = if (isSystemInDarkTheme()) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    MaterialTheme(colorScheme = colors, content = content)
+    val dark = isSystemInDarkTheme()
+    val colors = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    CompositionLocalProvider(LocalExtraColors provides extraColors(colors, dark)) {
+        MaterialExpressiveTheme(
+            colorScheme = colors,
+            motionScheme = MotionScheme.expressive(),
+            typography = typography(),
+            content = content,
+        )
+    }
+}
+
+@Immutable
+internal data class ExtraColors(
+    /** Rows of the segmented groups on the list and the card. */
+    val row: Color,
+    val warn: Color,
+    val warnContainer: Color,
+    val onWarnContainer: Color,
+    /** A shown password's digits and symbols (letters keep the text colour), as 1Password does. */
+    val digit: Color,
+    val symbol: Color,
+)
+
+private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
+    ExtraColors(
+        row = scheme.surfaceContainer,
+        warn = Color(0xFFF2BE72),
+        warnContainer = Color(0xFF4A3510),
+        onWarnContainer = Color(0xFFFFE3BC),
+        digit = Color(0xFF9EC2FF),
+        symbol = Color(0xFFFFAA88),
+    )
+} else {
+    ExtraColors(
+        row = scheme.surfaceContainerLowest,
+        warn = Color(0xFF8F5410),
+        warnContainer = Color(0xFFFBE4C4),
+        onWarnContainer = Color(0xFF5C3A0E),
+        digit = Color(0xFF2659C0),
+        symbol = Color(0xFFB8461F),
+    )
+}
+
+internal val LocalExtraColors = staticCompositionLocalOf<ExtraColors> { error("No KeePassBarTheme") }
+
+internal val MaterialTheme.extraColors: ExtraColors
+    @Composable @ReadOnlyComposable get() = LocalExtraColors.current
+
+/** Google Sans Code (OFL, `assets/licenses`): passwords and codes, where every character must be clear. */
+internal val MonospaceFamily = FontFamily(
+    Font(R.font.google_sans_code, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+    Font(R.font.google_sans_code, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+    Font(R.font.google_sans_code, FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+)
+
+/** The system font (Google Sans Flex on a Pixel), with heavier titles. */
+private fun typography(): Typography {
+    val base = Typography()
+    return base.copy(
+        displaySmall = base.displaySmall.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp),
+        headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
+        headlineSmall = base.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+        titleSmall = base.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+    )
 }

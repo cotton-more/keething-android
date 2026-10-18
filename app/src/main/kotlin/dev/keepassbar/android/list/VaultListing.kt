@@ -1,0 +1,88 @@
+package dev.keepassbar.android.list
+
+import dev.keepassbar.card.Deadline
+import dev.keepassbar.card.DeadlineList
+import dev.keepassbar.card.EntryAvatar
+import dev.keepassbar.card.ExpiryHint
+import dev.keepassbar.domain.totp.TotpConfig
+import dev.keepassbar.domain.vault.Entry
+import dev.keepassbar.domain.vault.Vault
+import dev.keepassbar.search.EntrySearch
+import java.text.Collator
+import java.time.Instant
+
+/** One row of the list (SPEC §6.2): title, username and site, the live code when there is one. */
+internal data class EntryRow(
+    val id: String,
+    val title: String,
+    /** `username · host`, either part left out when empty. */
+    val subtitle: String,
+    val avatar: EntryAvatar,
+    val customIconId: String?,
+    val hasAttachments: Boolean,
+    val totp: TotpConfig?,
+    val deadline: RowDeadline?,
+)
+
+/** The most pressing date an entry says something ends on, when it ended or ends within 90 days. */
+internal data class RowDeadline(val text: String, val status: ExpiryHint.Status)
+
+internal data class ListSection(val kind: Kind, val rows: List<EntryRow>) {
+    enum class Kind { RECENT, ALL, RESULTS, RECYCLE_BIN }
+}
+
+/**
+ * A vault prepared for the list: the search indexes and each entry's deadline are computed once per vault
+ * (it takes a moment for ~2000 entries: build it off the main thread), then [sections] answers every query.
+ */
+internal class VaultListing(val vault: Vault, now: Instant, collator: Collator = Collator.getInstance()) {
+    private val index = EntrySearch.index(vault.entries, collator)
+    private val binIndex = EntrySearch.index(vault.recycleBin, collator)
+    private val byId: Map<String, Entry> = vault.entries.associateBy { it.id }
+    private val deadlines: Map<String, RowDeadline> = DeadlineList.build(vault, now)
+        .filter { it.hint.status != ExpiryHint.Status.VALID }
+        .groupBy { it.entryId }
+        .mapValues { (_, list) -> rowDeadline(list.minWith(compareBy<Deadline> { it.hint.status }.thenBy { it.date })) }
+
+    val ids: Set<String> get() = byId.keys
+
+    /**
+     * Nothing typed: the recently used entries, then all by title. Typed: the matches, best first. A query
+     * starting with `-` lists the recycle bin (the latest deleted first) or searches it.
+     */
+    fun sections(query: String, recentIds: List<String>): List<ListSection> {
+        EntrySearch.recycleBinQuery(query)?.let { binQuery ->
+            val entries = if (binQuery.isBlank()) vault.recycleBin.asReversed() else EntrySearch.filter(binIndex, binQuery)
+            return listOfNotNull(section(ListSection.Kind.RECYCLE_BIN, entries))
+        }
+        if (query.isNotBlank()) return listOfNotNull(section(ListSection.Kind.RESULTS, EntrySearch.filter(index, query)))
+        return listOfNotNull(
+            section(ListSection.Kind.RECENT, recentIds.mapNotNull(byId::get)),
+            section(ListSection.Kind.ALL, EntrySearch.filter(index, "")),
+        )
+    }
+
+    private fun section(kind: ListSection.Kind, entries: List<Entry>): ListSection? =
+        if (entries.isEmpty()) null else ListSection(kind, entries.map(::row))
+
+    private fun row(entry: Entry) = EntryRow(
+        id = entry.id,
+        title = entry.displayTitle,
+        subtitle = listOf(entry.username, entry.urlHost.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
+        avatar = EntryAvatar.of(entry.displayTitle),
+        customIconId = entry.customIconId?.takeIf { it in vault.customIcons },
+        hasAttachments = entry.attachments.isNotEmpty(),
+        totp = entry.totp,
+        deadline = deadlines[entry.id],
+    )
+
+    private fun rowDeadline(deadline: Deadline): RowDeadline {
+        val hint = deadline.hint
+        val text = when {
+            deadline.source != Deadline.Source.EntryExpiry -> "${deadline.label.substringAfterLast(" › ")} · ${hint.text}"
+            hint.status == ExpiryHint.Status.EXPIRED -> "Expired ${hint.text}"
+            else -> "Expires ${hint.text}"
+        }
+        return RowDeadline(text, hint.status)
+    }
+}

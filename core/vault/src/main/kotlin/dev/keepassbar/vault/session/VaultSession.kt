@@ -151,11 +151,24 @@ public class VaultSession(
      */
     public fun movedToForeground() {
         timeoutJob?.cancel()
-        val since = backgroundSince
+        val timedOut = backgroundTimedOut()
         backgroundSince = null
         if (mutableState.value is SessionState.Locked) return
-        if (since != null && clock.elapsed() - since >= lockTimeout()) return lock(LockReason.Timeout)
+        if (timedOut) return lock(LockReason.Timeout)
         if (mutableState.value is SessionState.Unlocked) scope.launch { checkForChanges() }
+    }
+
+    /**
+     * A wake-up while in the background (an alarm): locks when the timeout has passed. Android freezes a
+     * background app, so the timer of [movedToBackground] may not run until the app comes back.
+     */
+    public fun checkBackgroundTime() {
+        if (mutableState.value !is SessionState.Locked && backgroundTimedOut()) lock(LockReason.Timeout)
+    }
+
+    private fun backgroundTimedOut(): Boolean {
+        val since = backgroundSince ?: return false
+        return clock.elapsed() - since >= lockTimeout()
     }
 
     private suspend fun checkForChanges() {

@@ -194,13 +194,25 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
   Protected values are decrypted from the file straight into them, so the XML in memory never holds a
   password in the clear. Not wipeable, and accepted: a `String` while a value is shown, copied or filled;
   the typed master password in the text field until it is cleared; unprotected fields (username, notes).
-- Lock: after N minutes in the background (default 5; turning the screen off puts the app in the
-  background), from a button, and when the app is removed from recents. Locking wipes the key, the vault
-  and attachments, and removes the code notification (§6.3).
-- `FLAG_SECURE` on every window that can show a secret (no screenshots, blank in recents).
-- Clipboard: `ClipDescription.EXTRA_IS_SENSITIVE` (hides the preview on Android 13+); cleared after 30 s
-  (fixed, not a setting) if it still holds what we copied (to verify: clearing from the background on
-  Android 17).
+- Lock: after N minutes in the background (default 5, a choice of 1, 5, 15, 60; turning the screen off
+  puts the app in the background), and from a button. Removing the app from recents ends its process, which
+  takes the vault with it; leaving the app with Back is the background like any other (Android 17 finishes
+  the activity then, so locking on that would ask for the password after every Back). Locking wipes the
+  key, the vault and attachments, and removes the code notification (§6.3).
+- Android freezes an app in the background (about 10 s after it leaves), so the session's own timer may
+  not run; an alarm (inexact, no exact-alarm permission) wakes the app at the timeout to lock it: on time
+  or a little later, in Doze at the next maintenance window. Coming back checks the time too. Checked on
+  the Android 17 emulator: the alarm thawed the frozen app and it locked.
+- `FLAG_SECURE` on every window that can show a secret (no screenshots, blank in recents). A debug build
+  only leaves it off while `files/allow-screenshots` exists (`adb shell run-as dev.keepassbar.android touch
+  files/allow-screenshots`), so the emulator can be checked with screenshots; a release build ignores it.
+- Clipboard: secrets (protected and concealed values, one-time codes) are marked
+  `ClipDescription.EXTRA_IS_SENSITIVE` (no preview on Android 13+); plain values (username, URL, notes) are
+  not, so their preview shows. Every copy is cleared after 30 s (fixed, not a setting) if it is still the
+  one copied: each copy carries a token in its description. A timer clears while the app runs, an alarm
+  wakes a frozen app. In the background Android hides the clipboard from the app, so then it clears whatever
+  is there, once per copy (a later copy in another app within those 30 s is lost; accepted). Checked on the
+  Android 17 emulator: both ways clear, and the alarm even starts a new process when the old one is gone.
 - Attachments opened in another app go through a `FileProvider` URI of a temporary file in the app's cache,
   deleted on lock and on the next start.
 - Network: none (no `INTERNET` permission at all in v1).
@@ -239,16 +251,26 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the wallpaper; light and dark; edge-to-edge; predictive back.
 - One-handed: the search field at the **bottom** above the keyboard.
 - Entry icons: the database's custom icons (KeePassXC stores downloaded favicons) when present, otherwise a
-  monogram with a colour derived from the site. Nothing is fetched (no network).
+  monogram with a colour derived from the title, the same as on the Mac. Nothing is fetched (no network).
 - Motion: the list row grows into the card (shared element transition); the one-time code ring runs down
   smoothly; copying gives a light haptic tick and a short confirmation.
-- Passwords in a monospaced font with digits and symbols coloured, as in 1Password.
+- Passwords in a monospaced font with digits and symbols coloured, as in 1Password. The font is Google
+  Sans Code, bundled (SIL Open Font License, `assets/licenses`): every character must be clear.
 - Few settings, fixed sensible defaults instead of switches.
 
 ### 6.2 Screens
-- **Lock**: password field, fingerprint button, reason of the last lock.
+- **Choose the database** (first start, or from the lock screen and Settings): all-files access, the folder
+  in the system picker, the `.kdbx` file in it (conflict copies left out).
+- **Lock**: password field (a password keyboard: nothing capitalised, corrected or learnt), the database
+  with its folder and when it changed (a tap chooses another), reason of the last lock; the fingerprint
+  button comes with step 3. A wrong password shakes the field. The first list after an unlock says how
+  long the key derivation took.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
-  site; a long press copies the password.
+  site; a long press copies the password. Recently used: the last 8 entries whose card was opened or from
+  which something was copied, kept as ids only (they survive a lock and say nothing without the database).
+  A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
+  group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
+  and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
   open the browser, attachments open / save). A password's menu: **Show as QR** (full screen, for another
   phone to scan; nothing leaves the device), **Large type** (full screen, big monospaced characters, for
@@ -259,7 +281,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Delete**: moves the entry to the recycle bin at once, with "Deleted · Undo" in a snackbar; no
   confirmation dialog.
 - **Recycle bin**: `-` in the search, Restore on the card.
-- **Settings**: database file, biometrics, lock timeout.
+- **Settings**: database file, biometrics (step 3), lock timeout; the last key derivation and the memory
+  used, to check them on the phone; the storage probe in a debug build.
 - **Launcher shortcut** "Codes" (long press on the icon): unlock, then the list of entries with one-time
   codes.
 
@@ -297,6 +320,7 @@ autofill, and in Chrome sets "Autofill using another service" (Firefox needs not
 
 - Built on the Mac from the command line (JDK 21, Android command-line tools, the Gradle wrapper); Android
   Studio is optional.
+- Release builds are shrunk with R8 (about 3 MB, against 66 MB for a debug build with the whole icon set).
 - Release APK signed with the owner's own keystore (kept outside the repository, password not in files);
   installed with `adb install -r` (USB or wireless debugging) or by copying the APK to the phone.
 - Updates keep the same signing key (otherwise Android refuses the update and the app must be uninstalled,

@@ -20,21 +20,20 @@ and the experiment with Syncthing-Fork (SPEC §3.1–3.3 record what it found). 
 
 ## 2. Read-only vault
 
-Effort: high for the app screens (the core, xhigh, is done).
+Effort: high.
 
-Done: the core, JVM-tested on the fixtures with the Mac tests' expectations — the KDBX 4 reader (AES-KDF /
-Argon2 in pure Kotlin, AES-256 / ChaCha20, HMAC blocks, gzip, inner header, protected values into `Secret`s),
-XML → vault, one-time codes, search (site matching comes with autofill, step 5), the card layout
-(`core/card`), and the session (unlock, lock, auto-lock in the background, reload on file change, conflict
-copies). Left:
+Done: the core (KDBX 4 reader, XML → vault, one-time codes, search, card layout, session), and the app
+screens, checked on the Android 17 emulator with a fictitious database of 1,900 entries: choosing the
+database, lock screen, list with search, card, sensitive clipboard cleared after 30 s, live codes, auto-lock
+(with an alarm, as Android freezes the app in the background), `FLAG_SECURE`, reloads and conflict copies
+on screen, light and dark. Left, on the phone:
 
-- app: lock screen, list with search (recently used first), card, copy with a sensitive clipboard, live
-  one-time codes, auto-lock, `FLAG_SECURE`; the session's reloads and conflict copies on screen.
-  `android:largeHeap`: opening the 35 MB database holds several copies of it for a moment, plus 64 MiB
-  for Argon2 — check the memory on the phone.
-- Argon2: measure on the phone with the real database (64 MiB, 42 iterations); the unlock shows how long the
-  key derivation took. Pure Kotlin takes 58 ms per pass of 64 MiB on one lane on the Mac's JVM, lanes in
-  parallel. A native library (e.g. argon2kt) only if the phone is too slow.
+- Unlock the real database: how long the key derivation takes (64 MiB, 42 iterations; the list says it
+  after the unlock) and the whole unlock; the memory (Settings › This phone; `android:largeHeap` is on).
+  On the loaded emulator the first unlock in a process took 4 s for a 165 KB file in a release build
+  (0.3 s once warm, 50 ms on the Mac's JVM): cold code. If the phone is slow too, a baseline profile; a
+  native Argon2 (e.g. argon2kt) only if the key derivation itself is the slow part.
+- The auto-lock and the clipboard clearing with the screen off and the phone in Doze.
 
 ## 3. Fingerprint unlock (SPEC §5)
 
@@ -61,6 +60,7 @@ Effort: high.
 - Pin a one-time code to the notification shade (SPEC §6.3).
 - The "Codes" launcher shortcut.
 - Password menu: Show as QR, Large type, Share… with the warning.
+- The Wi-Fi network's QR code on the card (Mac SPEC §3.13; the card shows the network's fields until then).
 
 ## 7. Writing (blocks a Google Play release)
 

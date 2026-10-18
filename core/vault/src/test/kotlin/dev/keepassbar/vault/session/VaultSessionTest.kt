@@ -278,6 +278,32 @@ class VaultSessionTest {
     }
 
     @Test
+    fun aWakeUpInTheBackgroundLocksOnceTheTimeoutPassedAlthoughTheTimerDidNotRun() = runTest {
+        val f = unlocked()
+        f.session.movedToBackground()
+
+        f.clock.sleep(4.minutes) // a frozen process: no timer runs
+        f.session.checkBackgroundTime()
+        assertIs<SessionState.Unlocked>(f.session.state.value, "not before the timeout")
+
+        f.clock.sleep(1.minutes)
+        f.session.checkBackgroundTime()
+        assertEquals(SessionState.Locked(LockReason.Timeout), f.session.state.value)
+    }
+
+    @Test
+    fun aWakeUpInTheForegroundChangesNothing() = runTest {
+        val f = unlocked()
+        f.session.movedToBackground()
+        f.session.movedToForeground()
+
+        f.clock.sleep(10.minutes)
+        f.session.checkBackgroundTime()
+
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+    }
+
+    @Test
     fun comingBackChecksTheFileForANewVersion() = runTest {
         val f = unlocked()
         val before = f.vault
