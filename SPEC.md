@@ -126,6 +126,12 @@ be swapped without touching anything else. Two implementations are planned:
   antivirus and similar apps, so a password manager is expected to be refused it; a Play build would use
   this one. For the side-loaded build it is only a fallback if all-files access turns out not to work.
 
+Decided by the storage experiment (ROADMAP step 1, on the Android 17 emulator with Syncthing-Fork 2.1.6 and the
+Mac's Syncthing): the side-loaded build uses all-files access. The probe followed every change from the Mac,
+a real conflict, deletions and the app's own writes without losing the file. The file's identity
+(`BasicFileAttributes.fileKey()`: device and inode) works on Android's shared storage and catches a
+replace that keeps size and time.
+
 ### 3.2 Reading and noticing changes
 
 - The database is read on unlock and again when the file changed (size, modification time or inode; folder
@@ -134,6 +140,13 @@ be swapped without touching anything else. Two implementations are planned:
 - A file caught half-written (bad checksum / HMAC) keeps the current vault and tries again on the next
   change (as on the Mac: damaged ≠ wrong password).
 - A missing file (Syncthing in the middle of a replace) is retried for a few seconds before it is reported.
+  With file versioning on (it was on for the test folder on the emulator), Syncthing first moves the old file
+  into `.stversions` and then renames the new one in, so for a moment there is no file.
+- Shared storage is a FUSE file system: right after an inotify event `stat` can still show the old file
+  (measured: stale at the event, fresh 0.3 s later). The folder watcher reports every event again after
+  1 s (`FileObserverFolderWatcher`).
+- One Syncthing replace brings several events (rename, then the modification time); a reload decrypts the
+  file with Argon2 again, so the reload waits for the folder to settle and runs once.
 
 ### 3.3 Writing
 
@@ -148,9 +161,11 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
    exactly as before, the changed entry exactly as asked, every attachment byte for byte.
 6. If the file on disk changed meanwhile (SHA-256), do it all again on the new file (once more, then fail).
 7. Back up the old file into app-private storage (`filesDir/backups`, newest 10; not in the Syncthing folder)
-   and replace: temporary file in the same folder, then rename. The temporary file's name must be one
-   Syncthing ignores (to check: `.syncthing.*.tmp` and `~syncthing~*.tmp` are its own temporary names and are
-   always ignored), so a half-written file is never sent anywhere.
+   and replace: temporary file in the same folder, then rename. The temporary file is
+   `.syncthing.keepassbar-<uuid>.tmp`: Syncthing never scans or sends `.syncthing.*.tmp` (its own downloads),
+   and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
+   the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
+   app's temporary file, only the final one.
 
 ### 3.4 Conflicts
 

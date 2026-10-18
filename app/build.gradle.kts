@@ -18,6 +18,10 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 kotlin {
@@ -25,6 +29,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":core:domain"))
     implementation(project(":core:vault"))
     implementation(project(":core:search"))
     implementation(project(":core:totp"))
@@ -32,5 +37,9 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.activity.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
     debugImplementation(libs.compose.ui.tooling)
+
+    testImplementation(libs.kotlin.test.junit5)
 }

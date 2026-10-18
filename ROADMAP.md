@@ -9,14 +9,12 @@ The "Effort" line of a step is the suggested level (medium / high / xhigh / max)
 
 Effort: high.
 
-- First, install the debug APK on the phone over wireless debugging (`adb pair` / `adb connect`) to
-  prove the path (left over from the toolchain step, which was verified on the emulator).
-- The `DatabaseStore` interface in `core/domain` first; the experiment is its all-files implementation.
-- A debug screen: pick the Syncthing folder (all-files access), show the database's size / modification
-  time, watch it with `FileObserver`. Change the database on the Mac, let Syncthing deliver it, and check
-  the app sees the new file and never loses it. Same for a conflict copy.
-- Write a test file the way §3.3 step 7 says (ignored temporary name, rename) and check Syncthing sends
-  only the final file to the Mac.
+Done on the emulator: the `DatabaseStore` port, the all-files `PathDatabaseStore`, the storage probe screen,
+and the experiment with Syncthing-Fork (SPEC §3.1–3.3 record what it found). Left, on the phone:
+
+- Install the debug APK over wireless debugging (`adb pair` / `adb connect`) to prove the path.
+- Run the probe against a test folder shared with the Mac (not the real database): a change from the Mac,
+  a conflict copy, "Write test file". Confirm the phone behaves as the emulator did.
 
 ## Design
 
