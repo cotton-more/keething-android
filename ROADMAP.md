@@ -5,23 +5,13 @@ In this order; each step ends with an APK the owner installs on the phone. What 
 Each step starts as CLAUDE.md says: a short summary and the effort level it needs, then the owner's "ok".
 The "Effort" line of a step is the suggested level (medium / high / xhigh / max).
 
-## 0. Toolchain (nothing is installed yet)
-
-Effort: medium.
-
-- JDK 21 (`brew install --cask temurin@21`), Android command-line tools
-  (`brew install --cask android-commandlinetools`), then `sdkmanager` for platform-tools, the newest
-  platform (Android 17) and build-tools; an emulator image for tests without the phone.
-- Gradle wrapper, `core` (Kotlin/JVM) and `app` (Android, Compose) modules; `./gradlew test` and
-  `./gradlew assembleDebug` work from the terminal.
-- A signing keystore for release builds, outside the repository.
-- Install a "hello" APK on the phone over wireless debugging (`adb pair` / `adb connect`) to prove the path.
-
 ## 1. Storage experiment (decides SPEC §3.1)
 
 Effort: high.
 
-- The `DatabaseStore` interface in core first; the experiment is its all-files implementation.
+- First, install the debug APK on the phone over wireless debugging (`adb pair` / `adb connect`) to
+  prove the path (left over from the toolchain step, which was verified on the emulator).
+- The `DatabaseStore` interface in `core/domain` first; the experiment is its all-files implementation.
 - A debug screen: pick the Syncthing folder (all-files access), show the database's size / modification
   time, watch it with `FileObserver`. Change the database on the Mac, let Syncthing deliver it, and check
   the app sees the new file and never loses it. Same for a conflict copy.

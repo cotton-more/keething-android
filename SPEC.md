@@ -45,20 +45,48 @@ attachments, reordering custom fields, a Quick Settings tile, Google Play (§8.1
 
 ## 2. Architecture
 
-Kotlin, Jetpack Compose, Gradle (Kotlin DSL) with the wrapper checked in. Two modules to start:
+Kotlin, Jetpack Compose, Gradle (Kotlin DSL) with the wrapper checked in. A grown-up app built on best
+practice: SOLID and DDD are the orientation, without fanaticism.
+
+Gradle modules carry the architecture: each module is a feature or the shared kernel, and the allowed
+dependency directions are the module dependencies, so the compiler enforces them.
 
 ```
-core/   pure Kotlin (JVM library, no Android imports): domain (Entry, Vault, CustomField, Attachment,
-        TOTPConfig, EntryChanges, VaultEdit), TOTP, search, KDBX 4 reader / writer / XML tree, entry
-        editing and lifecycle, the save checks, the DatabaseStore interface (§3.1). Unit-tested on the
-        JVM with the fixtures.
-app/    Android: storage implementations (§3.1), session (lock, auto-lock), biometrics (§5), clipboard,
-        Compose UI, AutofillService (§7), the code notification (§6.3). Depends on core, never the reverse.
+core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attachment, TOTPConfig,
+              EntryChanges, VaultEdit, the secret value type, and the ports (DatabaseStore §3.1, Clock, …).
+              Depends on nothing.
+core/totp     one-time codes: Base32, otpauth links, KeePassXC's formats, code generation   → domain
+core/search   search rules, ranking, site matching with the public suffix list             → domain
+core/kdbx     the KDBX 4 file format: crypto, reader, writer, XML tree                    → domain
+core/vault    application layer: open, edit, save with the checks, the lock / unlock /
+              auto-lock state machine                                    → domain, kdbx, totp
+app           Android: the adapters behind the ports (storage, biometrics, clipboard, clock), Compose UI,
+              AutofillService (§7), the code notification (§6.3), the composition root
+                                                                   → vault, search, totp (not kdbx)
 ```
+
+Added when a step needs them: `core/card` (how an entry card is laid out — the Mac app's Presentation
+rules, pure Kotlin so they are JVM-tested; step 2) and `core/generator` (the password generator; step 6).
+A new module is added when a feature has its own rules and its own tests, not for every package.
+
+Code design:
+- Domain by feature: inside a module, packages are features (`kdbx/reader`, `vault/saving`,
+  `app/unlock`, `app/entry`), never layers (`models`, `services`, `repositories`, `utils`). A feature's
+  screen, state and adapters live together.
+- Self-documenting through modules, types and names, not comments. A comment says only what the code
+  cannot: why, a format quirk, a link to the Mac code it follows.
+- Core modules use Kotlin's explicit API mode: what a module makes public is its contract; everything
+  else is `internal` or `private`.
+- Dependency injection by hand: constructors, and one composition root in `app`. No DI framework until
+  that hurts.
+- No fanaticism: no use-case class around a single call, no interface with one implementation unless it
+  is a port (a side effect to fake in tests), no module per screen.
+- Shared build setup lives in `build-logic/` (the `keepassbar.kotlin-library` convention plugin);
+  versions in `gradle/libs.versions.toml`.
 
 Rules carried over from the Mac app:
 - Dependencies point inward; anything with side effects (files, clock, clipboard, keystore, biometrics)
-  is behind an interface the core owns, with fakes in tests.
+  is behind a port in `core/domain`, with fakes in tests.
 - TDD: new behaviour starts with a failing test; tests are never loosened to make code pass.
 - Fail closed on secrets: search, logs and autofill never see protected values except where a value is the
   thing being copied or filled.
@@ -83,7 +111,7 @@ may leave `<name>.sync-conflict-<date>-<time>-<device>.kdbx` next to it.
 
 ### 3.1 Access
 
-All file access goes through one interface the core owns (`DatabaseStore`: read the bytes and a version
+All file access goes through one port in `core/domain` (`DatabaseStore`: read the bytes and a version
 stamp, write by replacing, list conflict copies, watch for changes), so the way the app reaches the file can
 be swapped without touching anything else. Two implementations are planned:
 - **Side-loaded build: all-files access** (`MANAGE_EXTERNAL_STORAGE`, granted once in Settings; fine for a

@@ -1,0 +1,36 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "dev.keepassbar.android"
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId = "dev.keepassbar.android"
+        minSdk = 34
+        targetSdk = 37
+        versionCode = 1
+        versionName = "0.0.1"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+dependencies {
+    implementation(project(":core:vault"))
+    implementation(project(":core:search"))
+    implementation(project(":core:totp"))
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.activity.compose)
+    debugImplementation(libs.compose.ui.tooling)
+}
