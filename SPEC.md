@@ -8,11 +8,15 @@ with the system's "save this password?" offer after a login or sign-up.
 Owner's context: one user, one database (`1Password.kdbx`, ~35 MB, ~1900 entries in ~14 groups, imported from
 1Password, many custom fields, some one-time codes and attachments), password only (no key file, no
 YubiKey), **synchronised with Syncthing** between the Mac and the phone. Phone: **Pixel 11 Pro, Android 17**.
-Installed as a self-signed APK (no Google Play).
+Installed as a self-signed APK. Google Play is a possible last step, not a v1 goal (§8.1), but nothing
+may block it: the storage choice in §3.1 is the one place where it matters.
 
 Why not KeePassDX / Keepass2Android: KeePassDX keeps losing the database file when Syncthing delivers a
 new version; Keepass2Android works but its interface is not liked. So the two things this app must do
-better are: **never lose the file** (§3) and **a clean, readable interface** (§6).
+better are: **never lose the file** (§3) and **a clean, readable, beautiful interface** (§6).
+
+Not a kitchen sink: search, view, copy, edit, save, autofill, share a password — and nothing that does not
+serve those.
 
 ## 1. Goals / non-goals
 
@@ -24,15 +28,20 @@ Goals (v1)
   countdown, notes, custom fields in file order with the Mac app's layout rules (sections, lists of codes,
   dates, links), attachments.
 - Copy any field; the clipboard is marked sensitive and cleared after 30 s.
-- Edit, create, recycle, restore and delete entries; custom fields; attachments (open, save, add,
-  remove). One-time codes: show and copy (setting them up is optional, later).
+- Edit, create, recycle and restore entries (delete is undoable from a snackbar; emptying the recycle bin
+  is left to the Mac); custom fields; attachments: open and save. One-time codes: show and copy (setting
+  them up is optional, later).
+- Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
+  warning.
 - Autofill (§7): fill logins in apps and browsers, fill one-time codes, offer to save a new login or update a
-  changed password.
-- Quick access to one-time codes (a Quick Settings tile and/or a list right after unlock).
+  changed password, with a simple password generator for sign-ups.
+- Quick access to one-time codes: a code pinned to the notification shade (§6.3) and a "Codes" launcher
+  shortcut.
 
-Non-goals (v1): SSH agent, password generator UI beyond what the autofill save needs (a generated password
-for a sign-up is a nice later step), e-mail aliases, reports, history UI, key file / YubiKey, KDBX 3,
-Twofish, merging conflicting copies (detected and shown only, §3.4), Google Play.
+Non-goals (v1): SSH agent, a password generator beyond the one in the autofill save, e-mail aliases,
+reports, history UI, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
+only, §3.4), deleting entries for good / emptying the recycle bin, adding / removing / renaming
+attachments, reordering custom fields, a Quick Settings tile, Google Play (§8.1).
 
 ## 2. Architecture
 
@@ -41,9 +50,10 @@ Kotlin, Jetpack Compose, Gradle (Kotlin DSL) with the wrapper checked in. Two mo
 ```
 core/   pure Kotlin (JVM library, no Android imports): domain (Entry, Vault, CustomField, Attachment,
         TOTPConfig, EntryChanges, VaultEdit), TOTP, search, KDBX 4 reader / writer / XML tree, entry
-        editing and lifecycle, the save checks. Unit-tested on the JVM with the fixtures.
-app/    Android: storage (§3), session (lock, auto-lock), biometrics (§5), clipboard, Compose UI,
-        AutofillService (§7), Quick Settings tile. Depends on core, never the reverse.
+        editing and lifecycle, the save checks, the DatabaseStore interface (§3.1). Unit-tested on the
+        JVM with the fixtures.
+app/    Android: storage implementations (§3.1), session (lock, auto-lock), biometrics (§5), clipboard,
+        Compose UI, AutofillService (§7), the code notification (§6.3). Depends on core, never the reverse.
 ```
 
 Rules carried over from the Mac app:
@@ -73,16 +83,20 @@ may leave `<name>.sync-conflict-<date>-<time>-<device>.kdbx` next to it.
 
 ### 3.1 Access
 
-Decision to confirm in the first session (a small experiment on the phone decides it):
-- **Preferred: all-files access** (`MANAGE_EXTERNAL_STORAGE`, granted once in Settings; fine for a
+All file access goes through one interface the core owns (`DatabaseStore`: read the bytes and a version
+stamp, write by replacing, list conflict copies, watch for changes), so the way the app reaches the file can
+be swapped without touching anything else. Two implementations are planned:
+- **Side-loaded build: all-files access** (`MANAGE_EXTERNAL_STORAGE`, granted once in Settings; fine for a
   side-loaded app) and plain `java.io.File` paths. The app remembers the **path**, not a handle, so a file
   replaced by a rename is simply the file at that path. It can write a temporary file in the same folder
   and rename it over the database (atomic, as the Mac app's `replaceItemAt`), and `FileObserver` on the
   folder sees Syncthing's renames.
-- Fallback: the Storage Access Framework with access to the **folder** (`ACTION_OPEN_DOCUMENT_TREE`,
+- **Google Play build (and fallback): the Storage Access Framework** with access to the **folder** (`ACTION_OPEN_DOCUMENT_TREE`,
   persisted), the file looked up by name on every read — never a persisted single-document URI, which is
   what goes stale. SAF cannot rename over an existing file, so writing is in place (truncate + write): a
-  sync could pick up a half-written file. Only if all-files access turns out not to work.
+  sync could pick up a half-written file. Play allows all-files access only for file managers, backup,
+  antivirus and similar apps, so a password manager is expected to be refused it; a Play build would use
+  this one. For the side-loaded build it is only a fallback if all-files access turns out not to work.
 
 ### 3.2 Reading and noticing changes
 
@@ -122,11 +136,13 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
   memory, as byte arrays that are wiped on lock. Using the derived key for reloads and saves avoids running
   Argon2 again (the Mac ROADMAP's "faster saving"); it must be derived again when the file's KDF parameters
   or seed changed.
-- Lock: after N minutes in the background (default 5), on screen off (setting), from a button, and when
-  the app is removed from recents. Locking wipes key, password, vault and attachments.
+- Lock: after N minutes in the background (default 5; turning the screen off puts the app in the
+  background), from a button, and when the app is removed from recents. Locking wipes key, password, vault
+  and attachments, and removes the code notification (§6.3).
 - `FLAG_SECURE` on every window that can show a secret (no screenshots, blank in recents).
 - Clipboard: `ClipDescription.EXTRA_IS_SENSITIVE` (hides the preview on Android 13+); cleared after 30 s
-  if it still holds what we copied (to verify: clearing from the background on Android 17).
+  (fixed, not a setting) if it still holds what we copied (to verify: clearing from the background on
+  Android 17).
 - Attachments opened in another app go through a `FileProvider` URI of a temporary file in the app's cache,
   deleted on lock and on the next start.
 - Network: none (no `INTERNET` permission at all in v1).
@@ -145,17 +161,48 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
 
 ## 6. The interface
 
-Material 3 with dynamic colour, light and dark, one-handed: the search field at the **bottom** above the
-keyboard. Screens:
+Design, UI and UX matter as much as the file handling: the app must look and feel great, not merely work.
+Screens are designed as clickable mock-ups first and agreed with the owner before they are built (ROADMAP
+step "Design").
+
+### 6.1 Look and feel
+
+- Material 3 Expressive (Android 16+): spring motion, large expressive type, shapes; dynamic colour from
+  the wallpaper; light and dark; edge-to-edge; predictive back.
+- One-handed: the search field at the **bottom** above the keyboard.
+- Entry icons: the database's custom icons (KeePassXC stores downloaded favicons) when present, otherwise a
+  monogram with a colour derived from the site. Nothing is fetched (no network).
+- Motion: the list row grows into the card (shared element transition); the one-time code ring runs down
+  smoothly; copying gives a light haptic tick and a short confirmation.
+- Passwords in a monospaced font with digits and symbols coloured, as in 1Password.
+- Few settings, fixed sensible defaults instead of switches.
+
+### 6.2 Screens
 - **Lock**: password field, fingerprint button, reason of the last lock.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site; a long press copies the password.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
-  open the browser, attachments open / save).
-- **Editor**: the Mac editor's rules (name above value for custom fields, reorder, protected switch, problems
-  keep Save off), saving shows "Saving and checking…".
-- **Recycle bin**: `-` in the search, Restore / Delete for good on the card.
-- **Settings**: database file, biometrics, lock timeout, clipboard delay.
+  open the browser, attachments open / save). A password's menu: **Show as QR** (full screen, for another
+  phone to scan; nothing leaves the device), **Large type** (full screen, big monospaced characters, for
+  typing it on a TV or another computer), **Share…** (the system share sheet, after a warning that the text
+  goes to another app and maybe its cloud). A code's menu: **Pin to notification** (§6.3).
+- **Editor**: the Mac editor's rules (name above value for custom fields, protected switch, problems keep
+  Save off; no reordering in v1), saving shows "Saving and checking…".
+- **Delete**: moves the entry to the recycle bin at once, with "Deleted · Undo" in a snackbar; no
+  confirmation dialog.
+- **Recycle bin**: `-` in the search, Restore on the card.
+- **Settings**: database file, biometrics, lock timeout.
+- **Launcher shortcut** "Codes" (long press on the icon): unlock, then the list of entries with one-time
+  codes.
+
+### 6.3 One-time code in the notification shade
+
+- "Pin to notification" on a code shows an ongoing notification: entry title, the current code, a countdown
+  and a **Copy** action; the code changes every period while the notification is up (a foreground
+  service). One pinned code at a time; a new pin replaces it; it can be dismissed.
+- It lives only as long as the session: locking removes it and wipes the secret with everything else.
+- On the lock screen the notification shows only "KeePassBar: code ready" (a public version without the
+  code).
 
 ## 7. Autofill
 
@@ -173,7 +220,8 @@ autofill, and in Chrome sets "Autofill using another service" (Firefox needs not
 - **Save**: `SaveInfo` for username + password; on `onSaveRequest` a screen asks: update the matching entry's
   password (when the username matches) or create a new entry (title from the site, URL, username,
   password, group chosen), written through the normal save path (§3.3). For an app, the URL is
-  `androidapp://<package>`.
+  `androidapp://<package>`. For a sign-up the password field can be filled with a generated password
+  (one screen: length, symbols on/off).
 - Never fill into a field of an app whose package does not match the entry, and never offer a protected
   custom value.
 
@@ -188,6 +236,13 @@ autofill, and in Chrome sets "Autofill using another service" (Firefox needs not
 - minSdk 34 (only the owner's phone and an emulator), targetSdk = the newest installed (Android 17).
 - Google's developer verification for side-loaded apps (rolling out 2026–2027): check its state before the
   first install; installing over `adb` is expected to stay possible.
+
+### 8.1 Google Play (maybe, the very last step)
+
+Not decided whether it happens at all. If it does: the SAF storage (§3.1), a privacy policy, store listing,
+and a donation option. External donation links are a grey area under Play's payment rules; the safe ways are
+a "tip" through Play Billing or a separate paid "supporter" build (as KeePassDX does) — check the rules at
+that time. A donation link, if any, comes only with the Play release.
 
 ## 9. Fixtures
 
