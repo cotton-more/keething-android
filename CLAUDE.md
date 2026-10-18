@@ -5,7 +5,8 @@
 - The Mac app in `~/Projects/keepass-bar` (Swift) is the reference for every KDBX, TOTP, search and card
   detail, and its tests are the reference for the expected results. Read the Swift code before porting a
   part; do not change that project from here.
-- The owner writes in Russian; answer in Russian. Code, comments, commit messages and docs are in English.
+- The owner writes in Russian; answer in English all the same. Answer in Russian only when the owner
+  explicitly asks for an explanation in Russian. Code, comments, commit messages and docs are in English.
 - Commits: no "Co-Authored-By" line. Commit when the owner asks.
 - Security stance: best practice, no fanaticism; when something is skipped, say what and why.
 - Never open, copy or test against the owner's real database without asking; tests use `fixtures/`
