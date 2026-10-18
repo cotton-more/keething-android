@@ -1,0 +1,268 @@
+package dev.keepassbar.card
+
+import dev.keepassbar.domain.totp.TotpConfig
+import dev.keepassbar.domain.vault.CustomField
+import dev.keepassbar.domain.vault.Entry
+import dev.keepassbar.domain.vault.FieldValue
+import dev.keepassbar.totp.TotpParseException
+import dev.keepassbar.totp.TotpParser
+import java.time.Instant
+import java.util.Locale
+
+/** A group of rows on the card, drawn as one rounded section. */
+public data class CardSection(val id: String, val kind: Kind, val title: String?, val rows: List<FieldRow>) {
+    public sealed interface Kind {
+        /** Username, password, URL and additional URLs, one-time code. */
+        public data object Credentials : Kind
+
+        public data object Notes : Kind
+
+        /** Custom fields: loose ones (no title) or a 1Password section (titled). */
+        public data object Custom : Kind
+
+        /** A titled section whose fields are a list of codes (recovery codes): a numbered grid. */
+        public data object Codes : Kind
+
+        /** The `card.*` fields, drawn as a payment card. */
+        public data class PaymentCard(val card: dev.keepassbar.card.PaymentCard) : Kind
+
+        /** The `wifi.*` fields, with a QR code to join the network. */
+        public data class WiFi(val network: WiFiNetwork) : Kind
+
+        public data object Attachments : Kind
+    }
+}
+
+/** KeePass's own expiry of the entry (its banner on the card). */
+public sealed interface EntryExpiry {
+    public data class Expired(val at: Instant) : EntryExpiry
+
+    public data class Expires(val at: Instant) : EntryExpiry
+}
+
+public data class EntryCard(
+    val id: String,
+    val title: String,
+    val groupPath: String,
+    /** The innermost group (what the group chip filters by); empty in the root group. */
+    val groupName: String,
+    val tags: List<String>,
+    /** Every row, in the order of [sections]. */
+    val rows: List<FieldRow>,
+    val sections: List<CardSection>,
+    val entryExpiry: EntryExpiry?,
+    val avatar: EntryAvatar,
+    /** The most pressing date a field says something ends on, when expired or due within 90 days. */
+    val deadline: Deadline?,
+    val lastModified: Instant?,
+    val created: Instant?,
+    val customIconId: String?,
+) {
+    val paymentCard: PaymentCard? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.PaymentCard)?.card }
+    val wifi: WiFiNetwork? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.WiFi)?.network }
+}
+
+/**
+ * Lays an entry out as card rows (Mac `EntryCardBuilder`): username, password, URL (and additional URLs), the
+ * one-time code; a view per kind of entry its typed fields make (payment card, Wi-Fi network); notes; custom
+ * fields in file order grouped by 1Password section; the attachments.
+ */
+public object EntryCardBuilder {
+    /** A titled section with at least this many fields, all numbered or id-named, is a list of codes. */
+    private const val MINIMUM_CODES = 3
+
+    /** The views of kinds of entries, in card order. */
+    private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection)
+
+    public fun build(entry: Entry, now: Instant, locale: Locale = Locale.getDefault(), types: FieldTypes = FieldTypes.NONE): EntryCard {
+        fun row(id: String, kind: FieldRow.Kind, label: String, value: FieldValue) = FieldRow(id, kind, label, value)
+        val context = CardContext(entry.customFields.withIndex().toList(), FieldInterpreter(types), now, locale)
+
+        val credentials = mutableListOf<FieldRow>()
+        if (entry.username.isNotEmpty()) credentials += row(RowIds.USERNAME, FieldRow.Kind.USERNAME, "Username", FieldValue.Plain(entry.username))
+        if (!entry.password.isEmpty()) credentials += row(RowIds.PASSWORD, FieldRow.Kind.PASSWORD, "Password", FieldValue.Protected(entry.password))
+        if (entry.url.isNotEmpty()) {
+            credentials += FieldRow(RowIds.URL, FieldRow.Kind.URL, "URL", FieldValue.Plain(entry.url), style = linkStyle(OpenableUrl.of(entry.url)))
+        }
+        // Additional URLs join the credentials.
+        var urlNumber = if (entry.url.isEmpty()) 0 else 1
+        for ((i, field) in context.fields) {
+            if (!field.isAdditionalUrl) continue
+            urlNumber++
+            val url = field.plainText?.let(OpenableUrl::of)
+            credentials += FieldRow(RowIds.custom(i), FieldRow.Kind.CUSTOM, if (urlNumber == 1) "URL" else "URL $urlNumber", field.value, style = linkStyle(url))
+        }
+        if (entry.totp != null) {
+            credentials += FieldRow(RowIds.TOTP, FieldRow.Kind.TOTP, "One-time code", FieldValue.Plain(""), totp = entry.totp)
+        }
+
+        val sections = mutableListOf<CardSection>()
+        if (credentials.isNotEmpty()) sections += CardSection("credentials", CardSection.Kind.Credentials, null, credentials)
+        val claimed = mutableSetOf<Int>()
+        for (kind in typedSections) {
+            val (section, fields) = kind.make(context) ?: continue
+            sections += section
+            claimed += fields
+        }
+        if (entry.notes.isNotEmpty()) {
+            sections += CardSection("notes", CardSection.Kind.Notes, null, listOf(row(RowIds.NOTES, FieldRow.Kind.NOTES, "Notes", FieldValue.Plain(entry.notes))))
+        }
+        sections += customSections(context.fields.filter { !it.value.isAdditionalUrl && it.index !in claimed }, context)
+
+        val attachments = entry.attachments.mapIndexed { i, attachment ->
+            FieldRow(RowIds.attachment(i), FieldRow.Kind.ATTACHMENT, attachment.name, FieldValue.Plain(""), size = attachment.size)
+        }
+        if (attachments.isNotEmpty()) sections += CardSection("attachments", CardSection.Kind.Attachments, null, attachments)
+
+        val expiry = entry.expiryTime?.takeIf { entry.expires }?.let {
+            if (entry.isExpired(now)) EntryExpiry.Expired(it) else EntryExpiry.Expires(it)
+        }
+        // KeePass's own expiry has its banner.
+        val pressing = DeadlineList.deadlines(entry, context.interpreter, now)
+            .filter { it.source != Deadline.Source.EntryExpiry && it.hint.status != ExpiryHint.Status.VALID }
+        return EntryCard(
+            id = entry.id,
+            title = entry.displayTitle,
+            groupPath = GroupPathFormatter.text(entry.groupPath),
+            groupName = entry.groupPath.lastOrNull() ?: "",
+            tags = entry.tags,
+            rows = sections.flatMap { it.rows },
+            sections = sections,
+            entryExpiry = expiry,
+            avatar = EntryAvatar.of(entry.displayTitle),
+            deadline = pressing.minByOrNull { it.date },
+            lastModified = entry.lastModified,
+            created = entry.created,
+            customIconId = entry.customIconId,
+        )
+    }
+
+    private fun linkStyle(url: String?): ValueStyle = url?.let(ValueStyle::Link) ?: ValueStyle.Text
+
+    /**
+     * A `Section_` prefix shared by two or more fields makes a titled section, placed where its first field
+     * is; other fields are loose, and loose fields with no new section between them share one untitled section.
+     */
+    private fun customSections(fields: List<IndexedValue<CustomField>>, context: CardContext): List<CardSection> {
+        val prefixCounts = fields.mapNotNull { ImportedFieldName.split(it.value.name)?.first }.groupingBy { it }.eachCount()
+
+        class Item(val index: Int, val field: CustomField, val label: String)
+        class Block(val title: String?, val items: MutableList<Item> = mutableListOf())
+        val blocks = mutableListOf<Block>()
+        val blockOfSection = mutableMapOf<String, Block>()
+        for ((i, field) in fields) {
+            val split = ImportedFieldName.split(field.name)
+            if (split != null && (prefixCounts[split.first] ?: 0) >= 2) {
+                val block = blockOfSection.getOrPut(split.first) { Block(split.first).also(blocks::add) }
+                block.items += Item(i, field, split.second)
+            } else {
+                if (blocks.isEmpty() || blocks.last().title != null) blocks += Block(null)
+                blocks.last().items += Item(i, field, field.name)
+            }
+        }
+
+        return blocks.map { block ->
+            val isCodes = block.title != null && block.items.size >= MINIMUM_CODES &&
+                block.items.all { item -> item.label.all(Char::isDigit) || ImportedFieldName.isGeneratedId(item.label) }
+            val rows = block.items.mapIndexed { n, item ->
+                var label = if (ImportedFieldName.isGeneratedId(item.label)) "" else item.label
+                if (isCodes && label.isEmpty()) label = "${n + 1}"
+                val title = block.title ?: "Value"
+                val notice = if (label.isEmpty()) title else if (isCodes) "$title $label" else label
+                context.row(item.index, item.field, label, notice)
+            }
+            CardSection(
+                "section-${block.items[0].index}",
+                if (isCodes) CardSection.Kind.Codes else CardSection.Kind.Custom,
+                block.title,
+                rows,
+            )
+        }
+    }
+}
+
+/** What the parts of the card are built from: the entry's custom fields with their index, how they are read, the time, the locale. */
+internal class CardContext(
+    val fields: List<IndexedValue<CustomField>>,
+    val interpreter: FieldInterpreter,
+    val now: Instant,
+    val locale: Locale,
+) {
+    /** The fields declared as [type] (none without field types). */
+    fun typed(type: FieldType): List<IndexedValue<CustomField>> =
+        if (interpreter.types.isConfigured) fields.filter { interpreter.type(it.value) == type } else emptyList()
+
+    /** The fields whose type passes [test]: the parts of one kind of entry. */
+    fun parts(test: (FieldType) -> Boolean): List<IndexedValue<CustomField>> =
+        if (interpreter.types.isConfigured) fields.filter { interpreter.type(it.value)?.let(test) == true } else emptyList()
+
+    /**
+     * Title and labels for a kind's own section: when all its fields come from one 1Password section, that is
+     * the title and the labels go without it; else each field's full name.
+     */
+    fun sectionLabels(parts: List<IndexedValue<CustomField>>): Pair<String?, List<String>> {
+        val splits = parts.map { ImportedFieldName.split(it.value.name) }
+        val first = splits.firstOrNull()
+        if (first != null && splits.all { it?.first == first.first }) {
+            return first.first to splits.map { s -> s?.second?.takeUnless(ImportedFieldName::isGeneratedId) ?: "" }
+        }
+        return null to parts.map { ImportedFieldName.displayName(it.value.name) }
+    }
+
+    /**
+     * A custom field's row: an unprotected value may be a date or a link; a protected one is never read as
+     * either. With field types only a typed field is a date; without them an unmistakable date form is one,
+     * ending something when the name says so. A value that is plainly a secret is masked anyway.
+     */
+    fun row(index: Int, field: CustomField, label: String, notice: String): FieldRow {
+        val id = RowIds.custom(index)
+        val type = interpreter.type(field)
+        // Another one-time code (1Password's second and later codes arrive so): a live code.
+        OneTimeCodes.config(field)?.let { config ->
+            return FieldRow(
+                id, FieldRow.Kind.TOTP, label.ifEmpty { "One-time code" }, FieldValue.Plain(""),
+                noticeLabel = if (label.isEmpty()) "One-time code" else notice, totp = config,
+            )
+        }
+        val text = field.plainText
+        if (text == null || text.isEmpty()) {
+            return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, noticeLabel = notice, type = type)
+        }
+        interpreter.date(field)?.let { (date, ends) ->
+            return FieldRow(
+                id, FieldRow.Kind.CUSTOM, label, field.value, style = ValueStyle.Date(date), shownText = date.displayText(locale),
+                noticeLabel = notice, expiry = if (ends) date.expiry(now) else null, type = type,
+            )
+        }
+        link(field.name, text)?.let { url ->
+            return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, style = ValueStyle.Link(url), noticeLabel = notice, type = type)
+        }
+        return FieldRow(
+            id, FieldRow.Kind.CUSTOM, label, field.value, noticeLabel = notice, type = type,
+            concealed = ValueShape.isPlainlySecret(text),
+        )
+    }
+
+    /** An explicit http(s) address anywhere; a bare host (`db.example.com`) only in a field named like one. */
+    private fun link(name: String, text: String): String? {
+        val lower = text.trim().lowercase()
+        if (!lower.startsWith("http://") && !lower.startsWith("https://") && !FieldNameHint(name).isWebAddress) return null
+        return OpenableUrl.of(text)
+    }
+}
+
+/** One-time codes beyond the entry's own: custom fields holding an `otpauth://` link (Mac `OneTimeCodes`). */
+public object OneTimeCodes {
+    public fun config(field: CustomField): TotpConfig? {
+        val value = when (val v = field.value) {
+            is FieldValue.Plain -> v.text
+            is FieldValue.Protected -> v.secret.reveal()
+        }.trim()
+        if (!value.lowercase().startsWith("otpauth://")) return null
+        return try {
+            TotpParser.parseOtpAuthUri(value)
+        } catch (_: TotpParseException) {
+            null
+        }
+    }
+}

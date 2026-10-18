@@ -23,5 +23,6 @@ include(
     ":core:search",
     ":core:kdbx",
     ":core:vault",
+    ":core:card",
     ":app",
 )

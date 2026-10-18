@@ -33,6 +33,7 @@ dependencies {
     implementation(project(":core:vault"))
     implementation(project(":core:search"))
     implementation(project(":core:totp"))
+    implementation(project(":core:card"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)

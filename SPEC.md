@@ -64,13 +64,14 @@ core/search   search rules, ranking, site matching with the public suffix list  
 core/kdbx     the KDBX 4 file format: crypto, reader, writer, XML tree                    → domain
 core/vault    application layer: open, edit, save with the checks, the lock / unlock /
               auto-lock state machine                                    → domain, kdbx, totp
+core/card     how an entry card is laid out (the Mac app's Presentation rules: sections, dates, links,
+              lists of codes, payment card, Wi-Fi, deadlines, avatars)    → domain, totp, search
 app           Android: the adapters behind the ports (storage, biometrics, clipboard, clock), Compose UI,
               AutofillService (§7), the code notification (§6.3), the composition root
-                                                                   → vault, search, totp (not kdbx)
+                                                             → vault, search, totp, card (not kdbx)
 ```
 
-Added when a step needs them: `core/card` (how an entry card is laid out — the Mac app's Presentation
-rules, pure Kotlin so they are JVM-tested; step 2) and `core/generator` (the password generator; step 6).
+Added when a step needs it: `core/generator` (the password generator; step 6).
 A new module is added when a feature has its own rules and its own tests, not for every package.
 
 Code design:
@@ -143,14 +144,18 @@ replace that keeps size and time.
   in-memory key (§4), so it does not ask for anything.
 - A file caught half-written (bad checksum / HMAC) keeps the current vault and tries again on the next
   change (as on the Mac: damaged ≠ wrong password).
-- A missing file (Syncthing in the middle of a replace) is retried for a few seconds before it is reported.
+- A missing file (Syncthing in the middle of a replace) is retried every second for 10 s before it is
+  reported; the vault shown stays meanwhile.
   With file versioning on (it was on for the test folder on the emulator), Syncthing first moves the old file
   into `.stversions` and then renames the new one in, so for a moment there is no file.
 - Shared storage is a FUSE file system: right after an inotify event `stat` can still show the old file
   (measured: stale at the event, fresh 0.3 s later). The folder watcher reports every event again after
   1 s (`FileObserverFolderWatcher`).
 - One Syncthing replace brings several events (rename, then the modification time); a reload decrypts the
-  file with Argon2 again, so the reload waits for the folder to settle and runs once.
+  file with Argon2 again, so the reload waits for the folder to be quiet for 1.5 s and runs once. A version
+  that failed to open (damaged) is not read again until the file changes.
+- An earlier vault stays intact until the lock (a card may still show one of its entries); the lock wipes
+  every vault of the session.
 
 ### 3.3 Writing
 
@@ -179,12 +184,18 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
 
 ## 4. Session and security
 
-- Unlocked state holds the vault, the attachments and the **derived key** (not only the password) in
-  memory, as byte arrays that are wiped on lock. Using the derived key for reloads and saves avoids running
-  Argon2 again (the Mac ROADMAP's "faster saving"); it must be derived again when the file's KDF parameters
-  or seed changed.
+- Unlocked state holds the vault, the attachments and the **database key** in memory, as byte arrays that
+  are wiped on lock. The database key is the password's composite key (SHA-256 of its SHA-256: the password
+  itself is not kept) and the key derived from it. Using the derived key for reloads and saves avoids running
+  Argon2 again (the Mac ROADMAP's "faster saving"); it is derived again when the file's KDF parameters or
+  seed changed. KeePassXC keeps the KDF seed when it saves (only the master seed is new), so a reload after a
+  KeePassXC edit needs no Argon2; a writer that gives the file a new KDF salt makes the next reload derive.
+- Secrets are wipeable byte arrays (`Secret`): passwords, protected fields, one-time code keys, attachments.
+  Protected values are decrypted from the file straight into them, so the XML in memory never holds a
+  password in the clear. Not wipeable, and accepted: a `String` while a value is shown, copied or filled;
+  the typed master password in the text field until it is cleared; unprotected fields (username, notes).
 - Lock: after N minutes in the background (default 5; turning the screen off puts the app in the
-  background), from a button, and when the app is removed from recents. Locking wipes key, password, vault
+  background), from a button, and when the app is removed from recents. Locking wipes the key, the vault
   and attachments, and removes the code notification (§6.3).
 - `FLAG_SECURE` on every window that can show a secret (no screenshots, blank in recents).
 - Clipboard: `ClipDescription.EXTRA_IS_SENSITIVE` (hides the preview on Android 13+); cleared after 30 s
@@ -306,4 +317,5 @@ that time. A donation link, if any, comes only with the Play release.
 `fixtures/` holds fictitious databases copied from the Mac project (password `pw`): KDBX 4 with AES + AES-KDF,
 AES + Argon2d, ChaCha20 + Argon2id, a KDBX 3 one (must be refused as unsupported), `kdbx4-export.xml` (keepassxc-cli's XML export of
 another fictitious database: two entries with attachments; KDBX 4 exports carry no `Meta/Binaries`) and `sample.xml` (hand-made, the real structure). The core's tests use them
-the way the Mac tests do. Never use the real database in tests.
+the way the Mac tests do (an export's `Meta/Binaries` are not read: KDBX 4 keeps attachments in the file's
+inner header). Never use the real database in tests.

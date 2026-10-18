@@ -1,0 +1,10 @@
+package dev.keepassbar.kdbx
+
+import java.io.File
+
+/** The fictitious databases in `fixtures/` (password `pw`), written by keepassxc-cli 2.7. */
+internal object Fixtures {
+    const val PASSWORD = "pw"
+
+    fun bytes(name: String): ByteArray = File(System.getProperty("keepassbar.fixtures"), name).readBytes()
+}

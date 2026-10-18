@@ -20,15 +20,21 @@ and the experiment with Syncthing-Fork (SPEC §3.1–3.3 record what it found). 
 
 ## 2. Read-only vault
 
-Effort: xhigh (KDBX reader, Argon2, protected values); high for the app screens.
+Effort: high for the app screens (the core, xhigh, is done).
 
-- core: KDBX 4 reader (port of the Mac `KDBXReader`: header, AES-KDF / Argon2, AES-256 / ChaCha20, HMAC
-  blocks, gzip, inner header, protected values), XML → Entry (Mac `Parsing`), TOTP, search. JVM tests on
-  the fixtures and the Mac tests' expectations.
-- Argon2: measure on the phone (64 MiB, 42 iterations on the real database). A native library
-  (e.g. argon2kt) if pure Kotlin is too slow.
-- app: lock screen, list with search, card, copy with a sensitive clipboard, live one-time codes, auto-lock,
-  `FLAG_SECURE`, reload on file change.
+Done: the core, JVM-tested on the fixtures with the Mac tests' expectations — the KDBX 4 reader (AES-KDF /
+Argon2 in pure Kotlin, AES-256 / ChaCha20, HMAC blocks, gzip, inner header, protected values into `Secret`s),
+XML → vault, one-time codes, search (site matching comes with autofill, step 5), the card layout
+(`core/card`), and the session (unlock, lock, auto-lock in the background, reload on file change, conflict
+copies). Left:
+
+- app: lock screen, list with search (recently used first), card, copy with a sensitive clipboard, live
+  one-time codes, auto-lock, `FLAG_SECURE`; the session's reloads and conflict copies on screen.
+  `android:largeHeap`: opening the 35 MB database holds several copies of it for a moment, plus 64 MiB
+  for Argon2 — check the memory on the phone.
+- Argon2: measure on the phone with the real database (64 MiB, 42 iterations); the unlock shows how long the
+  key derivation took. Pure Kotlin takes 58 ms per pass of 64 MiB on one lane on the Mac's JVM, lanes in
+  parallel. A native library (e.g. argon2kt) only if the phone is too slow.
 
 ## 3. Fingerprint unlock (SPEC §5)
 
@@ -44,7 +50,8 @@ Open in another app (FileProvider), save to a chosen place.
 
 Effort: high.
 
-Fill in apps, then in Chrome and Firefox; locked → unlock → fill; inline suggestions; one-time codes.
+- core: site matching (port of the Mac `SiteMatcher`, `SiteAddress` and the public suffix list).
+- Fill in apps, then in Chrome and Firefox; locked → unlock → fill; inline suggestions; one-time codes.
 The save and update offers come with writing (step 7).
 
 ## 6. Quick access and sharing

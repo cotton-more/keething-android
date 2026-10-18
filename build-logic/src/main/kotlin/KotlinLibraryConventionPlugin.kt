@@ -21,8 +21,12 @@ class KotlinLibraryConventionPlugin : Plugin<Project> {
             "testImplementation"(kotlin("test"))
         }
 
+        // The fictitious databases the tests read (SPEC §9).
+        val fixtures = rootDir.resolve("fixtures")
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
+            inputs.dir(fixtures).withPropertyName("fixtures")
+            systemProperty("keepassbar.fixtures", fixtures.absolutePath)
         }
     }
 }
