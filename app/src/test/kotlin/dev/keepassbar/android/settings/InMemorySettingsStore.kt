@@ -1,5 +1,7 @@
 package dev.keepassbar.android.settings
 
+import dev.keepassbar.domain.settings.SettingsStore
+
 internal class InMemorySettingsStore : SettingsStore {
     private val values = mutableMapOf<String, String>()
 

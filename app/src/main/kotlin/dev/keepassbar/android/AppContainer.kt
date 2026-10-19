@@ -1,6 +1,8 @@
 package dev.keepassbar.android
 
 import android.content.Context
+import dev.keepassbar.android.biometric.FingerprintPrompt
+import dev.keepassbar.android.biometric.KeystorePasswordStore
 import dev.keepassbar.android.clipboard.AndroidSystemClipboard
 import dev.keepassbar.android.clipboard.ClipboardClearAlarm
 import dev.keepassbar.android.clipboard.SensitiveClipboard
@@ -15,6 +17,7 @@ import dev.keepassbar.android.storageprobe.ProbeSettings
 import dev.keepassbar.domain.storage.DatabaseStore
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 
 /** The composition root: the one place that picks the implementations behind the ports. */
@@ -32,7 +35,12 @@ internal class AppContainer(context: Context) {
 
     val recents = RecentEntries(settingsStore)
 
-    val sessions = Sessions(settings, databaseStoreAt, appScope, LockAlarm(context))
+    /** The fingerprint unlock's file and keystore work, one task at a time. */
+    private val biometricIo = Dispatchers.IO.limitedParallelism(1)
+
+    val biometricStore = KeystorePasswordStore(context, FingerprintPrompt(context), biometricIo)
+
+    val sessions = Sessions(settings, settingsStore, databaseStoreAt, biometricStore, appScope, biometricIo, LockAlarm(context))
 
     val clipboard = SensitiveClipboard(AndroidSystemClipboard(context), ClipboardClearAlarm(context), appScope)
 

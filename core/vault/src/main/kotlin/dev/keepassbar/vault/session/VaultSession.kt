@@ -13,8 +13,10 @@ import dev.keepassbar.vault.opening.OpenResult
 import dev.keepassbar.vault.opening.VaultOpener
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,31 +77,41 @@ public class VaultSession(
     private var backgroundSince: Duration? = null
 
     /**
-     * Opens the vault with [password]; the caller may wipe its own copy as soon as this returns. False when
-     * the vault was not locked.
+     * Opens the vault with [password]; the caller may wipe its own copy as soon as this returns. The result
+     * tells how this unlock ended once it has; null when the vault was not locked.
      */
-    public fun unlock(password: Secret): Boolean {
-        if (mutableState.value !is SessionState.Locked) return false
+    public fun unlock(password: Secret): Deferred<UnlockOutcome>? {
+        if (mutableState.value !is SessionState.Locked) return null
         val token = generation
         val attempt = DatabaseKey.fromPassword(password)
         mutableState.value = SessionState.Unlocking
+        val outcome = CompletableDeferred<UnlockOutcome>()
         scope.launch {
-            val result = open(attempt)
-            val copies = conflictCopies()
-            if (token != generation) return@launch discard(result, attempt)
-            when (result) {
-                is OpenResult.Opened -> {
-                    key = attempt
-                    adopt(result, copies)
-                    watch = store.watch { scope.launch { fileChanged() } }
+            try {
+                val result = open(attempt)
+                val copies = conflictCopies()
+                if (token != generation) {
+                    discard(result, attempt)
+                    return@launch
                 }
-                is OpenResult.Failed -> {
-                    attempt.wipe()
-                    mutableState.value = SessionState.Locked(LockReason.UnlockFailed(result.failure))
+                when (result) {
+                    is OpenResult.Opened -> {
+                        key = attempt
+                        adopt(result, copies)
+                        watch = store.watch { scope.launch { fileChanged() } }
+                        outcome.complete(UnlockOutcome.Opened)
+                    }
+                    is OpenResult.Failed -> {
+                        attempt.wipe()
+                        mutableState.value = SessionState.Locked(LockReason.UnlockFailed(result.failure))
+                        outcome.complete(UnlockOutcome.Failed(result.failure))
+                    }
                 }
+            } finally {
+                outcome.complete(UnlockOutcome.Interrupted)
             }
         }
-        return true
+        return outcome
     }
 
     public fun lock(reason: LockReason = LockReason.Manual) {

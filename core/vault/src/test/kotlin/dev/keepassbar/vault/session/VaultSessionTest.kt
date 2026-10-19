@@ -38,7 +38,7 @@ class VaultSessionTest {
     private fun TestScope.fixture(name: String = "kdbx4-aes-aeskdf") = Fixture(this, FakeStore(fixtureBytes(name)))
 
     private fun TestScope.unlocked(name: String = "kdbx4-aes-aeskdf"): Fixture = fixture(name).also {
-        assertTrue(it.session.unlock(Secret.of("pw")))
+        assertNotNull(it.session.unlock(Secret.of("pw")))
         runCurrent()
         assertIs<SessionState.Unlocked>(it.session.state.value)
     }
@@ -79,7 +79,19 @@ class VaultSessionTest {
     fun unlockOnlyFromLocked() = runTest {
         val f = unlocked()
 
-        assertFalse(f.session.unlock(Secret.of("pw")))
+        assertNull(f.session.unlock(Secret.of("pw")))
+    }
+
+    @Test
+    fun anUnlockTellsHowItEnded() = runTest {
+        val opened = fixture().session.unlock(Secret.of("pw"))!!
+        val wrong = fixture().session.unlock(Secret.of("nope"))!!
+        val interrupted = fixture().let { f -> f.session.unlock(Secret.of("pw"))!!.also { f.session.lock() } }
+        runCurrent()
+
+        assertEquals(UnlockOutcome.Opened, opened.await())
+        assertEquals(UnlockOutcome.Failed(OpenFailure.WrongPassword), wrong.await())
+        assertEquals(UnlockOutcome.Interrupted, interrupted.await(), "a lock came first")
     }
 
     @Test

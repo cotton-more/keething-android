@@ -1,6 +1,6 @@
 package dev.keepassbar.android.list
 
-import dev.keepassbar.android.settings.SettingsStore
+import dev.keepassbar.domain.settings.SettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

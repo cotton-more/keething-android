@@ -58,13 +58,14 @@ dependency directions are the module dependencies, so the compiler enforces them
 
 ```
 core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attachment, TOTPConfig,
-              EntryChanges, VaultEdit, the secret value type, and the ports (DatabaseStore §3.1, Clock, …).
+              EntryChanges, VaultEdit, the secret value type, and the ports (DatabaseStore §3.1, Clock,
+              BiometricPasswordStore §5, SettingsStore, …).
               Depends on nothing.
 core/totp     one-time codes: Base32, otpauth links, KeePassXC's formats, code generation   → domain
 core/search   search rules, ranking, site matching with the public suffix list             → domain
 core/kdbx     the KDBX 4 file format: crypto, reader, writer, XML tree                    → domain
 core/vault    application layer: open, edit, save with the checks, the lock / unlock /
-              auto-lock state machine                                    → domain, kdbx, totp
+              auto-lock state machine, the fingerprint unlock's rules    → domain, kdbx, totp
 core/card     how an entry card is laid out (the Mac app's Presentation rules: sections, dates, links,
               lists of codes, payment card, Wi-Fi, deadlines, avatars)    → domain, totp, search
 app           Android: the adapters behind the ports (storage, biometrics, clipboard, clock), Compose UI,
@@ -244,15 +245,44 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
 
 ## 5. Biometric unlock
 
-- Off until the first typed unlock with the switch on. Then the master password is encrypted with an AES-GCM
-  key in the Android Keystore (StrongBox / Titan M2 when available), created with
-  `setUserAuthenticationRequired(true)`, biometric-strong only, `setInvalidatedByBiometricEnrollment(true)`.
-  The ciphertext is kept in app-private storage.
-- Unlock: `BiometricPrompt` with a `CryptoObject` for that key; the decrypted password goes to the normal
-  unlock, as if typed. Every later typed unlock re-encrypts it (a changed database password heals).
-- A new fingerprint enrolled (key invalidated) or a stored password the database rejects → the stored copy is
-  deleted, "type the password". Cancel → type the password, nothing deleted.
-- Same idea as the Mac app's Touch ID (Mac SPEC §3.8), with the Keystore in place of the Secure Enclave.
+Same idea as the Mac app's Touch ID (Mac SPEC §3.8), with the Keystore in place of the Secure Enclave; the
+rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`).
+
+- **Off** until turned on in Settings. Turning it on only sets the switch: the next typed unlock that opens
+  the vault stores the master password, and every later one stores it again, so a database password changed
+  elsewhere heals the next time it is typed. A password typed while the vault is open, a wrong one, or one
+  typed on a phone without an enrolled strong biometric is never stored. Turning it off deletes it, and so
+  does choosing another database (the switch stays on).
+- **How it is kept** (`KeystorePasswordStore`): an RSA-2048 key pair in the Android Keystore, in StrongBox
+  (Titan M2) when the phone has one, created with `setUserAuthenticationRequired(true)`,
+  `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` (no time window: each use is one operation
+  that the prompt unlocks) and `setInvalidatedByBiometricEnrollment(true)`. A random AES-256 key encrypts
+  the password with GCM, and the public key wraps that AES key with RSA-OAEP (SHA-256, MGF1 with SHA-1,
+  which the Keystore takes on every Android version). Sealing needs only the public key, so storing never
+  asks for a fingerprint; opening needs the private key, which never leaves the Keystore. The sealed file is
+  in `noBackupFilesDir`: never backed up nor moved to another phone, where no key could open it.
+  An AES-GCM key in the Keystore (the first plan) would need a fingerprint to encrypt too: every typed
+  unlock would ask for one to store the password again.
+- **Unlock**: the platform `BiometricPrompt` (strong biometrics only, "Use password" as the way out: the
+  lock screen's field is the fallback, not the screen-lock PIN) with a `CryptoObject` for the private key.
+  The opened password goes to the normal unlock, as if typed, and is wiped right after. One prompt at a
+  time. The lock screen offers it by itself once when the app comes to the foreground locked (a start, a
+  return after the timeout), not after the lock button.
+- **Discarding**: a fingerprint added or all removed, or the screen lock removed (the key is invalidated,
+  found before any prompt is shown), or a stored password the database rejects → the stored copy and the
+  key are deleted and the lock screen says to type the password; a rejected stored password does not shake
+  the field. Cancel or "Use password" → the password field takes the focus, nothing deleted. A failed check
+  (too many attempts) shows the system's words and keeps it; so does a database that could not be opened
+  for another reason (missing, damaged).
+- Not done, and why: `setUnlockedDeviceRequired` (the prompt cannot be shown over the lock screen anyway);
+  a marker of the enrolled set like the Mac's `evaluatedPolicyDomainState` (the Keystore's invalidation does
+  that job here). Unlike the Mac, the key is bound to the app: the Keystore keeps it per app (UID).
+- Checked: the rules with a fake store, the file format with a software RSA key (JVM tests); on the Android
+  17 emulator with a simulated finger every path above (a software key there). On the test phone (Pixel 6,
+  release build): the key is created in StrongBox, in 2.9 s, after the typed unlock, out of sight; the
+  fingerprint unlock, the prompt by itself after a start, "Use password". Opening the stored password takes
+  0.3 s in StrongBox, then the unlock its usual 2.3 s (the key derivation). A new fingerprint invalidating
+  the key was checked on the emulator only.
 
 ## 6. The interface
 
@@ -287,9 +317,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Choose the database** (first start, or from the lock screen and Settings): all-files access, the folder
   in the system picker, the `.kdbx` file in it (conflict copies left out).
 - **Lock**: password field (a password keyboard: nothing capitalised, corrected or learnt), the database
-  with its folder and when it changed (a tap chooses another), reason of the last lock; the fingerprint
-  button comes with step 3. A wrong password shakes the field. The first list after an unlock says how
-  long the key derivation took.
+  with its folder and when it changed (a tap chooses another), reason of the last lock. When the fingerprint
+  is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
+  field then does not open the keyboard by itself, and typing hides the button. A wrong password shakes the
+  field. The first list after an unlock says how long the key derivation took.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site; a long press copies the password. Recently used: the last 8 entries whose card was opened or from
   which something was copied, kept as ids only (they survive a lock and say nothing without the database).
@@ -306,8 +337,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Delete**: moves the entry to the recycle bin at once, with "Deleted · Undo" in a snackbar; no
   confirmation dialog.
 - **Recycle bin**: `-` in the search, Restore on the card.
-- **Settings**: database file, biometrics (step 3), lock timeout; the last key derivation and the memory
-  used, to check them on the phone; the storage probe in a debug build.
+- **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),
+  lock timeout; the last key derivation and the memory used, to check them on the phone; the storage probe
+  in a debug build.
 - **Launcher shortcut** "Codes" (long press on the icon): unlock, then the list of entries with one-time
   codes.
 

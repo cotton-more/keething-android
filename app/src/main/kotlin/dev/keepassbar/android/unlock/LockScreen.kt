@@ -2,6 +2,7 @@ package dev.keepassbar.android.unlock
 
 import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -11,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -32,6 +35,7 @@ import androidx.compose.foundation.text.input.TextObfuscationMode
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Schedule
@@ -40,6 +44,7 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -83,25 +88,31 @@ import dev.keepassbar.vault.session.SessionState
 import kotlin.math.roundToInt
 
 /**
- * The lock screen (SPEC §6.2): the database, why it is locked, and the password field at the bottom in
- * thumb reach. The fingerprint, the large main button of the agreed design, comes with step 3.
+ * The lock screen (SPEC §6.2): the database, why it is locked, the fingerprint as the large main button
+ * when it is set up (SPEC §5), and the password field at the bottom in thumb reach.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun LockScreen(container: AppContainer, database: DatabaseSession, onChooseDatabase: () -> Unit) {
-    val model = viewModel(key = "lock:${database.file.path}") { LockViewModel(database) }
+    // Per session, not per file: a model of an earlier session of the same file would unlock that one.
+    val model = viewModel(key = "lock:${database.number}") { LockViewModel(database) }
     val session by model.session.collectAsStateWithLifecycle()
+    val biometric by model.biometric.collectAsStateWithLifecycle()
+    val fingerprintNotice by model.fingerprintNotice.collectAsStateWithLifecycle()
     val fileInfo by model.fileInfo.collectAsStateWithLifecycle()
     val accessGranted by model.accessGranted.collectAsStateWithLifecycle()
     val timeout by container.settings.lockTimeout.collectAsStateWithLifecycle()
+    val visit by container.sessions.visit.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.refresh() }
+    LaunchedEffect(visit) { model.offerFingerprint(visit) }
 
     val reason = (session as? SessionState.Locked)?.reason
     val unlocking = session is SessionState.Unlocking
 
-    // A wrong password shakes the field.
+    // A wrong typed password shakes the field; a stored one the database rejected is not the user's typo.
     val shake = remember { Animatable(0f) }
     LaunchedEffect(reason) {
-        if ((reason as? LockReason.UnlockFailed)?.failure == OpenFailure.WrongPassword) {
+        if ((reason as? LockReason.UnlockFailed)?.failure == OpenFailure.WrongPassword && !model.lastAttemptByFingerprint) {
             for (target in listOf(-18f, 14f, -8f, 4f, 0f)) shake.animateTo(target, spring(stiffness = 4_000f))
         }
     }
@@ -130,7 +141,7 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
         Text("KeePassBar", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(8.dp))
         DatabaseLine(database, fileInfo, onChooseDatabase)
-        reason?.notice(timeout, database.file)?.let { notice ->
+        (fingerprintNotice ?: reason?.notice(timeout, database.file))?.let { notice ->
             Spacer(Modifier.height(12.dp))
             ReasonChip(notice)
         }
@@ -154,12 +165,49 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
                     Text("Opening ${database.file.name}…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
-                PasswordRow(
-                    model = model,
-                    enabled = accessGranted,
-                    modifier = Modifier.offset { IntOffset(shake.value.roundToInt(), 0) },
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Typing hides it: the keyboard leaves no room, and the user chose the password.
+                    AnimatedVisibility(visible = biometric.canUnlock && !WindowInsets.isImeVisible) {
+                        FingerprintButton(enabled = accessGranted && !biometric.prompting, onClick = model::unlockWithFingerprint)
+                    }
+                    PasswordRow(
+                        model = model,
+                        enabled = accessGranted,
+                        // Not while the fingerprint is offered (the keyboard would cover it), nor before it is known.
+                        focusAtOnce = biometric.availability != null && !biometric.canUnlock,
+                        modifier = Modifier.offset { IntOffset(shake.value.roundToInt(), 0) },
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun FingerprintButton(enabled: Boolean, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        FilledIconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.size(96.dp),
+            shape = RoundedCornerShape(32.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) {
+            Icon(Icons.Rounded.Fingerprint, contentDescription = "Unlock with fingerprint", Modifier.size(48.dp))
+        }
+        Spacer(Modifier.height(12.dp))
+        Text("Touch to unlock", style = MaterialTheme.typography.titleSmall)
+        Row(
+            Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 32.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+            Text("or type the password", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -210,10 +258,14 @@ private fun ReasonChip(notice: LockNotice) {
 }
 
 @Composable
-private fun PasswordRow(model: LockViewModel, enabled: Boolean, modifier: Modifier = Modifier) {
+private fun PasswordRow(model: LockViewModel, enabled: Boolean, focusAtOnce: Boolean, modifier: Modifier = Modifier) {
     var revealed by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(enabled) { if (enabled) focus.requestFocus() }
+    val passwordWanted by model.passwordWanted.collectAsStateWithLifecycle()
+    val wantedBefore = remember { model.passwordWanted.value }
+    LaunchedEffect(enabled, focusAtOnce) { if (enabled && focusAtOnce) focus.requestFocus() }
+    // "Use password" in the fingerprint prompt, since this screen appeared.
+    LaunchedEffect(passwordWanted) { if (enabled && passwordWanted > wantedBefore) focus.requestFocus() }
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SecureTextField(
             state = model.password,

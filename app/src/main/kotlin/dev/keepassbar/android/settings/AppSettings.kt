@@ -2,6 +2,7 @@ package dev.keepassbar.android.settings
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import dev.keepassbar.domain.settings.SettingsStore
 import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -9,20 +10,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Where small settings are kept: a port, so that the rules around them are tested without Android. */
-internal interface SettingsStore {
-    fun string(key: String): String?
-
-    fun setString(key: String, value: String?)
-}
-
 internal class SharedPreferencesSettingsStore(private val preferences: SharedPreferences) : SettingsStore {
     override fun string(key: String): String? = preferences.getString(key, null)
 
     override fun setString(key: String, value: String?) = preferences.edit { putString(key, value) }
 }
 
-/** The few settings the app has (SPEC §6.2: database file, lock timeout; biometrics come with step 3). */
+/** The few settings the app has (SPEC §6.2: database file, lock timeout; the fingerprint's is `BiometricUnlock`'s). */
 internal class AppSettings(private val store: SettingsStore) {
     private val mutableDatabase = MutableStateFlow(store.string(DATABASE_PATH)?.let(::File))
 

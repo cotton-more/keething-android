@@ -23,6 +23,16 @@ public sealed interface LockReason {
     public data object PasswordChanged : LockReason
 }
 
+/** How one unlock ended. */
+public sealed interface UnlockOutcome {
+    public data object Opened : UnlockOutcome
+
+    public data class Failed(val failure: OpenFailure) : UnlockOutcome
+
+    /** A lock came before the file was opened; what was opened is wiped. */
+    public data object Interrupted : UnlockOutcome
+}
+
 public sealed interface SessionState {
     public data class Locked(val reason: LockReason) : SessionState
 

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,24 +25,36 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.AppContainer
+import dev.keepassbar.android.biometric.KeystorePasswordStore.KeyLocation
 import dev.keepassbar.android.list.seconds
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.domain.biometric.BiometricAvailability
+import dev.keepassbar.vault.biometric.BiometricState
 import dev.keepassbar.vault.session.SessionState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Few settings, fixed sensible defaults otherwise (SPEC §6.1, §6.2). */
 @Composable
@@ -73,6 +86,9 @@ internal fun SettingsScreen(
             Text(database.file.name, style = MaterialTheme.typography.bodyLarge)
             Text(database.file.parent.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FilledTonalButton(onClick = onChooseDatabase) { Text("Choose another database") }
+        }
+        Group("Fingerprint") {
+            FingerprintSetting(container, database)
         }
         Group("Lock after this long in the background") {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -117,6 +133,56 @@ internal fun SettingsScreen(
 }
 
 private const val MIB = 1024 * 1024
+
+/** The switch of SPEC §5 and what it does now. */
+@Composable
+private fun FingerprintSetting(container: AppContainer, database: DatabaseSession) {
+    val state by database.biometric.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var deleteFailure by remember { mutableStateOf<String?>(null) }
+    var location by remember { mutableStateOf<KeyLocation?>(null) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { database.biometric.refresh() } }
+    LaunchedEffect(state.stored) {
+        location = if (state.stored) withContext(Dispatchers.IO) { runCatching { container.biometricStore.keyLocation() }.getOrNull() } else null
+    }
+    val unavailable = state.availability as? BiometricAvailability.Unavailable
+    val change = { on: Boolean -> scope.launch { deleteFailure = database.biometric.setEnabled(on) } }
+    Row(
+        Modifier.fillMaxWidth().toggleable(
+            value = state.enabled,
+            enabled = state.enabled || unavailable == null,
+            role = Role.Switch,
+            onValueChange = { change(it) },
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Unlock with the fingerprint", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Switch(checked = state.enabled, onCheckedChange = null, enabled = state.enabled || unavailable == null)
+    }
+    val problem = deleteFailure?.let { "The stored password could not be deleted: $it." }
+        ?: state.setupFailure?.let { "It could not be set up: $it. It tries again at the next unlock with the password." }
+    Text(
+        problem ?: state.describe(unavailable, location),
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun BiometricState.describe(unavailable: BiometricAvailability.Unavailable?, location: KeyLocation?): String = when {
+    unavailable != null -> "Not available: ${unavailable.reason}."
+    !enabled -> "Off: the password is typed every time."
+    !stored -> "It is set up the next time you unlock with the password."
+    else -> "The password is sealed by a key in ${location.describe()} that opens it only after your fingerprint. " +
+        "A fingerprint added on this phone undoes it."
+}
+
+private fun KeyLocation?.describe(): String = when (this) {
+    KeyLocation.StrongBox -> "the phone's security chip (StrongBox)"
+    KeyLocation.TrustedEnvironment -> "the processor's secure area (TEE)"
+    KeyLocation.SecureHardware -> "the phone's secure hardware"
+    KeyLocation.Software -> "software (no secure hardware here)"
+    null -> "the Android Keystore"
+}
 
 @Composable
 private fun Group(title: String, content: @Composable () -> Unit) {

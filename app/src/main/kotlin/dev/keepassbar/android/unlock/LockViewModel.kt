@@ -1,12 +1,16 @@
 package dev.keepassbar.android.unlock
 
+import android.util.Log
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.keepassbar.android.session.DatabaseSession
+import dev.keepassbar.android.session.Visit
 import dev.keepassbar.android.storage.AllFilesAccess
 import dev.keepassbar.domain.secret.Secret
+import dev.keepassbar.vault.biometric.BiometricState
+import dev.keepassbar.vault.biometric.FingerprintOutcome
 import dev.keepassbar.vault.session.SessionState
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
@@ -29,13 +33,34 @@ internal class LockViewModel(private val database: DatabaseSession) : ViewModel(
 
     val session: StateFlow<SessionState> = database.session.state
 
+    val biometric: StateFlow<BiometricState> = database.biometric.state
+
+    private val mutableFingerprintNotice = MutableStateFlow<LockNotice?>(null)
+
+    /** What the last fingerprint attempt has to say; shown in place of the reason chip until the next attempt. */
+    val fingerprintNotice: StateFlow<LockNotice?> = mutableFingerprintNotice.asStateFlow()
+
+    /** The last attempt was the fingerprint: a stored password the database rejected is no typo to shake for. */
+    var lastAttemptByFingerprint = false
+        private set
+
+    private val mutablePasswordWanted = MutableStateFlow(0)
+
+    /** Counts the times the fingerprint prompt was closed without a fingerprint: the password field takes the focus. */
+    val passwordWanted: StateFlow<Int> = mutablePasswordWanted.asStateFlow()
+
+    private var offeredInVisit = -1
+
     private val mutableFileInfo = MutableStateFlow<FileInfo?>(null)
     val fileInfo: StateFlow<FileInfo?> = mutableFileInfo.asStateFlow()
 
     private val mutableAccessGranted = MutableStateFlow(AllFilesAccess.isGranted())
     val accessGranted: StateFlow<Boolean> = mutableAccessGranted.asStateFlow()
 
-    /** On every return to the screen: the access may have been granted, the file may have changed. */
+    /**
+     * On every return to the screen: the access may have been granted, the file may have changed, a
+     * fingerprint may have been added or removed.
+     */
     fun refresh() {
         mutableAccessGranted.value = AllFilesAccess.isGranted()
         viewModelScope.launch {
@@ -44,17 +69,49 @@ internal class LockViewModel(private val database: DatabaseSession) : ViewModel(
                 FileInfo(exists = version != null, modified = version?.modified)
             }
         }
+        viewModelScope.launch { database.biometric.refresh() }
     }
 
+    /** Asks for the fingerprint by itself once in a [visit] that began locked: not after the lock button (SPEC §5). */
+    fun offerFingerprint(visit: Visit) {
+        if (!visit.beganLocked || visit.number == offeredInVisit) return
+        offeredInVisit = visit.number
+        viewModelScope.launch {
+            database.biometric.refresh()
+            if (database.biometric.state.value.canUnlock && AllFilesAccess.isGranted()) fingerprint()
+        }
+    }
+
+    fun unlockWithFingerprint() {
+        viewModelScope.launch { fingerprint() }
+    }
+
+    private suspend fun fingerprint() {
+        val before = lastAttemptByFingerprint
+        lastAttemptByFingerprint = true
+        val outcome = database.biometric.unlockWithFingerprint()
+        Log.i(TAG, "fingerprint: $outcome")
+        if (outcome == FingerprintOutcome.InProgress) lastAttemptByFingerprint = before
+        mutableFingerprintNotice.value = outcome.notice()
+        if (outcome == FingerprintOutcome.Cancelled) mutablePasswordWanted.value++
+    }
+
+    /** The typed password; stored for the fingerprint when that is on (SPEC §5). */
     fun unlock() {
         if (password.text.isEmpty()) return
         val secret = Secret.of(password.text.toString())
-        database.session.unlock(secret)
+        lastAttemptByFingerprint = false
+        mutableFingerprintNotice.value = null
+        database.biometric.unlock(secret)
         secret.wipe()
         password.clearText()
     }
 
     override fun onCleared() {
         password.clearText()
+    }
+
+    private companion object {
+        const val TAG = "Lock"
     }
 }
