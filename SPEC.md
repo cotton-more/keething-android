@@ -248,7 +248,9 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
 Same idea as the Mac app's Touch ID (Mac SPEC §3.8), with the Keystore in place of the Secure Enclave; the
 rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`).
 
-- **Off** until turned on in Settings. Turning it on only sets the switch: the next typed unlock that opens
+- **Off** until turned on, in Settings or with "Use fingerprint next time" under the lock screen's password
+  field (shown while it is off and the phone has a strong biometric; the same switch). Turning it on only
+  sets the switch: the next typed unlock that opens
   the vault stores the master password, and every later one stores it again, so a database password changed
   elsewhere heals the next time it is typed. A password typed while the vault is open, a wrong one, or one
   typed on a phone without an enrolled strong biometric is never stored. Turning it off deletes it, and so
@@ -319,7 +321,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Lock**: password field (a password keyboard: nothing capitalised, corrected or learnt), the database
   with its folder and when it changed (a tap chooses another), reason of the last lock. When the fingerprint
   is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
-  field then does not open the keyboard by itself, and typing hides the button. A wrong password shakes the
+  field then does not open the keyboard by itself, and typing hides the button. While it is off, a "Use
+  fingerprint next time" switch under the field turns it on, so the password typed then sets it up. A wrong password shakes the
   field. The first list after an unlock says how long the key derivation took.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site; a long press copies the password. Recently used: the last 8 entries whose card was opened or from

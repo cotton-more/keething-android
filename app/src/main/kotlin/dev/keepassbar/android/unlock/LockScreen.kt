@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -51,6 +52,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecureTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -67,6 +69,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -82,6 +85,7 @@ import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.storage.AllFilesAccess
 import dev.keepassbar.android.theme.MonospaceFamily
+import dev.keepassbar.domain.biometric.BiometricAvailability
 import dev.keepassbar.vault.opening.OpenFailure
 import dev.keepassbar.vault.session.LockReason
 import dev.keepassbar.vault.session.SessionState
@@ -177,9 +181,33 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
                         focusAtOnce = biometric.availability != null && !biometric.canUnlock,
                         modifier = Modifier.offset { IntOffset(shake.value.roundToInt(), 0) },
                     )
+                    // Offered while the fingerprint is off; it stays once turned on, until the password is typed.
+                    val available = biometric.availability == BiometricAvailability.Available
+                    var offerSwitch by remember { mutableStateOf(false) }
+                    if (available && !biometric.enabled) offerSwitch = true
+                    if (offerSwitch && available && !biometric.stored) {
+                        UseFingerprintSwitch(checked = biometric.enabled, onChange = model::useFingerprint)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun UseFingerprintSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(Icons.Rounded.Fingerprint, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Use fingerprint next time", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 

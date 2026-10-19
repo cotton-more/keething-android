@@ -139,6 +139,17 @@ class BiometricUnlockTest {
     }
 
     @Test
+    fun turnedOnOnTheLockScreenTheSameTypedUnlockStoresIt() = runTest {
+        val f = fixture(enabled = false)
+
+        f.biometric.setEnabled(true)
+        f.typed("pw")
+        runCurrent()
+
+        assertEquals(listOf("pw"), f.store.saves)
+    }
+
+    @Test
     fun nothingIsStoredWhileTheSwitchIsOff() = runTest {
         val f = fixture(enabled = false)
 

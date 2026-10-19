@@ -82,6 +82,11 @@ internal class LockViewModel(private val database: DatabaseSession) : ViewModel(
         }
     }
 
+    /** The lock screen's "Use fingerprint next time": the Settings switch, so the password typed next is stored. */
+    fun useFingerprint(on: Boolean) {
+        viewModelScope.launch { database.biometric.setEnabled(on) }
+    }
+
     fun unlockWithFingerprint() {
         viewModelScope.launch { fingerprint() }
     }
