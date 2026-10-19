@@ -7,7 +7,8 @@ with the system's "save this password?" offer after a login or sign-up.
 
 Owner's context: one user, one database (`1Password.kdbx`, ~35 MB, ~1900 entries in ~14 groups, imported from
 1Password, many custom fields, some one-time codes and attachments), password only (no key file, no
-YubiKey), **synchronised with Syncthing** between the Mac and the phone. Phone: **Pixel 11 Pro, Android 17**.
+YubiKey), **synchronised with Syncthing** between the Mac and the phone. Phone: **Pixel 11 Pro, Android 17**;
+checks on a phone run on a separate test phone (Pixel 6, Android 17).
 Installed as a self-signed APK. Google Play is a possible last step, not a v1 goal (§8.1), but nothing
 may block it: the storage choice in §3.1 is the one place where it matters.
 
@@ -137,6 +138,13 @@ a real conflict, deletions and the app's own writes without losing the file. The
 (`BasicFileAttributes.fileKey()`: device and inode) works on Android's shared storage and catches a
 replace that keeps size and time.
 
+On the phone (Pixel 6, Android 17, Syncthing-Fork 2.1.3) reading behaved the same: changes from the Mac
+(about 10 s later), a real conflict copy, the moment without a file during Syncthing's replace. Writing did
+not: a file **replaced by a rename** inside the Syncthing folder gets the old file's modification time back
+within 30 s (seen with the shell's `mv` too; not outside the Syncthing folder; an in-place write keeps its
+time). With the size unchanged, Syncthing then takes the file for unchanged and never sends it: the phone and
+the Mac silently disagree. So §3.3 step 7 is open until writing (ROADMAP step 7) finds the cause and the way.
+
 ### 3.2 Reading and noticing changes
 
 - The database is read on unlock and again when the file changed (size, modification time or inode; folder
@@ -175,6 +183,9 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
    app's temporary file, only the final one.
+   **Open (seen on the phone, §3.1):** after the rename the file's modification time is set back to the old
+   one and Syncthing does not send a same-size file. To settle before writing ships: what resets it, and
+   whether to set the time after the rename, write in place, or both.
 
 ### 3.4 Conflicts
 
@@ -190,6 +201,13 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
   Argon2 again (the Mac ROADMAP's "faster saving"); it is derived again when the file's KDF parameters or
   seed changed. KeePassXC keeps the KDF seed when it saves (only the master seed is new), so a reload after a
   KeePassXC edit needs no Argon2; a writer that gives the file a new KDF salt makes the next reload derive.
+- Unlock time, measured on the test phone (Pixel 6, Android 17, release build) with a fictitious database
+  of 1,895 entries (165 KB) and the owner's real KDF parameters (Argon2d, 64 MiB, 42 iterations,
+  parallelism 2): 2.4 s for the first unlock in a process, 2.3 s once warm; the key derivation alone is
+  2.1 s / 2.0 s, so it is the slow part, not cold code (on the emulator it was the other way round). The
+  Kotlin Argon2 already fills the two lanes in parallel; a native Argon2 (e.g. argon2kt) is the remaining
+  lever, not taken yet. Memory after the unlock: about 160 MB PSS, of it 78 MB Java heap
+  (`android:largeHeap` is on).
 - Secrets are wipeable byte arrays (`Secret`): passwords, protected fields, one-time code keys, attachments.
   Protected values are decrypted from the file straight into them, so the XML in memory never holds a
   password in the clear. Not wipeable, and accepted: a `String` while a value is shown, copied or filled;
@@ -202,7 +220,11 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
 - Android freezes an app in the background (about 10 s after it leaves), so the session's own timer may
   not run; an alarm (inexact, no exact-alarm permission) wakes the app at the timeout to lock it: on time
   or a little later, in Doze at the next maintenance window. Coming back checks the time too. Checked on
-  the Android 17 emulator: the alarm thawed the frozen app and it locked.
+  the Android 17 emulator: the alarm thawed the frozen app and it locked. On the test phone (Pixel 6,
+  screen off, Doze): Android froze the app anywhere from 16 s to never, and the session's timer locked in
+  every run (1 min: after 62 s, also in forced deep Doze; 5 min: after 5 min 27 s in natural deep Doze).
+  The alarm thawed the frozen app each time, but late: inexact, its window is about ¾ of the timeout (the
+  5-minute one went off after 8 min 45 s). The check on coming back is what guarantees the lock on time.
 - `FLAG_SECURE` on every window that can show a secret (no screenshots, blank in recents). A debug build
   only leaves it off while `files/allow-screenshots` exists (`adb shell run-as dev.keepassbar.android touch
   files/allow-screenshots`), so the emulator can be checked with screenshots; a release build ignores it.
@@ -213,6 +235,9 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
   wakes a frozen app. In the background Android hides the clipboard from the app, so then it clears whatever
   is there, once per copy (a later copy in another app within those 30 s is lost; accepted). Checked on the
   Android 17 emulator: both ways clear, and the alarm even starts a new process when the old one is gone.
+  On the test phone the timer cleared after 30 s in each run (screen off, Doze), and the clipboard was
+  empty afterwards; reading it in the background is refused ("Denying clipboard access … not in focus" in
+  the system log), clearing is not.
 - Attachments opened in another app go through a `FileProvider` URI of a temporary file in the app's cache,
   deleted on lock and on the next start.
 - Network: none (no `INTERNET` permission at all in v1).
