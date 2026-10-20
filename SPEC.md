@@ -239,8 +239,37 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
   On the test phone the timer cleared after 30 s in each run (screen off, Doze), and the clipboard was
   empty afterwards; reading it in the background is refused ("Denying clipboard access … not in focus" in
   the system log), clearing is not.
-- Attachments opened in another app go through a `FileProvider` URI of a temporary file in the app's cache,
-  deleted on lock and on the next start.
+- Attachments (card rows "Open in another app" and "Save to a folder"; Mac SPEC §3.18):
+  - **Open**: another app can only read a file, so the attachment is written to
+    `cacheDir/attachments/<uuid>/<name>` (the name made safe: no `/` or `:`, no control characters, at
+    most 255 bytes with the extension kept) and handed over as a read-only `FileProvider` URI with
+    `ACTION_VIEW`; the system asks which app when more than one can. Those files are removed on every lock
+    (the timeout too) and when the app starts (a process that died); a write that a lock overtook writes
+    nothing. The one place where an attachment is on the phone's storage outside the database, as the Mac's
+    Quick Look and KeePassXC's "Open" do it; the cache is app-private and in the phone's credential-encrypted
+    storage. Removing the file does not take back what the other app already read (a PDF viewer keeps the
+    page it shows) nor a copy it made; the app the user picks is trusted with it.
+  - The type is the extension's; without a known one, text (valid UTF-8 without control characters, up to
+    1 MiB) is `text/plain`, so an SSH key named `id_ed25519` or recovery codes open in a text viewer;
+    anything else `application/octet-stream`. The provider tells the same type (a viewer asks it again: the
+    HTML Viewer hung on a text file the provider called `octet-stream`).
+  - **Save**: the system's save dialog (`ACTION_CREATE_DOCUMENT`) with the attachment's name; the bytes are
+    written straight into the document chosen ("Saved scan.pdf"), no temporary file. Called off: nothing
+    happens; when nothing can be written (locked meanwhile) the empty document is deleted again. If the
+    vault locks while the dialog is up and the card closes, the dialog's result is lost and the empty
+    document it made stays (accepted: the dialog takes seconds, the timeout minutes).
+  - Not done, and why: serving the bytes from memory without a file (`StorageManager.openProxyFileDescriptor`).
+    It would keep the attachment off the storage, but viewers then depend on a FUSE-backed descriptor whose
+    support varies by app; the file is the plain, reliable way, with the cleanup above.
+  - Checked: the file handling, names and types in JVM tests; on the Android 17 emulator a PDF (Drive's
+    viewer), a PNG (Photos), a `.txt` and a text file without an extension (HTML Viewer) opened; a saved
+    copy was byte for byte the attachment; a cancelled save left nothing; the files were gone after the lock
+    button, after the 1-minute timeout with the PDF viewer in front, and after a restart. On the test phone
+    (Pixel 6, release build): the PDF (Drive PDF Viewer), the PNG (Photos) and the text file without an
+    extension (Chrome; the phone offered only text apps for it) opened; a copy saved into `Download` was byte
+    for byte the attachment; after the lock button Chrome's tab of that file reloaded as "file not found".
+    Files by Google's text preview takes the intent and closes at once, also for a `.txt` (it does not open
+    other apps' `content://` text); the other apps open it.
 - Network: none (no `INTERNET` permission at all in v1).
 
 ## 5. Biometric unlock
@@ -282,7 +311,8 @@ rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`
 - Checked: the rules with a fake store, the file format with a software RSA key (JVM tests); on the Android
   17 emulator with a simulated finger every path above (a software key there). On the test phone (Pixel 6,
   release build): the key is created in StrongBox, in 2.9 s, after the typed unlock, out of sight; the
-  fingerprint unlock, the prompt by itself after a start, "Use password". Opening the stored password takes
+  fingerprint unlock, the prompt by itself after a start, "Use password"; the lock screen's "Use fingerprint
+  next time" (the typed unlock stored the password, the next one took the fingerprint). Opening the stored password takes
   0.3 s in StrongBox, then the unlock its usual 2.3 s (the key derivation). A new fingerprint invalidating
   the key was checked on the emulator only.
 
@@ -331,7 +361,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
-  open the browser, attachments open / save). A password's menu: **Show as QR** (full screen, for another
+  open the browser, attachments open in another app / save to a folder, §4). A password's menu: **Show as QR** (full screen, for another
   phone to scan; nothing leaves the device), **Large type** (full screen, big monospaced characters, for
   typing it on a TV or another computer), **Share…** (the system share sheet, after a warning that the text
   goes to another app and maybe its cloud). A code's menu: **Pin to notification** (§6.3).

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Person
@@ -82,7 +83,7 @@ internal fun CardSectionView(section: CardSection, reveal: RevealState, now: Sta
         is CardSection.Kind.WiFi -> Titled(section.title ?: "Wi-Fi") {
             RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
         }
-        CardSection.Kind.Attachments -> RowGroup(section.rows) { row, shape -> AttachmentRowView(row, shape) }
+        CardSection.Kind.Attachments -> RowGroup(section.rows) { row, shape -> AttachmentRowView(row, actions, shape) }
     }
 }
 
@@ -351,9 +352,12 @@ private fun PaymentCardView(card: PaymentCard, numberRow: FieldRow?, reveal: Rev
     }
 }
 
-/** Opening and saving an attachment come with step 4; until then the row says what is there. */
+/**
+ * An attachment: its name and size, opened in another app or saved where the user says. One whose content
+ * the file does not have (no size) offers neither.
+ */
 @Composable
-private fun AttachmentRowView(row: FieldRow, shape: Shape) {
+private fun AttachmentRowView(row: FieldRow, actions: CardActions, shape: Shape) {
     val context = LocalContext.current
     Row(
         Modifier
@@ -361,7 +365,7 @@ private fun AttachmentRowView(row: FieldRow, shape: Shape) {
             .heightIn(min = 64.dp)
             .clip(shape)
             .background(MaterialTheme.extraColors.row)
-            .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 14.dp, end = if (row.size != null) 6.dp else 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val colors = MaterialTheme.colorScheme
@@ -371,6 +375,14 @@ private fun AttachmentRowView(row: FieldRow, shape: Shape) {
             Text(row.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             row.size?.let {
                 Text(Formatter.formatShortFileSize(context, it.toLong()), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            }
+        }
+        if (row.size != null) {
+            IconButton(onClick = { actions.onOpenAttachment(row) }) {
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open ${row.label} in another app", tint = colors.primary)
+            }
+            IconButton(onClick = { actions.onSaveAttachment(row) }) {
+                Icon(Icons.Rounded.Download, contentDescription = "Save ${row.label} to a folder", tint = colors.primary)
             }
         }
     }

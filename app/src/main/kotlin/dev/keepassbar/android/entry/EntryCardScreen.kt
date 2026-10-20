@@ -2,6 +2,7 @@ package dev.keepassbar.android.entry
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,6 +49,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keepassbar.android.AppContainer
+import dev.keepassbar.android.attachment.SaveAttachment
 import dev.keepassbar.android.navigation.sharedIcon
 import dev.keepassbar.android.navigation.sharedTitle
 import dev.keepassbar.android.session.DatabaseSession
@@ -69,8 +71,8 @@ import java.time.format.FormatStyle
 
 /**
  * An entry's card (SPEC §6.2), laid out by the Mac app's rules (`core/card`): sections, masked values with
- * an eye, live codes, tap to copy, links that open the browser. Editing, the password and code menus and
- * opening attachments come with later steps.
+ * an eye, live codes, tap to copy, links that open the browser, attachments to open in another app or save.
+ * Editing and the password and code menus come with later steps.
  */
 @Composable
 internal fun EntryCardScreen(
@@ -81,16 +83,28 @@ internal fun EntryCardScreen(
     onBack: () -> Unit,
     onSearch: (String) -> Unit,
 ) {
-    val model = viewModel { EntryCardViewModel(entryId, database, container.recents, container.clipboard) }
+    val model = viewModel {
+        EntryCardViewModel(entryId, database, container.recents, container.clipboard, container.attachmentFiles, container.androidAttachments)
+    }
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
+    val context = LocalContext.current
+    val saveDialog = rememberLauncherForActivityResult(SaveAttachment(), model::saved)
+    LaunchedEffect(model) {
+        model.openings.collect { intent ->
+            try {
+                context.startActivity(intent)
+            } catch (_: ActivityNotFoundException) {
+                model.problem("No app opens this file; save it instead")
+            }
+        }
+    }
     val content = state.content
     // Deleted elsewhere and read again, or locked: there is nothing to show.
     LaunchedEffect(content == null) { if (content == null) onBack() }
     if (content == null) return
 
-    val context = LocalContext.current
     val openLink: (String) -> Unit = { url ->
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
@@ -104,6 +118,8 @@ internal fun EntryCardScreen(
         onToggle = model::toggleReveal,
         onToggleSection = model::toggleSection,
         onOpenLink = openLink,
+        onOpenAttachment = model::openAttachment,
+        onSaveAttachment = { row -> saveDialog.launch(model.saveRequest(row)) },
     )
 
     Scaffold(
@@ -236,6 +252,8 @@ internal class CardActions(
     val onToggle: (String) -> Unit,
     val onToggleSection: (CardSection) -> Unit,
     val onOpenLink: (String) -> Unit,
+    val onOpenAttachment: (FieldRow) -> Unit,
+    val onSaveAttachment: (FieldRow) -> Unit,
 )
 
 /** Tapping anywhere on a row copies it (SPEC §6.2). */

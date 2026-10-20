@@ -7,12 +7,6 @@ the Compose screens are built from them.
 Each step starts as CLAUDE.md says: a short summary and the effort level it needs, then the owner's "ok".
 The "Effort" line of a step is the suggested level (medium / high / xhigh / max).
 
-## 4. Attachments
-
-Effort: high.
-
-Open in another app (FileProvider), save to a chosen place.
-
 ## 5. Autofill, filling only (SPEC §7)
 
 Effort: high.

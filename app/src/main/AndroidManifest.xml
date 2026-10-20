@@ -36,6 +36,17 @@
         <receiver
             android:name=".clipboard.ClipboardClearReceiver"
             android:exported="false" />
+
+        <!-- Attachments opened in another app, read-only (SPEC §4). -->
+        <provider
+            android:name=".attachment.AttachmentProvider"
+            android:authorities="${applicationId}.attachments"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/attachment_paths" />
+        </provider>
     </application>
 
 </manifest>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Attachments opened in another app (SPEC §4): only this folder of the cache is served. -->
+<paths>
+    <cache-path name="attachments" path="attachments/" />
+</paths>

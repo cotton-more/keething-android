@@ -1,10 +1,17 @@
 package dev.keepassbar.android.entry
 
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.keepassbar.android.attachment.AndroidAttachments
+import dev.keepassbar.android.attachment.AttachmentFiles
+import dev.keepassbar.android.attachment.AttachmentNames
+import dev.keepassbar.android.attachment.AttachmentTypes
+import dev.keepassbar.android.attachment.SaveRequest
 import dev.keepassbar.android.clipboard.SensitiveClipboard
 import dev.keepassbar.android.list.RecentEntries
 import dev.keepassbar.android.session.DatabaseSession
@@ -20,6 +27,7 @@ import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.vault.session.SessionState
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +38,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** The open card: built from the entry in the vault shown now. */
 internal data class CardContent(
@@ -47,16 +57,27 @@ internal data class CardUiState(
 /**
  * One entry's card (Mac `EntryCardModel`). Every masked value starts masked; what was revealed stays so when
  * the vault is read again, and goes with the card. Copying copies the value as stored, never the mask; a
- * code row copies the current code.
+ * code row copies the current code. An attachment opens in another app or is saved where the user says
+ * (SPEC §4, §6.2; Mac `EntryCardModel.previewAttachment` / `saveAttachment`).
  */
 internal class EntryCardViewModel(
     private val entryId: String,
-    database: DatabaseSession,
+    private val database: DatabaseSession,
     private val recents: RecentEntries,
     private val clipboard: SensitiveClipboard,
+    private val files: AttachmentFiles,
+    private val android: AndroidAttachments,
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
+
+    private val mutableOpenings = Channel<Intent>(Channel.BUFFERED)
+
+    /** An attachment written for another app to open: the screen starts the intent. */
+    val openings: Flow<Intent> = mutableOpenings.receiveAsFlow()
+
+    /** The attachment the save dialog is up for. */
+    private var saving: String? = null
 
     private val reveal = MutableStateFlow(RevealState())
 
@@ -94,6 +115,51 @@ internal class EntryCardViewModel(
         clipboard.copy(text, sensitive = row.isConcealed || row.kind == FieldRow.Kind.TOTP)
         if (content.value?.inRecycleBin == false) recents.note(entryId)
         mutableNotices.trySend(Notice.copied(row.noticeLabel))
+    }
+
+    /** Writes the attachment to a file of its own and hands it to the app the user picks. */
+    fun openAttachment(row: FieldRow) {
+        val name = row.label
+        val bytes = database.session.attachment(entryId, name) ?: return problem("Could not read $name")
+        val generation = files.generation
+        viewModelScope.launch {
+            val intent = try {
+                withContext(Dispatchers.IO) { files.write(generation, name, bytes)?.let { android.viewIntent(it, bytes) } }
+            } catch (_: Exception) {
+                return@launch problem("Could not open $name")
+            } finally {
+                bytes.wipe()
+            }
+            // Locked meanwhile: the file is gone or was never written.
+            if (intent != null && database.session.state.value is SessionState.Unlocked) mutableOpenings.trySend(intent)
+        }
+    }
+
+    /** What the save dialog starts with for an attachment; [saved] gets the document chosen. */
+    fun saveRequest(row: FieldRow): SaveRequest {
+        saving = row.label
+        return SaveRequest(AttachmentNames.fileName(row.label), android.mimeType(row.label) ?: AttachmentTypes.GENERIC)
+    }
+
+    /** The save dialog closed: writes the attachment into the document chosen, if any. */
+    fun saved(document: Uri?) {
+        val name = saving
+        saving = null
+        if (document == null) return
+        val bytes = name?.let { database.session.attachment(entryId, it) }
+        viewModelScope.launch {
+            val written = try {
+                withContext(Dispatchers.IO) {
+                    val written = bytes != null && runCatching { android.writeDocument(document, bytes) }.isSuccess
+                    // The dialog made the document, empty: it goes again when nothing could be written into it.
+                    if (!written) android.deleteDocument(document)
+                    written
+                }
+            } finally {
+                bytes?.wipe()
+            }
+            mutableNotices.trySend(if (written) Notice("Saved $name") else Notice("Could not save ${name ?: "the attachment"}", isProblem = true))
+        }
     }
 
     fun problem(text: String) {
