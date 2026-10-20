@@ -7,15 +7,6 @@ the Compose screens are built from them.
 Each step starts as CLAUDE.md says: a short summary and the effort level it needs, then the owner's "ok".
 The "Effort" line of a step is the suggested level (medium / high / xhigh / max).
 
-## 6. Quick access and sharing
-
-Effort: medium (the pinned code in the notification shade, the part that needed more, was dropped).
-
-- Autofill copies the entry's one-time code after it filled a login (SPEC §7).
-- The "Codes" launcher shortcut.
-- Password menu: Show as QR, Large type, Share… with the warning.
-- The Wi-Fi network's QR code on the card (Mac SPEC §3.13; the card shows the network's fields until then).
-
 ## 7. Writing (blocks a Google Play release)
 
 Effort: max (XML tree, writer, the save checks; a mistake can damage the database).
@@ -43,6 +34,13 @@ Effort: per item, said when it starts.
 Setting up one-time codes (secret, link, QR from the camera), merging a Syncthing conflict copy, history,
 adding / removing / renaming attachments, reordering custom fields, a native Argon2 (e.g. argon2kt) if the
 unlock feels slow (2.3 s on the Pixel 6, almost all of it the key derivation; SPEC §4).
+
+An idea to think through first: **share an entry encrypted** — a link or a QR code that holds one entry
+(like a database of one entry) encrypted, which KeePassBar on the other device recognises, decrypts and
+shows. Share… and Show as QR stay as they are. Open: how the two sides agree on the key (a passphrase told
+another way, a key in the link's fragment, a key exchange between the two apps), what format (a one-entry
+KDBX the other side can also open in KeePassXC, or a small format of our own), and the size limit of a QR
+code (attachments left out).
 
 ## Last, maybe: Google Play (SPEC §8.1)
 

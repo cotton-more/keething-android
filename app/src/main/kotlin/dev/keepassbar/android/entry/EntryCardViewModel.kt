@@ -23,7 +23,6 @@ import dev.keepassbar.card.FieldRow
 import dev.keepassbar.card.FieldTypes
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.TotpDisplay
-import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.vault.session.SessionState
 import java.time.Instant
@@ -107,10 +106,7 @@ internal class EntryCardViewModel(
         if (!row.isCopyable) return
         val text = when {
             row.kind == FieldRow.Kind.TOTP -> row.totp?.let { TotpDisplay.of(it, Instant.now()).code } ?: return
-            else -> when (val value = row.value) {
-                is FieldValue.Plain -> value.text
-                is FieldValue.Protected -> value.secret.reveal()
-            }
+            else -> row.storedText()
         }
         clipboard.copy(text, sensitive = row.isConcealed || row.kind == FieldRow.Kind.TOTP)
         if (content.value?.inRecycleBin == false) recents.note(entryId)
@@ -161,6 +157,10 @@ internal class EntryCardViewModel(
             mutableNotices.trySend(if (written) Notice("Saved $name") else Notice("Could not save ${name ?: "the attachment"}", isProblem = true))
         }
     }
+
+    /** The password for Share… (SPEC §6.2), as stored; null when there is none. */
+    fun passwordToShare(): String? =
+        content.value?.card?.rows?.firstOrNull { it.kind == FieldRow.Kind.PASSWORD && !it.isEmpty }?.storedText()
 
     fun problem(text: String) {
         mutableNotices.trySend(Notice(text, isProblem = true))

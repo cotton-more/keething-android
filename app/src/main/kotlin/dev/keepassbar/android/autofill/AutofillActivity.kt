@@ -19,7 +19,8 @@ import java.time.Instant
 /**
  * The screen autofill opens over the app being filled (SPEC §7): the unlock when the vault is locked, then
  * the entry to fill. Its answer is the dataset to fill; closing it fills nothing. An entry with a one-time
- * code comes here too, without a screen while the vault is open, so the code is the current one.
+ * code comes here too, without a screen while the vault is open, so the code is the current one: filled
+ * into the code field, or copied when the form has none (the next page asks for it).
  */
 class AutofillActivity : ComponentActivity() {
     private val container: AppContainer get() = (application as KeePassBarApplication).container
@@ -57,9 +58,11 @@ class AutofillActivity : ComponentActivity() {
 
     /** Hands [entry]'s values to the system, which fills them in; false when the entry has nothing for these fields. */
     private fun fill(entry: Entry): Boolean {
-        val code = if (request.form.codes.isEmpty()) null else entry.totp?.let { TotpGenerator.code(it, Instant.now()) }
+        val code = entry.totp?.let { TotpGenerator.code(it, Instant.now()) }
+        val codeField = request.form.codes.isNotEmpty()
         val presentation = AutofillPresentations(this, inline = null).entry(0, entry.displayTitle, entry.username.ifEmpty { null })
-        val dataset = filledDataset(request.form, request.ids, entry, code, presentation) ?: return false
+        val dataset = filledDataset(request.form, request.ids, entry, code.takeIf { codeField }, presentation) ?: return false
+        if (code != null && !codeField) container.clipboard.copy(code, sensitive = true)
         setResult(RESULT_OK, Intent().putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset))
         finish()
         return true

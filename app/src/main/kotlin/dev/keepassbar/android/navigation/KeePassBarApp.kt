@@ -32,6 +32,8 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.entry.EntryCardScreen
+import dev.keepassbar.android.entry.PasswordScreen
+import dev.keepassbar.android.entry.PasswordView
 import dev.keepassbar.android.list.EntryListScreen
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.settings.SettingsScreen
@@ -47,6 +49,9 @@ internal sealed interface Screen {
     /** [origin]: the list section the card was opened from, so the row it grows from is the right one. */
     data class Card(val entryId: String, val origin: String) : Screen
 
+    /** A password full screen; the entry's id only, the password is read from the vault. */
+    data class Password(val entryId: String, val view: PasswordView) : Screen
+
     data object Settings : Screen
 
     data object StorageProbe : Screen
@@ -61,6 +66,16 @@ internal class NavigationState : ViewModel() {
 
     var choosingDatabase by mutableStateOf(false)
 
+    /** The "Codes" shortcut's list (SPEC §6.2). A lock keeps it: the shortcut opens the lock screen first. */
+    var codesOnly by mutableStateOf(false)
+
+    /** The "Codes" launcher shortcut: the list of entries with a code, from the top. */
+    fun showCodes() {
+        backStack.retainAll { it == Screen.Entries }
+        query.clearText()
+        codesOnly = true
+    }
+
     fun open(screen: Screen) {
         backStack += screen
     }
@@ -72,6 +87,7 @@ internal class NavigationState : ViewModel() {
     /** The card's group or tag chip: back to the list, searching for [filter]. */
     fun search(filter: String) {
         backStack.retainAll { it == Screen.Entries }
+        codesOnly = false
         query.edit { replace(0, length, filter) }
     }
 
@@ -143,8 +159,10 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             container = container,
                             database = database,
                             query = navigation.query,
+                            codesOnly = navigation.codesOnly,
                             onOpen = { id, origin -> navigation.open(Screen.Card(id, origin)) },
                             onSettings = { navigation.open(Screen.Settings) },
+                            onLeaveCodes = { navigation.codesOnly = false },
                         )
                     }
                     entry<Screen.Card> { key ->
@@ -155,7 +173,11 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             origin = key.origin,
                             onBack = navigation::back,
                             onSearch = navigation::search,
+                            onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
                         )
+                    }
+                    entry<Screen.Password> { key ->
+                        PasswordScreen(database, key.entryId, key.view, onBack = navigation::back)
                     }
                     entry<Screen.Settings> {
                         SettingsScreen(

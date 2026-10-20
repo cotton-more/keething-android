@@ -58,6 +58,8 @@ dependencies {
     implementation(libs.navigation3.runtime)
     implementation(libs.navigation3.ui)
     implementation(libs.autofill)
+    // QR codes of a password and a Wi-Fi network (SPEC §6.2); MIT, `assets/licenses`.
+    implementation(libs.qrcodegen)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.kotlin.test.junit5)

@@ -80,7 +80,10 @@ public data class FieldRow(
     val link: String? get() = (style as? ValueStyle.Link)?.url
 
     /** The text shown in clear: [shownText], else the value (revealing a protected one). */
-    public fun revealedText(): String = shownText ?: when (value) {
+    public fun revealedText(): String = shownText ?: storedText()
+
+    /** The value as stored (revealing a protected one): what copying and sharing give. */
+    public fun storedText(): String = when (value) {
         is FieldValue.Plain -> value.text
         is FieldValue.Protected -> value.secret.reveal()
     }

@@ -23,17 +23,30 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.CodeRing
+import dev.keepassbar.android.ui.QrCodeImage
 import dev.keepassbar.android.ui.SegmentGap
 import dev.keepassbar.android.ui.colouredSecret
 import dev.keepassbar.android.ui.segmentShape
@@ -59,12 +73,13 @@ import dev.keepassbar.card.FieldRow
 import dev.keepassbar.card.PaymentCard
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.TotpDisplay
+import dev.keepassbar.card.WiFiNetwork
 import java.time.Instant
 
 private val OUTER = 22.dp
 
 @Composable
-internal fun CardSectionView(section: CardSection, reveal: RevealState, now: State<Instant>, actions: CardActions) {
+internal fun CardSectionView(section: CardSection, reveal: RevealState, now: State<Instant>, actions: CardActions, wifiQrPayload: String?) {
     when (val kind = section.kind) {
         CardSection.Kind.Credentials -> RowGroup(section.rows) { row, shape ->
             FieldRowView(row, reveal, now, actions, shape, tile = credentialTile(row), copyButton = true)
@@ -79,8 +94,9 @@ internal fun CardSectionView(section: CardSection, reveal: RevealState, now: Sta
             Spacer(Modifier.size(8.dp))
             RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
         }
-        // The Wi-Fi QR code comes with "Show as QR" (step 6).
         is CardSection.Kind.WiFi -> Titled(section.title ?: "Wi-Fi") {
+            WiFiQrView(kind.network, wifiQrPayload, actions)
+            Spacer(Modifier.size(8.dp))
             RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
         }
         CardSection.Kind.Attachments -> RowGroup(section.rows) { row, shape -> AttachmentRowView(row, actions, shape) }
@@ -198,6 +214,66 @@ private fun FieldRowView(
             IconButton(onClick = { actions.onCopy(row) }) {
                 Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy ${row.noticeLabel.lowercase()}", tint = MaterialTheme.colorScheme.primary)
             }
+        }
+        if (row.kind == FieldRow.Kind.PASSWORD && !row.isEmpty) PasswordMenu(actions)
+    }
+}
+
+/** Show as QR, Large type, Share… (SPEC §6.2). */
+@Composable
+private fun PasswordMenu(actions: CardActions) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Rounded.MoreVert, contentDescription = "More for the password", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            val item: @Composable (String, ImageVector, PasswordAction) -> Unit = { text, icon, action ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    leadingIcon = { Icon(icon, contentDescription = null) },
+                    onClick = {
+                        open = false
+                        actions.onPasswordMenu(action)
+                    },
+                )
+            }
+            item("Show as QR", Icons.Rounded.QrCode2, PasswordAction.QR_CODE)
+            item("Large type", Icons.Rounded.TextFields, PasswordAction.LARGE_TYPE)
+            item("Share…", Icons.Rounded.Share, PasswordAction.SHARE)
+        }
+    }
+}
+
+/**
+ * A Wi-Fi network's QR code for a phone to join (SPEC §3.13; Mac `WiFiSectionView`). It holds the password,
+ * so it is drawn only while the password row is revealed: "Show QR code" reveals it, "Hide" masks it again.
+ */
+@Composable
+private fun WiFiQrView(network: WiFiNetwork, payload: String?, actions: CardActions) {
+    val rowId = network.passwordRowId
+    if (payload == null && rowId == null) return
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(OUTER)).background(MaterialTheme.extraColors.row).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        if (payload != null) {
+            QrCodeImage(payload, description = "QR code to join ${network.ssid}", modifier = Modifier.size(148.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Join ${network.ssid}", style = MaterialTheme.typography.titleSmall)
+                Text("Point the other phone's camera at the code.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (rowId != null) {
+                    TextButton(onClick = { actions.onToggle(rowId) }, contentPadding = ButtonDefaults.TextButtonWithIconContentPadding) { Text("Hide") }
+                }
+            }
+        } else if (rowId != null) {
+            TileView(Tile(Icons.Rounded.QrCode2, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer))
+            Column(Modifier.weight(1f)) {
+                Text("Join ${network.ssid} with a phone", style = MaterialTheme.typography.titleSmall)
+                Text("The code contains the password.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            FilledTonalButton(onClick = { actions.onToggle(rowId) }) { Text("Show QR code") }
         }
     }
 }

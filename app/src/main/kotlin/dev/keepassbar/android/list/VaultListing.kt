@@ -28,8 +28,11 @@ internal data class EntryRow(
 internal data class RowDeadline(val text: String, val status: ExpiryHint.Status)
 
 internal data class ListSection(val kind: Kind, val rows: List<EntryRow>) {
-    /** [SUGGESTED]: the entries autofill matched to the app or page (SPEC §7). */
-    enum class Kind { SUGGESTED, RECENT, ALL, RESULTS, RECYCLE_BIN }
+    /**
+     * [SUGGESTED]: the entries autofill matched to the app or page (SPEC §7). [CODES]: every entry with a
+     * one-time code, the "Codes" shortcut's list (SPEC §6.2).
+     */
+    enum class Kind { SUGGESTED, RECENT, ALL, RESULTS, RECYCLE_BIN, CODES }
 }
 
 /**
@@ -49,9 +52,15 @@ internal class VaultListing(val vault: Vault, now: Instant, collator: Collator =
 
     /**
      * Nothing typed: the recently used entries, then all by title. Typed: the matches, best first. A query
-     * starting with `-` lists the recycle bin (the latest deleted first) or searches it.
+     * starting with `-` lists the recycle bin (the latest deleted first) or searches it. [codesOnly]: only
+     * the entries with a one-time code; nothing typed lists them all by title.
      */
-    fun sections(query: String, recentIds: List<String>): List<ListSection> {
+    fun sections(query: String, recentIds: List<String>, codesOnly: Boolean = false): List<ListSection> {
+        if (codesOnly) {
+            val entries = EntrySearch.filter(index, query)
+            val kind = if (query.isBlank()) ListSection.Kind.CODES else ListSection.Kind.RESULTS
+            return listOfNotNull(section(kind, entries.filter { it.totp != null }))
+        }
         EntrySearch.recycleBinQuery(query)?.let { binQuery ->
             val entries = if (binQuery.isBlank()) vault.recycleBin.asReversed() else EntrySearch.filter(binIndex, binQuery)
             return listOfNotNull(section(ListSection.Kind.RECYCLE_BIN, entries))

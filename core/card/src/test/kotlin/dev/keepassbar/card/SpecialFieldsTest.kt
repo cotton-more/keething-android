@@ -161,6 +161,18 @@ class SpecialFieldsTest {
         assertNull(build(e, "x = date").wifi)
     }
 
+    @Test
+    fun theQrCodeOfANetworkWithAPasswordNeedsThePasswordRevealed() {
+        val types = "SSID = wifi.ssid\nWLAN-Passwort = wifi.password"
+        val home = build(Entry("w", customFields = listOf(field("SSID", "ExampleNet"), field("WLAN-Passwort", "pw;1", protected = true))), types)
+
+        assertNull(home.wifiQrPayload(RevealState()), "masked: no code")
+        assertEquals("WIFI:T:WPA;S:ExampleNet;P:pw\\;1;;", home.wifiQrPayload(RevealState().toggle("custom-1")))
+        val open = build(Entry("o", customFields = listOf(field("SSID", "Cafe"))), types)
+        assertEquals("WIFI:T:nopass;S:Cafe;;", open.wifiQrPayload(RevealState()), "an open network has nothing to hide")
+        assertNull(build(Entry("x"), types).wifiQrPayload(RevealState()))
+    }
+
     // Deadlines
 
     private val passport = Entry(

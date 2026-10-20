@@ -47,7 +47,8 @@ internal class FillResponses(private val context: Context, private val sessions:
         for (candidate in candidates) {
             val entry = candidate.entry
             val presentation = presentations.entry(shown, entry.displayTitle, entry.username.ifEmpty { null })
-            val dataset = if (form.codes.isNotEmpty() && entry.totp != null) {
+            // An entry with a code makes it when tapped: for the code field, or for the clipboard after a login.
+            val dataset = if (entry.totp != null) {
                 authenticated(AutofillRequest(AutofillMode.CODE, form, ids, entry.id), presentation)
             } else {
                 filledDataset(form, ids, entry, code = null, presentation)

@@ -31,6 +31,9 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,7 +49,9 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,7 +90,8 @@ import java.time.format.FormatStyle
 /**
  * An entry's card (SPEC §6.2), laid out by the Mac app's rules (`core/card`): sections, masked values with
  * an eye, live codes, tap to copy, links that open the browser, attachments to open in another app or save.
- * Editing and the password and code menus come with later steps.
+ * The password's menu shows it as a QR code or in large type ([onShowPassword]), or shares it after a
+ * warning. Editing comes with a later step.
  */
 @Composable
 internal fun EntryCardScreen(
@@ -95,6 +101,7 @@ internal fun EntryCardScreen(
     origin: String,
     onBack: () -> Unit,
     onSearch: (String) -> Unit,
+    onShowPassword: (PasswordView) -> Unit,
 ) {
     val model = viewModel {
         EntryCardViewModel(entryId, database, container.recents, container.clipboard, container.attachmentFiles, container.androidAttachments)
@@ -126,6 +133,7 @@ internal fun EntryCardScreen(
         }
     }
     val now = rememberSecondsNow()
+    var sharing by rememberSaveable { mutableStateOf(false) }
     val actions = CardActions(
         onCopy = model::copy,
         onToggle = model::toggleReveal,
@@ -133,7 +141,30 @@ internal fun EntryCardScreen(
         onOpenLink = openLink,
         onOpenAttachment = model::openAttachment,
         onSaveAttachment = { row -> saveDialog.launch(model.saveRequest(row)) },
+        onPasswordMenu = { action ->
+            when (action) {
+                PasswordAction.QR_CODE -> onShowPassword(PasswordView.QR_CODE)
+                PasswordAction.LARGE_TYPE -> onShowPassword(PasswordView.LARGE_TYPE)
+                PasswordAction.SHARE -> sharing = true
+            }
+        },
     )
+    if (sharing) {
+        ShareWarning(
+            onShare = {
+                sharing = false
+                model.passwordToShare()?.let { password ->
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, password)
+                    context.startActivity(Intent.createChooser(send, null))
+                }
+            },
+            onShowQrCode = {
+                sharing = false
+                onShowPassword(PasswordView.QR_CODE)
+            },
+            onDismiss = { sharing = false },
+        )
+    }
 
     // The bar is clear at the top, opaque once the card scrolls under it; the entry's title moves into it
     // when the large one has gone under.
@@ -178,8 +209,9 @@ internal fun EntryCardScreen(
         ) {
             Header(content, sharedKey = "$origin/$entryId", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
             Banners(content)
+            val wifiQrPayload = content.card.wifiQrPayload(state.reveal)
             for (section in content.card.sections) {
-                CardSectionView(section, state.reveal, now, actions)
+                CardSectionView(section, state.reveal, now, actions, wifiQrPayload)
             }
             Footer(content.card)
         }
@@ -286,6 +318,32 @@ private fun Footer(card: EntryCard) {
     )
 }
 
+/** The password's menu (SPEC §6.2). */
+internal enum class PasswordAction { QR_CODE, LARGE_TYPE, SHARE }
+
+/** Share… says first where the password goes, and offers the QR code, which keeps it on the phone. */
+@Composable
+private fun ShareWarning(onShare: () -> Unit, onShowQrCode: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.WarningAmber, contentDescription = null) },
+        title = { Text("Share the password?") },
+        text = {
+            Text(
+                "It goes to the app you choose, as plain text, and maybe to that app's cloud and history. " +
+                    "To another phone, Show as QR is safer: nothing leaves this one.",
+            )
+        },
+        confirmButton = { TextButton(onClick = onShare) { Text("Share") } },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onShowQrCode) { Text("Show as QR") }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        },
+    )
+}
+
 /** What the rows of the card can do. */
 internal class CardActions(
     val onCopy: (FieldRow) -> Unit,
@@ -294,6 +352,7 @@ internal class CardActions(
     val onOpenLink: (String) -> Unit,
     val onOpenAttachment: (FieldRow) -> Unit,
     val onSaveAttachment: (FieldRow) -> Unit,
+    val onPasswordMenu: (PasswordAction) -> Unit,
 )
 
 /** Tapping anywhere on a row copies it (SPEC §6.2). */

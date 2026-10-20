@@ -347,6 +347,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   smoothly; copying gives a light haptic tick and a short confirmation.
 - Passwords in a monospaced font with digits and symbols coloured, as in 1Password. The font is Google
   Sans Code, bundled (SIL Open Font License, `assets/licenses`): every character must be clear.
+- QR codes are made by Nayuki's `qrcodegen` (MIT, `assets/licenses`; 38 KB, no dependencies, medium error
+  correction as on the Mac); nothing reads them in the app.
 - Few settings, fixed sensible defaults instead of switches.
 
 ### 6.2 Screens
@@ -368,10 +370,19 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
   open the browser, attachments open in another app / save to a folder, §4). Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
-  title move into the bar. A password's menu: **Show as QR** (full screen, for another
-  phone to scan; nothing leaves the device), **Large type** (full screen, big monospaced characters, for
-  typing it on a TV or another computer), **Share…** (the system share sheet, after a warning that the text
-  goes to another app and maybe its cloud).
+  title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
+  brightness, black on white, for another phone to scan; nothing leaves the device; "Show the password"
+  adds it as coloured text; a password too long for one code says so), **Large type** (full screen, each
+  character in its own numbered cell, big, monospaced and coloured, a space shown as `␣`, for typing it on a
+  TV or another computer), **Share…** (the system share sheet with the password as plain text, after a
+  warning that it goes to another app and maybe its cloud and history; the warning offers Show as QR). Both
+  full-screen views read the password from the vault by the entry's id, close on a lock, and are left with
+  Back or ✕. The share sheet shows the text and has its own Copy, which the app cannot mark sensitive or
+  clear: the warning comes first for that reason.
+- **Wi-Fi network** on the card (Mac SPEC §3.13; `EntryCard.wifiQrPayload`): above the network's fields,
+  "Join <network> with a phone · The code contains the password" with **Show QR code**, which reveals the
+  password row and draws the `WIFI:` code beside "Point the other phone's camera at the code" and Hide.
+  Masking the password, leaving the card or a lock removes it; an open network's code is always shown.
 - **Editor**: the Mac editor's rules (name above value for custom fields, protected switch, problems keep
   Save off; no reordering in v1), saving shows "Saving and checking…".
 - **Delete**: moves the entry to the recycle bin at once, with "Deleted · Undo" in a snackbar; no
@@ -380,8 +391,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),
   lock timeout; the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.
-- **Launcher shortcut** "Codes" (long press on the icon): unlock, then the list of entries with one-time
-  codes.
+- **Launcher shortcut** "Codes" (long press on the icon; static, `res/xml/shortcuts.xml`): unlock, then
+  the list titled "Codes" with only the entries with a one-time code, by title, each row's live code a
+  button that copies it; the search searches among them. Back (or the arrow) goes to the whole list; a lock
+  keeps the Codes list, so the shortcut opens the lock screen and then it. A group or tag chip on a card
+  leaves it.
 
 ## 7. Autofill
 
@@ -427,12 +441,14 @@ service, the screen it opens and the system's view structure are in `app/autofil
   invisibly, which makes the current code then and fills it (with the username and password when the form
   has them). Checked: the code filled in Chrome was the one keepassxc-cli showed. Firefox does not give a
   lone code field to autofill services at all (it registers login forms only); Chrome does.
-- **The code after a login** (ROADMAP step 6): when autofill fills the username or password of an entry
+- **The code after a login**: when autofill fills the username or password of an entry
   that has a one-time code and the form has no code field, the current code goes to the clipboard as any
   copy does (marked sensitive, cleared after 30 s, §4), so the next page's code field takes a paste: in
   Firefox, in a row of one-digit boxes, in a field autofill does not recognise. Such an entry's dataset goes
   through the invisible autofill screen like a code's, so the code is made when it is tapped. The code may
-  be near the end of its period; most sites also take the one before.
+  be near the end of its period; most sites also take the one before. Checked on the test phone (Chrome, the local
+  login page): the username and password filled, the code pasted into another field was the one
+  keepassxc-cli showed, and a paste 35 s later gave nothing.
 - **Locked**: one item, "Unlock KeePassBar" ("to fill <site or app>" in the dropdown). It opens the
   autofill screen: the lock screen (the fingerprint is offered at once), then the one matching entry is
   filled at once, or the picker shows when there are several or none. After a cancelled unlock the item

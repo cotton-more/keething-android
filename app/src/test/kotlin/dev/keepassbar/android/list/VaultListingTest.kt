@@ -78,6 +78,21 @@ class VaultListingTest {
     }
 
     @Test
+    fun theCodesListHasOnlyEntriesWithACode() {
+        val bank = Entry(id = "bk", title = "Bank", username = "alex", totp = TotpConfig(Secret.of("12345678901234567890")))
+        val listing = VaultListing(Vault(entries = listOf(github, bahn, bank, amazon)), now, Collator.getInstance(Locale.ENGLISH))
+
+        val all = listing.sections("", recentIds = listOf("db"), codesOnly = true)
+        assertEquals(ListSection.Kind.CODES, all.single().kind, "no recent section")
+        assertEquals(listOf("bk", "gh"), all.single().rows.map { it.id })
+
+        val found = listing.sections("alex", emptyList(), codesOnly = true)
+        assertEquals(ListSection.Kind.RESULTS, found.single().kind)
+        assertEquals(listOf("bk"), found.single().rows.map { it.id }, "Deutsche Bahn matches but has no code")
+        assertTrue(listing.sections("bahn", emptyList(), codesOnly = true).isEmpty())
+    }
+
+    @Test
     fun aRowShowsWhatTheListNeeds() {
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
 

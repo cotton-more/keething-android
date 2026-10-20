@@ -44,6 +44,9 @@ internal data class ListUiState(
     val preparing: Boolean = true,
 )
 
+/** What the sections are listed from. */
+private data class Listed(val prepared: Prepared?, val text: String, val codesOnly: Boolean, val recentIds: List<String>)
+
 /** A prepared vault and the icons decoded from it, replaced together when the vault is read again. */
 private class Prepared(val listing: VaultListing, val icons: CustomIconImages)
 
@@ -53,6 +56,8 @@ internal class EntryListViewModel(
     private val recents: RecentEntries,
     private val clipboard: SensitiveClipboard,
     private val query: TextFieldState,
+    /** The "Codes" shortcut's list (SPEC §6.2); read in a snapshot, so a change lists again. */
+    private val codesOnly: () -> Boolean,
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
@@ -71,11 +76,11 @@ internal class EntryListViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val sections: StateFlow<List<ListSection>> =
-        combine(prepared, snapshotFlow { query.text.toString() }, recents.ids) { prepared, text, recentIds ->
-            Triple(prepared, text, recentIds)
+        combine(prepared, snapshotFlow { query.text.toString() to codesOnly() }, recents.ids) { prepared, (text, codes), recentIds ->
+            Listed(prepared, text, codes, recentIds)
         }
-            .mapLatest { (prepared, text, recentIds) ->
-                prepared?.let { withContext(Dispatchers.Default) { it.listing.sections(text, recentIds) } }.orEmpty()
+            .mapLatest { (prepared, text, codes, recentIds) ->
+                prepared?.let { withContext(Dispatchers.Default) { it.listing.sections(text, recentIds, codes) } }.orEmpty()
             }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 

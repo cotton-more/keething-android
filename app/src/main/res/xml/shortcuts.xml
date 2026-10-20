@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher's long-press menu (SPEC §6.2): straight to the entries with a one-time code. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_codes"
+        android:shortcutId="codes"
+        android:shortcutLongLabel="@string/shortcut_codes_long"
+        android:shortcutShortLabel="@string/shortcut_codes">
+        <intent
+            android:action="dev.keepassbar.android.action.CODES"
+            android:targetClass="dev.keepassbar.android.MainActivity"
+            android:targetPackage="dev.keepassbar.android" />
+    </shortcut>
+</shortcuts>

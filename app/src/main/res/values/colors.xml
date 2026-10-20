@@ -3,4 +3,7 @@
     <color name="autofill_title">@android:color/system_neutral1_900</color>
     <color name="autofill_subtitle">@android:color/system_neutral2_700</color>
     <color name="autofill_icon">@android:color/system_accent1_600</color>
+    <!-- The launcher shortcut's icon (SPEC §6.2), in the system's colours. -->
+    <color name="shortcut_background">@android:color/system_accent1_100</color>
+    <color name="shortcut_icon">@android:color/system_accent1_700</color>
 </resources>

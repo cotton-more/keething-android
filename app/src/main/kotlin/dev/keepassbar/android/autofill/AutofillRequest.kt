@@ -18,7 +18,10 @@ internal enum class AutofillMode {
     /** "Search KeePassBar": choose any entry. */
     PICK,
 
-    /** An entry with a one-time code: the code is made when it is chosen, not when it was offered. */
+    /**
+     * An entry with a one-time code: the code is made when it is chosen, not when it was offered; it fills
+     * the code field, or goes to the clipboard when the form has none.
+     */
     CODE,
 }
 

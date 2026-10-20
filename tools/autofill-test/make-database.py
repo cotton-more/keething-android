@@ -4,7 +4,8 @@
     tools/autofill-test/make-database.py <output.kdbx>
 
 Its entries match the pages in pages/ (served at http://localhost:8000 through `adb reverse`), a few
-real sites and apps by their verified websites, and Keep by `androidapp://`. keepassxc-cli writes KDBX 3.1
+real sites and apps by their verified websites, and Keep by `androidapp://`; two Wi-Fi networks (one open)
+check the card's QR code, typed by the "KeePassBar" entry. keepassxc-cli writes KDBX 3.1
 on import, which the app refuses, so the import is merged into a copy of a KDBX 4 fixture (that adds the
 fixture's two entries).
 """
@@ -32,6 +33,10 @@ ENTRIES = [
      [("KP2A_URL", "https://github.com/login")]),
     ("Unrelated (fictitious)", "nobody", "Nope-Pa55!", "https://example.net", []),
     ("Google account (fictitious)", "g-test@example.test", "Goo-Pa55!", "https://accounts.google.com", []),
+    ("Home Wi-Fi (fictitious)", "", "", "",
+     [("SSID", "Example;Net"), ("Wi-Fi password", "wifi-Pa55:word", True), ("Security", "WPA2")]),
+    ("Cafe Wi-Fi (fictitious)", "", "", "", [("SSID", "Cafe Guest")]),
+    ("KeePassBar", "", "", "", [("Notes", "SSID = wifi.ssid\nWi-Fi password = wifi.password\nSecurity = wifi.security")]),
 ]
 
 
@@ -39,14 +44,15 @@ def uuid():
     return base64.b64encode(os.urandom(16)).decode()
 
 
-def field(key, value):
-    return f"<String><Key>{escape(key)}</Key><Value>{escape(value)}</Value></String>"
+def field(key, value, protected=False):
+    attribute = ' ProtectInMemory="True"' if protected else ""
+    return f"<String><Key>{escape(key)}</Key><Value{attribute}>{escape(value)}</Value></String>"
 
 
 def xml():
     entries = "".join(
         f"<Entry><UUID>{uuid()}</UUID>{field('Title', t)}{field('UserName', u)}{field('Password', p)}"
-        f"{field('URL', url)}{''.join(field(k, v) for k, v in extra)}</Entry>"
+        f"{field('URL', url)}{''.join(field(*f) for f in extra)}</Entry>"
         for t, u, p, url, extra in ENTRIES
     )
     return ('<?xml version="1.0" encoding="utf-8" standalone="yes"?><KeePassFile><Meta><Generator>test</Generator>'

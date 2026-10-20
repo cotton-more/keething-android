@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Lock
@@ -54,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -95,21 +97,27 @@ import java.time.format.FormatStyle
 /**
  * The list (SPEC §6.2): nothing typed shows the recently used entries, then all by title; the search field
  * is at the bottom, in thumb reach above the keyboard. A row opens its card; a long press copies the
- * password; a row with a one-time code shows it live, as a button that copies it.
+ * password; a row with a one-time code shows it live, as a button that copies it. [codesOnly]: the "Codes"
+ * shortcut's list, only the entries with a one-time code; Back or the arrow leaves it for the whole list.
  */
 @Composable
 internal fun EntryListScreen(
     container: AppContainer,
     database: DatabaseSession,
     query: TextFieldState,
+    codesOnly: Boolean,
     onOpen: (id: String, origin: String) -> Unit,
     onSettings: () -> Unit,
+    onLeaveCodes: () -> Unit,
 ) {
-    val model = viewModel { EntryListViewModel(database, container.recents, container.clipboard, query) }
+    val codes by rememberUpdatedState(codesOnly)
+    val model = viewModel { EntryListViewModel(database, container.recents, container.clipboard, query, codesOnly = { codes }) }
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
-    BackHandler(enabled = query.text.isNotEmpty()) { query.clearText() }
+    BackHandler(enabled = query.text.isNotEmpty() || codesOnly) {
+        if (query.text.isNotEmpty()) query.clearText() else onLeaveCodes()
+    }
     val now = rememberSecondsNow()
 
     // The header collapses into a compact bar while the list scrolls, and is opaque once anything is under it.
@@ -117,8 +125,10 @@ internal fun EntryListScreen(
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
-        topBar = { Header(state, scroll, onLock = container.sessions::lock, onSettings = onSettings) },
-        bottomBar = { SearchField(query) },
+        topBar = {
+            Header(state, scroll, codesOnly, onLock = container.sessions::lock, onSettings = onSettings, onLeaveCodes = onLeaveCodes)
+        },
+        bottomBar = { SearchField(query, placeholder = if (codesOnly) "Search entries with a code" else SEARCH_HINT) },
         snackbarHost = { NoticeHost(snackbar) },
     ) { padding ->
         LazyColumn(
@@ -163,11 +173,25 @@ internal fun EntryListScreen(
                 }
                 item(key = "gap/${section.kind}", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
             }
+            if (!state.preparing && state.sections.isEmpty() && codesOnly && query.text.isBlank()) {
+                item(key = "no codes") {
+                    Text(
+                        "No entry has a one-time code.",
+                        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (!state.preparing && state.sections.isEmpty() && query.text.isNotBlank()) {
                 item(key = "nothing") {
                     val emptyBin = EntrySearch.recycleBinQuery(query.text.toString())?.isBlank() == true
                     Text(
-                        if (emptyBin) "The recycle bin is empty." else "Nothing matches “${query.text}”.",
+                        when {
+                            emptyBin -> "The recycle bin is empty."
+                            codesOnly -> "No entry with a one-time code matches “${query.text}”."
+                            else -> "Nothing matches “${query.text}”."
+                        },
                         Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -186,13 +210,29 @@ internal fun ListSection.title(): String = when (kind) {
     ListSection.Kind.ALL -> "All entries"
     ListSection.Kind.RESULTS -> if (rows.size == 1) "1 entry" else "${NumberFormat.getIntegerInstance().format(rows.size)} entries"
     ListSection.Kind.RECYCLE_BIN -> "Recycle bin"
+    ListSection.Kind.CODES -> "Entries with a one-time code"
 }
 
+/** The search field's hint for the whole list. */
+internal const val SEARCH_HINT = "@group · #tag · +file · -deleted"
+
 @Composable
-private fun Header(state: ListUiState, scroll: TopAppBarScrollBehavior, onLock: () -> Unit, onSettings: () -> Unit) {
+private fun Header(
+    state: ListUiState,
+    scroll: TopAppBarScrollBehavior,
+    codesOnly: Boolean,
+    onLock: () -> Unit,
+    onSettings: () -> Unit,
+    onLeaveCodes: () -> Unit,
+) {
     val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
     LargeFlexibleTopAppBar(
-        title = { Text("KeePassBar") },
+        title = { Text(if (codesOnly) "Codes" else "KeePassBar") },
+        navigationIcon = {
+            if (codesOnly) {
+                IconButton(onClick = onLeaveCodes) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "All entries") }
+            }
+        },
         subtitle = { Text(state.databaseName + count, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         actions = {
             IconButton(onClick = onLock) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
@@ -326,7 +366,7 @@ private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Un
 }
 
 @Composable
-internal fun SearchField(query: TextFieldState) {
+internal fun SearchField(query: TextFieldState, placeholder: String = SEARCH_HINT) {
     val keyboard = LocalSoftwareKeyboardController.current
     Row(
         Modifier
@@ -362,7 +402,7 @@ internal fun SearchField(query: TextFieldState) {
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (query.text.isEmpty()) {
                             Text(
-                                "@group · #tag · +file · -deleted",
+                                placeholder,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,

@@ -60,6 +60,18 @@ public data class EntryCard(
 ) {
     val paymentCard: PaymentCard? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.PaymentCard)?.card }
     val wifi: WiFiNetwork? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.WiFi)?.network }
+
+    /**
+     * The text of the Wi-Fi network's QR code (SPEC §3.13; Mac `EntryCardModel.wifiQRPayload`): it holds the
+     * password, so only while the password row is [revealed][reveal]; an open network's at any time.
+     */
+    public fun wifiQrPayload(reveal: RevealState): String? {
+        val network = wifi ?: return null
+        val rowId = network.passwordRowId ?: return network.qrPayload("")
+        if (!reveal.isRevealed(rowId)) return null
+        val row = rows.firstOrNull { it.id == rowId } ?: return null
+        return network.qrPayload(row.storedText())
+    }
 }
 
 /**
