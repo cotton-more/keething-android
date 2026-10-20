@@ -18,3 +18,19 @@ On this Mac `adb` cannot reach the phone over Wi-Fi: it fails with "protocol fau
 It finds the current connect port over Bonjour, connects adb to `127.0.0.1:15555` and keeps forwarding
 while it runs (`ANDROID_SERIAL=127.0.0.1:15555`). The pairing port and code are in Developer options ›
 Wireless debugging › "Pair device with pairing code"; the dialog must stay open while pairing.
+
+## Checking autofill on the phone
+
+`tools/autofill-test/` holds local test pages (a login with and without hints, username first, a one-time
+code, a sign-up, a frame of another site) and a script that writes a fictitious database whose entries
+match them (password `pw`):
+
+    tools/autofill-test/make-database.py autofill.kdbx        # needs KeePassXC's keepassxc-cli
+    adb push autofill.kdbx /sdcard/Sync/KeePassBar-test/
+    python3 -m http.server 8000 --bind 127.0.0.1 --directory tools/autofill-test/pages
+    adb reverse tcp:8000 tcp:8000                             # the phone's localhost:8000 is the Mac's
+
+Then open `http://localhost:8000` in Chrome (Settings › Autofill services › "Autofill using another
+service") or Firefox on the phone.
+
+The public suffix list is built in (`core/search`); `tools/update-public-suffix-list.sh` fetches a new one.

@@ -1,4 +1,14 @@
 <resources>
     <!-- Only the window behind Compose (the start and the system's splash): the rest is KeePassBarTheme. -->
     <style name="Theme.KeePassBar" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!--
+    Autofill's screen over the app being filled: see-through, so that answering at once (a one-time code)
+    shows nothing; Compose draws the screen when there is one.
+    -->
+    <style name="Theme.KeePassBar.Autofill">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>

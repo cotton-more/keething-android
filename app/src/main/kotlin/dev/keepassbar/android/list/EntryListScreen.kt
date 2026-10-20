@@ -180,7 +180,8 @@ internal fun EntryListScreen(
 
 private val CONFLICT_TIME: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
 
-private fun ListSection.title(): String = when (kind) {
+internal fun ListSection.title(): String = when (kind) {
+    ListSection.Kind.SUGGESTED -> "Suggested"
     ListSection.Kind.RECENT -> "Recent"
     ListSection.Kind.ALL -> "All entries"
     ListSection.Kind.RESULTS -> if (rows.size == 1) "1 entry" else "${NumberFormat.getIntegerInstance().format(rows.size)} entries"
@@ -221,7 +222,7 @@ private fun Banner(title: String, text: String) {
 }
 
 @Composable
-private fun SectionTitle(title: String) {
+internal fun SectionTitle(title: String) {
     Text(
         title,
         Modifier.padding(start = 8.dp, bottom = 8.dp),
@@ -230,18 +231,20 @@ private fun SectionTitle(title: String) {
     )
 }
 
+/** A row of the list; also autofill's entry picker, which neither copies nor shows the live code ([onCopyCode] null). */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EntryRowView(
+internal fun EntryRowView(
     row: EntryRow,
     shape: RoundedCornerShape,
     sharedKey: String,
     icons: CustomIconImages?,
     now: State<Instant>,
     onOpen: () -> Unit,
-    onCopyPassword: () -> Unit,
-    onCopyCode: () -> Unit,
+    onCopyPassword: (() -> Unit)?,
+    onCopyCode: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    onOpenLabel: String? = null,
 ) {
     Row(
         modifier
@@ -249,7 +252,12 @@ private fun EntryRowView(
             .heightIn(min = 72.dp)
             .clip(shape)
             .background(MaterialTheme.extraColors.row)
-            .combinedClickable(onClick = onOpen, onLongClick = onCopyPassword, onLongClickLabel = "Copy password")
+            .combinedClickable(
+                onClick = onOpen,
+                onClickLabel = onOpenLabel,
+                onLongClick = onCopyPassword,
+                onLongClickLabel = onCopyPassword?.let { "Copy password" },
+            )
             .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -291,7 +299,7 @@ private fun EntryRowView(
                 }
             }
         }
-        row.totp?.let { CodeButton(it, now, onCopyCode) }
+        if (onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode) }
     }
 }
 
@@ -318,7 +326,7 @@ private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Un
 }
 
 @Composable
-private fun SearchField(query: TextFieldState) {
+internal fun SearchField(query: TextFieldState) {
     val keyboard = LocalSoftwareKeyboardController.current
     Row(
         Modifier

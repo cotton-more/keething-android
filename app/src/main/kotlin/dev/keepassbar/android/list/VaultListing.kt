@@ -28,7 +28,8 @@ internal data class EntryRow(
 internal data class RowDeadline(val text: String, val status: ExpiryHint.Status)
 
 internal data class ListSection(val kind: Kind, val rows: List<EntryRow>) {
-    enum class Kind { RECENT, ALL, RESULTS, RECYCLE_BIN }
+    /** [SUGGESTED]: the entries autofill matched to the app or page (SPEC §7). */
+    enum class Kind { SUGGESTED, RECENT, ALL, RESULTS, RECYCLE_BIN }
 }
 
 /**
@@ -62,7 +63,9 @@ internal class VaultListing(val vault: Vault, now: Instant, collator: Collator =
         )
     }
 
-    private fun section(kind: ListSection.Kind, entries: List<Entry>): ListSection? =
+    fun entry(id: String): Entry? = byId[id] ?: vault.recycleBin.firstOrNull { it.id == id }
+
+    fun section(kind: ListSection.Kind, entries: List<Entry>): ListSection? =
         if (entries.isEmpty()) null else ListSection(kind, entries.map(::row))
 
     private fun row(entry: Entry) = EntryRow(

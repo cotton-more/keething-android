@@ -45,6 +45,7 @@ dependencies {
     implementation(project(":core:search"))
     implementation(project(":core:totp"))
     implementation(project(":core:card"))
+    implementation(project(":core:autofill"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
@@ -56,6 +57,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.navigation3)
     implementation(libs.navigation3.runtime)
     implementation(libs.navigation3.ui)
+    implementation(libs.autofill)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.kotlin.test.junit5)

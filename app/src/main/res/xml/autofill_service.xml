@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPEC §7. Settings › Passwords & autofill opens the app from here. -->
+<autofill-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="dev.keepassbar.android.MainActivity"
+    android:supportsInlineSuggestions="true" />

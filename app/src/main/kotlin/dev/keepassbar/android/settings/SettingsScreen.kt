@@ -1,6 +1,10 @@
 package dev.keepassbar.android.settings
 
+import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.net.Uri
+import android.provider.Settings
+import android.view.autofill.AutofillManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -90,6 +94,9 @@ internal fun SettingsScreen(
         Group("Fingerprint") {
             FingerprintSetting(container, database)
         }
+        Group("Autofill") {
+            AutofillSetting()
+        }
         Group("Lock after this long in the background") {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 AppSettings.LOCK_TIMEOUTS.forEachIndexed { index, option ->
@@ -133,6 +140,31 @@ internal fun SettingsScreen(
 }
 
 private const val MIB = 1024 * 1024
+
+/** Whether KeePassBar is the phone's autofill service (SPEC §7), and how to make it so. */
+@Composable
+private fun AutofillSetting() {
+    val context = LocalContext.current
+    val manager = remember { context.getSystemService(AutofillManager::class.java) }
+    var enabled by remember { mutableStateOf(manager?.hasEnabledAutofillServices() == true) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { enabled = manager?.hasEnabledAutofillServices() == true }
+    Text(
+        if (enabled) {
+            "On: apps and browsers offer the matching entries. In Chrome, also choose Settings › Autofill services › " +
+                "Autofill using another service; Firefox needs nothing."
+        } else {
+            "Off: another service fills, or none."
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (!enabled) {
+        FilledTonalButton(onClick = {
+            val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))
+            runCatching { context.startActivity(intent) }
+        }) { Text("Use KeePassBar for autofill") }
+    }
+}
 
 /** The switch of SPEC §5 and what it does now. */
 @Composable

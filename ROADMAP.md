@@ -7,19 +7,6 @@ the Compose screens are built from them.
 Each step starts as CLAUDE.md says: a short summary and the effort level it needs, then the owner's "ok".
 The "Effort" line of a step is the suggested level (medium / high / xhigh / max).
 
-## 5. Autofill, filling only (SPEC §7)
-
-Effort: high.
-
-- core: site matching (port of the Mac `SiteMatcher`, `SiteAddress` and the public suffix list).
-- Fill in apps, then in Chrome and Firefox; locked → unlock → fill; inline suggestions; one-time codes.
-- An app also matches the entry of a website it is verified for (Android 12+ app links, read offline from
-  the system: `DomainVerificationManager`), so one entry with `https://bank.de` serves the bank's app on
-  Android as on the iPhone (iOS gives password managers the app's associated domain, not its id);
-  `androidapp://<package>` in a `KP2A_URL` field stays for apps that declare no website.
-The save and update offers come with writing (step 7); with them, choosing an entry by hand for an app could
-offer to add its `androidapp://` address.
-
 ## 6. Quick access and sharing
 
 Effort: high.
@@ -45,7 +32,8 @@ the owner, so writing comes after autofill and before Google Play, without hurry
   checks (port of `KDBXFileSaver`). JVM tests: written files read back identical; keepassxc-cli on the Mac
   opens them (the tests can call it when it is installed).
 - app: editor, new entry, delete with Undo, recycle bin (`-`), restore, backups, replace by rename.
-- Autofill: the save and update offers, the password generator for sign-ups.
+- Autofill: the save and update offers, the password generator for sign-ups; choosing an entry by hand
+  for an app could offer to add its `androidapp://` address.
 - Check on a copy of the real database (as the Mac's `KDBXProbe --lifecycle`), then with Syncthing for real.
 
 ## Later

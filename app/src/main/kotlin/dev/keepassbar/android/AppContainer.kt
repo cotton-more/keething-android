@@ -3,6 +3,8 @@ package dev.keepassbar.android
 import android.content.Context
 import dev.keepassbar.android.attachment.AndroidAttachments
 import dev.keepassbar.android.attachment.AttachmentFiles
+import dev.keepassbar.android.autofill.AutofillEntries
+import dev.keepassbar.android.autofill.FillResponses
 import dev.keepassbar.android.biometric.FingerprintPrompt
 import dev.keepassbar.android.biometric.KeystorePasswordStore
 import dev.keepassbar.android.clipboard.AndroidSystemClipboard
@@ -58,16 +60,27 @@ internal class AppContainer(context: Context) {
 
     val androidAttachments = AndroidAttachments(context)
 
+    /** Autofill's matching, built once per vault read (SPEC §7). */
+    val autofillEntries = AutofillEntries(context)
+
+    val fillResponses = FillResponses(context, sessions, autofillEntries)
+
     init {
-        removeAttachmentFilesOnLock()
+        clearOnLock()
     }
 
+    /** What outlives a screen and holds the vault's data goes with the lock. */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun removeAttachmentFilesOnLock() {
+    private fun clearOnLock() {
         appScope.launch {
             sessions.current
                 .flatMapLatest { it?.session?.state ?: flowOf(null) }
-                .collect { if (it == null || it is SessionState.Locked) attachmentFiles.clear() }
+                .collect {
+                    if (it == null || it is SessionState.Locked) {
+                        attachmentFiles.clear()
+                        autofillEntries.clear()
+                    }
+                }
         }
     }
 }

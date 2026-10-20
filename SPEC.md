@@ -62,18 +62,21 @@ core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attach
               BiometricPasswordStore §5, SettingsStore, …).
               Depends on nothing.
 core/totp     one-time codes: Base32, otpauth links, KeePassXC's formats, code generation   → domain
-core/search   search rules, ranking, site matching with the public suffix list             → domain
+core/search   search rules, ranking, site matching with the public suffix list (a resource,
+              `tools/update-public-suffix-list.sh`)                                       → domain
 core/kdbx     the KDBX 4 file format: crypto, reader, writer, XML tree                    → domain
 core/vault    application layer: open, edit, save with the checks, the lock / unlock /
               auto-lock state machine, the fingerprint unlock's rules    → domain, kdbx, totp
+core/autofill autofill's rules: what a field asks for, the target, the matching entries (§7)
+                                                                             → domain, search, totp
 core/card     how an entry card is laid out (the Mac app's Presentation rules: sections, dates, links,
               lists of codes, payment card, Wi-Fi, deadlines, avatars)    → domain, totp, search
 app           Android: the adapters behind the ports (storage, biometrics, clipboard, clock), Compose UI,
               AutofillService (§7), the code notification (§6.3), the composition root
-                                                             → vault, search, totp, card (not kdbx)
+                                                     → vault, search, totp, card, autofill (not kdbx)
 ```
 
-Added when a step needs it: `core/generator` (the password generator; step 6).
+Added when a step needs it: `core/generator` (the password generator; step 7).
 A new module is added when a feature has its own rules and its own tests, not for every package.
 
 Code design:
@@ -391,23 +394,79 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 ## 7. Autofill
 
 `AutofillService` (Android's Autofill Framework); the user picks KeePassBar in Settings → Passwords &
-autofill, and in Chrome sets "Autofill using another service" (Firefox needs nothing).
+autofill (Settings in the app has a button for it), and in Chrome sets Settings › Autofill services ›
+"Autofill using another service" (Firefox needs nothing). The rules are in `core/autofill`, JVM-tested; the
+service, the screen it opens and the system's view structure are in `app/autofill`.
 
-- **Fill**: from the `AssistStructure` find username / password / one-time-code fields (autofill hints first,
-  then input types, ids and hints in the field's text); the target is the web domain (browsers) or the app's
-  package name. Matching entries: the Mac app's site matching (registrable domain via the public suffix
-  list, additional `KP2A_URL` fields; `androidapp://<package>` URLs as Keepass2Android writes them).
-- **Locked**: the dataset is an "unlock KeePassBar" item that opens the unlock (fingerprint) and then
-  fills.
-- **Inline suggestions** in the keyboard (Gboard) where offered, else the dropdown.
-- **One-time code**: a field recognised as a code gets the matching entry's current code.
-- **Save** (comes with writing, ROADMAP step 7): `SaveInfo` for username + password; on `onSaveRequest` a screen asks: update the matching entry's
-  password (when the username matches) or create a new entry (title from the site, URL, username,
-  password, group chosen), written through the normal save path (§3.3). For an app, the URL is
-  `androidapp://<package>`. For a sign-up the password field can be filled with a generated password
-  (one screen: length, symbols on/off).
-- Never fill into a field of an app whose package does not match the entry, and never offer a protected
-  custom value.
+- **The fields** (`FieldClassifier`, `AutofillForm`): each input field of the screen is a username, phone
+  number, password, new password, one-time code, an unnamed text field, or something else (search,
+  address, payment card, a checkbox, hidden or disabled). Decided by the autofill hints first (`password`,
+  `emailAddress`, `smsOTPCode`, …), then the HTML `autocomplete` and `type`, then the input type, last the
+  words in the view's id, its hint and the HTML names, in English, German and Russian ("Passwort
+  wiederholen", "Код подтверждения"). A visible-password input type counts only with a password word (apps
+  use it to keep the keyboard from suggesting words). A form has usernames (or, when none, the phone number,
+  or the unnamed text field right before the first password), passwords and codes. Nothing is offered on a
+  sign-up (only new passwords), on KeePassBar's own screens, or on a screen without such fields; asking for
+  autofill by hand (long press › Autofill) takes the focused unnamed field as the username. A password
+  change gets only the current password. Never a field's text, only what it is.
+- **The target**: in a known browser (Chrome, Firefox and their forks, Brave, Edge, Samsung Internet,
+  Vivaldi, DuckDuckGo, …; `Browsers`) the web domain of the page, with its scheme; fields of another domain
+  (a frame of another site) are left out. Anywhere else the app's package name, which the system gives:
+  an app's web domain is never trusted, since any app can show (or claim) a bank's page in a web view.
+  Android's browsers name a page by its host only (`localhost` for `http://localhost:8000`, checked in
+  Chrome and Firefox), so a port written in an entry matches any port then.
+- **The entries** (`AutofillMatcher`): for a page, the Mac app's site matching (`SiteMatcher`: the same
+  host first, then the same registrable domain by the public suffix list; the entry's URL and its
+  `KP2A_URL` fields; a protected field is never read), with one rule more: a plain `http://` page gets only
+  addresses written with `http://`, so a password kept for an https site is never sent unencrypted. For an
+  app: the entries that name it (`androidapp://<package>`, as Keepass2Android writes it), then the entries
+  of the websites the app is verified for (Android app links: the site's `assetlinks.json` names the app's
+  key and the system checked it; read offline with `DomainVerificationManager`, `verified` hosts only, a
+  `*.bank.de` wildcard is a domain match). So one entry with `https://bank.de` serves the bank's app as on
+  the iPhone. That needs `QUERY_ALL_PACKAGES`: the system shows an app's verified websites only to an app
+  that can see it, a fill request does not make the app being filled visible (checked on the test phone),
+  and the apps cannot be named in advance. The app has no network, so what it sees stays on the phone.
+- **Unlocked**: up to 6 matching entries, best first (title, username), as the keyboard's chips (inline
+  suggestions, Gboard) or the dropdown under the field; their username and password go into the response,
+  so a tap fills at once. Then "Search KeePassBar" ("Another entry" when entries were offered), pinned at
+  the keyboard's edge as a search icon: it opens the picker. A form that asks only for a code offers only
+  entries with one.
+- **One-time code**: an entry with a code is offered without its values; the tap opens the autofill screen
+  invisibly, which makes the current code then and fills it (with the username and password when the form
+  has them). Checked: the code filled in Chrome was the one keepassxc-cli showed. Firefox does not give a
+  lone code field to autofill services at all (it registers login forms only); Chrome does.
+- **Locked**: one item, "Unlock KeePassBar" ("to fill <site or app>" in the dropdown). It opens the
+  autofill screen: the lock screen (the fingerprint is offered at once), then the one matching entry is
+  filled at once, or the picker shows when there are several or none. After a cancelled unlock the item
+  still says "Unlock" for the rest of that screen's autofill session (the system keeps the first answer);
+  it then goes straight to the picker.
+- **The picker** (the autofill screen): "Choose an entry · to fill <site or app>", the search field at the
+  bottom; nothing typed: "Suggested" (the matching entries), then recently used and all; typing searches
+  the vault as the list does (URLs included). A tap fills the entry and closes; ✕ closes without filling.
+  Choosing an entry that does not match the target is the user's explicit choice; the title says where it
+  goes.
+- **Trust**: the autofill screen acts only on its own immutable intent (the fields, the target, the mode,
+  the entry), never on the view structure the system adds to it: the app being filled starts that intent
+  and could add a structure that names another app. The screen is not exported and has `FLAG_SECURE`.
+- **Never** offered: a protected custom value; an entry that matches neither the page's site nor the app.
+  The log says kinds and counts only (`fill request: 2 fields, web page, 1 username, 1 password, 0 code`),
+  never a value, a domain or an app.
+- Not done, and why: a check of the browser's signing certificate (a fake browser would have to be
+  installed under a browser's package name; Chrome is a system app); `android://<hash>@<package>` URLs
+  (Chrome's way to name an app; not known to be in the owner's database); honouring an app's
+  `importantForAutofill="no"` (apps set it on login fields too).
+- **Save** (comes with writing, ROADMAP step 7): `SaveInfo` for username + password; on `onSaveRequest` a
+  screen asks: update the matching entry's password (when the username matches) or create a new entry
+  (title from the site, URL, username, password, group chosen), written through the normal save path
+  (§3.3). For an app, the URL is `androidapp://<package>`. For a sign-up the password field can be filled
+  with a generated password (one screen: length, symbols on/off).
+- Checked on the test phone (Pixel 6, Android 17; debug and release builds, a fictitious database and local
+  test pages over `adb reverse`): Firefox and Chrome, locked and unlocked, chips and the dropdown, a login
+  with hints and one without, username first, a sign-up (nothing offered), a frame of another site (Chrome
+  leaves it out itself), the code page (Chrome), the picker with a search and a non-matching entry, ✕;
+  apps by hand: Keep by `androidapp://`, Translate by its verified `translate.google.com` (an
+  `accounts.google.com` entry). Not checked: a real app's login screen (none on the test phone without
+  touching the owner's accounts), the dropdown in dark mode.
 
 ## 8. Build and install
 
@@ -425,7 +484,9 @@ autofill, and in Chrome sets "Autofill using another service" (Firefox needs not
 ### 8.1 Google Play (maybe, the very last step)
 
 Not decided whether it happens at all. If it does: the SAF storage (§3.1), a privacy policy, store listing,
-and a donation option. External donation links are a grey area under Play's payment rules; the safe ways are
+and a donation option. `QUERY_ALL_PACKAGES` (autofill's verified websites, §7) is a restricted permission
+on Play: check that a password manager's autofill is an accepted use, else matching apps by their websites
+goes. External donation links are a grey area under Play's payment rules; the safe ways are
 a "tip" through Play Billing or a separate paid "supporter" build (as KeePassDX does) — check the rules at
 that time. A donation link, if any, comes only with the Play release.
 

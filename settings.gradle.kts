@@ -24,5 +24,6 @@ include(
     ":core:kdbx",
     ":core:vault",
     ":core:card",
+    ":core:autofill",
     ":app",
 )
