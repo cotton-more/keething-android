@@ -3,6 +3,11 @@ package dev.keepassbar.android.entry
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,7 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,8 +38,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -43,7 +52,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -122,12 +135,35 @@ internal fun EntryCardScreen(
         onSaveAttachment = { row -> saveDialog.launch(model.saveRequest(row)) },
     )
 
+    // The bar is clear at the top, opaque once the card scrolls under it; the entry's title moves into it
+    // when the large one has gone under.
+    val scroll = TopAppBarDefaults.pinnedScrollBehavior()
+    var barBottom by remember { mutableFloatStateOf(0f) }
+    var titleBottom by remember { mutableFloatStateOf(Float.MAX_VALUE) }
+    val titleInBar by remember { derivedStateOf { titleBottom <= barBottom } }
     Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            Row(Modifier.statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp)) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") }
-            }
+            TopAppBar(
+                title = {
+                    AnimatedVisibility(titleInBar, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            EntryIcon(content.card.avatar, content.icon, 32.dp)
+                            Text(content.card.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
+                scrollBehavior = scroll,
+                modifier = Modifier.onGloballyPositioned { barBottom = it.boundsInRoot().bottom },
+            )
         },
         snackbarHost = { NoticeHost(snackbar, Modifier.navigationBarsPadding()) },
     ) { padding ->
@@ -140,7 +176,7 @@ internal fun EntryCardScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Header(content, sharedKey = "$origin/$entryId", onSearch = onSearch)
+            Header(content, sharedKey = "$origin/$entryId", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
             Banners(content)
             for (section in content.card.sections) {
                 CardSectionView(section, state.reveal, now, actions)
@@ -151,11 +187,15 @@ internal fun EntryCardScreen(
 }
 
 @Composable
-private fun Header(content: CardContent, sharedKey: String, onSearch: (String) -> Unit) {
+private fun Header(content: CardContent, sharedKey: String, onSearch: (String) -> Unit, onTitlePlaced: (bottom: Float) -> Unit) {
     val card = content.card
     Column(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         EntryIcon(card.avatar, content.icon, 72.dp, Modifier.sharedIcon(sharedKey))
-        Text(card.title, Modifier.sharedTitle(sharedKey), style = MaterialTheme.typography.displaySmall)
+        Text(
+            card.title,
+            Modifier.sharedTitle(sharedKey).onGloballyPositioned { onTitlePlaced(it.boundsInRoot().bottom) },
+            style = MaterialTheme.typography.displaySmall,
+        )
         if (card.groupPath.isNotEmpty() || card.tags.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (card.groupPath.isNotEmpty()) {

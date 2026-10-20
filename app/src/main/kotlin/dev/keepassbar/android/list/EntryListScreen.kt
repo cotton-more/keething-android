@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -43,7 +42,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -109,9 +112,12 @@ internal fun EntryListScreen(
     BackHandler(enabled = query.text.isNotEmpty()) { query.clearText() }
     val now = rememberSecondsNow()
 
+    // The header collapses into a compact bar while the list scrolls, and is opaque once anything is under it.
+    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
-        topBar = { Header(state, onLock = container.sessions::lock, onSettings = onSettings) },
+        topBar = { Header(state, scroll, onLock = container.sessions::lock, onSettings = onSettings) },
         bottomBar = { SearchField(query) },
         snackbarHost = { NoticeHost(snackbar) },
     ) { padding ->
@@ -182,25 +188,21 @@ private fun ListSection.title(): String = when (kind) {
 }
 
 @Composable
-private fun Header(state: ListUiState, onLock: () -> Unit, onSettings: () -> Unit) {
-    Row(
-        Modifier.statusBarsPadding().padding(start = 24.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("KeePassBar", style = MaterialTheme.typography.headlineMedium)
-            val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
-            Text(
-                state.databaseName + count,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        IconButton(onClick = onLock) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
-        IconButton(onClick = onSettings) { Icon(Icons.Rounded.Tune, contentDescription = "Settings") }
-    }
+private fun Header(state: ListUiState, scroll: TopAppBarScrollBehavior, onLock: () -> Unit, onSettings: () -> Unit) {
+    val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
+    LargeFlexibleTopAppBar(
+        title = { Text("KeePassBar") },
+        subtitle = { Text(state.databaseName + count, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        actions = {
+            IconButton(onClick = onLock) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
+            IconButton(onClick = onSettings) { Icon(Icons.Rounded.Tune, contentDescription = "Settings") }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
+        scrollBehavior = scroll,
+    )
 }
 
 @Composable

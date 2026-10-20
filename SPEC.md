@@ -355,13 +355,16 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   fingerprint next time" switch under the field turns it on, so the password typed then sets it up. A wrong password shakes the
   field. The first list after an unlock says how long the key derivation took.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
-  site; a long press copies the password. Recently used: the last 8 entries whose card was opened or from
+  site; a long press copies the password. The header (large "KeePassBar", the database and its entries,
+  lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
   which something was copied, kept as ids only (they survive a lock and say nothing without the database).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
-  open the browser, attachments open in another app / save to a folder, §4). A password's menu: **Show as QR** (full screen, for another
+  open the browser, attachments open in another app / save to a folder, §4). Its bar (Back) is clear at the
+  top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
+  title move into the bar. A password's menu: **Show as QR** (full screen, for another
   phone to scan; nothing leaves the device), **Large type** (full screen, big monospaced characters, for
   typing it on a TV or another computer), **Share…** (the system share sheet, after a warning that the text
   goes to another app and maybe its cloud). A code's menu: **Pin to notification** (§6.3).
