@@ -13,7 +13,12 @@ Effort: high.
 
 - core: site matching (port of the Mac `SiteMatcher`, `SiteAddress` and the public suffix list).
 - Fill in apps, then in Chrome and Firefox; locked → unlock → fill; inline suggestions; one-time codes.
-The save and update offers come with writing (step 7).
+- An app also matches the entry of a website it is verified for (Android 12+ app links, read offline from
+  the system: `DomainVerificationManager`), so one entry with `https://bank.de` serves the bank's app on
+  Android as on the iPhone (iOS gives password managers the app's associated domain, not its id);
+  `androidapp://<package>` in a `KP2A_URL` field stays for apps that declare no website.
+The save and update offers come with writing (step 7); with them, choosing an entry by hand for an app could
+offer to add its `androidapp://` address.
 
 ## 6. Quick access and sharing
 
