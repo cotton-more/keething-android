@@ -33,8 +33,8 @@ Goals (v1)
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
   warning.
 - Autofill (§7): fill logins in apps and browsers, fill one-time codes.
-- Quick access to one-time codes: a code pinned to the notification shade (§6.3) and a "Codes" launcher
-  shortcut.
+- Quick access to one-time codes: a "Codes" launcher shortcut, and the code on the clipboard after
+  autofill filled a login (§7).
 
 The first releases only read the database, so they cannot damage it; the owner rarely edits on the phone.
 Writing comes after them (ROADMAP step 7) and must be done before a Google Play release:
@@ -46,7 +46,9 @@ Writing comes after them (ROADMAP step 7) and must be done before a Google Play 
 Non-goals (v1): SSH agent, a password generator beyond the one in the autofill save, e-mail aliases,
 reports, history UI, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
 only, §3.4), deleting entries for good / emptying the recycle bin, adding / removing / renaming
-attachments, reordering custom fields, a Quick Settings tile, Google Play (§8.1).
+attachments, reordering custom fields, a Quick Settings tile, a one-time code pinned to the notification
+shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
+foreground service for little gain), Google Play (§8.1).
 
 ## 2. Architecture
 
@@ -72,7 +74,7 @@ core/autofill autofill's rules: what a field asks for, the target, the matching 
 core/card     how an entry card is laid out (the Mac app's Presentation rules: sections, dates, links,
               lists of codes, payment card, Wi-Fi, deadlines, avatars)    → domain, totp, search
 app           Android: the adapters behind the ports (storage, biometrics, clipboard, clock), Compose UI,
-              AutofillService (§7), the code notification (§6.3), the composition root
+              AutofillService (§7), the composition root
                                                      → vault, search, totp, card, autofill (not kdbx)
 ```
 
@@ -220,7 +222,7 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
   puts the app in the background), and from a button. Removing the app from recents ends its process, which
   takes the vault with it; leaving the app with Back is the background like any other (Android 17 finishes
   the activity then, so locking on that would ask for the password after every Back). Locking wipes the
-  key, the vault and attachments, and removes the code notification (§6.3).
+  key, the vault and attachments.
 - Android freezes an app in the background (about 10 s after it leaves), so the session's own timer may
   not run; an alarm (inexact, no exact-alarm permission) wakes the app at the timeout to lock it: on time
   or a little later, in Doze at the next maintenance window. Coming back checks the time too. Checked on
@@ -323,7 +325,7 @@ rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`
 
 Design, UI and UX matter as much as the file handling: the app must look and feel great, not merely work.
 Screens are designed as clickable mock-ups first and agreed with the owner before they are built. The
-agreed mock-ups (light and dark, every screen of §6.2–6.3 including the editor for step 7) are the canvas
+agreed mock-ups (light and dark, every screen of §6.2 including the editor for step 7) are the canvas
 https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - Lock: the fingerprint is the large main button; the password field below it, in thumb reach, with an
   arrow button to unlock; the reason of the last lock as a chip.
@@ -332,8 +334,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - Card: a tinted tile per field kind; the password row has an eye, copy and a menu; recovery codes are a
   numbered grid with one eye; a copy confirms in a snackbar ("Password copied · clears in 30 s").
 - Show as QR can also show the password as text; the Share… warning points to Show as QR as the safer way.
-- The code in the notification: the code, a draining bar, Copy and Unpin; on the lock screen only
-  "Code ready".
+- The canvas also has a code pinned to the notification shade; it was dropped (§1).
 
 ### 6.1 Look and feel
 
@@ -370,7 +371,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   title move into the bar. A password's menu: **Show as QR** (full screen, for another
   phone to scan; nothing leaves the device), **Large type** (full screen, big monospaced characters, for
   typing it on a TV or another computer), **Share…** (the system share sheet, after a warning that the text
-  goes to another app and maybe its cloud). A code's menu: **Pin to notification** (§6.3).
+  goes to another app and maybe its cloud).
 - **Editor**: the Mac editor's rules (name above value for custom fields, protected switch, problems keep
   Save off; no reordering in v1), saving shows "Saving and checking…".
 - **Delete**: moves the entry to the recycle bin at once, with "Deleted · Undo" in a snackbar; no
@@ -381,15 +382,6 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   in a debug build.
 - **Launcher shortcut** "Codes" (long press on the icon): unlock, then the list of entries with one-time
   codes.
-
-### 6.3 One-time code in the notification shade
-
-- "Pin to notification" on a code shows an ongoing notification: entry title, the current code, a countdown
-  and a **Copy** action; the code changes every period while the notification is up (a foreground
-  service). One pinned code at a time; a new pin replaces it; it can be dismissed.
-- It lives only as long as the session: locking removes it and wipes the secret with everything else.
-- On the lock screen the notification shows only "KeePassBar: code ready" (a public version without the
-  code).
 
 ## 7. Autofill
 
@@ -435,6 +427,12 @@ service, the screen it opens and the system's view structure are in `app/autofil
   invisibly, which makes the current code then and fills it (with the username and password when the form
   has them). Checked: the code filled in Chrome was the one keepassxc-cli showed. Firefox does not give a
   lone code field to autofill services at all (it registers login forms only); Chrome does.
+- **The code after a login** (ROADMAP step 6): when autofill fills the username or password of an entry
+  that has a one-time code and the form has no code field, the current code goes to the clipboard as any
+  copy does (marked sensitive, cleared after 30 s, §4), so the next page's code field takes a paste: in
+  Firefox, in a row of one-digit boxes, in a field autofill does not recognise. Such an entry's dataset goes
+  through the invisible autofill screen like a code's, so the code is made when it is tapped. The code may
+  be near the end of its period; most sites also take the one before.
 - **Locked**: one item, "Unlock KeePassBar" ("to fill <site or app>" in the dropdown). It opens the
   autofill screen: the lock screen (the fingerprint is offered at once), then the one matching entry is
   filled at once, or the picker shows when there are several or none. After a cancelled unlock the item

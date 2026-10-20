@@ -9,9 +9,9 @@ The "Effort" line of a step is the suggested level (medium / high / xhigh / max)
 
 ## 6. Quick access and sharing
 
-Effort: high.
+Effort: medium (the pinned code in the notification shade, the part that needed more, was dropped).
 
-- Pin a one-time code to the notification shade (SPEC §6.3).
+- Autofill copies the entry's one-time code after it filled a login (SPEC §7).
 - The "Codes" launcher shortcut.
 - Password menu: Show as QR, Large type, Share… with the warning.
 - The Wi-Fi network's QR code on the card (Mac SPEC §3.13; the card shows the network's fields until then).
