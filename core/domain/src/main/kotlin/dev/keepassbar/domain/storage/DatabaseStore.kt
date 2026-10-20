@@ -15,7 +15,9 @@ public interface DatabaseStore {
 
     /**
      * Makes [bytes] the database's content. Nothing that watches the folder (Syncthing) may ever see a
-     * half-written database where the storage allows that.
+     * half-written database where the storage allows that, and the new file must look changed to it even
+     * with the same size: a modification time it tells from the old one. Throws an [java.io.IOException]
+     * also when the content was replaced but the new time could not be made sure of.
      */
     public fun replace(bytes: ByteArray)
 

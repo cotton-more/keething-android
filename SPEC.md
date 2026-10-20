@@ -146,10 +146,14 @@ replace that keeps size and time.
 
 On the phone (Pixel 6, Android 17, Syncthing-Fork 2.1.3) reading behaved the same: changes from the Mac
 (about 10 s later), a real conflict copy, the moment without a file during Syncthing's replace. Writing did
-not: a file **replaced by a rename** inside the Syncthing folder gets the old file's modification time back
-within 30 s (seen with the shell's `mv` too; not outside the Syncthing folder; an in-place write keeps its
-time). With the size unchanged, Syncthing then takes the file for unchanged and never sends it: the phone and
-the Mac silently disagree. So §3.3 step 7 is open until writing (ROADMAP step 7) finds the cause and the way.
+not at first: a file **replaced by a rename** got the replaced file's modification time back, and with the
+size unchanged Syncthing took it for unchanged and never sent it: the phone and the Mac silently disagreed.
+The cause is the phone's shared storage, not Syncthing (found in ROADMAP step 7): on the Pixel 6 (kernel
+6.1) the first read of a file that replaced another by a rename gives it the replaced file's exact time.
+Any read does it, by any process, in the Syncthing folder or in `Download`, with Syncthing stopped too;
+one byte is enough, opening and closing is not; the content and size read back right. Earlier it looked
+tied to the Syncthing folder only because nothing else read the file there. The emulator (kernel 6.12)
+keeps the new time. The way out is in §3.3 step 7.
 
 ### 3.2 Reading and noticing changes
 
@@ -189,9 +193,19 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
    app's temporary file, only the final one.
-   **Open (seen on the phone, §3.1):** after the rename the file's modification time is set back to the old
-   one and Syncthing does not send a same-size file. To settle before writing ships: what resets it, and
-   whether to set the time after the rename, write in place, or both.
+   Then the file's modification time is set through its path (`PathDatabaseStore`): the clock's time, but at
+   least 2 s after the replaced file's, since Syncthing on Android takes times less than 2 s apart for equal
+   (its `ModTimeWindow`, on any file system but ext2–4). A byte is read and the time checked: a time that
+   did not stay fails the replace, although the content is replaced by then. Without this the Pixel 6 gives
+   the new file the old time at its first read (§3.1); with it the time stays. Checked on the test phone: the
+   shell's `mv` followed by `touch -m`, then reads for 75 s, Syncthing's scan among them; the probe's 8 MiB
+   test file written three times with the same size through the app's code reached the Mac each time
+   (11–12 s later, byte for byte). Writing in place would keep the time too, but gives up the atomic replace.
+   Syncthing's own bug [#10924](https://github.com/syncthing/syncthing/issues/10924): a change on another
+   device that only touches the time, arriving before the phone scanned its own new file (watcher delay
+   10 s), sets that time on the phone's file and its content is never sent. Fixed in Syncthing 2.1.7 (a
+   release candidate in October 2026); both phones run 2.1.3, so Syncthing-Fork is to be updated when it
+   ships. Nothing the app can do; it needs a change that touches only the time, which KeePassXC never makes.
 
 ### 3.4 Conflicts
 

@@ -4,13 +4,19 @@ import dev.keepassbar.domain.storage.ConflictCopy
 import dev.keepassbar.domain.storage.DatabaseRead
 import dev.keepassbar.domain.storage.DatabaseStore
 import dev.keepassbar.domain.storage.FileVersion
+import dev.keepassbar.domain.time.Clock
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.file.AccessDeniedException
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
+import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.FileTime
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -20,6 +26,8 @@ import java.util.UUID
 internal class PathDatabaseStore(
     private val database: File,
     private val folderWatcher: FolderWatcher,
+    private val clock: Clock,
+    private val setModifiedTime: (Path, Instant) -> Unit = { path, time -> Files.setLastModifiedTime(path, FileTime.from(time)) },
 ) : DatabaseStore {
     private val folder: File = database.absoluteFile.parentFile
         ?: throw IllegalArgumentException("The database must be in a folder: $database")
@@ -62,6 +70,7 @@ internal class PathDatabaseStore(
     }
 
     override fun replace(bytes: ByteArray) {
+        val replaced = version()
         val temporary = File(folder, temporaryFileName())
         try {
             FileOutputStream(temporary).use { stream ->
@@ -71,6 +80,26 @@ internal class PathDatabaseStore(
             Files.move(temporary.toPath(), database.toPath(), StandardCopyOption.ATOMIC_MOVE)
         } finally {
             temporary.delete()
+        }
+        stampModificationTime(after = replaced?.modified)
+    }
+
+    /**
+     * Gives the new file a modification time Syncthing tells from the replaced file's (SPEC §3.3 step 7).
+     * On the Pixel 6 (kernel 6.1) shared storage gives a file that replaced another by a rename the replaced
+     * file's time at its first read, and Syncthing takes a file of the same size and time for unchanged.
+     * Setting the time through the path after the rename makes the new one stay; reading a byte brings an
+     * old time back before the check, if it would come back.
+     */
+    private fun stampModificationTime(after: Instant?) {
+        val now = clock.now()
+        val time = if (after == null) now else maxOf(now, after.plus(SYNCTHING_TIME_WINDOW))
+        val path = database.toPath()
+        setModifiedTime(path, time)
+        Files.newInputStream(path).use { it.read() }
+        val kept = version()?.modified
+        if (kept == null || Duration.between(kept, time).abs() > TIME_PRECISION) {
+            throw IOException("The database was replaced but its modification time is $kept, not $time: Syncthing may not send it")
         }
     }
 
@@ -102,6 +131,10 @@ internal class PathDatabaseStore(
 
     companion object {
         private const val READ_ATTEMPTS = 3
+
+        /** Syncthing on Android takes modification times less than 2 s apart for equal, except on ext2–4 (shared storage is FUSE). */
+        private val SYNCTHING_TIME_WINDOW = Duration.ofSeconds(2)
+        private val TIME_PRECISION = Duration.ofMillis(1)
 
         /**
          * Syncthing never scans or sends `.syncthing.*.tmp` files (they are its own downloads), so a

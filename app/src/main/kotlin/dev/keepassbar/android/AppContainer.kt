@@ -11,6 +11,7 @@ import dev.keepassbar.android.clipboard.AndroidSystemClipboard
 import dev.keepassbar.android.clipboard.ClipboardClearAlarm
 import dev.keepassbar.android.clipboard.SensitiveClipboard
 import dev.keepassbar.android.list.RecentEntries
+import dev.keepassbar.android.session.AndroidClock
 import dev.keepassbar.android.session.LockAlarm
 import dev.keepassbar.android.session.Sessions
 import dev.keepassbar.android.settings.AppSettings
@@ -36,7 +37,7 @@ internal class AppContainer(context: Context) {
 
     private val folderWatcher = FileObserverFolderWatcher()
 
-    val databaseStoreAt: (File) -> DatabaseStore = { file -> PathDatabaseStore(file, folderWatcher) }
+    val databaseStoreAt: (File) -> DatabaseStore = { file -> PathDatabaseStore(file, folderWatcher, AndroidClock) }
 
     private val settingsStore = SharedPreferencesSettingsStore(context.getSharedPreferences("settings", Context.MODE_PRIVATE))
 

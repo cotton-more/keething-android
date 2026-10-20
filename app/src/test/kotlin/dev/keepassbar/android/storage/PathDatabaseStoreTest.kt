@@ -1,22 +1,29 @@
 package dev.keepassbar.android.storage
 
 import dev.keepassbar.domain.storage.DatabaseRead
+import dev.keepassbar.domain.time.Clock
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.attribute.FileTime
+import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 
 class PathDatabaseStoreTest {
     private val folder: File = Files.createTempDirectory("store-test").toFile()
     private val database = File(folder, "vault.kdbx")
     private val watcher = FakeFolderWatcher()
-    private val store = PathDatabaseStore(database, watcher)
+    private val clock = FixedClock(Instant.parse("2026-06-01T12:00:00Z"))
+    private val store = PathDatabaseStore(database, watcher, clock)
 
     @AfterTest
     fun deleteFolder() {
@@ -63,6 +70,37 @@ class PathDatabaseStoreTest {
     }
 
     @Test
+    fun replaceGivesTheNewFileTheClocksTime() {
+        database.writeBytes(byteArrayOf(1))
+        modifiedAt(Instant.parse("2026-05-01T12:00:00Z"))
+
+        store.replace(byteArrayOf(2))
+
+        assertEquals(clock.now, store.version()?.modified)
+    }
+
+    @Test
+    fun replaceGivesATimeAtLeastTwoSecondsAfterTheReplacedFilesForSyncthing() {
+        database.writeBytes(byteArrayOf(1))
+        val replacedAt = clock.now.minusSeconds(1)
+        modifiedAt(replacedAt)
+
+        store.replace(byteArrayOf(2))
+
+        assertEquals(replacedAt.plusSeconds(2), store.version()?.modified)
+    }
+
+    @Test
+    fun replaceFailsWhenTheNewFileDoesNotKeepItsTime() {
+        val store = PathDatabaseStore(database, watcher, clock, setModifiedTime = { _, _ -> })
+        database.writeBytes(byteArrayOf(1))
+        modifiedAt(Instant.parse("2026-05-01T12:00:00Z"))
+
+        assertFailsWith<IOException> { store.replace(byteArrayOf(2)) }
+        assertContentEquals(byteArrayOf(2), database.readBytes())
+    }
+
+    @Test
     fun createsTheFileWhenThereIsNone() {
         store.replace(byteArrayOf(7))
 
@@ -97,7 +135,7 @@ class PathDatabaseStoreTest {
         var changes = 0
         store.watch { changes++ }
 
-        PathDatabaseStore(database, FakeFolderWatcher()).replace(byteArrayOf(2))
+        PathDatabaseStore(database, FakeFolderWatcher(), clock).replace(byteArrayOf(2))
         watcher.report("vault.kdbx")
 
         assertEquals(1, changes)
@@ -161,6 +199,16 @@ class PathDatabaseStoreTest {
 
         assertTrue(watcher.closed)
     }
+
+    private fun modifiedAt(time: Instant) {
+        Files.setLastModifiedTime(database.toPath(), FileTime.from(time))
+    }
+}
+
+private class FixedClock(val now: Instant) : Clock {
+    override fun now(): Instant = now
+
+    override fun elapsed(): Duration = Duration.ZERO
 }
 
 private class FakeFolderWatcher : FolderWatcher {
