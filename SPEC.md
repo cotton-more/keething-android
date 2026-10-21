@@ -9,7 +9,7 @@ Owner's context: one user, one database (`1Password.kdbx`, ~35 MB, ~1900 entries
 1Password, many custom fields, some one-time codes and attachments), password only (no key file, no
 YubiKey), **synchronised with Syncthing** between the Mac and the phone. Phone: **Pixel 11 Pro, Android 17**;
 checks on a phone run on a separate test phone (Pixel 6, Android 17).
-Installed as a self-signed APK. Google Play is a possible last step, not a v1 goal (§8.1), but nothing
+Installed as a self-signed APK. Google Play is the last step (§8.1), not a v1 goal, and nothing
 may block it: the storage choice in §3.1 is the one place where it matters.
 
 Why not KeePassDX / Keepass2Android: KeePassDX keeps losing the database file when Syncthing delivers a
@@ -615,10 +615,11 @@ service, the screen it opens and the system's view structure are in `app/autofil
 - Google's developer verification for side-loaded apps (rolling out 2026–2027): check its state before the
   first install; installing over `adb` is expected to stay possible.
 
-### 8.1 Google Play (maybe, the very last step)
+### 8.1 Google Play (ROADMAP step 8)
 
-Not decided whether it happens at all. If it does: the SAF storage (§3.1), a privacy policy, store listing,
-and a donation option. `QUERY_ALL_PACKAGES` (autofill's verified websites, §7) is a restricted permission
+Decided (2026-10-21): the app is to be published on Google Play. It needs the SAF storage (§3.1: Play does not
+allow all-files access for a password manager), a privacy policy, a store listing, the licences shown in the
+app, and a donation option. `QUERY_ALL_PACKAGES` (autofill's verified websites, §7) is a restricted permission
 on Play: check that a password manager's autofill is an accepted use, else matching apps by their websites
 goes. External donation links are a grey area under Play's payment rules; the safe ways are
 a "tip" through Play Billing or a separate paid "supporter" build (as KeePassDX does) — check the rules at
