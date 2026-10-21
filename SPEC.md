@@ -248,7 +248,12 @@ the attachments byte for byte; then 8 saves through the save path, each checked 
 into the bin, restored, into the bin again; the entry with the most fields, 44 and 3 attachments: its notes,
 into the bin, restored), 1.65 s each on the Mac's JVM; read again from scratch, every other entry, group and
 the bin as before, and KeePassXC opened it. Peak Java heap on the Mac 1 GB (`-Xmx2g`, not what the phone
-needs at least; to be measured there). The copy was deleted afterwards.
+needs at least). The copy was deleted afterwards.
+The same copy on the test phone (Pixel 6, release build, in a folder outside Syncthing, then deleted with the
+app's data and its backups): the unlock took 2.7 s; a new entry saved and checked in 3.0 s, its move into the bin
+too; the Java heap peaked at about 383 MB during a save (sampled every half second; the app's large-heap limit
+is 512 MB), 476 MB PSS. Enough, but not with room for a much larger database: a save holds the file, its
+decrypted content, the tree, the new file and its reading back at once.
 
 ### 3.4 Conflicts
 

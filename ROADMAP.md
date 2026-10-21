@@ -18,9 +18,9 @@ Done already: the core (tree, writer, editing, the save checks), replacing the f
 time set, the backups, the editor, new entry, delete with Undo, restore, the password generator, autofill's
 save and update offers and the generator for sign-ups.
 
-- Checked on a copy of the real database on the Mac (SPEC §3.3: round trip and 8 saves, all passed). Left: a
-  save on the test phone with a copy of it (not in a synced folder), for the time and the memory with 34 MB;
-  then with Syncthing for real.
+- Checked on a copy of the real database, on the Mac and on the test phone (SPEC §3.3: all saves passed; 3 s
+  and about 380 MB of the 512 MB heap per save on the phone). Left: the owner's decision to use writing with
+  the real database and Syncthing.
 
 ## Later
 

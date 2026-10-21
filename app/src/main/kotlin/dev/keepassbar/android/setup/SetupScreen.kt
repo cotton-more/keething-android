@@ -52,6 +52,7 @@ import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.segmentShape
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -81,13 +82,20 @@ internal class SetupViewModel(current: File?) : ViewModel() {
         state.value.folder?.let(::chooseFolder)
     }
 
+    private var listing: Job? = null
+
     fun chooseFolder(folder: File?) {
         if (folder == null) return mutableState.update { it.copy(folderProblem = true) }
-        viewModelScope.launch {
+        // The folder is the chosen one at once, and only the latest listing counts: coming back from the
+        // picker refreshes right after the choice, and the refresh must list the new folder, not the old one.
+        val changed = folder != state.value.folder
+        mutableState.update { it.copy(folder = folder, databases = if (changed) emptyList() else it.databases, folderProblem = false) }
+        listing?.cancel()
+        listing = viewModelScope.launch {
             val names = withContext(Dispatchers.IO) {
                 folder.list().orEmpty().filter { it.endsWith(".kdbx", ignoreCase = true) && ".sync-conflict-" !in it }.sorted()
             }
-            mutableState.update { it.copy(folder = folder, databases = names, folderProblem = false) }
+            mutableState.update { it.copy(databases = names) }
         }
     }
 }
