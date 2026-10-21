@@ -36,6 +36,19 @@ Keep its password in your password manager and a backup of the `.jks` file somew
 is only updated by an APK signed with the same key. Without the key, the only way is to uninstall, which
 deletes the app's settings and its fingerprint setup.
 
+A good place for both is the password database itself: an entry "Keething signing key" with the key's
+password as its password and `keething.jks` as an attachment (encrypted with the database, synced and backed
+up with it). On another computer, save that attachment to `~/.keystores/keething.jks` (KeePassXC: the
+attachment › Save; Keething on the Mac: the card › Save to a folder), make the folder private
+(`mkdir -p ~/.keystores && chmod 700 ~/.keystores`) and build as usual; or point `KEYSTORE` at wherever it
+was saved. Never put the `.jks` file into the project folder (it could end up in git), and delete it again
+from a computer that is not yours.
+
+Losing the key or its password does not touch the database (it lives in the Syncthing folder): the app is
+uninstalled once, which deletes its own settings (the chosen database, the fingerprint setup, recent entries,
+its backups), and a build signed with a new key installed. For Google Play this key can serve as the upload
+key; Play signs the published app with a key of its own (ROADMAP step 8).
+
 Up to 2026-10-21 the test builds were signed with the Mac's debug key (`~/.android/debug.keystore`, password
 `android`: whoever has that file can sign an update the phone accepts). The test phone still has such a build;
 update it with `KEYSTORE=~/.android/debug.keystore tools/build-apk.sh`, or uninstall it before installing one
