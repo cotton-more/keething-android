@@ -19,7 +19,7 @@ version=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
 out=~/Downloads/KeePassBar-$version-$(git rev-parse --short HEAD).apk
 aligned=$(mktemp -d)/aligned.apk
 $tools/zipalign -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk $aligned
-$tools/apksigner sign --ks $keystore --out $out $aligned
+$tools/apksigner sign --ks $keystore --v4-signing-enabled false --out $out $aligned
 /bin/rm -r ${aligned:h}
 $tools/apksigner verify $out
 echo "Built $out"
