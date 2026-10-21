@@ -607,8 +607,10 @@ service, the screen it opens and the system's view structure are in `app/autofil
 - Built on the Mac from the command line (JDK 21, Android command-line tools, the Gradle wrapper); Android
   Studio is optional.
 - Release builds are shrunk with R8 (about 3 MB, against 66 MB for a debug build with the whole icon set).
-- Release APK signed with the owner's own keystore (kept outside the repository, password not in files);
-  installed with `adb install -r` (USB or wireless debugging) or by copying the APK to the phone.
+- Release APK signed with the owner's own keystore (kept outside the repository, password not in files;
+  `tools/build-apk.sh`, README); installed with `adb install -r` (USB or wireless debugging) or by copying the
+  APK to the phone. Until 2026-10-21 the test builds were signed with the Mac's debug key instead (a known
+  password: whoever has that file can sign an update the phone accepts); the owner's phone gets the own key.
 - Updates keep the same signing key (otherwise Android refuses the update and the app must be uninstalled,
   which deletes the biometric key and settings).
 - minSdk 34 (only the owner's phone and an emulator), targetSdk = the newest installed (Android 17).

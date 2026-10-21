@@ -19,6 +19,24 @@ It finds the current connect port over Bonjour, connects adb to `127.0.0.1:15555
 while it runs (`ANDROID_SERIAL=127.0.0.1:15555`). The pairing port and code are in Developer options ›
 Wireless debugging › "Pair device with pairing code"; the dialog must stay open while pairing.
 
+## Building the APK
+
+    tools/build-apk.sh              # release build, signed; asks for the keystore's password
+    tools/build-apk.sh --install    # and installs it with adb on the connected phone
+
+The APK lands in `~/Downloads` as `KeePassBar-<version>-<commit>.apk`. It is signed with the keystore in
+`KEYSTORE` (default `~/.keystores/keepassbar.jks`). Making that keystore, once (its password stays in your
+head or your password manager, never in a file; keep a backup of the `.jks` file: without it no update of the
+installed app is possible, only uninstalling, which deletes its settings and the fingerprint setup):
+
+    mkdir -p ~/.keystores && chmod 700 ~/.keystores
+    keytool -genkeypair -keystore ~/.keystores/keepassbar.jks -alias keepassbar -keyalg RSA -keysize 4096 \
+        -validity 36500 -dname "CN=KeePassBar"
+
+Copy the APK to the phone (a Syncthing folder, then open it in Files) or install it with `--install`.
+Up to 2026-10-21 the test builds were signed with the Mac's debug key (`~/.android/debug.keystore`); an
+install signed with it cannot be updated by one signed with the own key: uninstall it first.
+
 ## Trying the writing on a copy of a database
 
     tools/kdbx-probe.sh <copy.kdbx>     # asks for the password; changes the copy, prints no values
