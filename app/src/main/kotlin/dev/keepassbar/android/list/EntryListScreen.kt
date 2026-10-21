@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.HistoryToggleOff
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Schedule
@@ -54,6 +56,9 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -107,8 +112,9 @@ import java.time.format.FormatStyle
 /**
  * The list (SPEC §6.2): nothing typed shows the recently used entries, then all by title; the search field
  * is at the bottom, in thumb reach above the keyboard. A row opens its card; a long press copies the
- * password; a row with a one-time code shows it live, as a button that copies it. [codesOnly]: the "Codes"
- * shortcut's list, only the entries with a one-time code; Back or the arrow leaves it for the whole list.
+ * password; a row with a one-time code shows it live, as a button that copies it; a recently used row
+ * swiped either way leaves Recent, with Undo. [codesOnly]: the "Codes" shortcut's list, only the entries
+ * with a one-time code; Back or the arrow leaves it for the whole list.
  */
 @Composable
 internal fun EntryListScreen(
@@ -191,17 +197,27 @@ internal fun EntryListScreen(
                     SectionTitle(section.title())
                 }
                 itemsIndexed(section.rows, key = { _, row -> "${section.kind}/${row.id}" }, contentType = { _, _ -> "row" }) { index, row ->
-                    EntryRowView(
-                        row = row,
-                        shape = segmentShape(index, section.rows.size),
-                        sharedKey = "${section.kind}/${row.id}",
-                        icons = state.icons,
-                        now = now,
-                        onOpen = { onOpen(row.id, section.kind.name) },
-                        onCopyPassword = { model.copyPassword(row.id) },
-                        onCopyCode = { model.copyCode(row.id) },
-                        modifier = Modifier.padding(bottom = SegmentGap),
-                    )
+                    val shape = segmentShape(index, section.rows.size)
+                    val rowView = @Composable { modifier: Modifier ->
+                        EntryRowView(
+                            row = row,
+                            shape = shape,
+                            sharedKey = "${section.kind}/${row.id}",
+                            icons = state.icons,
+                            now = now,
+                            onOpen = { onOpen(row.id, section.kind.name) },
+                            onCopyPassword = { model.copyPassword(row.id) },
+                            onCopyCode = { model.copyCode(row.id) },
+                            modifier = modifier,
+                        )
+                    }
+                    if (section.kind == ListSection.Kind.RECENT) {
+                        SwipeToRemove(shape, onRemove = { model.removeFromRecent(row.id) }, Modifier.animateItem().padding(bottom = SegmentGap)) {
+                            rowView(Modifier)
+                        }
+                    } else {
+                        rowView(Modifier.padding(bottom = SegmentGap))
+                    }
                 }
                 item(key = "gap/${section.kind}", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
             }
@@ -377,6 +393,30 @@ internal fun EntryRowView(
         }
         if (onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode) }
     }
+}
+
+/** A recently used row swiped either way leaves the list (SPEC §6.2); what is under it says so. */
+@Composable
+private fun SwipeToRemove(shape: RoundedCornerShape, onRemove: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    // Not saveable: a row put back by Undo comes back under the same key, and a saved state would dismiss it again.
+    val state = remember { SwipeToDismissBoxState(SwipeToDismissBoxValue.Settled, positionalThreshold = { distance -> distance * 0.4f }) }
+    SwipeToDismissBox(
+        state = state,
+        modifier = modifier,
+        onDismiss = { onRemove() },
+        backgroundContent = {
+            val toEnd = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            Row(
+                Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, if (toEnd) Alignment.Start else Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val colour = MaterialTheme.colorScheme.onSecondaryContainer
+                Icon(Icons.Rounded.HistoryToggleOff, contentDescription = null, tint = colour)
+                Text("Remove from Recent", style = MaterialTheme.typography.labelLarge, color = colour)
+            }
+        },
+    ) { content() }
 }
 
 /** The live code of a row, with the ring that runs down its period; a tap copies it. */

@@ -3,6 +3,8 @@ package dev.keepassbar.android.list
 import dev.keepassbar.android.settings.InMemorySettingsStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class RecentEntriesTest {
     private val store = InMemorySettingsStore()
@@ -36,5 +38,44 @@ class RecentEntriesTest {
 
         assertEquals(listOf("c", "a"), recents.ids.value)
         assertEquals(listOf("c", "a"), RecentEntries(store).ids.value)
+    }
+
+    @Test
+    fun aRemovedEntryLeavesTheListAndUndoPutsItBackInItsPlace() {
+        val recents = RecentEntries(store)
+        listOf("a", "b", "c").forEach(recents::note)
+
+        val undo = assertNotNull(recents.remove("b"))
+
+        assertNull(recents.remove("b"), "not on the list any more: nothing to undo")
+        assertEquals(listOf("c", "a"), recents.ids.value)
+        assertEquals(listOf("c", "a"), RecentEntries(store).ids.value)
+        undo()
+        assertEquals(listOf("c", "b", "a"), recents.ids.value)
+        assertEquals(listOf("c", "b", "a"), RecentEntries(store).ids.value)
+    }
+
+    @Test
+    fun undoAfterTheEntryWasUsedAgainChangesNothing() {
+        val recents = RecentEntries(store)
+        listOf("a", "b", "c").forEach(recents::note)
+
+        val undo = assertNotNull(recents.remove("a"))
+        recents.note("a")
+        undo()
+
+        assertEquals(listOf("a", "c", "b"), recents.ids.value)
+    }
+
+    @Test
+    fun undoKeepsTheLimit() {
+        val recents = RecentEntries(store)
+        (1..8).forEach { recents.note("e$it") }
+
+        val undo = assertNotNull(recents.remove("e1"))
+        recents.note("e9")
+        undo()
+
+        assertEquals(listOf("e9", "e8", "e7", "e6", "e5", "e4", "e3", "e2"), recents.ids.value)
     }
 }

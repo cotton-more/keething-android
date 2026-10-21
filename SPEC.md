@@ -437,7 +437,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site; a long press copies the password. The header (large "Keething", the database and its entries,
   the password generator, lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
-  which something was copied, kept as ids only (they survive a lock and say nothing without the database).
+  which something was copied, kept as ids only (they survive a lock and say nothing without the database);
+  a recent row swiped either way leaves the list ("Removed from Recent" with Undo, which puts it back in its
+  place), the entry itself untouched.
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.

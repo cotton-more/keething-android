@@ -131,6 +131,15 @@ internal class EntryListViewModel(
         notice(Notice.copied("One-time code"))
     }
 
+    /**
+     * A swipe on a recently used row (SPEC §6.2): off the list, with Undo; the entry stays in the database. A row no
+     * longer on the list says nothing, so a notice with a working Undo is never replaced by one without.
+     */
+    fun removeFromRecent(id: String) {
+        val undo = recents.remove(id) ?: return
+        notice(Notice("Removed from Recent", undo = undo))
+    }
+
     /** Shown for the reload failure banner. */
     fun describe(failure: OpenFailure): String = failure.describe(database.file)
 
