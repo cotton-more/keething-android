@@ -70,24 +70,30 @@ internal class KeystorePasswordStore(
         }
     }
 
-    override suspend fun open(): StoredPasswordOpening {
+    override suspend fun open(onRecognised: () -> Unit): StoredPasswordOpening {
         val sealed = withContext(io) { file.takeIf(File::exists)?.readBytes() } ?: return StoredPasswordOpening.NothingStored
         val rsa = withContext(io) { decryptingCipher() } ?: return StoredPasswordOpening.KeyInvalidated
         return when (val answer = prompt.authenticate(rsa)) {
             FingerprintPrompt.Answer.Cancelled -> StoredPasswordOpening.Cancelled
             is FingerprintPrompt.Answer.Failed -> StoredPasswordOpening.Failed(answer.reason)
-            FingerprintPrompt.Answer.Recognised -> withContext(io) {
-                val started = SystemClock.elapsedRealtime()
-                try {
-                    StoredPasswordOpening.Opened(SealedPassword.open(sealed, rsa)).also {
-                        Log.i(TAG, "opened in ${SystemClock.elapsedRealtime() - started} ms")
-                    }
-                } catch (unreadable: UnreadableSealException) {
-                    // Sealed for another key, or changed: nothing can open it any more.
-                    Log.w(TAG, "stored password unreadable: ${unreadable.message}")
-                    StoredPasswordOpening.KeyInvalidated
-                }
+            FingerprintPrompt.Answer.Recognised -> {
+                onRecognised()
+                openSealed(sealed, rsa)
             }
+        }
+    }
+
+    /** The RSA decryption in StrongBox: the slow part of a fingerprint unlock after the prompt. */
+    private suspend fun openSealed(sealed: ByteArray, rsa: Cipher): StoredPasswordOpening = withContext(io) {
+        val started = SystemClock.elapsedRealtime()
+        try {
+            StoredPasswordOpening.Opened(SealedPassword.open(sealed, rsa)).also {
+                Log.i(TAG, "opened in ${SystemClock.elapsedRealtime() - started} ms")
+            }
+        } catch (unreadable: UnreadableSealException) {
+            // Sealed for another key, or changed: nothing can open it any more.
+            Log.w(TAG, "stored password unreadable: ${unreadable.message}")
+            StoredPasswordOpening.KeyInvalidated
         }
     }
 

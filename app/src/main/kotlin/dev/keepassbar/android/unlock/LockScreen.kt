@@ -111,7 +111,9 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
     LaunchedEffect(visit) { model.offerFingerprint(visit) }
 
     val reason = (session as? SessionState.Locked)?.reason
-    val unlocking = session is SessionState.Unlocking
+    // From the accepted fingerprint on: opening the stored password in StrongBox takes a moment before the
+    // vault's own unlock starts.
+    val unlocking = session is SessionState.Unlocking || biometric.opening
 
     // A wrong typed password shakes the field; a stored one the database rejected is not the user's typo.
     val shake = remember { Animatable(0f) }

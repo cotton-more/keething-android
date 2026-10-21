@@ -30,6 +30,11 @@ public data class BiometricState(
     val setupFailure: String? = null,
     /** A fingerprint unlock runs: the prompt is up, or the password it opened is opening the vault. */
     val prompting: Boolean = false,
+    /**
+     * The fingerprint was accepted: the stored password is being opened, then the vault. The lock screen says
+     * "Opening…" from here, not only once the vault's own unlock starts.
+     */
+    val opening: Boolean = false,
 ) {
     public val canUnlock: Boolean get() = enabled && availability == BiometricAvailability.Available && stored
 }
@@ -131,7 +136,7 @@ public class BiometricUnlock(
             if (availability is BiometricAvailability.Unavailable) return FingerprintOutcome.NotAvailable(availability.reason)
             if (!withContext(io) { runCatching { store.hasPassword() }.getOrDefault(false) }) return nothingStored()
             val opening = try {
-                store.open()
+                store.open(onRecognised = { mutableState.update { it.copy(opening = true) } })
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -148,7 +153,7 @@ public class BiometricUnlock(
                 StoredPasswordOpening.NothingStored -> nothingStored()
             }
         } finally {
-            mutableState.update { it.copy(prompting = false) }
+            mutableState.update { it.copy(prompting = false, opening = false) }
         }
     }
 

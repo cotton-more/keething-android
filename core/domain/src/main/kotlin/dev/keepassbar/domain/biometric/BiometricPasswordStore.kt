@@ -44,8 +44,12 @@ public interface BiometricPasswordStore {
     /** Seals [password] in place of the one stored; the caller still wipes its own. Throws when that fails. */
     public fun save(password: Secret)
 
-    /** Asks for the fingerprint, then opens the stored password. Throws when the stored copy cannot be read. */
-    public suspend fun open(): StoredPasswordOpening
+    /**
+     * Asks for the fingerprint, then opens the stored password; [onRecognised] is called once the fingerprint is
+     * accepted, before the password is opened (in StrongBox that takes a moment). Throws when the stored copy
+     * cannot be read.
+     */
+    public suspend fun open(onRecognised: () -> Unit): StoredPasswordOpening
 
     /** Deleting nothing is not an error. Throws when it fails. */
     public fun delete()

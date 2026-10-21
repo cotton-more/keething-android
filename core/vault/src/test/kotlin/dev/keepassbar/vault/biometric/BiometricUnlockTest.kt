@@ -364,6 +364,41 @@ class BiometricUnlockTest {
     }
 
     @Test
+    fun anAcceptedFingerprintSaysOpeningBeforeTheStoredPasswordIsOpen() = runTest {
+        val f = storedPassword("pw")
+        val finger = CompletableDeferred<Unit>()
+        val decrypted = CompletableDeferred<Unit>()
+        f.store.gate = finger
+        f.store.decrypting = decrypted
+
+        val unlock = async { f.biometric.unlockWithFingerprint() }
+        runCurrent()
+        assertFalse(f.biometric.state.value.opening, "the prompt is up: nothing opens yet")
+        finger.complete(Unit)
+        runCurrent()
+        assertTrue(f.biometric.state.value.opening, "accepted: the lock screen says it is opening")
+        assertIs<SessionState.Locked>(f.session.state.value, "while the stored password is still being opened")
+        decrypted.complete(Unit)
+
+        assertEquals(FingerprintOutcome.Unlocked, unlock.await())
+        assertFalse(f.biometric.state.value.opening)
+    }
+
+    @Test
+    fun aCancelledPromptNeverSaysOpening() = runTest {
+        val f = storedPassword("pw")
+        f.store.prompt = StoredPasswordOpening.Cancelled
+        val seen = mutableListOf<Boolean>()
+        val watch = launch { f.biometric.state.collect { seen += it.opening } }
+        runCurrent()
+
+        assertEquals(FingerprintOutcome.Cancelled, f.biometric.unlockWithFingerprint())
+        runCurrent()
+        watch.cancel()
+        assertFalse(true in seen)
+    }
+
+    @Test
     fun noPromptWhileAnotherUnlockRunsOrTheVaultIsOpen() = runTest {
         val f = storedPassword("pw")
         f.typed("pw")
@@ -445,6 +480,9 @@ internal class FakePasswordStore : BiometricPasswordStore {
     var stored: Secret? = null
     var prompt: StoredPasswordOpening? = null
     var gate: CompletableDeferred<Unit>? = null
+
+    /** With it the recognised finger's password waits to be opened (StrongBox is slow) until it completes. */
+    var decrypting: CompletableDeferred<Unit>? = null
     var saveError: Exception? = null
     var deleteError: Exception? = null
     var openError: Exception? = null
@@ -468,12 +506,14 @@ internal class FakePasswordStore : BiometricPasswordStore {
         stored = password.copy()
     }
 
-    override suspend fun open(): StoredPasswordOpening {
+    override suspend fun open(onRecognised: () -> Unit): StoredPasswordOpening {
         opens++
         gate?.await()
         openError?.let { throw it }
         prompt?.let { return it }
         val kept = stored ?: return StoredPasswordOpening.NothingStored
+        onRecognised()
+        decrypting?.await()
         return StoredPasswordOpening.Opened(kept.copy().also { handedOut += it })
     }
 

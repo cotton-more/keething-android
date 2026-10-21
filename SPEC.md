@@ -391,7 +391,10 @@ rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`
   release build): the key is created in StrongBox, in 2.9 s, after the typed unlock, out of sight; the
   fingerprint unlock, the prompt by itself after a start, "Use password"; the lock screen's "Use fingerprint
   next time" (the typed unlock stored the password, the next one took the fingerprint). Opening the stored password takes
-  0.3 s in StrongBox, then the unlock its usual 2.3 s (the key derivation). A new fingerprint invalidating
+  0.3 s in StrongBox, then the unlock its usual 2.3 s (the key derivation). Android hands the app the accepted
+  fingerprint about 0.9 s after the sensor took it (measured 2026-10-21, the prompt closing; nothing the app
+  can shorten); from then on the lock screen says "Opening …", the StrongBox part included
+  (`BiometricState.opening`). A new fingerprint invalidating
   the key was checked on the emulator only.
 
 ## 6. The interface
