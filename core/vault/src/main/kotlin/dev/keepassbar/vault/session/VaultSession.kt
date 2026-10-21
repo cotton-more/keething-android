@@ -271,6 +271,7 @@ public class VaultSession(
      * Writes [edit] into the file (SPEC §3.3), with the key in memory; the vault then becomes the file read back.
      * One save at a time: null while one runs, and when not unlocked. Refused because the entry changed or went
      * elsewhere, the vault is read again; refused because the password changed elsewhere, the session locks.
+     * The save reads [edit]'s secrets until the result is complete: wipe them only then.
      */
     public fun save(edit: VaultEdit): Deferred<SaveOutcome>? {
         if (mutableState.value !is SessionState.Unlocked || saving) return null

@@ -116,6 +116,12 @@ internal class EntryListViewModel(
         notice(Notice.copied("Password"))
     }
 
+    /** A password made by the generator, without an entry (SPEC §6.2). */
+    fun copyGenerated(password: String) {
+        clipboard.copy(password, sensitive = true)
+        notice(Notice.copied("Password"))
+    }
+
     /** The code button of a row. */
     fun copyCode(id: String) {
         val entry = entry(id) ?: return

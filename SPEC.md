@@ -40,10 +40,12 @@ The first releases only read the database, so they cannot damage it; the owner r
 Writing comes after them (ROADMAP step 7) and must be done before a Google Play release:
 - Edit, create, recycle and restore entries (delete is undoable from a snackbar; emptying the recycle bin
   is left to the Mac); custom fields.
-- Autofill's offer to save a new login or update a changed password, with a simple password generator for
+- Autofill's offer to save a new login or update a changed password, with the password generator for
   sign-ups.
+- The password generator (Mac SPEC §3.20): in the editor's password field, and on its own from the list
+  (a password without an entry, copied).
 
-Non-goals (v1): SSH agent, a password generator beyond the one in the autofill save, e-mail aliases,
+Non-goals (v1): SSH agent, e-mail aliases,
 reports, history UI, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
 only, §3.4), deleting entries for good / emptying the recycle bin, adding / removing / renaming
 attachments, reordering custom fields, a Quick Settings tile, a one-time code pinned to the notification
@@ -71,14 +73,16 @@ core/vault    application layer: open, edit, save with the checks, the lock / un
               auto-lock state machine, the fingerprint unlock's rules    → domain, kdbx, totp
 core/autofill autofill's rules: what a field asks for, the target, the matching entries (§7)
                                                                              → domain, search, totp
-core/card     how an entry card is laid out (the Mac app's Presentation rules: sections, dates, links,
-              lists of codes, payment card, Wi-Fi, deadlines, avatars)    → domain, totp, search
+core/card     how an entry card is laid out and edited (the Mac app's Presentation rules: sections,
+              dates, links, lists of codes, payment card, Wi-Fi, deadlines, avatars; the editor's
+              rules, `card/editing`)                                     → domain, totp, search
+core/generator the password generator: kinds, options, exact entropy, the EFF word list (a
+              resource)                                                  → nothing
 app           Android: the adapters behind the ports (storage, biometrics, clipboard, clock), Compose UI,
               AutofillService (§7), the composition root
-                                                     → vault, search, totp, card, autofill (not kdbx)
+                                          → vault, search, totp, card, autofill, generator (not kdbx)
 ```
 
-Added when a step needs it: `core/generator` (the password generator; step 7).
 A new module is added when a feature has its own rules and its own tests, not for every package.
 
 Code design:
@@ -227,7 +231,10 @@ The session saves one change at a time with the key in memory (`VaultSession.sav
 written file as read back, and the app's own write is not read again. Refused because the entry changed or went
 elsewhere, the vault is read again; refused because the password changed elsewhere, the app locks. Reloads and
 saves take turns, so an older read never replaces a newer save. On the Mac's JVM a save of the fictitious
-1,894-entry demo database took about 0.3 s, no key derivation.
+1,894-entry demo database took about 0.3 s, no key derivation; on the test phone (Pixel 6, release build,
+the same database with the real KDF parameters) 0.66–0.75 s from Save to "Saved and checked", and about
+115 MB PSS afterwards. Checked there: an edit, a delete, a restore and a new entry, each read by
+`keepassxc-cli` on the Mac after Syncthing brought the file (within seconds of Syncthing running).
 
 Checked in JVM tests (the Mac's writing, editing, lifecycle and saver expectations, on the fixtures) and with
 KeePassXC's own `keepassxc-cli` (2.7, when installed): it opens every written fixture, exports a written file
@@ -257,7 +264,12 @@ exactly as the original, and reads an edited entry's protected fields, a new ent
 - Secrets are wipeable byte arrays (`Secret`): passwords, protected fields, one-time code keys, attachments.
   Protected values are decrypted from the file straight into them, so the XML in memory never holds a
   password in the clear. Not wipeable, and accepted: a `String` while a value is shown, copied or filled;
-  the typed master password in the text field until it is cleared; unprotected fields (username, notes).
+  the typed master password in the text field until it is cleared; unprotected fields (username, notes);
+  the values in the editor while it is open (Compose's text fields hold strings; the editor goes with the
+  lock). What a save writes is made into secrets, wiped once the save is over.
+- The keyboard is asked not to learn what is typed in the editor and the search field
+  (`IME_FLAG_NO_PERSONALIZED_LEARNING`, Gboard's incognito mode): entries' names and notes stay out of its
+  dictionary. Password fields are never learnt anyway.
 - Lock: after N minutes in the background (default 5, a choice of 1, 5, 15, 60; turning the screen off
   puts the app in the background), and from a button. Removing the app from recents ends its process, which
   takes the vault with it; leaving the app with Back is the background like any other (Android 17 finishes
@@ -387,6 +399,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   smoothly; copying gives a light haptic tick and a short confirmation.
 - Passwords in a monospaced font with digits and symbols coloured, as in 1Password. The font is Google
   Sans Code, bundled (SIL Open Font License, `assets/licenses`): every character must be clear.
+- The generator's words are the EFF large word list (CC BY 3.0 US, `assets/licenses`).
 - QR codes are made by Nayuki's `qrcodegen` (MIT, `assets/licenses`; 38 KB, no dependencies, medium error
   correction as on the Mac); nothing reads them in the app.
 - Few settings, fixed sensible defaults instead of switches.
@@ -402,7 +415,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   field. The first list after an unlock says how long the key derivation took.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site; a long press copies the password. The header (large "KeePassBar", the database and its entries,
-  lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
+  the password generator, lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
   which something was copied, kept as ids only (they survive a lock and say nothing without the database).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
@@ -423,11 +436,35 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   "Join <network> with a phone · The code contains the password" with **Show QR code**, which reveals the
   password row and draws the `WIFI:` code beside "Point the other phone's camera at the code" and Hide.
   Masking the password, leaving the card or a lock removes it; an open network's code is always shown.
-- **Editor**: the Mac editor's rules (name above value for custom fields, protected switch, problems keep
-  Save off; no reordering in v1), saving shows "Saving and checking…".
-- **Delete**: moves the entry to the recycle bin at once, with "Deleted · Undo" in a snackbar; no
-  confirmation dialog.
-- **Recycle bin**: `-` in the search, Restore on the card.
+- **Editor** (the card's pencil; a new entry from the button next to the search field): title, username,
+  password (masked, an eye shows it coloured), website, notes, tags (separated by commas or semicolons, each
+  once in any case), KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
+  name above value, a Protected switch, remove, "Add field". "Add codes" takes a block of codes pasted or
+  typed (numbering and bullets dropped, at most 50) and adds them as protected fields `<list>_1`, `_2`, …,
+  which the card shows as a numbered list; such a list is folded into one row in the editor ("Recovery
+  codes · 10 codes · protected") until tapped. The Mac editor's rules (`card/editing`): only what differs
+  from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
+  one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
+  entry needs a title or a website and goes into the group chosen (the root group to start with; an
+  existing entry is not moved). Save shows "Saving and checking…", then "Saved and checked · Syncthing
+  takes it to the Mac from here" with "Back to the entry" (a new entry's card), or why not with "Back to
+  editing". ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields, field types
+  (the Mac's per-entry `KeePassBar.FieldTypes`: a field renamed here leaves its type under the old name).
+- **Password generator** (Mac SPEC §3.20, `core/generator`): a sheet from the wand in the editor's password
+  field ("Use this password" puts it in, shown) and from the key icon in the list's header (a password
+  without an entry: Copy, sensitive and cleared after 30 s). Kinds PIN (4–16 digits), Strong (8–64
+  characters, A–Z / a–z / 0–9 / symbols each at least once, look-alikes `0 O o 1 l I |` optionally left
+  out), Words (2–8 EFF words in Capitals or CAPITALS joined by digits and symbols, at least the chosen
+  number of each) and Phrase (3–10 lowercase words joined by `-`, space, `.` or `_`); the password
+  monospaced with digits and symbols coloured; the recipe's exact bits (weak under 40, strong from 60) and
+  length. `SecureRandom`; "at least one of each" by drawing again, so every valid password is equally
+  likely. The options are remembered (`passwordGenerator` in the app's settings), never a password. The word
+  list is a Java resource found by its absolute path: R8 renames the package in a release build (a relative
+  path crashed the first phone run).
+- **Delete** (the card's bin icon): moves the entry to the recycle bin at once, no question; the card
+  closes and the list says "Moved “…” to the recycle bin" with Undo (10 s), which restores it.
+- **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
+  Web & Mail").
 - **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),
   lock timeout; the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.

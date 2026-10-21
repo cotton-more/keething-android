@@ -31,15 +31,19 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +58,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -72,6 +79,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keepassbar.android.AppContainer
+import dev.keepassbar.android.generator.GeneratorUse
+import dev.keepassbar.android.generator.PasswordGeneratorSheet
 import dev.keepassbar.android.navigation.sharedIcon
 import dev.keepassbar.android.navigation.sharedTitle
 import dev.keepassbar.android.session.DatabaseSession
@@ -81,6 +90,7 @@ import dev.keepassbar.android.ui.CodeRing
 import dev.keepassbar.android.ui.CustomIconImages
 import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.NoticeEffect
+import dev.keepassbar.android.ui.NoLearningKeyboard
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.SegmentGap
 import dev.keepassbar.android.ui.rememberSecondsNow
@@ -109,16 +119,31 @@ internal fun EntryListScreen(
     onOpen: (id: String, origin: String) -> Unit,
     onSettings: () -> Unit,
     onLeaveCodes: () -> Unit,
+    onNewEntry: () -> Unit,
 ) {
     val codes by rememberUpdatedState(codesOnly)
     val model = viewModel { EntryListViewModel(database, container.recents, container.clipboard, query, codesOnly = { codes }) }
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
+    NoticeEffect(container.recycleBin.notices, snackbar)
     BackHandler(enabled = query.text.isNotEmpty() || codesOnly) {
         if (query.text.isNotEmpty()) query.clearText() else onLeaveCodes()
     }
     val now = rememberSecondsNow()
+    // A password without an entry; the sheet's password goes with it.
+    var generating by rememberSaveable { mutableStateOf(false) }
+    if (generating) {
+        val generator = remember { container.passwordGenerator() }
+        PasswordGeneratorSheet(
+            generator,
+            GeneratorUse.Copy { password ->
+                model.copyGenerated(password)
+                generating = false
+            },
+            onDismiss = { generating = false },
+        )
+    }
 
     // The header collapses into a compact bar while the list scrolls, and is opaque once anything is under it.
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -126,9 +151,16 @@ internal fun EntryListScreen(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            Header(state, scroll, codesOnly, onLock = container.sessions::lock, onSettings = onSettings, onLeaveCodes = onLeaveCodes)
+            Header(
+                state, scroll, codesOnly, onLock = container.sessions::lock, onGenerator = { generating = true }, onSettings = onSettings,
+                onLeaveCodes = onLeaveCodes,
+            )
         },
-        bottomBar = { SearchField(query, placeholder = if (codesOnly) "Search entries with a code" else SEARCH_HINT) },
+        bottomBar = {
+            SearchField(query, placeholder = if (codesOnly) "Search entries with a code" else SEARCH_HINT) {
+                if (!codesOnly) NewEntryButton(onNewEntry)
+            }
+        },
         snackbarHost = { NoticeHost(snackbar) },
     ) { padding ->
         LazyColumn(
@@ -222,6 +254,7 @@ private fun Header(
     scroll: TopAppBarScrollBehavior,
     codesOnly: Boolean,
     onLock: () -> Unit,
+    onGenerator: () -> Unit,
     onSettings: () -> Unit,
     onLeaveCodes: () -> Unit,
 ) {
@@ -235,6 +268,9 @@ private fun Header(
         },
         subtitle = { Text(state.databaseName + count, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         actions = {
+            if (!codesOnly) {
+                IconButton(onClick = onGenerator) { Icon(Icons.Rounded.Password, contentDescription = "Password generator") }
+            }
             IconButton(onClick = onLock) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
             IconButton(onClick = onSettings) { Icon(Icons.Rounded.Tune, contentDescription = "Settings") }
         },
@@ -365,8 +401,22 @@ private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Un
     }
 }
 
+/** Next to the search field, in thumb reach (the mock-up's list). */
 @Composable
-internal fun SearchField(query: TextFieldState, placeholder: String = SEARCH_HINT) {
+private fun NewEntryButton(onClick: () -> Unit) {
+    FilledIconButton(
+        onClick = onClick,
+        modifier = Modifier.size(56.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    ) { Icon(Icons.Rounded.Add, contentDescription = "New entry") }
+}
+
+@Composable
+internal fun SearchField(query: TextFieldState, placeholder: String = SEARCH_HINT, trailing: (@Composable () -> Unit)? = null) {
     val keyboard = LocalSoftwareKeyboardController.current
     Row(
         Modifier
@@ -374,6 +424,8 @@ internal fun SearchField(query: TextFieldState, placeholder: String = SEARCH_HIN
             .background(MaterialTheme.colorScheme.surface)
             .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
             .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(
             Modifier
@@ -386,35 +438,39 @@ internal fun SearchField(query: TextFieldState, placeholder: String = SEARCH_HIN
         ) {
             Icon(Icons.Rounded.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(12.dp))
-            BasicTextField(
-                state = query,
-                modifier = Modifier.weight(1f).semantics { contentDescription = "Search entries" },
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                lineLimits = TextFieldLineLimits.SingleLine,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.None,
-                    autoCorrectEnabled = false,
-                    imeAction = ImeAction.Search,
-                ),
-                onKeyboardAction = { keyboard?.hide() },
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                decorator = { field ->
-                    Box(contentAlignment = Alignment.CenterStart) {
-                        if (query.text.isEmpty()) {
-                            Text(
-                                placeholder,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
+            // What is searched for names the accounts: the keyboard does not learn it.
+            NoLearningKeyboard {
+                BasicTextField(
+                    state = query,
+                    modifier = Modifier.weight(1f).semantics { contentDescription = "Search entries" },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                    lineLimits = TextFieldLineLimits.SingleLine,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.None,
+                        autoCorrectEnabled = false,
+                        imeAction = ImeAction.Search,
+                    ),
+                    onKeyboardAction = { keyboard?.hide() },
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorator = { field ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (query.text.isEmpty()) {
+                                Text(
+                                    placeholder,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                            }
+                            field()
                         }
-                        field()
-                    }
-                },
-            )
+                    },
+                )
+            }
             if (query.text.isNotEmpty()) {
                 IconButton(onClick = { query.clearText() }) { Icon(Icons.Rounded.Close, contentDescription = "Clear the search") }
             }
         }
+        trailing?.invoke()
     }
 }

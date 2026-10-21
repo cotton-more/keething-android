@@ -10,7 +10,9 @@ import dev.keepassbar.android.biometric.KeystorePasswordStore
 import dev.keepassbar.android.clipboard.AndroidSystemClipboard
 import dev.keepassbar.android.clipboard.ClipboardClearAlarm
 import dev.keepassbar.android.clipboard.SensitiveClipboard
+import dev.keepassbar.android.generator.PasswordGeneratorState
 import dev.keepassbar.android.list.RecentEntries
+import dev.keepassbar.android.recyclebin.RecycleBinMoves
 import dev.keepassbar.android.session.AndroidClock
 import dev.keepassbar.android.session.LockAlarm
 import dev.keepassbar.android.session.Sessions
@@ -56,6 +58,12 @@ internal class AppContainer(context: Context) {
         biometricStore, appScope, biometricIo, LockAlarm(context),
     )
 
+    /** Delete and Restore: saves whose outcome the list shows after the card closed (SPEC §6.2). */
+    val recycleBin = RecycleBinMoves(appScope)
+
+    /** A new generator: its options are remembered, its passwords are not. */
+    fun passwordGenerator(): PasswordGeneratorState = PasswordGeneratorState(settingsStore)
+
     val clipboard = SensitiveClipboard(AndroidSystemClipboard(context), ClipboardClearAlarm(context), appScope)
 
     val probeSettings = ProbeSettings(context.getSharedPreferences("storage-probe", Context.MODE_PRIVATE))
@@ -84,6 +92,7 @@ internal class AppContainer(context: Context) {
                     if (it == null || it is SessionState.Locked) {
                         attachmentFiles.clear()
                         autofillEntries.clear()
+                        recycleBin.forget()
                     }
                 }
         }

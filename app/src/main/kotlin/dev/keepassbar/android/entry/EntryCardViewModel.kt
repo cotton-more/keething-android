@@ -3,6 +3,9 @@ package dev.keepassbar.android.entry
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.ViewModel
@@ -14,6 +17,7 @@ import dev.keepassbar.android.attachment.AttachmentTypes
 import dev.keepassbar.android.attachment.SaveRequest
 import dev.keepassbar.android.clipboard.SensitiveClipboard
 import dev.keepassbar.android.list.RecentEntries
+import dev.keepassbar.android.recyclebin.RecycleBinMoves
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.card.CardSection
@@ -21,6 +25,7 @@ import dev.keepassbar.card.EntryCard
 import dev.keepassbar.card.EntryCardBuilder
 import dev.keepassbar.card.FieldRow
 import dev.keepassbar.card.FieldTypes
+import dev.keepassbar.card.GroupPathFormatter
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.TotpDisplay
 import dev.keepassbar.domain.vault.Vault
@@ -66,6 +71,7 @@ internal class EntryCardViewModel(
     private val clipboard: SensitiveClipboard,
     private val files: AttachmentFiles,
     private val android: AndroidAttachments,
+    private val recycleBin: RecycleBinMoves,
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
@@ -157,6 +163,33 @@ internal class EntryCardViewModel(
             mutableNotices.trySend(if (written) Notice("Saved $name") else Notice("Could not save ${name ?: "the attachment"}", isProblem = true))
         }
     }
+
+    /** A Restore running: the button waits. */
+    var restoring by mutableStateOf(false)
+        private set
+
+    /** Delete (SPEC §6.2): into the recycle bin at once, the list says how it went, with Undo. False: nothing to delete. */
+    fun moveToRecycleBin(): Boolean {
+        val entry = unlockedVault()?.entries?.firstOrNull { it.id == entryId } ?: return false
+        recycleBin.moveToRecycleBin(database, entry)
+        return true
+    }
+
+    /** Restore: out of the recycle bin, into the group it came from; the card stays and says where it went. */
+    fun restore() {
+        if (restoring) return
+        restoring = true
+        recycleBin.restore(database, entryId) { problem ->
+            restoring = false
+            val group = unlockedVault()?.entries?.firstOrNull { it.id == entryId }?.groupPath.orEmpty()
+            mutableNotices.trySend(
+                problem?.let { Notice(it, isProblem = true) }
+                    ?: Notice("Restored to " + GroupPathFormatter.text(group).ifEmpty { "the top group" }),
+            )
+        }
+    }
+
+    private fun unlockedVault(): Vault? = (database.session.state.value as? SessionState.Unlocked)?.vault
 
     /** The password for Share… (SPEC §6.2), as stored; null when there is none. */
     fun passwordToShare(): String? =

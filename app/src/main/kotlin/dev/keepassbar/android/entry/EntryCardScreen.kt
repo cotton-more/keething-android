@@ -28,11 +28,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -91,7 +95,8 @@ import java.time.format.FormatStyle
  * An entry's card (SPEC §6.2), laid out by the Mac app's rules (`core/card`): sections, masked values with
  * an eye, live codes, tap to copy, links that open the browser, attachments to open in another app or save.
  * The password's menu shows it as a QR code or in large type ([onShowPassword]), or shares it after a
- * warning. Editing comes with a later step.
+ * warning. The bar edits the entry ([onEdit]) or moves it into the recycle bin at once, the list then offering
+ * Undo; an entry in the bin has Restore instead.
  */
 @Composable
 internal fun EntryCardScreen(
@@ -102,9 +107,13 @@ internal fun EntryCardScreen(
     onBack: () -> Unit,
     onSearch: (String) -> Unit,
     onShowPassword: (PasswordView) -> Unit,
+    onEdit: () -> Unit,
 ) {
     val model = viewModel {
-        EntryCardViewModel(entryId, database, container.recents, container.clipboard, container.attachmentFiles, container.androidAttachments)
+        EntryCardViewModel(
+            entryId, database, container.recents, container.clipboard, container.attachmentFiles, container.androidAttachments,
+            container.recycleBin,
+        )
     }
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -187,6 +196,22 @@ internal fun EntryCardScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") }
+                },
+                actions = {
+                    if (content.inRecycleBin) {
+                        FilledTonalButton(onClick = model::restore, enabled = !model.restoring, modifier = Modifier.padding(end = 8.dp)) {
+                            Icon(Icons.Rounded.RestoreFromTrash, contentDescription = null, Modifier.size(18.dp))
+                            Spacer(Modifier.size(8.dp))
+                            Text("Restore")
+                        }
+                    } else {
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { if (model.moveToRecycleBin()) onBack() }) {
+                            Icon(Icons.Rounded.DeleteOutline, contentDescription = "Move to the recycle bin", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,

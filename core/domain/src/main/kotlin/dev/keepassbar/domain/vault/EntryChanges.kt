@@ -26,6 +26,12 @@ public data class EntryChanges(
 
     val isEmpty: Boolean get() = this == EntryChanges()
 
+    /** Overwrites the secrets it carries (once the save is done with them). */
+    public fun wipe() {
+        password?.wipe()
+        customFields?.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
+    }
+
     public companion object {
         /** The standard fields' keys in the file. */
         public val STANDARD_KEYS: List<String> = listOf("Title", "UserName", "Password", "URL", "Notes")

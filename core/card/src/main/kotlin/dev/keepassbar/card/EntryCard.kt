@@ -80,9 +80,6 @@ public data class EntryCard(
  * fields in file order grouped by 1Password section; the attachments.
  */
 public object EntryCardBuilder {
-    /** A titled section with at least this many fields, all numbered or id-named, is a list of codes. */
-    private const val MINIMUM_CODES = 3
-
     /** The views of kinds of entries, in card order. */
     private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection)
 
@@ -174,8 +171,7 @@ public object EntryCardBuilder {
         }
 
         return blocks.map { block ->
-            val isCodes = block.title != null && block.items.size >= MINIMUM_CODES &&
-                block.items.all { item -> item.label.all(Char::isDigit) || ImportedFieldName.isGeneratedId(item.label) }
+            val isCodes = block.title != null && ImportedFieldName.isCodeList(block.items.map { it.label })
             val rows = block.items.mapIndexed { n, item ->
                 var label = if (ImportedFieldName.isGeneratedId(item.label)) "" else item.label
                 if (isCodes && label.isEmpty()) label = "${n + 1}"

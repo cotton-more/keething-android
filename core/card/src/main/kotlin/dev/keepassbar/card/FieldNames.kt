@@ -35,6 +35,13 @@ public object ImportedFieldName {
     /** 1Password's ids: 26 characters of lowercase base32. */
     public fun isGeneratedId(name: String): Boolean = name.length == 26 && name.all { it in 'a'..'z' || it in '2'..'7' }
 
+    /** A titled section with at least this many fields, all numbered or id-named, is a list of codes. */
+    private const val MINIMUM_CODES = 3
+
+    /** The labels (names after the section's) of a section's fields make it a list of codes (recovery codes). */
+    internal fun isCodeList(labels: List<String>): Boolean =
+        labels.size >= MINIMUM_CODES && labels.all { label -> label.all(Char::isDigit) || isGeneratedId(label) }
+
     /** `Section_Field` → ("Section", "Field"), split at the first `_`; null when either side is empty. */
     internal fun split(name: String): Pair<String, String>? {
         val underscore = name.indexOf('_')

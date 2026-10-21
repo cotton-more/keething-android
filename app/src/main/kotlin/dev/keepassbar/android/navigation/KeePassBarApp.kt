@@ -31,6 +31,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dev.keepassbar.android.AppContainer
+import dev.keepassbar.android.editor.EntryEditorScreen
 import dev.keepassbar.android.entry.EntryCardScreen
 import dev.keepassbar.android.entry.PasswordScreen
 import dev.keepassbar.android.entry.PasswordView
@@ -51,6 +52,9 @@ internal sealed interface Screen {
 
     /** A password full screen; the entry's id only, the password is read from the vault. */
     data class Password(val entryId: String, val view: PasswordView) : Screen
+
+    /** The editor of an entry, or of a new one ([entryId] null) in [groupId]. */
+    data class Editor(val entryId: String?, val groupId: String? = null) : Screen
 
     data object Settings : Screen
 
@@ -82,6 +86,11 @@ internal class NavigationState : ViewModel() {
 
     fun back() {
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+    }
+
+    /** The screen on top gives way to [screen] (a new entry saved: its card instead of the editor). */
+    fun replace(screen: Screen) {
+        if (backStack.size > 1) backStack[backStack.lastIndex] = screen else backStack += screen
     }
 
     /** The card's group or tag chip: back to the list, searching for [filter]. */
@@ -163,6 +172,7 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             onOpen = { id, origin -> navigation.open(Screen.Card(id, origin)) },
                             onSettings = { navigation.open(Screen.Settings) },
                             onLeaveCodes = { navigation.codesOnly = false },
+                            onNewEntry = { navigation.open(Screen.Editor(entryId = null)) },
                         )
                     }
                     entry<Screen.Card> { key ->
@@ -174,6 +184,17 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             onBack = navigation::back,
                             onSearch = navigation::search,
                             onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
+                            onEdit = { navigation.open(Screen.Editor(key.entryId)) },
+                        )
+                    }
+                    entry<Screen.Editor> { key ->
+                        EntryEditorScreen(
+                            database = database,
+                            entryId = key.entryId,
+                            groupId = key.groupId,
+                            generator = container::passwordGenerator,
+                            onClose = navigation::back,
+                            onSaved = { id -> if (key.entryId == null) navigation.replace(Screen.Card(id, origin = "new")) else navigation.back() },
                         )
                     }
                     entry<Screen.Password> { key ->

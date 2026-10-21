@@ -46,6 +46,7 @@ dependencies {
     implementation(project(":core:totp"))
     implementation(project(":core:card"))
     implementation(project(":core:autofill"))
+    implementation(project(":core:generator"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)

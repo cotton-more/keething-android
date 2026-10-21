@@ -25,5 +25,6 @@ include(
     ":core:vault",
     ":core:card",
     ":core:autofill",
+    ":core:generator",
     ":app",
 )
