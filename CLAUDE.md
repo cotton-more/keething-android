@@ -12,7 +12,7 @@
 - Never open, copy or test against the owner's real database without asking; tests use `fixtures/`
   (password `pw`).
 - Report honestly what was verified on the phone and what was only built.
-- Wireless adb to the phone goes through `tools/adb-wireless.py` from the start (README: plain `adb pair` /
+- Wireless adb to the phone goes through `tools/adb-wireless.py` from the start (DEVELOPMENT.md: plain `adb pair` /
   `adb connect` fail on this Mac). Phone checks run on the test phone (Pixel 6), not the owner's main phone.
 - Starting a ROADMAP step or a new feature (usually a new session): do not start the work at once. First
   say in a few lines what the step will do, and which effort level it needs (the step's "Effort" in

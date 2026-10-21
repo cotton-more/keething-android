@@ -8,7 +8,7 @@ cd "${0:A:h}/.."
 export ANDROID_HOME=${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}
 keystore=${KEYSTORE:-$HOME/.keystores/keepassbar.jks}
 if [[ ! -f $keystore ]]; then
-    echo "No keystore at $keystore (set KEYSTORE, or make one: see README \"Building the APK\")."
+    echo "No keystore at $keystore (set KEYSTORE, or make one: see DEVELOPMENT.md \"The signing key\")."
     exit 1
 fi
 [[ -n $(git status --porcelain) ]] && echo "Note: the working tree has uncommitted changes; they are built too."
