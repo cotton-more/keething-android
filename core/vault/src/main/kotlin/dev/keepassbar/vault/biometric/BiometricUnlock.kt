@@ -103,9 +103,6 @@ public class BiometricUnlock(
         return if (enabled) null else delete()
     }
 
-    /** Another database was chosen: the stored password is not its password. The switch stays as it is. */
-    public suspend fun forget(): String? = delete()
-
     /**
      * The typed password: unlocks, and stores the password when the switch is on and this unlock opened the
      * vault. The caller may wipe its own copy as soon as this returns. False when the vault was not locked.

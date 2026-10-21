@@ -24,6 +24,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -396,14 +398,17 @@ class BiometricUnlockTest {
     // Another database
 
     @Test
-    fun forgettingDeletesTheStoredPasswordButKeepsTheSwitch() = runTest {
+    fun turningItOffForAnotherDatabaseIsSeenAtOnceWhileTheStoredPasswordIsStillBeingDeleted() = runTest {
         val f = storedPassword("pw")
 
-        f.biometric.forget()
+        launch(start = CoroutineStart.UNDISPATCHED) { f.biometric.setEnabled(false) }
+        val next = BiometricUnlock(f.session, f.store, f.settings, backgroundScope, StandardTestDispatcher(testScheduler))
+        assertFalse(next.state.value.enabled, "the next database's session starts with it off")
+        assertEquals("pw", f.store.stored?.reveal(), "not deleted yet")
 
+        runCurrent()
         assertNull(f.store.stored)
         assertFalse(f.biometric.state.value.stored)
-        assertTrue(f.biometric.state.value.enabled)
     }
 }
 

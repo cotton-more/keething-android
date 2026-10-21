@@ -19,6 +19,7 @@ import dev.keepassbar.vault.session.VaultSession
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,8 +72,10 @@ internal class Sessions(
     fun chooseDatabase(file: File) {
         val previous = current.value
         previous?.session?.lock(LockReason.Initial)
-        // The stored password opens the old database, not this one (SPEC §5).
-        if (previous != null && previous.file != file) scope.launch { previous.biometric.forget() }
+        // The stored password opens the old database, not this one, and the fingerprint is asked for again: a
+        // password typed for another database is not stored unasked (SPEC §5). Undispatched, so the switch is off
+        // before the new session reads it; deleting the stored password goes on in the background.
+        if (previous != null && previous.file != file) scope.launch(start = CoroutineStart.UNDISPATCHED) { previous.biometric.setEnabled(false) }
         settings.chooseDatabase(file)
         mutableCurrent.value = start(file)
     }

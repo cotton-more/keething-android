@@ -355,7 +355,9 @@ rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`
   the vault stores the master password, and every later one stores it again, so a database password changed
   elsewhere heals the next time it is typed. A password typed while the vault is open, a wrong one, or one
   typed on a phone without an enrolled strong biometric is never stored. Turning it off deletes it, and so
-  does choosing another database (the switch stays on).
+  does choosing another database, which turns the switch off too: the password typed for the other database is
+  stored only when it is turned on again (a copy of the real database opened on the test phone was stored
+  unasked while the switch stayed on).
 - **How it is kept** (`KeystorePasswordStore`): an RSA-2048 key pair in the Android Keystore, in StrongBox
   (Titan M2) when the phone has one, created with `setUserAuthenticationRequired(true)`,
   `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` (no time window: each use is one operation
