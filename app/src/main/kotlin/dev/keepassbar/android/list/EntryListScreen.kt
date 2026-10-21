@@ -260,7 +260,7 @@ private fun Header(
 ) {
     val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
     LargeFlexibleTopAppBar(
-        title = { Text(if (codesOnly) "Codes" else "KeePassBar") },
+        title = { Text(if (codesOnly) "Codes" else "Keething") },
         navigationIcon = {
             if (codesOnly) {
                 IconButton(onClick = onLeaveCodes) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "All entries") }

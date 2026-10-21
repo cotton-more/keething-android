@@ -39,7 +39,7 @@ internal class AndroidSystemClipboard(context: Context) : SystemClipboard {
     override fun clear() = manager.clearPrimaryClip()
 
     private companion object {
-        const val LABEL = "KeePassBar"
+        const val LABEL = "Keething"
         const val TOKEN = "dev.keepassbar.android.clipToken"
     }
 }

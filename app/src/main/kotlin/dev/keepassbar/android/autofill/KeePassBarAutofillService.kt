@@ -14,7 +14,7 @@ import dev.keepassbar.domain.secret.Secret
 
 /**
  * Android's autofill service (SPEC §7): finds the login or code fields of the screen, and offers the
- * matching entries, or "Unlock KeePassBar" while the vault is locked, "Generate a password" for a new one,
+ * matching entries, or "Unlock Keething" while the vault is locked, "Generate a password" for a new one,
  * and the offer to save what was typed.
  */
 class KeePassBarAutofillService : AutofillService() {

@@ -34,7 +34,7 @@ internal fun FingerprintOutcome.notice(): LockNotice? = when (this) {
 internal fun OpenFailure.describe(file: File): String = when (this) {
     OpenFailure.WrongPassword -> "Wrong password."
     OpenFailure.Missing -> "There is no database at ${file.path}. Syncthing may be replacing it: try again in a moment."
-    OpenFailure.AccessDenied -> "KeePassBar may not read the file: allow all-files access."
+    OpenFailure.AccessDenied -> "Keething may not read the file: allow all-files access."
     is OpenFailure.Unsupported -> "This database cannot be opened: $what."
     // Damaged is not a wrong password (SPEC §3.2): a sync may have caught the file half-written.
     is OpenFailure.Damaged -> "The file is damaged or not completely synced yet ($detail)."

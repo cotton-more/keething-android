@@ -15,7 +15,7 @@ internal enum class AutofillMode {
     /** The vault was locked: unlock, then fill the one matching entry or choose among them. */
     UNLOCK,
 
-    /** "Search KeePassBar": choose any entry. */
+    /** "Search Keething": choose any entry. */
     PICK,
 
     /**

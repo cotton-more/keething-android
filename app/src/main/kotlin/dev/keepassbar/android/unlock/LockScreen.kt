@@ -142,7 +142,7 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
             )
         }
         Spacer(Modifier.height(24.dp))
-        Text("KeePassBar", style = MaterialTheme.typography.displaySmall)
+        Text("Keething", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(8.dp))
         DatabaseLine(database, fileInfo, onChooseDatabase)
         (fingerprintNotice ?: reason?.notice(timeout, database.file))?.let { notice ->

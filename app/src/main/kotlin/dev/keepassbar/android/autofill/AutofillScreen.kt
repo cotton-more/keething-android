@@ -93,7 +93,7 @@ private fun NoDatabase(onClose: () -> Unit) {
         Text("No database chosen yet", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Open KeePassBar and choose the database first.",
+            "Open Keething and choose the database first.",
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

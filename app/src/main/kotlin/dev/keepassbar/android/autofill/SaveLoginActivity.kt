@@ -68,7 +68,7 @@ internal class SaveLoginModel(val save: PendingSave?) : ViewModel() {
 /**
  * The save offer's screen (SPEC §7, Save): the unlock when the vault is locked, then the editor, prefilled —
  * the matching account's entry with the new password, or a new entry named after the site or app. Saving goes
- * through the normal save path (§3.3). Opened by the system after its "Save to KeePassBar?"; not exported.
+ * through the normal save path (§3.3). Opened by the system after its "Save to Keething?"; not exported.
  */
 class SaveLoginActivity : ComponentActivity() {
     private val container: AppContainer get() = (application as KeePassBarApplication).container
@@ -131,14 +131,14 @@ private fun SaveLoginScreen(
         val plan = remember(current.number, model.asNew) { plan(container, vault, save, label, model.asNew) }
         val password = remember { save.password.reveal() }
         when (plan) {
-            is SavePlan.Unchanged -> LaunchedEffect(plan) { onDone("Already saved in KeePassBar: ${plan.entry.displayTitle}") }
+            is SavePlan.Unchanged -> LaunchedEffect(plan) { onDone("Already saved in Keething: ${plan.entry.displayTitle}") }
             is SavePlan.Update -> EntryEditorScreen(
                 database = current,
                 entryId = plan.entry.id,
                 groupId = null,
                 generator = container::passwordGenerator,
                 onClose = onClose,
-                onSaved = { onDone("Password updated in KeePassBar") },
+                onSaved = { onDone("Password updated in Keething") },
                 prefill = { it.copy(password = password) },
                 banner = {
                     Banner(
@@ -155,7 +155,7 @@ private fun SaveLoginScreen(
                 groupId = null,
                 generator = container::passwordGenerator,
                 onClose = onClose,
-                onSaved = { onDone("Saved to KeePassBar") },
+                onSaved = { onDone("Saved to Keething") },
                 prefill = { it.copy(title = plan.title, url = plan.url, username = save.username.ifEmpty { it.username }, password = password) },
                 banner = { Banner("Save the login typed in $label", "A new entry; check its name and group.") },
                 doneLabel = "Done",
@@ -199,7 +199,7 @@ private fun NoDatabase(onClose: () -> Unit) {
     ) {
         Text("No database chosen yet", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
-        Text("Open KeePassBar and choose the database first.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Open Keething and choose the database first.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
         FilledTonalButton(onClick = onClose) { Text("Close") }
     }

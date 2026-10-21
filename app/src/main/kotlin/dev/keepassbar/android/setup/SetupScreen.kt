@@ -126,7 +126,7 @@ internal fun SetupScreen(container: AppContainer, onChosen: () -> Unit, onBack: 
         Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Choose the database", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "KeePassBar opens the database in the folder Syncthing keeps in sync, by its path: a new version from " +
+                "Keething opens the database in the folder Syncthing keeps in sync, by its path: a new version from " +
                     "Syncthing is simply the file at that path.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -134,7 +134,7 @@ internal fun SetupScreen(container: AppContainer, onChosen: () -> Unit, onBack: 
         }
         Step(number = 1, title = "Allow all-files access", done = state.accessGranted) {
             Text(
-                "Android asks for it to let an app read a file in a shared folder by its path. KeePassBar has no internet access.",
+                "Android asks for it to let an app read a file in a shared folder by its path. Keething has no internet access.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

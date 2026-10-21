@@ -26,6 +26,7 @@
     <application
         android:name=".KeePassBarApplication"
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:largeHeap="true"
         android:theme="@style/Theme.KeePassBar">
@@ -54,7 +55,8 @@
         <service
             android:name=".autofill.KeePassBarAutofillService"
             android:exported="true"
-            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
             android:permission="android.permission.BIND_AUTOFILL_SERVICE">
             <intent-filter>
                 <action android:name="android.service.autofill.AutofillService" />
@@ -69,7 +71,7 @@
             android:exported="false"
             android:theme="@style/Theme.KeePassBar.Autofill"
             android:windowSoftInputMode="adjustResize" />
-        <!-- Autofill's save offer, opened by the system after its "Save to KeePassBar?" (SPEC §7). -->
+        <!-- Autofill's save offer, opened by the system after its "Save to Keething?" (SPEC §7). -->
         <activity
             android:name=".autofill.SaveLoginActivity"
             android:excludeFromRecents="true"

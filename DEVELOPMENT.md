@@ -1,4 +1,4 @@
-# Developing KeePassBar for Android
+# Developing Keething for Android
 
 How to build, test and install the app on this Mac. What the app does is in SPEC.md, the plan in ROADMAP.md.
 
@@ -21,16 +21,16 @@ How to build, test and install the app on this Mac. What the app does is in SPEC
     tools/build-apk.sh              # release build, signed; asks for the keystore's password
     tools/build-apk.sh --install    # and installs it with adb on the connected phone
 
-The APK lands in `~/Downloads` as `KeePassBar-<version>-<commit>.apk` (shrunk with R8, about 4 MB). It is
-signed with the keystore in `KEYSTORE` (default `~/.keystores/keepassbar.jks`); the script asks for its
+The APK lands in `~/Downloads` as `Keething-<version>-<commit>.apk` (shrunk with R8, about 4 MB). It is
+signed with the keystore in `KEYSTORE` (default `~/.keystores/keething.jks`); the script asks for its
 password, which never goes into a file or onto the command line. Uncommitted changes are built too (it says
 so).
 
 ### The signing key (once)
 
     mkdir -p ~/.keystores && chmod 700 ~/.keystores
-    keytool -genkeypair -keystore ~/.keystores/keepassbar.jks -alias keepassbar -keyalg RSA -keysize 4096 \
-        -validity 36500 -dname "CN=KeePassBar"
+    keytool -genkeypair -keystore ~/.keystores/keething.jks -alias keething -keyalg RSA -keysize 4096 \
+        -validity 36500 -dname "CN=Keething"
 
 Keep its password in your password manager and a backup of the `.jks` file somewhere safe: an installed app
 is only updated by an APK signed with the same key. Without the key, the only way is to uninstall, which
@@ -46,14 +46,14 @@ signed with the own key.
 Either way, an install over an older version signed with the same key keeps its settings.
 
 - **Through Syncthing**, no cable: copy the APK into a folder that syncs to the phone (for example
-  `cp ~/Downloads/KeePassBar-*.apk ~/KeePass/`), open it on the phone in Files › that folder, allow Files to
+  `cp ~/Downloads/Keething-*.apk ~/KeePass/`), open it on the phone in Files › that folder, allow Files to
   install apps when asked, then Install (or Update). Delete the APK from the folder afterwards.
 - **With adb**: over a USB cable, or over Wi-Fi with Developer options › Wireless debugging (see below):
   `tools/build-apk.sh --install`, or `adb install -r <apk>`.
 
 First start of a new install: allow "All files access", choose the Syncthing folder and the `.kdbx` file,
 unlock with the password. Optional: the fingerprint (Settings in the app, or the switch under the password
-field), and KeePassBar as the autofill service (Settings › Passwords & autofill; in Chrome also Settings ›
+field), and Keething as the autofill service (Settings › Passwords & autofill; in Chrome also Settings ›
 Autofill services › "Autofill using another service").
 
 ## Wireless adb to the phone

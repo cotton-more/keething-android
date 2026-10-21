@@ -134,14 +134,14 @@ internal fun SettingsScreen(
             }
         }
         Group("About") {
-            Text("KeePassBar for Android. Passwords and codes are set in Google Sans Code (SIL Open Font License 1.1).", style = MaterialTheme.typography.bodyMedium)
+            Text("Keething for Android. Passwords and codes are set in Google Sans Code (SIL Open Font License 1.1).", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
 
 private const val MIB = 1024 * 1024
 
-/** Whether KeePassBar is the phone's autofill service (SPEC §7), and how to make it so. */
+/** Whether Keething is the phone's autofill service (SPEC §7), and how to make it so. */
 @Composable
 private fun AutofillSetting() {
     val context = LocalContext.current
@@ -162,7 +162,7 @@ private fun AutofillSetting() {
         FilledTonalButton(onClick = {
             val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))
             runCatching { context.startActivity(intent) }
-        }) { Text("Use KeePassBar for autofill") }
+        }) { Text("Use Keething for autofill") }
     }
 }
 

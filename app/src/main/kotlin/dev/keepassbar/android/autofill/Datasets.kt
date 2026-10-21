@@ -28,7 +28,7 @@ internal fun filledDataset(form: AutofillForm, ids: Map<Int, AutofillId>, entry:
 }
 
 /**
- * The answer to a fill request (SPEC §7): the matching entries (or "Unlock KeePassBar"), "Generate a password"
+ * The answer to a fill request (SPEC §7): the matching entries (or "Unlock Keething"), "Generate a password"
  * for a new-password field, and the save offer for the password typed.
  */
 internal class FillResponses(private val context: Context, private val sessions: Sessions, private val entries: AutofillEntries) {
@@ -43,7 +43,7 @@ internal class FillResponses(private val context: Context, private val sessions:
         if (!form.isSignUp) addEntries(response, database.session.state.value, form, ids, presentations)
         if (form.newPasswords.isNotEmpty()) {
             val generate = AutofillRequest(AutofillMode.GENERATE, form, ids)
-            val presentation = presentations.action("Generate a password", "KeePassBar", R.drawable.ic_autofill_generate, 0, pinned = false)
+            val presentation = presentations.action("Generate a password", "Keething", R.drawable.ic_autofill_generate, 0, pinned = false)
             response.addDataset(authenticated(generate, form.newPasswords, presentation))
         }
         saveInfo(form, ids)?.let(response::setSaveInfo)
@@ -55,7 +55,7 @@ internal class FillResponses(private val context: Context, private val sessions:
         val unlocked = state as? SessionState.Unlocked
         if (unlocked == null) {
             val unlock = AutofillRequest(AutofillMode.UNLOCK, form, ids)
-            response.addDataset(authenticated(unlock, form.fields, presentations.action("Unlock KeePassBar", "to fill $label", R.drawable.ic_autofill_lock, 0, pinned = false)))
+            response.addDataset(authenticated(unlock, form.fields, presentations.action("Unlock Keething", "to fill $label", R.drawable.ic_autofill_lock, 0, pinned = false)))
             return
         }
         val candidates = entries.candidates(unlocked.vault, form).take(MAX_SUGGESTIONS)
@@ -75,7 +75,7 @@ internal class FillResponses(private val context: Context, private val sessions:
             }
         }
         val pick = AutofillRequest(AutofillMode.PICK, form, ids)
-        val title = if (shown == 0) "Search KeePassBar" else "Another entry"
+        val title = if (shown == 0) "Search Keething" else "Another entry"
         response.addDataset(authenticated(pick, form.fields, presentations.action(title, "to fill $label", R.drawable.ic_autofill_search, shown, pinned = true)))
     }
 

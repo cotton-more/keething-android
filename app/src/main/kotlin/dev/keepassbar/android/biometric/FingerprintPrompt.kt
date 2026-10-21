@@ -30,7 +30,7 @@ internal class FingerprintPrompt(private val context: Context) {
         val cancel = CancellationSignal()
         continuation.invokeOnCancellation { cancel.cancel() }
         BiometricPrompt.Builder(context)
-            .setTitle("Unlock KeePassBar")
+            .setTitle("Unlock Keething")
             .setAllowedAuthenticators(Authenticators.BIOMETRIC_STRONG)
             .setNegativeButton("Use password", executor) { _, _ -> answer(Answer.Cancelled) }
             .setConfirmationRequired(false)

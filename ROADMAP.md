@@ -33,7 +33,7 @@ per-entry `KeePassBar.FieldTypes`; the card reads only the older KeePassBar entr
 unlock feels slow (2.3 s on the Pixel 6, almost all of it the key derivation; SPEC §4).
 
 An idea to think through first: **share an entry encrypted** — a link or a QR code that holds one entry
-(like a database of one entry) encrypted, which KeePassBar on the other device recognises, decrypts and
+(like a database of one entry) encrypted, which Keething on the other device recognises, decrypts and
 shows. Share… and Show as QR stay as they are. Open: how the two sides agree on the key (a passphrase told
 another way, a key in the link's fragment, a key exchange between the two apps), what format (a one-entry
 KDBX the other side can also open in KeePassXC, or a small format of our own), and the size limit of a QR

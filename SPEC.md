@@ -1,6 +1,10 @@
-# KeePassBar for Android — spec
+# Keething for Android — spec
 
-A small Android client for the same KeePassXC database the Mac app KeePassBar (`~/Projects/keepass-bar`)
+Named KeePassBar until 2026-10-21, as was the Mac app. The code (modules, packages, the application id
+`dev.keepassbar.android`) keeps the old name, and so do the names the Mac writes into the database (the
+"KeePassBar" settings entry, `KeePassBar.FieldTypes`): they change only with the Mac.
+
+A small Android client for the same KeePassXC database the Mac app Keething (`~/Projects/keepass-bar`)
 reads and writes: unlock with a fingerprint, search, view an entry with its custom fields laid out readably,
 copy fields and one-time codes, edit and create entries, attachments, and autofill in apps and browsers —
 with the system's "save this password?" offer after a login or sign-up.
@@ -431,7 +435,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   fingerprint next time" switch under the field turns it on, so the password typed then sets it up. A wrong password shakes the
   field. The first list after an unlock says how long the key derivation took.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
-  site; a long press copies the password. The header (large "KeePassBar", the database and its entries,
+  site; a long press copies the password. The header (large "Keething", the database and its entries,
   the password generator, lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
   which something was copied, kept as ids only (they survive a lock and say nothing without the database).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
@@ -493,7 +497,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 
 ## 7. Autofill
 
-`AutofillService` (Android's Autofill Framework); the user picks KeePassBar in Settings → Passwords &
+`AutofillService` (Android's Autofill Framework); the user picks Keething in Settings → Passwords &
 autofill (Settings in the app has a button for it), and in Chrome sets Settings › Autofill services ›
 "Autofill using another service" (Firefox needs nothing). The rules are in `core/autofill`, JVM-tested; the
 service, the screen it opens and the system's view structure are in `app/autofill`.
@@ -506,7 +510,7 @@ service, the screen it opens and the system's view structure are in `app/autofil
   wiederholen", "Код подтверждения"). A visible-password input type counts only with a password word (apps
   use it to keep the keyboard from suggesting words). A form has usernames (or, when none, the phone number,
   or the unnamed text field right before the first password), passwords and codes. Nothing is offered on a
-  sign-up (only new passwords: it gets "Generate a password" and the save offer, below), on KeePassBar's own
+  sign-up (only new passwords: it gets "Generate a password" and the save offer, below), on Keething's own
   screens, or on a screen without such fields; asking for
   autofill by hand (long press › Autofill) takes the focused unnamed field as the username. A password
   change gets only the current password. Never a field's text, only what it is.
@@ -529,7 +533,7 @@ service, the screen it opens and the system's view structure are in `app/autofil
   and the apps cannot be named in advance. The app has no network, so what it sees stays on the phone.
 - **Unlocked**: up to 6 matching entries, best first (title, username), as the keyboard's chips (inline
   suggestions, Gboard) or the dropdown under the field; their username and password go into the response,
-  so a tap fills at once. Then "Search KeePassBar" ("Another entry" when entries were offered), pinned at
+  so a tap fills at once. Then "Search Keething" ("Another entry" when entries were offered), pinned at
   the keyboard's edge as a search icon: it opens the picker. A form that asks only for a code offers only
   entries with one.
 - **One-time code**: an entry with a code is offered without its values; the tap opens the autofill screen
@@ -544,7 +548,7 @@ service, the screen it opens and the system's view structure are in `app/autofil
   be near the end of its period; most sites also take the one before. Checked on the test phone (Chrome, the local
   login page): the username and password filled, the code pasted into another field was the one
   keepassxc-cli showed, and a paste 35 s later gave nothing.
-- **Locked**: one item, "Unlock KeePassBar" ("to fill <site or app>" in the dropdown). It opens the
+- **Locked**: one item, "Unlock Keething" ("to fill <site or app>" in the dropdown). It opens the
   autofill screen: the lock screen (the fingerprint is offered at once), then the one matching entry is
   filled at once, or the picker shows when there are several or none. After a cancelled unlock the item
   still says "Unlock" for the rest of that screen's autofill session (the system keeps the first answer);
@@ -566,7 +570,7 @@ service, the screen it opens and the system's view structure are in `app/autofil
   `importantForAutofill="no"` (apps set it on login fields too).
 - **Save**: a form with a password gets `SaveInfo` (the password, or a sign-up's or a password change's new
   one, required; the username optional; also when all its fields go, for an app that changes screens), locked
-  or not, so the system offers "Save username and password to KeePassBar" after the form is sent with a
+  or not, so the system offers "Save username and password to Keething" after the form is sent with a
   password no dataset filled (a login filled from an entry and sent unchanged is not offered: the system
   compares). On Save, the service reads what was typed (`ScreenFields` with the texts, the one place it does;
   the username from an earlier screen of the same form when this one has none) and keeps it in the app's
@@ -576,7 +580,7 @@ service, the screen it opens and the system's view structure are in `app/autofil
   (`SavePlanner`, `core/autofill`): the matching entry with the username typed (any case) — or, without one,
   the one whose current password was typed in a password change, or the only matching entry — gets the new
   password: the editor of that entry opens with it, under "Update the password of “…”?" and "Save as a new
-  entry instead"; it has the password already: "Already saved in KeePassBar" and nothing written (when
+  entry instead"; it has the password already: "Already saved in Keething" and nothing written (when
   locked; unlocked the system does not ask); otherwise the new-entry editor opens prefilled: title the page's
   host without `www.` or the app's name, the username, the password, the address (`https://host`, or
   `androidapp://<package>`), the root group to start with. Saving is the editor's (§3.3, "Saving and

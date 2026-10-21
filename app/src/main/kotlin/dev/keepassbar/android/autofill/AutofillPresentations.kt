@@ -24,7 +24,7 @@ internal class AutofillPresentations(private val context: Context, inline: Inlin
         .takeIf { list -> list.isNotEmpty() && list.all { UiVersions.getVersions(it.style).contains(UiVersions.INLINE_UI_VERSION_1) } }
         .orEmpty()
 
-    /** How many chips the keyboard takes; the last one is the pinned "Search KeePassBar". */
+    /** How many chips the keyboard takes; the last one is the pinned "Search Keething". */
     private val inlineSlots = if (specs.isEmpty()) 0 else inline?.maxSuggestionCount ?: 0
 
     /** Entries shown as chips: room is left for the pinned search. */
@@ -34,7 +34,7 @@ internal class AutofillPresentations(private val context: Context, inline: Inlin
     fun entry(index: Int, title: String, subtitle: String?): Presentations =
         build(title, subtitle, R.drawable.ic_autofill_key, inlineIndex = index.takeIf { it < inlineEntrySlots }, chipSubtitle = true, pinned = false)
 
-    /** "Unlock KeePassBar", "Search KeePassBar": the chips are narrow, the title says enough there. */
+    /** "Unlock Keething", "Search Keething": the chips are narrow, the title says enough there. */
     fun action(title: String, subtitle: String?, @DrawableRes icon: Int, index: Int, pinned: Boolean): Presentations =
         build(title, subtitle, icon, inlineIndex = index.takeIf { inlineSlots > 0 }, chipSubtitle = false, pinned = pinned)
 
