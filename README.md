@@ -19,6 +19,14 @@ It finds the current connect port over Bonjour, connects adb to `127.0.0.1:15555
 while it runs (`ANDROID_SERIAL=127.0.0.1:15555`). The pairing port and code are in Developer options ›
 Wireless debugging › "Pair device with pairing code"; the dialog must stay open while pairing.
 
+## Trying the writing on a copy of a database
+
+    tools/kdbx-probe.sh <copy.kdbx>     # asks for the password; changes the copy, prints no values
+
+Reads and writes back the copy unchanged and compares KeePassXC's exports, then makes eight checked saves on it
+(a new entry, an edit, the recycle bin and back), and compares it with the original (SPEC §3.3). Always on a
+copy outside the Syncthing folder.
+
 ## Checking autofill on the phone
 
 `tools/autofill-test/` holds local test pages (a login with and without hints, username first, a one-time

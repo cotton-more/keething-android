@@ -240,6 +240,16 @@ Checked in JVM tests (the Mac's writing, editing, lifecycle and saver expectatio
 KeePassXC's own `keepassxc-cli` (2.7, when installed): it opens every written fixture, exports a written file
 exactly as the original, and reads an edited entry's protected fields, a new entry and the recycle bin.
 
+On a copy of the owner's database (2026-10-21, on the Mac, `tools/kdbx-probe.sh`, core/vault `KdbxProbe`, the
+Mac's `KDBXProbe --roundtrip` and `--lifecycle`; it prints counts and times, never a value): 34 MB, KDBX 4.1,
+AES-256, Argon2d, 1,858 entries, 18 groups, 52 attachments. Read and written back unchanged, KeePassXC's exports
+of both files were identical (55 places where two exports of the same file differ by themselves left out) and
+the attachments byte for byte; then 8 saves through the save path, each checked (a new entry: created, edited,
+into the bin, restored, into the bin again; the entry with the most fields, 44 and 3 attachments: its notes,
+into the bin, restored), 1.65 s each on the Mac's JVM; read again from scratch, every other entry, group and
+the bin as before, and KeePassXC opened it. Peak Java heap on the Mac 1 GB (`-Xmx2g`, not what the phone
+needs at least; to be measured there). The copy was deleted afterwards.
+
 ### 3.4 Conflicts
 
 - A `*.sync-conflict-*` copy of the database next to it is shown as a banner ("Syncthing found two versions:

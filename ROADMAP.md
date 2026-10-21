@@ -18,7 +18,9 @@ Done already: the core (tree, writer, editing, the save checks), replacing the f
 time set, the backups, the editor, new entry, delete with Undo, restore, the password generator, autofill's
 save and update offers and the generator for sign-ups.
 
-- Check on a copy of the real database (as the Mac's `KDBXProbe --lifecycle`), then with Syncthing for real.
+- Checked on a copy of the real database on the Mac (SPEC §3.3: round trip and 8 saves, all passed). Left: a
+  save on the test phone with a copy of it (not in a synced folder), for the time and the memory with 34 MB;
+  then with Syncthing for real.
 
 ## Later
 
