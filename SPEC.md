@@ -60,8 +60,8 @@ dependency directions are the module dependencies, so the compiler enforces them
 
 ```
 core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attachment, TOTPConfig,
-              EntryChanges, VaultEdit, the secret value type, and the ports (DatabaseStore §3.1, Clock,
-              BiometricPasswordStore §5, SettingsStore, …).
+              EntryChanges, VaultEdit, the secret value type, and the ports (DatabaseStore §3.1,
+              DatabaseBackups §3.3, Clock, BiometricPasswordStore §5, SettingsStore, …).
               Depends on nothing.
 core/totp     one-time codes: Base32, otpauth links, KeePassXC's formats, code generation   → domain
 core/search   search rules, ranking, site matching with the public suffix list (a resource,
@@ -177,18 +177,34 @@ keeps the new time. The way out is in §3.3 step 7.
 
 ### 3.3 Writing
 
-The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
+What the phone writes (`VaultEdit`): an entry's fields (title, username, password, URL, notes, custom fields,
+tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it.
+Deleting for good, history, attachments, one-time codes and groups are left to the Mac (§1).
+
+The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/vault` `VaultSaver`, `core/kdbx`
+`EditableDatabase`):
 1. Read the file again; open it as an XML tree that keeps everything (unknown elements, history, custom
-   data, other apps' data) and writes it back in order.
+   data, other apps' data) and writes it back in order. A protected value goes into the tree as a secret,
+   decrypted straight into it: the tree holds no password in the clear either (§4).
 2. Find the entry by UUID; if its `LastModificationTime` differs from the one loaded → "changed elsewhere",
    nothing is saved, the vault reloads. Other entries changed elsewhere are kept.
-3. Apply the change as KeePass does (old version into `History`, trimmed to `HistoryMaxItems`).
-4. Write: same format, new master seed / IV / inner stream key; attachments compacted, `Ref`s renumbered.
+3. Apply the change as KeePassXC does: the old version into `History`, trimmed to `HistoryMaxItems`; a new
+   entry with KeePassXC's elements and its group's own icon; the recycle bin made as KeePassXC makes it when
+   there is none (the file then becomes KDBX 4.1, for `PreviousParentGroup`); a restored entry into the group
+   it came from, the root group when that is gone, and an entry recycled with its group into that group's
+   place, the group made again there by name (as on the Mac).
+4. Write: same format, new master seed / IV / inner stream key; the KDF parameters and salt kept, so the key
+   in memory writes it and a save derives nothing; attachments nothing refers to dropped, identical ones
+   stored once, `Ref`s renumbered, every reference still meaning the same bytes.
 5. **Check before replacing**: open the new bytes with the built-in reader; every other entry and group
-   exactly as before, the changed entry exactly as asked, every attachment byte for byte.
-6. If the file on disk changed meanwhile (SHA-256), do it all again on the new file (once more, then fail).
-7. Back up the old file into app-private storage (`filesDir/backups`, newest 10; not in the Syncthing folder)
-   and replace: temporary file in the same folder, then rename. The temporary file is
+   exactly as before, the changed entry exactly as asked, every attachment byte for byte. "Before" is the
+   reader's own reading of the same decrypted XML the tree was made from, so a fault in the tree shows as a
+   difference.
+6. If the file on disk changed meanwhile (byte for byte), do it all again on the new file (once more, then
+   fail).
+7. Back up the old file into app-private storage (`filesDir/backups`, `<name> <local date and time>.kdbx`,
+   the newest 10 of each database; not in the Syncthing folder, and the app allows no Android backup, so they
+   stay on the phone) and replace: temporary file in the same folder, then rename. The temporary file is
    `.syncthing.keepassbar-<uuid>.tmp`: Syncthing never scans or sends `.syncthing.*.tmp` (its own downloads),
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
@@ -206,6 +222,16 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"):
    10 s), sets that time on the phone's file and its content is never sent. Fixed in Syncthing 2.1.7 (a
    release candidate in October 2026); both phones run 2.1.3, so Syncthing-Fork is to be updated when it
    ships. Nothing the app can do; it needs a change that touches only the time, which KeePassXC never makes.
+
+The session saves one change at a time with the key in memory (`VaultSession.save`); the vault is then the
+written file as read back, and the app's own write is not read again. Refused because the entry changed or went
+elsewhere, the vault is read again; refused because the password changed elsewhere, the app locks. Reloads and
+saves take turns, so an older read never replaces a newer save. On the Mac's JVM a save of the fictitious
+1,894-entry demo database took about 0.3 s, no key derivation.
+
+Checked in JVM tests (the Mac's writing, editing, lifecycle and saver expectations, on the fixtures) and with
+KeePassXC's own `keepassxc-cli` (2.7, when installed): it opens every written fixture, exports a written file
+exactly as the original, and reads an edited entry's protected fields, a new entry and the recycle bin.
 
 ### 3.4 Conflicts
 

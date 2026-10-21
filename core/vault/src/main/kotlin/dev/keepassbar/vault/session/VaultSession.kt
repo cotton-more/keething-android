@@ -2,15 +2,20 @@ package dev.keepassbar.vault.session
 
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.storage.ConflictCopy
+import dev.keepassbar.domain.storage.DatabaseBackups
 import dev.keepassbar.domain.storage.DatabaseStore
 import dev.keepassbar.domain.storage.FileVersion
 import dev.keepassbar.domain.time.Clock
 import dev.keepassbar.domain.vault.Vault
+import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.kdbx.key.DatabaseKey
 import dev.keepassbar.vault.opening.AttachmentContents
 import dev.keepassbar.vault.opening.OpenFailure
 import dev.keepassbar.vault.opening.OpenResult
 import dev.keepassbar.vault.opening.VaultOpener
+import dev.keepassbar.vault.saving.SaveFailure
+import dev.keepassbar.vault.saving.SaveResult
+import dev.keepassbar.vault.saving.VaultSaver
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
@@ -23,6 +28,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -39,6 +46,8 @@ import kotlinx.coroutines.withContext
 public class VaultSession(
     private val store: DatabaseStore,
     private val opener: VaultOpener,
+    /** Where a save keeps the file it replaces (SPEC §3.3 step 7). */
+    backups: DatabaseBackups,
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher,
@@ -52,6 +61,12 @@ public class VaultSession(
 ) {
     private val mutableState = MutableStateFlow<SessionState>(SessionState.Locked(LockReason.Initial))
     public val state: StateFlow<SessionState> = mutableState.asStateFlow()
+
+    private val saver = VaultSaver(store, backups)
+
+    /** Reloads and saves take turns, each up to the vault it adopts: an older read never replaces a newer save. */
+    private val fileWork = Mutex()
+    private var saving = false
 
     private var key: DatabaseKey? = null
     private var attachments: AttachmentContents? = null
@@ -219,7 +234,7 @@ public class VaultSession(
     }
 
     /** False when the session was locked meanwhile. */
-    private suspend fun reloadOnce(token: Int): Boolean {
+    private suspend fun reloadOnce(token: Int): Boolean = fileWork.withLock {
         val attempt = key?.copy() ?: return false
         var result = open(attempt)
         var waited = Duration.ZERO
@@ -249,7 +264,57 @@ public class VaultSession(
                 mutableState.value = unlocked.copy(conflictCopies = copies, reloadFailure = result.failure)
             }
         }
-        return true
+        true
+    }
+
+    /**
+     * Writes [edit] into the file (SPEC §3.3), with the key in memory; the vault then becomes the file read back.
+     * One save at a time: null while one runs, and when not unlocked. Refused because the entry changed or went
+     * elsewhere, the vault is read again; refused because the password changed elsewhere, the session locks.
+     */
+    public fun save(edit: VaultEdit): Deferred<SaveOutcome>? {
+        if (mutableState.value !is SessionState.Unlocked || saving) return null
+        val attempt = key?.copy() ?: return null
+        saving = true
+        val token = generation
+        val outcome = CompletableDeferred<SaveOutcome>()
+        scope.launch {
+            try {
+                fileWork.withLock {
+                    val result = withContext(io) { saver.save(edit, attempt, clock.now()) }
+                    val copies = conflictCopies()
+                    if (token != generation) {
+                        attempt.wipe()
+                        if (result is SaveResult.Saved) discard(OpenResult.Opened(result.opened), attempt)
+                        return@withLock
+                    }
+                    when (result) {
+                        is SaveResult.Saved -> {
+                            key?.wipe()
+                            key = attempt
+                            adopt(OpenResult.Opened(result.opened), copies)
+                            outcome.complete(SaveOutcome.Saved)
+                        }
+                        is SaveResult.Failed -> {
+                            attempt.wipe()
+                            outcome.complete(SaveOutcome.Failed(result.failure))
+                            afterRefusal(result.failure)
+                        }
+                    }
+                }
+            } finally {
+                saving = false
+                outcome.complete(SaveOutcome.Interrupted)
+            }
+        }
+        return outcome
+    }
+
+    private fun afterRefusal(failure: SaveFailure) {
+        when {
+            failure == SaveFailure.CannotOpen(OpenFailure.WrongPassword) -> lock(LockReason.PasswordChanged)
+            failure == SaveFailure.ChangedElsewhere || failure == SaveFailure.EntryNotFound -> reload()
+        }
     }
 
     private fun adopt(result: OpenResult.Opened, copies: List<ConflictCopy>) {

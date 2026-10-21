@@ -2,8 +2,15 @@ package dev.keepassbar.vault.session
 
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.storage.ConflictCopy
+import dev.keepassbar.domain.storage.DatabaseBackups
+import dev.keepassbar.domain.vault.EntryChanges
+import dev.keepassbar.domain.vault.VaultEdit
+import dev.keepassbar.kdbx.key.DatabaseKey
+import dev.keepassbar.kdbx.reader.KdbxReader
 import dev.keepassbar.vault.opening.OpenFailure
 import dev.keepassbar.vault.opening.VaultOpener
+import dev.keepassbar.vault.saving.SaveFailure
+import java.time.Instant
 import java.time.LocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,9 +32,11 @@ import kotlinx.coroutines.test.runTest
 class VaultSessionTest {
     private class Fixture(scope: TestScope, val store: FakeStore) {
         val clock = FakeClock(scope.testScheduler)
+        val backups = mutableListOf<ByteArray>()
         val session = VaultSession(
             store = store,
             opener = VaultOpener(),
+            backups = DatabaseBackups { database, _, _ -> backups += database },
             clock = clock,
             scope = scope.backgroundScope,
             io = StandardTestDispatcher(scope.testScheduler),
@@ -326,6 +335,87 @@ class VaultSessionTest {
         runCurrent()
 
         assertNotSame(before, f.vault)
+    }
+
+    // Saving
+
+    @Test
+    fun aSaveWritesTheFileAndTheVaultBecomesTheFileReadBack() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first()
+
+        val outcome = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "saved"))))
+        runCurrent()
+
+        assertEquals(SaveOutcome.Saved, outcome.await())
+        assertEquals("saved", f.vault.entries.single { it.id == entry.id }.notes)
+        assertEquals(1, f.store.replaced)
+        assertEquals(1, f.backups.size)
+        val reads = f.store.reads
+        advanceTimeBy(5.seconds)
+        runCurrent()
+        assertEquals(reads, f.store.reads, "its own write is not read again")
+        assertNull(f.unlockedState.keyDerivation, "nothing derived")
+    }
+
+    @Test
+    fun aRefusedSaveKeepsTheVaultReadsTheFileAgainAndSaysWhy() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first()
+        val reads = f.store.reads
+
+        val outcome = assertNotNull(f.session.save(VaultEdit.Update(entry.id, Instant.EPOCH, EntryChanges(notes = "x"))))
+        runCurrent()
+
+        assertEquals(SaveOutcome.Failed(SaveFailure.ChangedElsewhere), outcome.await())
+        assertEquals(entry, f.vault.entries.single { it.id == entry.id })
+        assertEquals(0, f.store.replaced)
+        assertTrue(f.store.reads > reads + 1, "the vault is read again after the save's own read")
+    }
+
+    @Test
+    fun oneSaveAtATimeAndNoneWhileLocked() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first()
+        val edit = VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "x"))
+
+        assertNotNull(f.session.save(edit))
+        assertNull(f.session.save(edit), "a second save waits for no one")
+        runCurrent()
+        assertNotNull(f.session.save(VaultEdit.Update(entry.id, null, EntryChanges(notes = "y"))), "the next one, after")
+        runCurrent()
+        f.session.lock()
+        assertNull(f.session.save(edit))
+    }
+
+    @Test
+    fun aLockDuringASaveWipesWhatItReadBack() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first()
+
+        val outcome = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "x"))))
+        f.session.lock()
+        runCurrent()
+
+        assertEquals(SaveOutcome.Interrupted, outcome.await())
+        assertEquals(SessionState.Locked(LockReason.Manual), f.session.state.value)
+    }
+
+    @Test
+    fun aPasswordChangedElsewhereLocksOnSave() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first()
+        val pw = DatabaseKey.fromPassword(Secret.of("pw"))
+        f.store.change(
+            KdbxReader.openForEditing(fixtureBytes("kdbx4-aes-aeskdf"), pw).write(DatabaseKey.fromPassword(Secret.of("other"))).file,
+            notify = false,
+        )
+
+        val outcome = assertNotNull(f.session.save(VaultEdit.Update(entry.id, null, EntryChanges(notes = "x"))))
+        runCurrent()
+
+        assertEquals(SaveOutcome.Failed(SaveFailure.CannotOpen(OpenFailure.WrongPassword)), outcome.await())
+        assertEquals(SessionState.Locked(LockReason.PasswordChanged), f.session.state.value)
     }
 
     /** Where the header ends: after its fields, the SHA-256 and the HMAC (each 32 bytes). */

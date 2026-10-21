@@ -2,7 +2,10 @@ package dev.keepassbar.domain.vault
 
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.totp.TotpConfig
+import java.nio.ByteBuffer
 import java.time.Instant
+import java.util.Base64
+import java.util.UUID
 
 /** An entry of the database, identified by its KeePass UUID. */
 public data class Entry(
@@ -52,5 +55,14 @@ public data class Entry(
         password.wipe()
         customFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
         totp?.secret?.wipe()
+    }
+
+    public companion object {
+        /** A new entry's id: a random UUID's 16 bytes in base64, as the XML writes it (Mac `Entry.newID`). */
+        public fun newId(): String {
+            val uuid = UUID.randomUUID()
+            val bytes = ByteBuffer.allocate(16).putLong(uuid.mostSignificantBits).putLong(uuid.leastSignificantBits)
+            return Base64.getEncoder().encodeToString(bytes.array())
+        }
     }
 }

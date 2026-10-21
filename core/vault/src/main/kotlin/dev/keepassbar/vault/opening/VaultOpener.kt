@@ -6,6 +6,7 @@ import dev.keepassbar.domain.storage.DatabaseStore
 import dev.keepassbar.domain.storage.FileVersion
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.kdbx.key.DatabaseKey
+import dev.keepassbar.kdbx.reader.KdbxDatabase
 import dev.keepassbar.kdbx.reader.KdbxException
 import dev.keepassbar.kdbx.reader.KdbxReader
 import kotlin.time.Duration
@@ -61,28 +62,34 @@ public class VaultOpener {
         } catch (_: OutOfMemoryError) {
             return OpenResult.Failed(OpenFailure.OutOfMemory)
         }
-        val vault = try {
-            VaultAssembler.assemble(database.document, database.binaries.map(Secret::size))
-        } catch (failure: RuntimeException) {
-            database.binaries.forEach(Secret::wipe)
-            throw failure
-        }
-        val indexes = database.document.entries.associate { entry ->
-            entry.uuid to entry.attachments.mapNotNull { ref -> ref.ref?.let { ref.name to it } }.toMap()
-        }
-        return OpenResult.Opened(
-            OpenedVault(vault, AttachmentContents(database.binaries, indexes), found.version, database.keyDerivation),
-        )
+        return OpenResult.Opened(database.toOpenedVault(found.version))
     }
+}
 
-    private fun KdbxException.toOpenFailure(): OpenFailure = when (this) {
-        is KdbxException.WrongPassword -> OpenFailure.WrongPassword
-        is KdbxException.Corrupt -> OpenFailure.Damaged(detail)
-        is KdbxException.NotKdbx,
-        is KdbxException.UnsupportedVersion,
-        is KdbxException.UnsupportedCipher,
-        is KdbxException.UnsupportedKdf,
-        is KdbxException.UnsupportedInnerStream,
-        -> OpenFailure.Unsupported(message ?: "")
+/**
+ * The vault of a database read, with its attachments; [version] is the file's that was read. [assembled] is its
+ * vault when it was made already (a save's read-back).
+ */
+internal fun KdbxDatabase.toOpenedVault(version: FileVersion, assembled: Vault? = null): OpenedVault {
+    val vault = assembled ?: try {
+        VaultAssembler.assemble(document, binaries.map(Secret::size))
+    } catch (failure: RuntimeException) {
+        binaries.forEach(Secret::wipe)
+        throw failure
     }
+    val indexes = document.entries.associate { entry ->
+        entry.uuid to entry.attachments.mapNotNull { ref -> ref.ref?.let { ref.name to it } }.toMap()
+    }
+    return OpenedVault(vault, AttachmentContents(binaries, indexes), version, keyDerivation)
+}
+
+internal fun KdbxException.toOpenFailure(): OpenFailure = when (this) {
+    is KdbxException.WrongPassword -> OpenFailure.WrongPassword
+    is KdbxException.Corrupt -> OpenFailure.Damaged(detail)
+    is KdbxException.NotKdbx,
+    is KdbxException.UnsupportedVersion,
+    is KdbxException.UnsupportedCipher,
+    is KdbxException.UnsupportedKdf,
+    is KdbxException.UnsupportedInnerStream,
+    -> OpenFailure.Unsupported(message ?: "")
 }

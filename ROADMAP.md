@@ -14,11 +14,10 @@ Effort: max (XML tree, writer, the save checks; a mistake can damage the databas
 The app is read-only until this step: it cannot damage the database. Editing on the phone is rare for
 the owner, so writing comes after autofill and before Google Play, without hurry.
 
-- core: XML tree that keeps everything, writer, EntryEditing / EntryLifecycle / AttachmentPool, the save
-  checks (port of `KDBXFileSaver`). JVM tests: written files read back identical; keepassxc-cli on the Mac
-  opens them (the tests can call it when it is installed).
-- app: editor, new entry, delete with Undo, recycle bin (`-`), restore, backups. Replacing the file (by a
-  rename, then setting its time; SPEC §3.3 step 7) is done in `PathDatabaseStore`.
+- app: editor, new entry, delete with Undo, recycle bin (`-`), restore, all through `VaultSession.save`
+  (SPEC §3.3). Done already: the core (tree, writer, editing, the save checks), replacing the file by a
+  rename with its time set (`PathDatabaseStore`), the backups (`FileDatabaseBackups`). Measure a save on the
+  phone (the demo database; the time and the memory).
 - Autofill: the save and update offers, the password generator for sign-ups; choosing an entry by hand
   for an app could offer to add its `androidapp://` address.
 - Check on a copy of the real database (as the Mac's `KDBXProbe --lifecycle`), then with Syncthing for real.

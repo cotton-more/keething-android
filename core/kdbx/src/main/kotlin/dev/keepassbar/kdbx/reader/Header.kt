@@ -9,6 +9,8 @@ import dev.keepassbar.kdbx.reader.KdbxFormat.Kdf
 internal class Header(
     val format: KdbxFormat,
     val kdf: KdfParameters,
+    /** What a writer needs to write the file again in the same format (seeds aside). */
+    val template: KdbxTemplate,
     val masterSeed: ByteArray,
     val iv: ByteArray,
     /** The header bytes the checksum and the HMAC cover: from the start to [checksumStart]. */
@@ -49,6 +51,7 @@ internal class Header(
             var seed: ByteArray? = null
             var iv: ByteArray? = null
             var kdfData: ByteArray? = null
+            var publicCustomData: ByteArray? = null
             while (true) {
                 val id = r.uint8()
                 val value = r.size()?.let(r::bytes)
@@ -60,7 +63,8 @@ internal class Header(
                     4 -> seed = value
                     7 -> iv = value
                     11 -> kdfData = value
-                    // Public custom data and unknown fields are covered by the HMAC, not used.
+                    12 -> publicCustomData = value
+                    // Unknown fields are covered by the HMAC, not used.
                 }
             }
             val checksumStart = r.position
@@ -78,6 +82,7 @@ internal class Header(
             return Header(
                 format = KdbxFormat("$major.$minor", cipher, summary, compressed = compression == 1),
                 kdf = kdf,
+                template = KdbxTemplate(major, minor, cipherId, cipher, compression == 1, kdf, publicCustomData),
                 masterSeed = seed,
                 iv = iv,
                 checksumStart = checksumStart,

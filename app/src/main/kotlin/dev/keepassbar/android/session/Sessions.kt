@@ -7,6 +7,7 @@ import dev.keepassbar.android.settings.AppSettings
 import dev.keepassbar.domain.biometric.BiometricAvailability
 import dev.keepassbar.domain.biometric.BiometricPasswordStore
 import dev.keepassbar.domain.settings.SettingsStore
+import dev.keepassbar.domain.storage.DatabaseBackups
 import dev.keepassbar.domain.storage.DatabaseStore
 import dev.keepassbar.vault.biometric.BiometricState
 import dev.keepassbar.vault.biometric.BiometricUnlock
@@ -50,6 +51,8 @@ internal class Sessions(
     private val settings: AppSettings,
     private val settingsStore: SettingsStore,
     private val storeAt: (File) -> DatabaseStore,
+    /** Where saves keep the file they replace (SPEC §3.3 step 7). */
+    private val backups: DatabaseBackups,
     private val biometricStore: BiometricPasswordStore,
     private val scope: CoroutineScope,
     /** One task at a time: the fingerprint's saves and deletes stay in order. */
@@ -103,6 +106,7 @@ internal class Sessions(
         val session = VaultSession(
             store = store,
             opener = VaultOpener(),
+            backups = backups,
             clock = AndroidClock,
             scope = scope,
             io = Dispatchers.IO,

@@ -1,9 +1,12 @@
 package dev.keepassbar.kdbx.reader
 
 import dev.keepassbar.domain.secret.Secret
+import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.kdbx.crypto.Bytes
 import dev.keepassbar.kdbx.crypto.ChaCha20
+import dev.keepassbar.kdbx.editing.EditableDatabase
 import dev.keepassbar.kdbx.key.DatabaseKey
+import dev.keepassbar.kdbx.tree.XmlTree
 import dev.keepassbar.kdbx.xml.KdbxDocument
 import dev.keepassbar.kdbx.xml.KdbxXmlReader
 import java.io.ByteArrayInputStream
@@ -36,7 +39,64 @@ public object KdbxReader {
     /** Reads only the format, without a key. */
     public fun format(file: ByteArray): KdbxFormat = Header.parse(file).format
 
-    public fun open(file: ByteArray, key: DatabaseKey): KdbxDatabase {
+    public fun open(file: ByteArray, key: DatabaseKey): KdbxDatabase =
+        decryptPayload(file, key) { header, plain, inner, keyDerivation ->
+            val stream = streamOf(inner)
+            inner.wipeKey()
+            try {
+                val document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, stream)
+                KdbxDatabase(header.format, document, inner.binaries, keyDerivation)
+            } catch (failure: KdbxException) {
+                inner.binaries.forEach(Secret::wipe)
+                throw failure
+            } finally {
+                stream.wipe()
+            }
+        }
+
+    /**
+     * Opens a file to change it and write it back (SPEC §3.3; Mac `KDBXReader.openForEditing`): the XML is read
+     * twice from the same decrypted bytes, into the document the reader always makes and into a tree that keeps
+     * everything.
+     */
+    public fun openForEditing(file: ByteArray, key: DatabaseKey): EditableDatabase =
+        decryptPayload(file, key) { header, plain, inner, _ ->
+            val documentStream = streamOf(inner)
+            val treeStream = streamOf(inner)
+            inner.wipeKey()
+            var document: KdbxDocument? = null
+            try {
+                document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, documentStream)
+                val root = XmlTree.parse(plain, inner.end, plain.size - inner.end, treeStream)
+                EditableDatabase(document, root, inner.binaries, inner.binaryFlags, header.template)
+            } catch (failure: KdbxException) {
+                document?.entries?.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
+                inner.binaries.forEach(Secret::wipe)
+                throw failure
+            } finally {
+                documentStream.wipe()
+                treeStream.wipe()
+            }
+        }
+
+    /** The inner stream; when it cannot be made, the inner header's key and attachments are wiped first. */
+    private fun streamOf(inner: InnerHeader): ChaCha20 = try {
+        inner.stream()
+    } catch (failure: KdbxException) {
+        inner.wipeKey()
+        inner.binaries.forEach(Secret::wipe)
+        throw failure
+    }
+
+    /**
+     * Verifies and decrypts the file, then hands the payload (inner header, then XML) to [read]; the payload is
+     * wiped afterwards.
+     */
+    private fun <T> decryptPayload(
+        file: ByteArray,
+        key: DatabaseKey,
+        read: (header: Header, plain: ByteArray, inner: InnerHeader, keyDerivation: Duration?) -> T,
+    ): T {
         val header = Header.parse(file)
         if (header.format.cipher == KdbxFormat.Cipher.TWOFISH) throw KdbxException.UnsupportedCipher("Twofish")
 
@@ -70,17 +130,7 @@ public object KdbxReader {
             }
             try {
                 val inner = InnerHeader.parse(plain, plain.size)
-                val stream = inner.stream()
-                inner.wipeKey()
-                try {
-                    val document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, stream)
-                    return KdbxDatabase(header.format, document, inner.binaries, kdfTime.takeIf { fresh })
-                } catch (failure: KdbxException) {
-                    inner.binaries.forEach(Secret::wipe)
-                    throw failure
-                } finally {
-                    stream.wipe()
-                }
+                return read(header, plain, inner, kdfTime.takeIf { fresh })
             } finally {
                 plain.fill(0)
             }

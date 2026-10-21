@@ -6,6 +6,7 @@ import dev.keepassbar.domain.storage.DatabaseStore
 import dev.keepassbar.domain.storage.FileVersion
 import dev.keepassbar.domain.time.Clock
 import java.io.File
+import java.io.IOException
 import java.time.Instant
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -13,11 +14,22 @@ import kotlinx.coroutines.test.TestCoroutineScheduler
 
 internal fun fixtureBytes(name: String): ByteArray = File(System.getProperty("keepassbar.fixtures"), "$name.kdbx").readBytes()
 
-/** A database file in memory: [change] replaces it (null: gone) and tells the watchers, as Syncthing would. */
+/**
+ * A database file in memory: [change] replaces it (null: gone) and tells the watchers, as Syncthing would; so does
+ * the app's own [replace], which fails once when [failNextReplace] is set.
+ */
 internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
     override val fileName: String = "test.kdbx"
     var reads = 0
         private set
+    var replaced = 0
+        private set
+    var failNextReplace = false
+
+    /** Runs before each read with its number (1 for the first): another device changing the file meanwhile. */
+    var beforeRead: (Int) -> Unit = {}
+
+    val content: ByteArray? get() = bytes?.copyOf()
     var copies: List<ConflictCopy> = emptyList()
     private var changes = 0L
     private var current = versionOf(bytes)
@@ -26,13 +38,21 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
 
     override fun read(): DatabaseRead {
         reads++
-        val content = bytes ?: return DatabaseRead.Missing
-        return DatabaseRead.Found(content.copyOf(), current!!)
+        beforeRead(reads)
+        val stored = bytes ?: return DatabaseRead.Missing
+        return DatabaseRead.Found(stored.copyOf(), current!!)
     }
 
     override fun version(): FileVersion? = current
 
-    override fun replace(bytes: ByteArray): Unit = error("read-only")
+    override fun replace(bytes: ByteArray) {
+        if (failNextReplace) {
+            failNextReplace = false
+            throw IOException("disk full")
+        }
+        replaced++
+        change(bytes.copyOf())
+    }
 
     override fun conflictCopies(): List<ConflictCopy> = copies
 

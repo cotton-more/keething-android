@@ -3,6 +3,7 @@ package dev.keepassbar.vault.session
 import dev.keepassbar.domain.storage.ConflictCopy
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.vault.opening.OpenFailure
+import dev.keepassbar.vault.saving.SaveFailure
 import kotlin.time.Duration
 
 /** Why the vault is locked (the lock screen shows it as a chip, SPEC §6). */
@@ -31,6 +32,17 @@ public sealed interface UnlockOutcome {
 
     /** A lock came before the file was opened; what was opened is wiped. */
     public data object Interrupted : UnlockOutcome
+}
+
+/** How one save ended. */
+public sealed interface SaveOutcome {
+    /** The file was replaced and the vault is the file read back. */
+    public data object Saved : SaveOutcome
+
+    public data class Failed(val failure: SaveFailure) : SaveOutcome
+
+    /** A lock came first; what the save read back is wiped (the file may have been written). */
+    public data object Interrupted : SaveOutcome
 }
 
 public sealed interface SessionState {

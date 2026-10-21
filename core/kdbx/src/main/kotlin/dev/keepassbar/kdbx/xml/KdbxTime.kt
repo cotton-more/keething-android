@@ -3,10 +3,12 @@ package dev.keepassbar.kdbx.xml
 import dev.keepassbar.kdbx.crypto.Bytes
 import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 import java.util.Base64
 
-/** The times in the XML (Mac `EntryMapper.date`). */
+/** The times in the XML (Mac `EntryMapper.date` and `KDBXTime`). */
 internal object KdbxTime {
     private const val SECONDS_FROM_YEAR_1_TO_1970 = 62_135_596_800L
 
@@ -30,4 +32,13 @@ internal object KdbxTime {
         if (bytes.size != 8) return null
         return Instant.ofEpochSecond(Bytes.longLe(bytes, 0) - SECONDS_FROM_YEAR_1_TO_1970)
     }
+
+    /** As KDBX 4 writes a time: base64 of the whole seconds since 0001-01-01 UTC, little-endian. */
+    fun base64(time: Instant): String =
+        Base64.getEncoder().encodeToString(Bytes.le64(time.epochSecond + SECONDS_FROM_YEAR_1_TO_1970))
+
+    /** As KDBX 3 wrote a time; a file with such times keeps them. */
+    fun iso(time: Instant): String = DateTimeFormatter.ISO_INSTANT.format(time.truncatedTo(ChronoUnit.SECONDS))
+
+    fun isIso(text: String): Boolean = '-' in text && ':' in text
 }

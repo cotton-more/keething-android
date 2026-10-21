@@ -37,6 +37,7 @@ class BiometricUnlockTest {
         val session = VaultSession(
             store = FakeStore(database),
             opener = VaultOpener(),
+            backups = { _, _, _ -> },
             clock = FakeClock(scope.testScheduler),
             scope = scope.backgroundScope,
             io = fileReads,

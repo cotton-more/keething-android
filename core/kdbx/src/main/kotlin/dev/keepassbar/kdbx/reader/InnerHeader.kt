@@ -13,6 +13,8 @@ internal class InnerHeader(
     private val streamKey: ByteArray,
     /** Wipeable: an attachment may be a private key. */
     val binaries: List<Secret>,
+    /** Each attachment's flag byte (0x01: protected in memory), written back as it was. */
+    val binaryFlags: List<Byte>,
     /** Where the XML starts. */
     val end: Int,
 ) {
@@ -37,6 +39,7 @@ internal class InnerHeader(
             var streamId: Int? = null
             var key: ByteArray? = null
             val binaries = mutableListOf<Secret>()
+            val flags = mutableListOf<Byte>()
             try {
                 while (true) {
                     val id = r.uint8()
@@ -46,7 +49,7 @@ internal class InnerHeader(
                     when (id) {
                         0 -> {
                             if (streamId == null || key == null) throw KdbxException.Corrupt("inner header")
-                            return InnerHeader(streamId, key, binaries, r.position)
+                            return InnerHeader(streamId, key, binaries, flags, r.position)
                         }
                         1 -> {
                             if (size != 4) throw KdbxException.Corrupt("inner header")
@@ -56,6 +59,7 @@ internal class InnerHeader(
                         // The first byte holds flags (protected in memory); the rest is the attachment.
                         3 -> {
                             if (size == 0) throw KdbxException.Corrupt("inner header binary")
+                            flags += payload[start]
                             binaries += Secret.copyOf(payload, start + 1, start + size)
                         }
                     }

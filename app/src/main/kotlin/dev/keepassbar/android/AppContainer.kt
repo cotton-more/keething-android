@@ -16,6 +16,7 @@ import dev.keepassbar.android.session.LockAlarm
 import dev.keepassbar.android.session.Sessions
 import dev.keepassbar.android.settings.AppSettings
 import dev.keepassbar.android.settings.SharedPreferencesSettingsStore
+import dev.keepassbar.android.storage.FileDatabaseBackups
 import dev.keepassbar.android.storage.FileObserverFolderWatcher
 import dev.keepassbar.android.storage.PathDatabaseStore
 import dev.keepassbar.android.storageprobe.ProbeSettings
@@ -50,7 +51,10 @@ internal class AppContainer(context: Context) {
 
     val biometricStore = KeystorePasswordStore(context, FingerprintPrompt(context), biometricIo)
 
-    val sessions = Sessions(settings, settingsStore, databaseStoreAt, biometricStore, appScope, biometricIo, LockAlarm(context))
+    val sessions = Sessions(
+        settings, settingsStore, databaseStoreAt, FileDatabaseBackups(File(context.filesDir, "backups")),
+        biometricStore, appScope, biometricIo, LockAlarm(context),
+    )
 
     val clipboard = SensitiveClipboard(AndroidSystemClipboard(context), ClipboardClearAlarm(context), appScope)
 

@@ -3,9 +3,11 @@ package dev.keepassbar.domain.vault
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.totp.TotpConfig
 import java.time.Instant
+import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -65,5 +67,13 @@ class EntryTest {
     fun aProtectedFieldHasNoPlainText() {
         assertNull(CustomField.protected("PIN", "1234").plainText)
         assertEquals("Acme", CustomField.plain("Org", "Acme").plainText)
+    }
+
+    @Test
+    fun aNewIdIsSixteenRandomBytesInBase64() {
+        val id = Entry.newId()
+
+        assertEquals(16, Base64.getDecoder().decode(id).size)
+        assertNotEquals(id, Entry.newId())
     }
 }
