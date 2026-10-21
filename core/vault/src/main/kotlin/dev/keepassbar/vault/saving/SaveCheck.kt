@@ -83,6 +83,7 @@ internal object SaveCheck {
         changes.customFields?.let { fields ->
             expected = expected.copy(customFields = fields.filter { it.name !in EntryChanges.RESERVED_FIELD_NAMES })
         }
+        changes.fieldTypes?.let { expected = expected.copy(fieldTypes = it) }
         changes.tags?.let { tags -> expected = expected.copy(tags = tags.map { it.trim() }.filter { it.isNotEmpty() }) }
         changes.expiry?.let { expiry ->
             expected = expected.copy(expires = expiry.expires)

@@ -6,6 +6,30 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Pin
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.font.FontWeight
+import dev.keepassbar.card.FieldType
+import java.time.LocalDate
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -59,7 +83,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -119,8 +142,8 @@ import java.time.format.FormatStyle
 
 /**
  * The entry editor (SPEC §6.2, the agreed mock-up; Mac editor's rules): the standard fields, the tags, the
- * expiry and the custom fields (name above value, a protected switch); problems keep Save off and are said at
- * the field. A list of codes is folded into one row, as the card lists it. Saving shows "Saving and checking…",
+ * expiry and the custom fields (name above value, a type, a protected switch); problems keep Save off and are
+ * said at the field. A list of codes is folded into one row, as the card lists it. Saving shows "Saving and checking…",
  * then the outcome. [onSaved] gets the entry saved (a new one's id).
  */
 @Composable
@@ -189,12 +212,13 @@ internal fun EntryEditorScreen(
             },
         ) { padding ->
             NoLearningKeyboard {
+                // The keyboard's inset outside the scroll: a field brought into view is above the keyboard.
                 Column(
                     Modifier
                         .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                         .verticalScroll(rememberScrollState())
                         .padding(top = padding.calculateTopPadding())
-                        .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                         .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -250,20 +274,18 @@ private fun EditorForm(
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
     )
-    CustomFields(editor, draft, update)
+    // A field just added: its value takes the focus and the form scrolls to it.
+    var focusing by remember { mutableStateOf<Int?>(null) }
+    CustomFields(editor, draft, update, generator, focusing, onFocused = { focusing = null })
     var addingCodes by rememberSaveable { mutableStateOf(false) }
-    Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilledTonalButton(onClick = { update(draft.addField()) }) {
-            Icon(Icons.Rounded.Add, contentDescription = null, Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Add field")
-        }
-        OutlinedButton(onClick = { addingCodes = true }) {
-            Icon(Icons.Rounded.Add, contentDescription = null, Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Add codes")
-        }
-    }
+    AddFieldButton(
+        onAdd = { type ->
+            val added = draft.addField(type)
+            update(added)
+            focusing = added.fields.last().id
+        },
+        onCodes = { addingCodes = true },
+    )
     if (addingCodes) AddCodesDialog(onAdd = addCodes, onDone = { addingCodes = false })
 
     val problems = (draft.fields.mapNotNull { editor.fieldProblem(draft, it) } + editor.problems(draft)).distinct()
@@ -457,7 +479,15 @@ private fun GroupChoice(groups: List<VaultGroup>, chosen: String, onChoose: (Str
 
 /** The custom fields in file order; a list of codes folded into one row until it is opened (or has a problem). */
 @Composable
-private fun CustomFields(editor: EntryEditor, draft: EntryDraft, update: (EntryDraft) -> Unit) {
+private fun CustomFields(
+    editor: EntryEditor,
+    draft: EntryDraft,
+    update: (EntryDraft) -> Unit,
+    generator: () -> PasswordGeneratorState,
+    focusing: Int?,
+    onFocused: () -> Unit,
+) {
+    val guesses = editor.guessedTypes(draft)
     val lists = editor.codeLists(draft)
     val listOf = lists.flatMap { list -> list.fieldIds.map { it to list } }.toMap()
     val opened = rememberSaveable(saver = openedSaver) { mutableStateMapOf<String, Boolean>() }
@@ -470,7 +500,19 @@ private fun CustomFields(editor: EntryEditor, draft: EntryDraft, update: (EntryD
             if (first) CodeListRow(list, open, onToggle = { opened[list.title] = !open })
             if (!open) continue
         }
-        FieldEditor(field, editor.fieldProblem(draft, field), onChange = { changed -> update(draft.changeField(field.id) { changed }) }, onRemove = { update(draft.removeField(field.id)) })
+        FieldEditor(
+            field,
+            problem = editor.fieldProblem(draft, field),
+            warning = editor.fieldWarning(field),
+            guessed = guesses[field.id] ?: FieldType.TEXT,
+            generator = generator,
+            focusNow = focusing == field.id,
+            onFocused = onFocused,
+            onChange = { changed -> update(draft.changeField(field.id) { changed }) },
+            onType = { type -> update(draft.withType(field.id, type)) },
+            onDate = { day -> update(draft.withDate(field.id, day)) },
+            onRemove = { update(draft.removeField(field.id)) },
+        )
     }
 }
 
@@ -509,14 +551,47 @@ private fun CodeListRow(list: CodeList, open: Boolean, onToggle: () -> Unit) {
     }
 }
 
-/** One custom field: its name above its value, the protected switch, remove; the problem with its name below. */
+/**
+ * One custom field: its name above its value, its type, the protected switch, remove; the problem with its name
+ * below, or a value typed as a date that is none. A protected value or a password is masked (an eye shows it); a
+ * password offers the generator, a date the calendar (Mac SPEC §3.12, §3.16).
+ */
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun FieldEditor(field: FieldDraft, problem: String?, onChange: (FieldDraft) -> Unit, onRemove: () -> Unit) {
+private fun FieldEditor(
+    field: FieldDraft,
+    problem: String?,
+    warning: String?,
+    guessed: FieldType,
+    generator: () -> PasswordGeneratorState,
+    focusNow: Boolean,
+    onFocused: () -> Unit,
+    onChange: (FieldDraft) -> Unit,
+    onType: (FieldType?) -> Unit,
+    onDate: (LocalDate) -> Unit,
+    onRemove: () -> Unit,
+) {
     var revealed by remember { mutableStateOf(false) }
+    var generating by rememberSaveable { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
+    val type = field.type
+    val masked = field.isProtected || type?.isPassword == true
+    val valueFocus = remember { FocusRequester() }
+    val bringIntoView = remember { BringIntoViewRequester() }
+    if (focusNow) {
+        LaunchedEffect(Unit) {
+            valueFocus.requestFocus()
+            // Again once the keyboard is up and the form has room above it.
+            delay(350)
+            bringIntoView.bringIntoView()
+            onFocused()
+        }
+    }
     val transparent = Color.Transparent
     Column(
         Modifier
             .fillMaxWidth()
+            .bringIntoViewRequester(bringIntoView)
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.extraColors.row)
             .then(if (problem != null) Modifier.border(2.dp, MaterialTheme.colorScheme.error, RoundedCornerShape(18.dp)) else Modifier)
@@ -532,6 +607,7 @@ private fun FieldEditor(field: FieldDraft, problem: String?, onChange: (FieldDra
                 textStyle = MaterialTheme.typography.titleSmall,
                 capitalization = KeyboardCapitalization.Sentences,
             )
+            FieldTypeButton(field, guessed, onType)
             ProtectedSwitch(field.isProtected) { onChange(field.copy(isProtected = it)) }
             IconButton(onClick = onRemove) {
                 Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove field ${field.name}".trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -541,23 +617,227 @@ private fun FieldEditor(field: FieldDraft, problem: String?, onChange: (FieldDra
             "Value",
             field.value,
             { onChange(field.copy(value = it)) },
+            modifier = Modifier.focusRequester(valueFocus),
             containerColor = transparent,
             singleLine = '\n' !in field.value,
-            keyboardType = if (field.isProtected) KeyboardType.Password else KeyboardType.Text,
-            textStyle = if (field.isProtected) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
+            // Digits never learnt by the keyboard for a card's number, CVC and PIN.
+            keyboardType = when {
+                type == FieldType.CARD_NUMBER || type == FieldType.CARD_CVC || type == FieldType.CARD_PIN -> KeyboardType.NumberPassword
+                masked -> KeyboardType.Password
+                type == FieldType.URL -> KeyboardType.Uri
+                else -> KeyboardType.Text
+            },
+            textStyle = if (masked) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
             visualTransformation = when {
-                !field.isProtected -> VisualTransformation.None
+                !masked -> VisualTransformation.None
                 revealed -> colouredSecretTransformation()
                 else -> PasswordVisualTransformation()
             },
-            trailingIcon = if (field.isProtected) ({ RevealButton(revealed, "value") { revealed = !revealed } }) else null,
+            trailingIcon = {
+                Row {
+                    if (masked) RevealButton(revealed, "value") { revealed = !revealed }
+                    if (type?.isPassword == true) {
+                        IconButton(onClick = { generating = true }) {
+                            Icon(Icons.Rounded.AutoFixHigh, contentDescription = "Generate a password", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    if (type?.isDate == true && !field.isProtected) {
+                        IconButton(onClick = { picking = true }) {
+                            Icon(Icons.Rounded.CalendarMonth, contentDescription = "Choose a day", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            },
         )
-        if (problem != null) {
+        val note = problem ?: warning
+        if (note != null) {
+            val colour = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.extraColors.warn
             Row(Modifier.padding(start = 16.dp, top = 2.dp, end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Rounded.ErrorOutline, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
-                Text(problem, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Icon(if (problem != null) Icons.Rounded.ErrorOutline else Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(16.dp), tint = colour)
+                Text(note, style = MaterialTheme.typography.bodySmall, color = colour)
             }
         }
+    }
+    if (generating) {
+        val state = remember { generator() }
+        PasswordGeneratorSheet(
+            state,
+            GeneratorUse.IntoEntry { password ->
+                onChange(field.copy(value = password))
+                revealed = true
+                generating = false
+            },
+            onDismiss = { generating = false },
+        )
+    }
+    if (picking) {
+        val start = field.date ?: LocalDate.now()
+        val state = rememberDatePickerState(initialSelectedDateMillis = start.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { onDate(Instant.ofEpochMilli(it).atOffset(ZoneOffset.UTC).toLocalDate()) }
+                    picking = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
+        ) { DatePicker(state) }
+    }
+}
+
+/**
+ * A field's type (Mac SPEC §3.12): the icon is the type it has, or (dimmed) what its value is read as. The menu:
+ * *Automatic* (no type), the types of their own, a payment card's and a Wi-Fi network's parts.
+ */
+@Composable
+private fun FieldTypeButton(field: FieldDraft, guessed: FieldType, onType: (FieldType?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val type = field.type
+    val shown = type ?: guessed
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(
+                shown.icon(),
+                contentDescription = "Field type: ${shown.fullTitle}" + if (field.typeName == null) " (automatic)" else "",
+                tint = if (field.typeName == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+            )
+        }
+        FieldTypeMenu(
+            open,
+            onDismiss = { open = false },
+            basic = FieldType.BASIC,
+            chosen = type,
+            onChoose = { chosen ->
+                onType(chosen)
+                open = false
+            },
+            top = { close ->
+                TypeItem("Automatic (${guessed.fullTitle})", chosen = field.typeName == null) {
+                    onType(null)
+                    close()
+                }
+                HorizontalDivider()
+            },
+            bottom = {
+                val unknown = field.typeName?.takeIf { type == null }
+                if (unknown != null) {
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text("“$unknown” (not known here, kept)") }, onClick = {}, enabled = false, leadingIcon = { Icon(Icons.Rounded.Check, null) })
+                }
+            },
+        )
+    }
+}
+
+/** "Add field": a field of a type, named at once with the cursor in its value, or a block of codes. */
+@Composable
+private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box(Modifier.padding(top = 4.dp)) {
+        FilledTonalButton(onClick = { open = true }) {
+            Icon(Icons.Rounded.Add, contentDescription = null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Add field")
+        }
+        FieldTypeMenu(
+            open,
+            onDismiss = { open = false },
+            basic = listOf(FieldType.TEXT, FieldType.DATE, FieldType.UNTIL, FieldType.URL, FieldType.PASSWORD),
+            chosen = null,
+            onChoose = { type ->
+                open = false
+                type?.let(onAdd)
+            },
+            bottom = { close ->
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text("Codes…") },
+                    leadingIcon = { Icon(FieldType.CODE.icon(), contentDescription = null) },
+                    onClick = {
+                        close()
+                        onCodes()
+                    },
+                )
+            },
+        )
+    }
+}
+
+/**
+ * The types in a menu: [basic] ones, then *Card ›* and *Wi-Fi ›*, which show their parts in its place (with a way
+ * back). [top] and [bottom] add items around them; they get a way to close the menu.
+ */
+@Composable
+private fun FieldTypeMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    basic: List<FieldType>,
+    chosen: FieldType?,
+    onChoose: (FieldType?) -> Unit,
+    top: (@Composable (close: () -> Unit) -> Unit)? = null,
+    bottom: (@Composable (close: () -> Unit) -> Unit)? = null,
+) {
+    var group by remember { mutableStateOf<List<FieldType>?>(null) }
+    val close = {
+        group = null
+        onDismiss()
+    }
+    DropdownMenu(expanded = expanded, onDismissRequest = close) {
+        val parts = group
+        if (parts != null) {
+            DropdownMenuItem(
+                text = { Text(if (parts == FieldType.CARD) "Card" else "Wi-Fi", style = MaterialTheme.typography.titleSmall) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") },
+                onClick = { group = null },
+            )
+            HorizontalDivider()
+            for (type in parts) {
+                TypeItem(type.title, chosen = type == chosen, icon = type.icon()) {
+                    group = null
+                    onChoose(type)
+                }
+            }
+        } else {
+            top?.invoke(close)
+            for (type in basic) {
+                TypeItem(type.title, chosen = type == chosen, icon = type.icon()) { onChoose(type) }
+            }
+            HorizontalDivider()
+            for ((title, parts) in listOf("Card" to FieldType.CARD, "Wi-Fi" to FieldType.WIFI)) {
+                DropdownMenuItem(
+                    text = { Text(title) },
+                    leadingIcon = { Icon(parts.first().icon(), contentDescription = null) },
+                    trailingIcon = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) },
+                    onClick = { group = parts },
+                )
+            }
+            bottom?.invoke(close)
+        }
+    }
+}
+
+@Composable
+private fun TypeItem(title: String, chosen: Boolean, icon: ImageVector? = null, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(title, fontWeight = if (chosen) FontWeight.SemiBold else null) },
+        leadingIcon = icon?.let { { Icon(it, contentDescription = null) } },
+        trailingIcon = if (chosen) ({ Icon(Icons.Rounded.Check, contentDescription = "Chosen", tint = MaterialTheme.colorScheme.primary) }) else null,
+        onClick = onClick,
+    )
+}
+
+/** The icon of a field type (in the editor; the card draws its own kinds). */
+private fun FieldType.icon(): ImageVector = when {
+    isCardPart -> Icons.Rounded.CreditCard
+    isWiFiPart -> Icons.Rounded.Wifi
+    else -> when (this) {
+        FieldType.DATE -> Icons.Rounded.Event
+        FieldType.UNTIL -> Icons.Rounded.EventBusy
+        FieldType.URL -> Icons.Rounded.Link
+        FieldType.CODE -> Icons.Rounded.Pin
+        FieldType.PASSWORD -> Icons.Rounded.Key
+        else -> Icons.Rounded.TextFields
     }
 }
 

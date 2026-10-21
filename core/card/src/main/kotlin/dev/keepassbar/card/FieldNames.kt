@@ -1,10 +1,11 @@
 package dev.keepassbar.card
 
+import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.search.SearchNormalizer
 
 /**
- * What a custom field's name says about its value (Mac `FieldNameHint`), used only when the vault has no
- * KeePassBar entry with field types. Words are compared folded (case and diacritics ignored).
+ * What a custom field's name says about its value (Mac `FieldNameHint`), used only for fields without a type.
+ * Words are compared folded (case and diacritics ignored).
  */
 internal class FieldNameHint(name: String) {
     private val words = SearchNormalizer.normalize(name).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
@@ -35,12 +36,20 @@ public object ImportedFieldName {
     /** 1Password's ids: 26 characters of lowercase base32. */
     public fun isGeneratedId(name: String): Boolean = name.length == 26 && name.all { it in 'a'..'z' || it in '2'..'7' }
 
-    /** A titled section with at least this many fields, all numbered or id-named, is a list of codes. */
+    /** A titled section with at least this many fields, all numbered or id-named and none typed, is a list of codes. */
     private const val MINIMUM_CODES = 3
 
-    /** The labels (names after the section's) of a section's fields make it a list of codes (recovery codes). */
-    internal fun isCodeList(labels: List<String>): Boolean =
-        labels.size >= MINIMUM_CODES && labels.all { label -> label.all(Char::isDigit) || isGeneratedId(label) }
+    /**
+     * Whether a titled section's fields are a list of codes (recovery codes): all typed `code`, or — none of them
+     * typed — at least [MINIMUM_CODES] of them labelled (the name after the section's) by numbers or ids.
+     */
+    internal fun isCodeList(fields: List<Pair<CustomField, String>>, interpreter: FieldInterpreter): Boolean {
+        if (fields.isEmpty()) return false
+        val types = fields.map { interpreter.type(it.first) }
+        if (types.all { it == FieldType.CODE }) return true
+        return types.all { it == null } && fields.size >= MINIMUM_CODES &&
+            fields.all { (_, label) -> label.all(Char::isDigit) || isGeneratedId(label) }
+    }
 
     /** `Section_Field` → ("Section", "Field"), split at the first `_`; null when either side is empty. */
     internal fun split(name: String): Pair<String, String>? {

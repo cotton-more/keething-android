@@ -20,7 +20,7 @@ class SpecialFieldsTest {
         type = card.type
     """.trimIndent()
 
-    private fun build(entry: Entry, notes: String) = EntryCardBuilder.build(entry, now, de, types(notes))
+    private fun build(entry: Entry, notes: String) = EntryCardBuilder.build(typed(entry, notes), now, de)
 
     private val visaFields = listOf(
         field("cardholder name", "Jane Example"), field("number", "4111 1111 1111 1111"), field("expiry date", "202702"),
@@ -100,7 +100,7 @@ class SpecialFieldsTest {
     @Test
     fun aTypoFailsTheCheckNoCardWithoutFieldTypesOrANumber() {
         assertEquals(false, build(visaWith(1, field("number", "4111 1111 1111 1112")), cardTypes).paymentCard?.checkDigitOk)
-        assertNull(EntryCardBuilder.build(visa, now, de).paymentCard, "without a KeePassBar entry nothing is a card")
+        assertNull(EntryCardBuilder.build(visa, now, de).paymentCard, "without types nothing is a card")
         val noNumber = build(visa, "expiry date = card.expiry")
         assertNull(noNumber.paymentCard)
         assertEquals(ExpiryHint.Status.SOON, noNumber.rows.first { it.label == "expiry date" }.expiry?.status, "card.expiry alone still ends something")
@@ -187,7 +187,7 @@ class SpecialFieldsTest {
 
     @Test
     fun untilFieldsAndKeePasssOwnExpiryEarliestFirst() {
-        val all = DeadlineList.build(Vault(listOf(passport, contract, visa), settings = settings(deadlineTypes)), now)
+        val all = DeadlineList.build(Vault(listOf(passport, contract, visa).map { typed(it, deadlineTypes) }), now)
 
         assertEquals(listOf("Entry expires", "VERTRAG › Ende", "gültig bis", "Kündigungsfrist"), all.map { it.label })
         assertEquals(listOf("DSL", "Reisepass", "Reisepass", "DSL"), all.map { it.entryTitle })
@@ -212,7 +212,7 @@ class SpecialFieldsTest {
 
     @Test
     fun theListKnowsHowEachEntrysDeadlinesStand() {
-        val status = DeadlineList.statusByEntry(Vault(listOf(passport, contract, visa), settings = settings(deadlineTypes)), now)
+        val status = DeadlineList.statusByEntry(Vault(listOf(passport, contract, visa).map { typed(it, deadlineTypes) }), now)
 
         assertEquals(ExpiryHint.Status.EXPIRED, status["p"])
         assertEquals(ExpiryHint.Status.EXPIRED, status["c"])

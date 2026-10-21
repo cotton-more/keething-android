@@ -5,8 +5,8 @@ public data class Vault(
     /** All entries except those in the recycle bin, history items and the settings entry. */
     val entries: List<Entry>,
     /**
-     * The first entry titled "KeePassBar" outside the recycle bin: the Mac app's settings (field types), not
-     * an entry to browse.
+     * The first entry titled "Keething" outside the recycle bin, else the first titled "KeePassBar" (the apps'
+     * former name): the Mac app's settings (the e-mail alias providers' keys), not an entry to browse.
      */
     val settings: Entry? = null,
     /** The groups outside the recycle bin, in file order (the root group first). */
@@ -28,8 +28,8 @@ public data class Vault(
     }
 
     public companion object {
-        /** Title of the entry that holds the Mac app's settings. */
-        public const val SETTINGS_TITLE: String = "KeePassBar"
+        /** Titles of the entry that holds the Mac app's settings, the one looked for first first. */
+        public val SETTINGS_TITLES: List<String> = listOf("Keething", "KeePassBar")
     }
 }
 

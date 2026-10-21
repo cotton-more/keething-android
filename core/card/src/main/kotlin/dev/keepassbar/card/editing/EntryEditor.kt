@@ -1,5 +1,10 @@
 package dev.keepassbar.card.editing
 
+import dev.keepassbar.card.EntryCardBuilder
+import dev.keepassbar.card.FieldDate
+import dev.keepassbar.card.FieldInterpreter
+import dev.keepassbar.card.FieldType
+import dev.keepassbar.card.FieldTypes
 import dev.keepassbar.card.ImportedFieldName
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.vault.CustomField
@@ -56,6 +61,38 @@ public class EntryEditor private constructor(
         return if (same > 1) "Another field has this name." else null
     }
 
+    /**
+     * A field typed as a date whose value is not one: it is saved, and shown as text; null when it is a date,
+     * empty, protected (never read) or of another type.
+     */
+    public fun fieldWarning(field: FieldDraft): String? {
+        val type = field.type?.takeIf { it.isDate } ?: return null
+        if (field.isProtected || field.value.isBlank() || FieldDate.parse(field.value, typed = true) != null) return null
+        return if (type == FieldType.CARD_EXPIRY) {
+            "Not a date, shown as text. Write it as 2027-10."
+        } else {
+            "Not a date, shown as text. Write it as 2027-10-31, or 2027-10 for a month."
+        }
+    }
+
+    // Field types (Mac SPEC §3.12)
+
+    /** What each field without a type is read as, by id (the type menu shows it as *Automatic*). */
+    public fun guessedTypes(draft: EntryDraft): Map<Int, FieldType> =
+        draft.fields.map { it.id }.zip(EntryCardBuilder.guessedTypes(draft.fields.map { it.customField() })).toMap()
+
+    /** The field's type, or what it is read as without one. */
+    public fun shownType(draft: EntryDraft, field: FieldDraft): FieldType = field.type ?: guessedTypes(draft)[field.id] ?: FieldType.TEXT
+
+    /** The types saved with the entry: every field's that has one, but `text` where nothing else would be read from the field anyway. */
+    private fun savedFieldTypes(draft: EntryDraft): Map<String, String> {
+        val kept = draft.fields.filterNot { it.isBlank }
+        val guesses = EntryCardBuilder.guessedTypes(kept.map { it.customField() })
+        return kept.zip(guesses)
+            .filter { (field, guess) -> field.typeName != null && !(field.type == FieldType.TEXT && guess == FieldType.TEXT) }
+            .associate { (field, _) -> field.name.trim() to field.typeName!! }
+    }
+
     public fun hasFieldProblems(draft: EntryDraft): Boolean = draft.fields.any { fieldProblem(draft, it) != null }
 
     /** What else keeps the draft from being saved; empty when nothing does. */
@@ -84,6 +121,7 @@ public class EntryEditor private constructor(
             url = shape.url,
             notes = shape.notes,
             customFields = shape.fields?.map { CustomField(it.name, if (it.isProtected) FieldValue.Protected(Secret.of(it.value)) else FieldValue.Plain(it.value)) },
+            fieldTypes = shape.fieldTypes,
             tags = shape.tags,
             expiry = shape.expiry,
         )
@@ -101,6 +139,7 @@ public class EntryEditor private constructor(
         val url: String?,
         val notes: String?,
         val fields: List<FieldText>?,
+        val fieldTypes: Map<String, String>?,
         val tags: List<String>?,
         val expiry: EntryChanges.Expiry?,
     )
@@ -119,6 +158,7 @@ public class EntryEditor private constructor(
             url = draft.url.takeIf { it != original.url },
             notes = draft.notes.takeIf { it != original.notes },
             fields = fields.takeIf { it != loadedFields },
+            fieldTypes = savedFieldTypes(draft).takeIf { it != original.fieldTypes },
             tags = tags.takeIf { it != original.tags },
             expiry = if (draft.expires != original.expires || moved) EntryChanges.Expiry(draft.expires, draft.expiryTime.takeIf { draft.expires }) else null,
         )
@@ -127,8 +167,8 @@ public class EntryEditor private constructor(
     // A block of codes (Mac SPEC §3.16)
 
     /**
-     * The codes of [text] become protected fields `<prefix>_1`, `_2`, … — the card lists such fields as numbered
-     * codes. With fields of that list already there the numbers go on, so the new codes join it.
+     * The codes of [text] become protected fields `<prefix>_1`, `_2`, … typed `code` — the card lists such fields
+     * as numbered codes. With fields of that list already there the numbers go on, so the new codes join it.
      */
     public fun addCodes(draft: EntryDraft, text: String, prefix: String): AddedCodes {
         prefixProblem(prefix)?.let { return AddedCodes.Refused(it) }
@@ -144,7 +184,7 @@ public class EntryEditor private constructor(
         }
         val first = (taken.maxOrNull() ?: 0) + 1
         val id = draft.nextFieldId()
-        val added = codes.mapIndexed { i, code -> FieldDraft(id + i, "${list}_${first + i}", code, isProtected = true) }
+        val added = codes.mapIndexed { i, code -> FieldDraft(id + i, "${list}_${first + i}", code, isProtected = true, typeName = FieldType.CODE.typeName) }
         return AddedCodes.Added(draft.copy(fields = draft.fields + added), codes.size)
     }
 
@@ -155,7 +195,8 @@ public class EntryEditor private constructor(
             val (section, label) = ImportedFieldName.split(field.name) ?: continue
             sections.getOrPut(section) { mutableListOf() } += field to label
         }
-        return sections.filterValues { members -> ImportedFieldName.isCodeList(members.map { it.second }) }
+        val interpreter = FieldInterpreter(FieldTypes(draft.fields.mapNotNull { field -> field.typeName?.let { field.name to it } }.toMap()))
+        return sections.filterValues { members -> ImportedFieldName.isCodeList(members.map { (field, label) -> field.customField() to label }, interpreter) }
             .map { (title, members) -> CodeList(title, members.map { it.first.id }, members.all { it.first.isProtected }) }
     }
 
@@ -170,7 +211,7 @@ public class EntryEditor private constructor(
                     is FieldValue.Plain -> v.text
                     is FieldValue.Protected -> v.secret.reveal()
                 }
-                FieldDraft(i + 1, field.name, value, field.isProtected)
+                FieldDraft(i + 1, field.name, value, field.isProtected, entry.fieldTypes[field.name])
             }
             val draft = EntryDraft(
                 title = entry.title, username = entry.username, password = entry.password.reveal(), url = entry.url,
@@ -220,5 +261,9 @@ public class EntryEditor private constructor(
         private fun aYearAfter(now: Instant): Instant = now.atOffset(ZoneOffset.UTC).plusYears(1).toInstant()
 
         private val FieldDraft.isBlank: Boolean get() = name.isBlank() && value.isEmpty()
+
+        /** The field as the card's rules read it: a protected value is never read, so it goes as an empty secret. */
+        private fun FieldDraft.customField(): CustomField =
+            CustomField(name.trim(), if (isProtected) FieldValue.Protected(Secret.empty()) else FieldValue.Plain(value))
     }
 }

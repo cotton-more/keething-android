@@ -66,6 +66,7 @@ internal object KdbxXmlReader {
         var created = ""
         val attachments = mutableListOf<KdbxAttachmentRef>()
         var customIconUuid = ""
+        val customData = LinkedHashMap<String, String>()
     }
 
     private class Handler(private val stream: ChaCha20?) : DefaultHandler2() {
@@ -97,6 +98,10 @@ internal object KdbxXmlReader {
         private var itemValue: FieldValue? = null
         private var itemInTheClear = false
         private var itemRef: Int? = null
+
+        // The current `CustomData/Item` of an entry.
+        private var dataKey = ""
+        private var dataValue = ""
 
         // The current value marked `Protected="True"`: its base64 text and its depth in the stack.
         private var protectedDepth = 0
@@ -133,6 +138,15 @@ internal object KdbxXmlReader {
         private fun parent() = stack.getOrNull(stack.size - 2) ?: ""
 
         private fun grand() = stack.getOrNull(stack.size - 3) ?: ""
+
+        /**
+         * Inside `Entry/CustomData/Item` (the entry's own, not its group's or the database's): the element on top
+         * of the stack is the item ([depth] 0) or one of its children (1).
+         */
+        private fun inEntryDataItem(depth: Int): Boolean {
+            val n = stack.size - depth
+            return entry != null && n >= 3 && stack[n - 1] == "Item" && stack[n - 2] == "CustomData" && stack[n - 3] == "Entry"
+        }
 
         override fun startElement(uri: String, localName: String, qName: String, attributes: Attributes) {
             val name = qName.ifEmpty { localName }
@@ -187,7 +201,12 @@ internal object KdbxXmlReader {
                     itemKey = ""
                     itemRef = null
                 }
+                "Item" -> if (inEntryDataItem(0)) {
+                    dataKey = ""
+                    dataValue = ""
+                }
             }
+            if ((name == "Key" || name == "Value") && inEntryDataItem(1)) beginCapture()
         }
 
         override fun characters(ch: CharArray, start: Int, length: Int) {
@@ -255,7 +274,11 @@ internal object KdbxXmlReader {
                         itemValue = null
                     }
                     "Binary" -> if (parent == "Entry" && inEntry) entry?.attachments?.add(KdbxAttachmentRef(itemKey, itemRef))
+                    "Item" -> if (inEntryDataItem(0)) entry?.customData?.put(dataKey, dataValue)
                     "Entry" -> if (parent == "Group" && inEntry) finishEntry()
+                }
+                if (inEntryDataItem(1)) {
+                    if (name == "Key") dataKey = captured else if (name == "Value") dataValue = captured
                 }
             } finally {
                 secret?.wipe()
@@ -300,6 +323,7 @@ internal object KdbxXmlReader {
                 groupPath = groupFrames.drop(1).map { it.name },
                 ancestorGroupUuids = groupFrames.map { it.uuid },
                 customIconUuid = e.customIconUuid.takeUnless { it.isEmpty() || it == NO_UUID },
+                customData = e.customData.toMap(),
             )
         }
 

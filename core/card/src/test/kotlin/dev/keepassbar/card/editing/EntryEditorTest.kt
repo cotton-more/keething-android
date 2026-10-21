@@ -2,6 +2,7 @@ package dev.keepassbar.card.editing
 
 import dev.keepassbar.card.CardSection
 import dev.keepassbar.card.EntryCardBuilder
+import dev.keepassbar.card.FieldType
 import dev.keepassbar.card.field
 import dev.keepassbar.card.now
 import dev.keepassbar.domain.secret.Secret
@@ -200,5 +201,107 @@ class EntryEditorTest {
         assertTrue((changes.customFields!![0].value as dev.keepassbar.domain.vault.FieldValue.Protected).secret.isWiped)
         assertEquals(Secret.of("old"), entry.password, "the entry's own are not touched")
         assertEquals(CustomField.protected("PIN", "1"), entry.customFields[0])
+    }
+
+    // Field types (Mac SPEC §3.12; the Mac `FieldTypeTests` "The editor" expectations)
+
+    @Test
+    fun typesComeFromTheEntryFollowARenameAndAreSavedTextOnlyWhereItChangesSomething() {
+        val typed = Entry(
+            "e", customFields = listOf(field("Ablauf", "2027-10-31"), field("Nr", "12"), field("Stand", "2027-01-01")),
+            fieldTypes = mapOf("Ablauf" to "until"),
+        )
+        val editor = EntryEditor.edit(typed, now)
+        var draft = editor.start
+        assertEquals(listOf(FieldType.UNTIL, null, null), draft.fields.map { it.type })
+        assertEquals(listOf(FieldType.UNTIL, FieldType.TEXT, FieldType.DATE), draft.fields.map { editor.shownType(draft, it) }, "untyped: what it is read as")
+        assertFalse(editor.isDirty(draft))
+
+        draft = draft.rename(0, "Gültig bis")
+        assertEquals(mapOf("Gültig bis" to "until"), editor.changes(draft).fieldTypes, "the type follows its field")
+        draft = draft.withType(draft.fields[1].id, FieldType.TEXT).withType(draft.fields[2].id, FieldType.TEXT)
+        assertEquals(mapOf("Gültig bis" to "until", "Stand" to "text"), editor.changes(draft).fieldTypes, "text is kept only where the value would be read as something else")
+        draft = draft.withType(draft.fields[2].id, null)
+        assertEquals(mapOf("Gültig bis" to "until"), editor.changes(draft).fieldTypes)
+        draft = draft.rename(0, "Ablauf")
+        assertNull(editor.changes(draft).fieldTypes, "back as loaded: no change")
+    }
+
+    @Test
+    fun typesOfFieldsTheEntryNoLongerHasGoWithTheNextSaveButAreNoChangeByThemselves() {
+        val editor = EntryEditor.edit(Entry("e", customFields = listOf(field("Ablauf", "2027-10-31")), fieldTypes = mapOf("Ablauf" to "until", "Gone" to "date")), now)
+        assertFalse(editor.isDirty(editor.start) || editor.canSave(editor.start))
+        val draft = editor.start.copy(notes = "n")
+        assertEquals(mapOf("Ablauf" to "until"), editor.changes(draft).fieldTypes)
+        assertTrue(editor.canSave(draft))
+    }
+
+    @Test
+    fun aTypeItDoesNotKnowIsKeptNewFieldsAndCodesGetTheirs() {
+        val editor = EntryEditor.edit(Entry("e", customFields = listOf(field("a")), fieldTypes = mapOf("a" to "frist")), now)
+        var draft = editor.start
+        assertEquals("frist", draft.fields[0].typeName)
+        draft = draft.copy(title = "T")
+        assertNull(editor.changes(draft).fieldTypes, "kept as it is")
+        draft = draft.addField(FieldType.URL)
+        draft = draft.changeField(draft.fields.last().id) { it.copy(name = "Server", value = "db.example.com") }
+        draft = assertIs<AddedCodes.Added>(editor.addCodes(draft, "111\n222", "Backup")).draft
+        assertEquals(mapOf("a" to "frist", "Server" to "url", "Backup_1" to "code", "Backup_2" to "code"), editor.changes(draft).fieldTypes)
+        draft = draft.addField(FieldType.DATE).let { d -> d.changeField(d.fields.last().id) { it.copy(name = "") } }
+        assertEquals(4, editor.changes(draft).fieldTypes?.size, "an unnamed, empty field is not saved, nor its type")
+    }
+
+    @Test
+    fun aNewFieldOfATypeIsNamedAtOnceWithANumberWhenTheNameIsTaken() {
+        var draft = EntryEditor.edit(Entry("e", customFields = listOf(field("CVC", "1"))), now).start
+        for (type in listOf(FieldType.CARD_NUMBER, FieldType.CARD_CVC, FieldType.CARD_CVC, FieldType.WIFI_SSID, FieldType.PASSWORD, FieldType.URL)) {
+            draft = draft.addField(type)
+        }
+        draft = draft.addField()
+        assertEquals(listOf("CVC", "Card number", "CVC 2", "CVC 3", "Network name", "Password 2", "Website", ""), draft.fields.map { it.name }, "“Password” is KeePass's own")
+        assertEquals(listOf(null, "card.number", "card.cvc", "card.cvc", "wifi.ssid", "password", "url", null), draft.fields.map { it.typeName })
+        draft = draft.withType(draft.fields[7].id, FieldType.CARD_HOLDER)
+        assertEquals("Cardholder", draft.fields[7].name, "an unnamed field gets the type's name")
+        draft = draft.withType(draft.fields[1].id, FieldType.CARD_PIN)
+        assertEquals("Card number", draft.fields[1].name, "a named one keeps its name")
+    }
+
+    @Test
+    fun aFieldTypedAsADateWhoseValueIsNoneSaysSoAndSavesAllTheSame() {
+        val fields = listOf(
+            field("Ablauf", "2026-99-99"), field("Karte", "202799"), field("Gut", "20271031"), field("Monat", "202712"),
+            field("Leer", ""), field("Geheim", "nonsense", protected = true), field("Text", "2026-99-99"),
+        )
+        val types = mapOf("Ablauf" to "until", "Karte" to "card.expiry", "Gut" to "date", "Monat" to "card.expiry", "Leer" to "date", "Geheim" to "date")
+        val editor = EntryEditor.edit(Entry("e", customFields = fields, fieldTypes = types), now)
+        assertEquals(
+            listOf(
+                "Not a date, shown as text. Write it as 2027-10-31, or 2027-10 for a month.",
+                "Not a date, shown as text. Write it as 2027-10.", null, null, null, null, null,
+            ),
+            editor.start.fields.map { editor.fieldWarning(it) },
+        )
+        assertTrue(editor.canSave(editor.start.copy(notes = "changed")), "a warning keeps nothing from saving")
+    }
+
+    @Test
+    fun aDayFromTheCalendarIsWrittenInIsoACardsExpiryAsItsMonth() {
+        val editor = EntryEditor.edit(
+            Entry("e", customFields = listOf(field("Ablauf", "31.10.2027"), field("Karte", "")), fieldTypes = mapOf("Ablauf" to "until", "Karte" to "card.expiry")),
+            now,
+        )
+        var draft = editor.start
+        assertEquals(LocalDate.of(2027, 10, 31), draft.fields[0].date)
+        assertNull(draft.fields[1].date)
+        val day = LocalDate.of(2028, 2, 29)
+        draft = draft.withDate(draft.fields[0].id, day).withDate(draft.fields[1].id, day)
+        assertEquals(listOf("2028-02-29", "2028-02"), draft.fields.map { it.value })
+    }
+
+    @Test
+    fun aListOfCodesTypedCodeIsFoldedAtAnySize() {
+        val fields = listOf(field("Backup_1", "a", protected = true), field("Backup_2", "b", protected = true))
+        val editor = EntryEditor.edit(Entry("e", customFields = fields, fieldTypes = mapOf("Backup_1" to "code", "Backup_2" to "code")), now)
+        assertEquals(listOf("Backup"), editor.codeLists(editor.start).map { it.title })
     }
 }

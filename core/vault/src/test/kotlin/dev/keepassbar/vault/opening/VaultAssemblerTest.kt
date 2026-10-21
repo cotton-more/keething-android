@@ -149,4 +149,19 @@ class VaultAssemblerTest {
         assertEquals(listOf("R", "G"), v.groups.map { it.id }, "groups outside the bin")
         assertNull(sample().settings)
     }
+
+    @Test
+    fun anEntryTitledKeethingIsTheSettingsEntryBeforeOneTitledKeePassBar() {
+        fun entry(uuid: String, title: String) = "<Entry><UUID>$uuid</UUID><String><Key>Title</Key><Value>$title</Value></String></Entry>"
+        val xml = """
+            <KeePassFile><Root><Group><UUID>R</UUID><Name>Passwords</Name>
+            ${entry("old", "KeePassBar")}${entry("a", "Mail")}${entry("new", " Keething ")}${entry("new2", "Keething")}
+            </Group></Root></KeePassFile>
+        """.trimIndent()
+
+        val v = VaultAssembler.assemble(KdbxXml.readExport(xml.encodeToByteArray()), emptyList())
+
+        assertEquals("new", v.settings?.id)
+        assertEquals(listOf("old", "a", "new2"), v.entries.map { it.id }, "the former name is an ordinary entry then")
+    }
 }

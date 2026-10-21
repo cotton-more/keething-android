@@ -19,6 +19,8 @@ public data class EntryChanges(
      * added. The one-time code's fields ([RESERVED_FIELD_NAMES]) are never touched through it.
      */
     val customFields: List<CustomField>? = null,
+    /** The field types as they should be afterwards (Mac SPEC §3.12); empty removes them. */
+    val fieldTypes: Map<String, String>? = null,
     val tags: List<String>? = null,
     val expiry: Expiry? = null,
 ) {

@@ -4,6 +4,7 @@ import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.vault.Attachment
 import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.CustomIcon
+import dev.keepassbar.domain.vault.EntryFieldTypes
 import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.kdbx.xml.KdbxAttachmentRef
 import dev.keepassbar.kdbx.xml.KdbxDocument
@@ -125,5 +126,18 @@ class EntryMapperTest {
         val document = KdbxDocument(KdbxMeta(), emptyList(), listOf(KdbxEntry("a", emptyList(), ancestorGroupUuids = listOf(""))))
 
         assertEquals(1, VaultAssembler.assemble(document, emptyList()).entries.size)
+    }
+
+    @Test
+    fun fieldTypesComeFromTheEntrysCustomDataTheNewNameFirstAnythingButJsonIsNone() {
+        fun types(data: Map<String, String>) = map(KdbxEntry("id", emptyList(), customData = data)).fieldTypes
+        val key = EntryFieldTypes.CUSTOM_DATA_KEY
+        val former = EntryFieldTypes.FORMER_CUSTOM_DATA_KEY
+
+        assertEquals(mapOf("Ablauf" to "until"), types(mapOf("Other" to "x", key to """{"Ablauf":"until"}""")))
+        assertEquals(mapOf("A" to "until"), types(mapOf(former to """{"A":"until"}""")), "the former name while there is no new item")
+        assertEquals(mapOf("A" to "date"), types(mapOf(former to """{"A":"until"}""", key to """{"A":"date"}""")), "the new item wins")
+        assertEquals(emptyMap(), types(mapOf(key to "not json", former to """{"A":"until"}""")))
+        assertEquals(emptyMap(), types(emptyMap()))
     }
 }

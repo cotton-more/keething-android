@@ -11,8 +11,8 @@ import kotlin.test.assertTrue
 
 /** The Mac `CardFieldsTests` expectations: sections, imported names, dates, links, lists of codes. */
 class CardFieldsTest {
-    private fun card(fields: List<dev.keepassbar.domain.vault.CustomField>, url: String = "", types: FieldTypes = FieldTypes.NONE) =
-        EntryCardBuilder.build(Entry("e", title = "T", url = url, customFields = fields), now, de, types)
+    private fun card(fields: List<dev.keepassbar.domain.vault.CustomField>, url: String = "", types: Map<String, String> = emptyMap()) =
+        EntryCardBuilder.build(Entry("e", title = "T", url = url, customFields = fields, fieldTypes = types), now, de)
 
     // Dates
 
@@ -189,63 +189,26 @@ class CardFieldsTest {
         assertEquals(listOf("1", "2", "3"), custom[1].rows.map { it.label }, "id-named codes are numbered")
     }
 
-    // Field types
+    // Field types (Mac SPEC §3.12)
 
     @Test
-    fun fieldTypesFromNotesLinesAndCustomFields() {
-        val t = types(
-            """
-            # dates
-            gültig bis = until
-              Дата выдачи=date
-
-            a = b = until
-            no equals sign
-             = date
-            Aktenzeichen = text
-            """.trimIndent(),
-            listOf(field("Erstzulassung", "date"), field("expiry date", "UNTIL")),
-        )
-        assertTrue(t.isConfigured)
-        assertEquals(listOf("gültig bis", "Дата выдачи", "a = b", "Aktenzeichen", "Erstzulassung", "expiry date"), t.rules.map { it.fieldName })
-        assertEquals(FieldType.UNTIL, t.type("gültig bis"))
-        assertEquals(FieldType.UNTIL, t.type("GÜLTIG BIS "), "names match ignoring case and outer spaces")
-        assertEquals(FieldType.DATE, t.type("Дата выдачи"))
-        assertEquals(FieldType.UNTIL, t.type("a = b"))
-        assertEquals(FieldType.DATE, t.type("Erstzulassung"))
-        assertEquals(FieldType.UNTIL, t.type("expiry date"), "type names ignore case")
-        assertNull(t.type("Aktenzeichen"))
-        assertNull(t.type("gultig bis"), "a name must match, accents included")
-        assertEquals(
-            listOf("notes, line 6: expected '<field name> = <type>'", "notes, line 7: expected '<field name> = <type>'", "notes, line 8: 'text' is not a type"),
-            t.problems,
-        )
+    fun typedFieldsAlsoTakeADayAsEightDigitsImpossibleOnesStayText() {
+        val d = FieldDate.parse("20271031", typed = true)
+        assertEquals(day(2027, 10, 31), d?.date)
+        assertEquals(false, d?.isStandard)
+        assertNull(FieldDate.parse("20270231", typed = true))
+        assertNull(FieldDate.parse("20271031", typed = false), "untyped: only unmistakable forms")
+        assertEquals(CalendarDate(2027, 12), FieldDate.parse("202712", typed = true)?.date)
     }
 
     @Test
-    fun aProtectedFieldOfTheSettingsEntryIsNotReadAsARule() {
-        val t = types("", listOf(field("PIN", "s3cret-value", protected = true), field("Erstzulassung", "date"), field("SimpleLogin API key", "k")))
-        assertNull(t.type("PIN"))
-        assertEquals(FieldType.DATE, t.type("Erstzulassung"))
-        assertNull(t.type("SimpleLogin API key"), "an alias provider's key is no rule")
-        assertEquals(1, t.problems.size)
-        assertFalse(t.problems.joinToString().contains("s3cret-value"))
-    }
-
-    @Test
-    fun aLaterRuleWinsNoSettingsEntryMeansNotConfigured() {
-        assertEquals(FieldType.UNTIL, types("x = date\nX = until").type("x"))
-        assertFalse(FieldTypes.from(null).isConfigured)
-        assertTrue(types("").isConfigured, "an empty KeePassBar entry still turns guessing off")
-    }
-
-    @Test
-    fun withFieldTypesOnlyTypedFieldsAreDatesOnlyUntilEndsSomething() {
-        val t = types("gültig bis = until\nGeburtsdatum = date\nexpiry date = until\nKarte = until")
+    fun aTypedFieldIsWhatItsTypeSaysUntypedOnesAreReadByTheirValue() {
+        val t = mapOf("gültig bis" to "until", "Geburtsdatum" to "date", "expiry date" to "until", "Karte" to "until", "Kundennummer" to "text")
         val rows = card(
             listOf(
                 field("gültig bis", "2031-05-01"), field("Geburtsdatum", "01.05.1990"), field("expiry date", "202712"),
                 field("Spende", "2031-05-01"), field("Vertragsende", "2031-05-01"), field("Karte", "not a date"),
+                field("Kundennummer", "2031-05-01"),
             ),
             types = t,
         ).rows
@@ -254,11 +217,70 @@ class CardFieldsTest {
         val c = assertIs<ValueStyle.Date>(rows[2].style).date
         assertTrue(a.isStandard && !b.isStandard && !c.isStandard)
         assertEquals(CalendarDate(2027, 12), c.date)
-        assertEquals(listOf(true, false, true, false, false, false), rows.map { it.expiry != null })
-        assertEquals(ValueStyle.Text, rows[3].style, "untyped: not a date, even in ISO")
-        assertEquals(ValueStyle.Text, rows[4].style, "names are not guessed once types are configured")
-        assertEquals(ValueStyle.Text, rows[5].style)
+        assertEquals(listOf(true, false, true, false, true, false, false), rows.map { it.expiry != null })
+        assertIs<ValueStyle.Date>(rows[3].style, "untyped: an ISO date is a date")
+        assertEquals(ValueStyle.Text, rows[5].style, "typed, but not a date")
+        assertEquals(ValueStyle.Text, rows[6].style, "typed text: nothing is read from it")
         assertEquals("01.05.1990", rows[1].copyText)
+        assertEquals(listOf(FieldType.UNTIL, FieldType.DATE, FieldType.UNTIL, null, null, FieldType.UNTIL, FieldType.TEXT), rows.map { it.type })
+    }
+
+    @Test
+    fun aUrlFieldOpensABareHostTextAndOtherTypesAreNeverLinks() {
+        val rows = card(
+            listOf(field("Server", "db.example.com"), field("Notiz", "db.example.com"), field("Seite", "https://example.com/a"), field("Plain", "https://example.com/b")),
+            types = mapOf("Server" to "url", "Plain" to "text"),
+        ).rows
+        assertEquals(listOf("https://db.example.com", null, "https://example.com/a", null), rows.map { (it.style as? ValueStyle.Link)?.url })
+        assertEquals(ValueStyle.Text, card(listOf(field("Server", "db.example.com", protected = true)), types = mapOf("Server" to "url")).rows[0].style, "a protected value is never read")
+    }
+
+    @Test
+    fun aSectionTypedCodeIsAListAtAnySizeOneTypedOtherwiseIsNot() {
+        val two = listOf(field("Backup_1", "a", protected = true), field("Backup_2", "b", protected = true))
+        assertEquals(CardSection.Kind.Codes, card(two, types = mapOf("Backup_1" to "code", "Backup_2" to "code")).sections.last().kind)
+        assertEquals(CardSection.Kind.Custom, card(two).sections.last().kind, "untyped: at least 3")
+        val three = two + field("Backup_3", "c", protected = true)
+        assertEquals(CardSection.Kind.Codes, card(three).sections.last().kind)
+        assertEquals(CardSection.Kind.Custom, card(three, types = mapOf("Backup_3" to "text")).sections.last().kind, "a typed field turns the guess off")
+    }
+
+    @Test
+    fun aTypeThisVersionDoesNotKnowIsKeptAndCountsAsNone() {
+        val t = FieldTypes(Entry("e", customFields = listOf(field("a")), fieldTypes = mapOf("a" to "frist", "b" to " UNTIL ")))
+        assertNull(t.type("a"))
+        assertEquals(mapOf("a" to "frist"), t.unknown)
+        assertEquals(FieldType.UNTIL, t.type("b"), "type names ignore case and outer spaces")
+        assertNull(t.type("B"), "field names match exactly")
+        assertIs<ValueStyle.Date>(card(listOf(field("a", "2031-05-01")), types = mapOf("a" to "frist")).rows[0].style, "read by its value")
+    }
+
+    @Test
+    fun guessedTypesSayWhatEachFieldWithoutATypeIsReadAs() {
+        val guesses = EntryCardBuilder.guessedTypes(
+            listOf(
+                field("gültig bis", "2031-05-01"), field("Geburtsdatum", "1990-05-01"), field("Site", "https://example.com"),
+                field("Kundennummer", "12"), field("R_1"), field("R_2"), field("R_3"), field("X_1"),
+            ),
+        )
+        assertEquals(
+            listOf(FieldType.UNTIL, FieldType.DATE, FieldType.URL, FieldType.TEXT, FieldType.CODE, FieldType.CODE, FieldType.CODE, FieldType.TEXT),
+            guesses,
+        )
+    }
+
+    @Test
+    fun aPasswordFieldIsMaskedOnTheCardUntilRevealedProtectedOrNot() {
+        val rows = card(
+            listOf(field("PIN Tresor", "1234"), field("Admin", "s3cret", protected = true), field("Note", "plain")),
+            types = mapOf("PIN Tresor" to "password", "Admin" to "Password", "Note" to "text"),
+        ).rows
+        val pin = rows.first { it.label == "PIN Tresor" }
+        assertTrue(pin.isConcealed && !pin.isProtected, "concealed on screen, not protected in the database")
+        assertEquals(FieldType.PASSWORD, pin.type)
+        assertTrue(rows.first { it.label == "Admin" }.isConcealed)
+        assertFalse(rows.first { it.label == "Note" }.isConcealed)
+        assertTrue(FieldType.PASSWORD.isPassword && FieldType.WIFI_PASSWORD.isPassword && !FieldType.CARD_PIN.isPassword)
     }
 
     // Values

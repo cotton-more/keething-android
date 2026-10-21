@@ -70,6 +70,7 @@ import dev.keepassbar.android.ui.segmentShape
 import dev.keepassbar.card.CardSection
 import dev.keepassbar.card.ExpiryHint
 import dev.keepassbar.card.FieldRow
+import dev.keepassbar.card.FieldType
 import dev.keepassbar.card.PaymentCard
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.TotpDisplay
@@ -86,7 +87,7 @@ internal fun CardSectionView(section: CardSection, reveal: RevealState, now: Sta
         }
         CardSection.Kind.Notes -> NotesView(section.rows.single(), actions)
         CardSection.Kind.Custom -> Titled(section.title) {
-            RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
+            RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape, tile = customTile(row)) }
         }
         CardSection.Kind.Codes -> CodesView(section, reveal, actions)
         is CardSection.Kind.PaymentCard -> Titled(section.title ?: "Payment card") {
@@ -138,6 +139,13 @@ private fun credentialTile(row: FieldRow): Tile? {
         row.kind == FieldRow.Kind.URL || row.link != null -> Tile(Icons.Rounded.Language, colors.secondaryContainer, colors.onSecondaryContainer)
         else -> null
     }
+}
+
+/** A custom field typed `password` has the password's key in front (Mac SPEC §3.12). */
+@Composable
+private fun customTile(row: FieldRow): Tile? {
+    val colors = MaterialTheme.colorScheme
+    return if (row.type == FieldType.PASSWORD) Tile(Icons.Rounded.Key, colors.primaryContainer, colors.onPrimaryContainer) else null
 }
 
 @Composable

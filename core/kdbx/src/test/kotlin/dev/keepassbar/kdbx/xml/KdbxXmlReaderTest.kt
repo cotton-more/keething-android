@@ -219,4 +219,26 @@ class KdbxXmlReaderTest {
 
         assertFailsWith<KdbxException.Corrupt> { read(xml) }
     }
+
+    @Test
+    fun anEntrysCustomDataIsItsOwnNotTheDatabasesAGroupsOrTheHistorys() {
+        fun item(key: String, value: String) = "<Item><Key>$key</Key><Value>$value</Value></Item>"
+        val d = read(
+            doc(
+                meta = "<CustomData>${item("K", "meta")}</CustomData>",
+                root = """
+                <Group><UUID>R</UUID><Name>P</Name>
+                  <CustomData>${item("K", "group")}</CustomData>
+                  <Entry><UUID>a</UUID><String><Key>Ablauf</Key><Value>2027-01-01</Value></String>
+                    <CustomData>${item("Other", "x")}${item("K", "{&quot;Ablauf&quot;:&quot;until&quot;}")}<Item><Key>Empty</Key><Value/></Item></CustomData>
+                    <History><Entry><UUID>a</UUID><CustomData>${item("K", "old")}</CustomData></Entry></History>
+                  </Entry>
+                  ${entry("b")}
+                </Group>
+                """,
+            ),
+        )
+
+        assertEquals(listOf(mapOf("Other" to "x", "K" to "{\"Ablauf\":\"until\"}", "Empty" to ""), emptyMap()), d.entries.map { it.customData })
+    }
 }

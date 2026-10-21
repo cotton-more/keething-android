@@ -28,8 +28,7 @@ Effort: per item, said when it starts.
 
 Setting up one-time codes (secret, link, QR from the camera), merging a Syncthing conflict copy, history,
 adding / removing / renaming attachments, reordering custom fields, autofill: choosing an entry by hand for
-an app offers to add its `androidapp://` address, field types in the editor (the Mac's
-per-entry `KeePassBar.FieldTypes`; the card reads only the older KeePassBar entry's rules), a native Argon2 (e.g. argon2kt) if the
+an app offers to add its `androidapp://` address, a native Argon2 (e.g. argon2kt) if the
 unlock feels slow (2.3 s on the Pixel 6, almost all of it the key derivation; SPEC §4).
 
 An idea to think through first: **share an entry encrypted** — a link or a QR code that holds one entry

@@ -13,10 +13,21 @@ internal val de: Locale = Locale.GERMANY
 internal fun field(name: String, value: String = "x", protected: Boolean = false) =
     if (protected) CustomField.protected(name, value) else CustomField.plain(name, value)
 
-internal fun settings(notes: String, fields: List<CustomField> = emptyList()) =
-    Entry("kb", title = "KeePassBar", notes = notes, customFields = fields)
-
-internal fun types(notes: String, fields: List<CustomField> = emptyList()) = FieldTypes.from(settings(notes, fields))
+/**
+ * The entry with the types [rules] gives its fields (`<field name> = <type>` per line, the name matched ignoring
+ * case), as the editor would set them (Mac test `typed`).
+ */
+internal fun typed(entry: Entry, rules: String): Entry {
+    val types = entry.fieldTypes.toMutableMap()
+    for (line in rules.lines()) {
+        val eq = line.lastIndexOf('=')
+        if (eq < 0) continue
+        val name = line.substring(0, eq).trim().lowercase()
+        val type = line.substring(eq + 1).trim()
+        for (field in entry.customFields) if (field.name.lowercase() == name) types[field.name] = type
+    }
+    return entry.copy(fieldTypes = types)
+}
 
 internal fun day(year: Int, month: Int, day: Int) = CalendarDate(year, month, day)
 

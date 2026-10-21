@@ -47,6 +47,15 @@ class SaveCheckTest {
     }
 
     @Test
+    fun fieldTypesMustComeOutAsAsked() {
+        val edit = VaultEdit.Update("a", a.lastModified, EntryChanges(fieldTypes = mapOf("PIN" to "password")))
+
+        check(before.copy(entries = listOf(a.copy(fieldTypes = mapOf("PIN" to "password"), lastModified = seconds), b)), edit)
+        fails("the edit did not come out as asked", before.copy(entries = listOf(a.copy(lastModified = seconds), b)), edit)
+        fails("another entry changed", before.copy(entries = listOf(a.copy(fieldTypes = mapOf("PIN" to "password")), b.copy(fieldTypes = mapOf("x" to "url")))), edit)
+    }
+
+    @Test
     fun anUpdateThatCameOutOtherwiseIsRefused() {
         val edit = VaultEdit.Update("a", a.lastModified, EntryChanges(title = "A2"))
 
@@ -99,7 +108,7 @@ class SaveCheckTest {
 
     @Test
     fun theSettingsEntryAndTheBinAreEntriesLikeAnyOther() {
-        val settings = Entry("s", title = Vault.SETTINGS_TITLE)
+        val settings = Entry("s", title = Vault.SETTINGS_TITLES.last())
         val withSettings = before.copy(settings = settings, recycleBin = listOf(b.copy(id = "old", groupId = bin.id)))
 
         SaveCheck.verify(withSettings, withSettings.copy(entries = listOf(a.copy(notes = "n", lastModified = seconds), b)),

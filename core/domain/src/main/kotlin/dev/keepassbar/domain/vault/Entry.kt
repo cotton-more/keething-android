@@ -23,6 +23,11 @@ public data class Entry(
     val tags: List<String> = emptyList(),
     /** Everything but the standard fields and the one-time code's fields, in file order. */
     val customFields: List<CustomField> = emptyList(),
+    /**
+     * The types of its custom fields (Mac SPEC §3.12): field name → type name as stored, kept in the entry's
+     * `CustomData` ([EntryFieldTypes]). A field without one is read by its value.
+     */
+    val fieldTypes: Map<String, String> = emptyMap(),
     val totp: TotpConfig? = null,
     val attachments: List<Attachment> = emptyList(),
     val expires: Boolean = false,

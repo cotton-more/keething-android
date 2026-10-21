@@ -49,6 +49,8 @@ public data class KdbxEntry(
     /** UUIDs of all enclosing groups including the root group, outermost first. */
     val ancestorGroupUuids: List<String> = emptyList(),
     val customIconUuid: String? = null,
+    /** The entry's own `CustomData` items, key → value (other apps' data; Keething's field types). */
+    val customData: Map<String, String> = emptyMap(),
 )
 
 public data class KdbxField(val key: String, val value: FieldValue)

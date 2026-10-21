@@ -8,8 +8,8 @@ import java.time.ZoneOffset
 import java.util.Locale
 
 /**
- * A date something ends on (Mac `Deadline`): an `until` / `card.expiry` field (or, with no field types, a
- * field named like an end), or KeePass's own entry expiry.
+ * A date something ends on (Mac `Deadline`): an `until` / `card.expiry` field (and an untyped date in a field
+ * named like an end), or KeePass's own entry expiry.
  */
 public data class Deadline(
     val id: String,
@@ -33,9 +33,8 @@ public data class Deadline(
 public object DeadlineList {
     /** Every deadline of the vault, earliest first, then by title. */
     public fun build(vault: Vault, now: Instant): List<Deadline> {
-        val interpreter = FieldInterpreter(FieldTypes.from(vault.settings))
         val byTitle = Collator.getInstance(Locale.ROOT).apply { strength = Collator.SECONDARY }
-        return vault.entries.flatMap { deadlines(it, interpreter, now) }
+        return vault.entries.flatMap { deadlines(it, FieldInterpreter(it), now) }
             .withIndex()
             .sortedWith(
                 compareBy<IndexedValue<Deadline>> { it.value.date }

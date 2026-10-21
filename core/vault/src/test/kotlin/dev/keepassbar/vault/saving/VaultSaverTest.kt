@@ -4,6 +4,7 @@ import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.storage.DatabaseBackups
 import dev.keepassbar.domain.storage.DatabaseRead
 import dev.keepassbar.domain.storage.DatabaseStore
+import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.domain.vault.EntryChanges
 import dev.keepassbar.domain.vault.Vault
@@ -126,6 +127,33 @@ class VaultSaverTest {
         val end = unlock(store)
         assertEquals(start.entries, end.entries.filter { it.id != id }, "the other entries are as they were")
         assertEquals(3, backups.kept.size, "one per save: create, recycle, restore")
+    }
+
+    @Test
+    fun fieldTypesSavedWithAnEntryComeBackAndAreChecked() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val root = unlock(store, key).groups.single { it.isRoot }
+        val saver = VaultSaver(store, backups)
+        val id = Entry.newId()
+        fun field(name: String, value: String) = CustomField.plain(name, value)
+
+        val created = saved(
+            saver.save(
+                VaultEdit.Create(id, root.id, EntryChanges(title = "Pass", customFields = listOf(field("Ablauf", "2027-10-31")), fieldTypes = mapOf("Ablauf" to "until"))),
+                key, now,
+            ),
+        ).titled("Pass")
+        assertEquals(mapOf("Ablauf" to "until"), created.fieldTypes)
+
+        val changes = EntryChanges(customFields = listOf(field("Ablauf", "2027-10-31"), field("Nr", "1")), fieldTypes = mapOf("Ablauf" to "date", "Nr" to "text"))
+        val edited = saved(saver.save(VaultEdit.Update(id, created.lastModified, changes), key, now)).titled("Pass")
+        assertEquals(mapOf("Ablauf" to "date", "Nr" to "text"), edited.fieldTypes)
+
+        val cleared = saved(saver.save(VaultEdit.Update(id, edited.lastModified, EntryChanges(fieldTypes = emptyMap())), key, now)).titled("Pass")
+        assertEquals(emptyMap(), cleared.fieldTypes)
+        val afterNotes = saved(saver.save(VaultEdit.Update(id, cleared.lastModified, EntryChanges(notes = "n")), key, now))
+        assertEquals(unlock(store), afterNotes, "an edit without types leaves them out")
     }
 
     @Test

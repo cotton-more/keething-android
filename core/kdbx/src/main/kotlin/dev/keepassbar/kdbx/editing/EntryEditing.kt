@@ -3,6 +3,7 @@ package dev.keepassbar.kdbx.editing
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.EntryChanges
+import dev.keepassbar.domain.vault.EntryFieldTypes
 import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.kdbx.tree.XElement
 import dev.keepassbar.kdbx.xml.KdbxTime
@@ -49,6 +50,10 @@ internal object EntryEditing {
         standard("URL", changes.url)
         standard("Notes", changes.notes)
         changes.customFields?.let { setCustomFields(it, entry) }
+        changes.fieldTypes?.let { types ->
+            setCustomData(EntryFieldTypes.CUSTOM_DATA_KEY, types.takeIf { it.isNotEmpty() }?.let(EntryFieldTypes::encode), entry, now)
+            setCustomData(EntryFieldTypes.FORMER_CUSTOM_DATA_KEY, null, entry, now)
+        }
         changes.tags?.let { setTags(it, entry) }
 
         val times = child("Times", entry, before = listOf("String", "Binary", "AutoType", "History"))
@@ -151,6 +156,37 @@ internal object EntryEditing {
 
     private fun copyOf(value: FieldValue): FieldValue =
         if (value is FieldValue.Protected) FieldValue.Protected(value.secret.copy()) else value
+
+    /**
+     * One item of the entry's `CustomData`, set or (null) removed. The element goes where KeePass and KeePassXC
+     * write it — after `AutoType`, before `History` — and goes again when its last item does. An item's
+     * `LastModificationTime` (KDBX 4.1) is kept up to date when it has one.
+     */
+    private fun setCustomData(key: String, value: String?, entry: XElement, now: Instant) {
+        val data = entry.first("CustomData")
+        val item = data?.all("Item")?.firstOrNull { it.first("Key")?.text == key }
+        if (value == null) {
+            if (data != null && item != null) {
+                data.remove(item)
+                if (data.elements.isEmpty()) entry.remove(data)
+            }
+            return
+        }
+        if (item != null) {
+            (item.first("Value") ?: XElement("Value").also(item::append)).text = value
+            item.first("LastModificationTime")?.let { time ->
+                time.text = if (KdbxTime.isIso(time.text)) KdbxTime.iso(now) else KdbxTime.base64(now)
+            }
+            return
+        }
+        val container = data ?: XElement("CustomData").also { entry.insertBefore(it, entry.first("History")) }
+        container.append(
+            XElement("Item").apply {
+                append(XElement("Key", key))
+                append(XElement("Value", value))
+            },
+        )
+    }
 
     private fun setTags(tags: List<String>, entry: XElement) {
         val text = tags.map { it.trim() }.filter { it.isNotEmpty() }.joinToString(";")

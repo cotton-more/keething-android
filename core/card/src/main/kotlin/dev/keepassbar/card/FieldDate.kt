@@ -50,8 +50,8 @@ public data class ExpiryHint(
  * A date in a custom field (Mac `FieldDate`). The standard form is ISO 8601: `2027-10-31`, `2027-12` for a
  * month (cards). Untyped fields are read only in forms that cannot be anything else: an ISO day (time dropped)
  * and the text date KeePassXC's 1Password import writes (`Sun Oct 31 00:00:00 2027 GMT`). A field typed as a
- * date also accepts an ISO month and the old forms `31.10.2027`, `202712`, `12/27`, `12/2027`, which are then
- * not standard.
+ * date also accepts an ISO month and the old forms `31.10.2027`, `20271031`, `202712`, `12/27`, `12/2027`, which
+ * are then not standard.
  */
 public data class FieldDate(val date: CalendarDate, val isStandard: Boolean) {
     /** What the card shows: the locale's medium date, or `MM/yyyy` for a month. Copying copies the value as stored. */
@@ -84,6 +84,7 @@ public data class FieldDate(val date: CalendarDate, val isStandard: Boolean) {
             if (!typed) return null
             numbers(ISO_MONTH, v, 1, 2)?.let { (y, m) -> return CalendarDate.valid(y, m, null)?.let { FieldDate(it, true) } }
             val old = numbers(DOTTED_DAY, v, 3, 2, 1)?.let { (y, m, d) -> CalendarDate.valid(y, m, d) }
+                ?: numbers(COMPACT_DAY, v, 1, 2, 3)?.let { (y, m, d) -> CalendarDate.valid(y, m, d) }
                 ?: numbers(COMPACT_MONTH, v, 1, 2)?.let { (y, m) -> CalendarDate.valid(y, m, null) }
                 ?: numbers(SLASH_MONTH, v, 2, 1)?.let { (y, m) -> CalendarDate.valid(if (y < 100) 2000 + y else y, m, null) }
             return old?.let { FieldDate(it, false) }
@@ -108,6 +109,7 @@ public data class FieldDate(val date: CalendarDate, val isStandard: Boolean) {
             Regex("""^([A-Za-z]{3}) ([A-Za-z]{3}) +([0-9]{1,2}) [0-9]{2}:[0-9]{2}:[0-9]{2} ([0-9]{4})( [A-Za-z0-9+:-]+)?$""")
         private val ISO_MONTH = Regex("""^([0-9]{4})-([0-9]{2})$""")
         private val DOTTED_DAY = Regex("""^([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})$""")
+        private val COMPACT_DAY = Regex("""^([0-9]{4})([0-9]{2})([0-9]{2})$""")
         private val COMPACT_MONTH = Regex("""^([0-9]{4})([0-9]{2})$""")
         private val SLASH_MONTH = Regex("""^([0-9]{2})/([0-9]{2}|[0-9]{4})$""")
 

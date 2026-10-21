@@ -4,13 +4,14 @@ import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.vault.Attachment
 import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.Entry
+import dev.keepassbar.domain.vault.EntryFieldTypes
 import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.kdbx.xml.KdbxEntry
 import dev.keepassbar.totp.TotpResolver
 
 /**
  * Applies KeePass's meaning to an entry of the file (Mac `EntryMapper`): which fields are the standard ones,
- * which hold the one-time code, how tags are written. A secret it does not keep (a duplicate field, the
+ * which hold the one-time code, how tags are written, the field types in its `CustomData`. A secret it does not keep (a duplicate field, the
  * code's fields once read) is wiped.
  *
  * [binarySizes]: the sizes of the file's attachments, which `Ref`s point into. [iconIds]: the custom icons
@@ -60,6 +61,8 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
             groupId = raw.ancestorGroupUuids.lastOrNull() ?: "",
             tags = raw.tags.split(';', ',').map { it.trim() }.filter { it.isNotEmpty() },
             customFields = customFields,
+            fieldTypes = (raw.customData[EntryFieldTypes.CUSTOM_DATA_KEY] ?: raw.customData[EntryFieldTypes.FORMER_CUSTOM_DATA_KEY])
+                ?.let(EntryFieldTypes::decode).orEmpty(),
             totp = TotpResolver.resolve(otp, legacySeed, legacySettings),
             attachments = raw.attachments.map { Attachment(it.name, it.ref?.let(binarySizes::getOrNull)) },
             expires = raw.expires,

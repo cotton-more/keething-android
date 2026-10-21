@@ -83,9 +83,9 @@ public object EntryCardBuilder {
     /** The views of kinds of entries, in card order. */
     private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection)
 
-    public fun build(entry: Entry, now: Instant, locale: Locale = Locale.getDefault(), types: FieldTypes = FieldTypes.NONE): EntryCard {
+    public fun build(entry: Entry, now: Instant, locale: Locale = Locale.getDefault()): EntryCard {
         fun row(id: String, kind: FieldRow.Kind, label: String, value: FieldValue) = FieldRow(id, kind, label, value)
-        val context = CardContext(entry.customFields.withIndex().toList(), FieldInterpreter(types), now, locale)
+        val context = CardContext(entry.customFields.withIndex().toList(), FieldInterpreter(entry), now, locale)
 
         val credentials = mutableListOf<FieldRow>()
         if (entry.username.isNotEmpty()) credentials += row(RowIds.USERNAME, FieldRow.Kind.USERNAME, "Username", FieldValue.Plain(entry.username))
@@ -146,6 +146,32 @@ public object EntryCardBuilder {
         )
     }
 
+    /**
+     * What each field without a type is read as (Mac SPEC §3.6.2), for the editor's type menu: a date (`until` when
+     * the name says something ends), a link, one of a list of codes; text otherwise. By index.
+     */
+    public fun guessedTypes(fields: List<CustomField>): List<FieldType> {
+        val interpreter = FieldInterpreter(FieldTypes.NONE)
+        val guesses = fields.map { field ->
+            val date = interpreter.date(field)
+            when {
+                date != null -> if (date.second) FieldType.UNTIL else FieldType.DATE
+                interpreter.link(field) != null -> FieldType.URL
+                else -> FieldType.TEXT
+            }
+        }.toMutableList()
+        val sections = LinkedHashMap<String, MutableList<Int>>()
+        for ((i, field) in fields.withIndex()) {
+            ImportedFieldName.split(field.name)?.let { (section, _) -> sections.getOrPut(section) { mutableListOf() } += i }
+        }
+        for (indices in sections.values) {
+            if (indices.size < 2) continue
+            val members = indices.map { fields[it] to (ImportedFieldName.split(fields[it].name)?.second ?: "") }
+            if (ImportedFieldName.isCodeList(members, interpreter)) indices.forEach { guesses[it] = FieldType.CODE }
+        }
+        return guesses
+    }
+
     private fun linkStyle(url: String?): ValueStyle = url?.let(ValueStyle::Link) ?: ValueStyle.Text
 
     /**
@@ -171,7 +197,7 @@ public object EntryCardBuilder {
         }
 
         return blocks.map { block ->
-            val isCodes = block.title != null && ImportedFieldName.isCodeList(block.items.map { it.label })
+            val isCodes = block.title != null && ImportedFieldName.isCodeList(block.items.map { it.field to it.label }, context.interpreter)
             val rows = block.items.mapIndexed { n, item ->
                 var label = if (ImportedFieldName.isGeneratedId(item.label)) "" else item.label
                 if (isCodes && label.isEmpty()) label = "${n + 1}"
@@ -196,13 +222,12 @@ internal class CardContext(
     val now: Instant,
     val locale: Locale,
 ) {
-    /** The fields declared as [type] (none without field types). */
-    fun typed(type: FieldType): List<IndexedValue<CustomField>> =
-        if (interpreter.types.isConfigured) fields.filter { interpreter.type(it.value) == type } else emptyList()
+    /** The fields typed [type] in the entry. */
+    fun typed(type: FieldType): List<IndexedValue<CustomField>> = fields.filter { interpreter.type(it.value) == type }
 
     /** The fields whose type passes [test]: the parts of one kind of entry. */
     fun parts(test: (FieldType) -> Boolean): List<IndexedValue<CustomField>> =
-        if (interpreter.types.isConfigured) fields.filter { interpreter.type(it.value)?.let(test) == true } else emptyList()
+        fields.filter { interpreter.type(it.value)?.let(test) == true }
 
     /**
      * Title and labels for a kind's own section: when all its fields come from one 1Password section, that is
@@ -219,8 +244,10 @@ internal class CardContext(
 
     /**
      * A custom field's row: an unprotected value may be a date or a link; a protected one is never read as
-     * either. With field types only a typed field is a date; without them an unmistakable date form is one,
-     * ending something when the name says so. A value that is plainly a secret is masked anyway.
+     * either. A typed field is what its type says (only `until` and `card.expiry` end something); an untyped one
+     * is a date in an unmistakable form, ending something when the name says so, or a link (Mac SPEC §3.6.2). An
+     * unprotected value typed `password`, or plainly a secret (a private key, an `otpauth://` link), is masked
+     * anyway.
      */
     fun row(index: Int, field: CustomField, label: String, notice: String): FieldRow {
         val id = RowIds.custom(index)
@@ -242,20 +269,13 @@ internal class CardContext(
                 noticeLabel = notice, expiry = if (ends) date.expiry(now) else null, type = type,
             )
         }
-        link(field.name, text)?.let { url ->
+        interpreter.link(field)?.let { url ->
             return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, style = ValueStyle.Link(url), noticeLabel = notice, type = type)
         }
         return FieldRow(
             id, FieldRow.Kind.CUSTOM, label, field.value, noticeLabel = notice, type = type,
-            concealed = ValueShape.isPlainlySecret(text),
+            concealed = type == FieldType.PASSWORD || ValueShape.isPlainlySecret(text),
         )
-    }
-
-    /** An explicit http(s) address anywhere; a bare host (`db.example.com`) only in a field named like one. */
-    private fun link(name: String, text: String): String? {
-        val lower = text.trim().lowercase()
-        if (!lower.startsWith("http://") && !lower.startsWith("https://") && !FieldNameHint(name).isWebAddress) return null
-        return OpenableUrl.of(text)
     }
 }
 

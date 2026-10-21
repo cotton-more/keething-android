@@ -6,8 +6,8 @@ import dev.keepassbar.kdbx.xml.KdbxDocument
 
 /**
  * Builds the vault from the file's document (Mac `VaultAssembler`): sets everything inside the recycle bin
- * group (at any depth) apart, maps the other entries, and sets the first one titled "KeePassBar" apart as
- * the Mac app's settings entry.
+ * group (at any depth) apart, maps the other entries, and sets the first one titled "Keething" (else the first
+ * titled "KeePassBar", the apps' former name) apart as the Mac app's settings entry.
  */
 internal object VaultAssembler {
     fun assemble(document: KdbxDocument, binarySizes: List<Int>): Vault {
@@ -17,7 +17,8 @@ internal object VaultAssembler {
 
         val (binned, kept) = document.entries.partition { inBin(it.ancestorGroupUuids) }
         val entries = kept.map(mapper::map).toMutableList()
-        val settingsIndex = entries.indexOfFirst { it.title.trim() == Vault.SETTINGS_TITLE }
+        val settingsIndex = Vault.SETTINGS_TITLES.asSequence().map { title -> entries.indexOfFirst { it.title.trim() == title } }
+            .firstOrNull { it >= 0 } ?: -1
         val settings = if (settingsIndex >= 0) entries.removeAt(settingsIndex) else null
         return Vault(
             entries = entries,

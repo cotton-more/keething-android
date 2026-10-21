@@ -24,7 +24,6 @@ import dev.keepassbar.card.CardSection
 import dev.keepassbar.card.EntryCard
 import dev.keepassbar.card.EntryCardBuilder
 import dev.keepassbar.card.FieldRow
-import dev.keepassbar.card.FieldTypes
 import dev.keepassbar.card.GroupPathFormatter
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.TotpDisplay
@@ -202,7 +201,7 @@ internal class EntryCardViewModel(
     private fun build(vault: Vault): CardContent? {
         val inBin = vault.recycleBin.firstOrNull { it.id == entryId }
         val entry = vault.entries.firstOrNull { it.id == entryId } ?: inBin ?: return null
-        val card = EntryCardBuilder.build(entry, Instant.now(), types = FieldTypes.from(vault.settings))
+        val card = EntryCardBuilder.build(entry, Instant.now())
         val icon = entry.customIconId?.let(vault.customIcons::get)?.image
             ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.asImageBitmap()
         return CardContent(card, inRecycleBin = inBin != null, icon = icon)

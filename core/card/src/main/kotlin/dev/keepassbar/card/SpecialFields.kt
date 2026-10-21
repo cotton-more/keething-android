@@ -5,8 +5,8 @@ import dev.keepassbar.domain.vault.FieldValue
 import java.time.Instant
 
 /**
- * A view of a kind of entry, made from its typed fields (only with field types). It claims its fields, which
- * then do not appear again among the custom fields; null when the entry is not of its kind.
+ * A view of a kind of entry, made from its typed fields. It claims its fields, which then do not appear again
+ * among the custom fields; null when the entry is not of its kind.
  */
 internal interface TypedSection {
     fun make(context: CardContext): Pair<CardSection, Set<Int>>?

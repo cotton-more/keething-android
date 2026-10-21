@@ -1,8 +1,9 @@
 # Keething for Android — spec
 
 Named KeePassBar until 2026-10-21, as was the Mac app. The code (modules, packages, the application id
-`dev.keepassbar.android`) keeps the old name, and so do the names the Mac writes into the database (the
-"KeePassBar" settings entry, `KeePassBar.FieldTypes`): they change only with the Mac.
+`dev.keepassbar.android`) keeps the old name. The names in the database follow the Mac (Mac SPEC, the
+introduction): the settings entry titled "Keething", else "KeePassBar"; the field types under
+`Keething.FieldTypes`, else `KeePassBar.FieldTypes`, which a write of the types removes (§3.3).
 
 A small Android client for the same KeePassXC database the Mac app Keething (`~/Projects/keepass-bar`)
 reads and writes: unlock with a fingerprint, search, view an entry with its custom fields laid out readably,
@@ -186,7 +187,7 @@ keeps the new time. The way out is in §3.3 step 7.
 ### 3.3 Writing
 
 What the phone writes (`VaultEdit`): an entry's fields (title, username, password, URL, notes, custom fields,
-tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it.
+their types, tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it.
 Deleting for good, history, attachments, one-time codes and groups are left to the Mac (§1).
 
 The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/vault` `VaultSaver`, `core/kdbx`
@@ -447,7 +448,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
-  open the browser, attachments open in another app / save to a folder, §4). Its bar (Back) is clear at the
+  open the browser, attachments open in another app / save to a folder, §4). Custom fields are read by their
+  types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
   title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
   brightness, black on white, for another phone to scan; nothing leaves the device; "Show the password"
@@ -465,17 +467,21 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Editor** (the card's pencil; a new entry from the button next to the search field): title, username,
   password (masked, an eye shows it coloured), website, notes, tags (separated by commas or semicolons, each
   once in any case), KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
-  name above value, a Protected switch, remove, "Add field". "Add codes" takes a block of codes pasted or
-  typed (numbering and bullets dropped, at most 50) and adds them as protected fields `<list>_1`, `_2`, …,
-  which the card shows as a numbered list; such a list is folded into one row in the editor ("Recovery
-  codes · 10 codes · protected") until tapped. The Mac editor's rules (`card/editing`): only what differs
+  name above value, the type (§6.3), a Protected switch, remove. **Add field** is a menu: Text, Date, Date
+  until (expiry), URL, Password, *Card ›* and *Wi-Fi ›* parts (the menu shows the parts in its place, with a
+  way back) add a field of that type named after it (Text, Date, Valid until, Website, "Password 2" as KeePass
+  keeps "Password" for itself, Card number, Cardholder, Expiry date, CVC, PIN, Card type, Network name, Wi-Fi
+  password, Security; "CVC 2" when the name is taken); the cursor goes into its value and the form scrolls
+  to it above the keyboard. **Codes…** takes a block of codes pasted or typed (numbering and bullets dropped,
+  at most 50) and adds them as protected fields `<list>_1`, `_2`, … typed `code`, which the card shows as a
+  numbered list; such a list is folded into one row in the editor ("Recovery codes · 10 codes · protected")
+  until tapped. The Mac editor's rules (`card/editing`): only what differs
   from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
   one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
   entry needs a title or a website and goes into the group chosen (the root group to start with; an
   existing entry is not moved). Save shows "Saving and checking…", then "Saved and checked · Syncthing
   takes it to the Mac from here" with "Back to the entry" (a new entry's card), or why not with "Back to
-  editing". ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields, field types
-  (the Mac's per-entry `KeePassBar.FieldTypes`: a field renamed here leaves its type under the old name).
+  editing". ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields.
 - **Password generator** (Mac SPEC §3.20, `core/generator`): a sheet from the wand in the editor's password
   field ("Use this password" puts it in, shown) and from the key icon in the list's header (a password
   without an entry: Copy, sensitive and cleared after 30 s). Kinds PIN (4–16 digits), Strong (8–64
@@ -499,6 +505,36 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   button that copies it; the search searches among them. Back (or the arrow) goes to the whole list; a lock
   keeps the Codes list, so the shortcut opens the lock screen and then it. A group or tag chip on a card
   leaves it.
+
+
+### 6.3 Field types
+
+As on the Mac (Mac SPEC §3.12, §3.13; `core/card` `FieldTypes`, `FieldInterpreter`): what a custom field
+holds is chosen per field in the editor and kept in its entry, in one item of the entry's `CustomData`
+(`Keething.FieldTypes`, a JSON object field name → type name, keys sorted; written after `AutoType`, before
+`History`; the element goes when its last item does; an item's `LastModificationTime` kept up to date when it
+has one). KeePassXC keeps it through its own edits. The values stay plain text.
+
+- **Types**: `text` (nothing is read from it), `date`, `until` (a date something ends on: the expiry hint and
+  a deadline), `url` (a link, also without its scheme), `code` (one of a list of codes: a titled section of
+  them is a numbered list at any size), `password` (masked on the card, protected or not; the editor masks
+  it too and offers the generator, as for `wifi.password`), and the parts of a payment card (`card.number`,
+  `card.holder`, `card.expiry`, `card.cvc`, `card.pin`, `card.type`) and a Wi-Fi network (`wifi.ssid`,
+  `wifi.password`, `wifi.security`), which make the card's payment card and Wi-Fi views. Type names ignore
+  case and outer spaces; field names match exactly. A type this version does not know is kept (the editor
+  too) and counts as none.
+- **A field without a type** is read by its value (unmistakable dates, http(s) links, numbered codes). The
+  rules the settings entry held before (`<field name> = <type>` lines) are no longer read: the Mac's field
+  report moves them into the entries. Protected fields are never read, typed or not.
+- **The editor**: the type button beside a field's name shows the type it has, or, dimmed, what its value
+  is read as; its menu: *Automatic (…)* (no type; what it is read as in brackets), Text, Date, Date until
+  (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, and a type not known here, kept, shown disabled. A type
+  given to a field without a name names it. A field typed `date`, `until` or `card.expiry` and not protected
+  has a calendar (the day written `2027-10-31`, a card's expiry as its month `2027-10`); a value that is no
+  date says so under it ("Not a date, shown as text…") and is saved all the same. The types saved are every
+  field's that has one, but `text` only where the value would be read as something else; a rename carries
+  the type along; types of fields the entry no longer has go with the next save, which they do not cause.
+  A card number, CVC or PIN gets the number keyboard.
 
 ## 7. Autofill
 
