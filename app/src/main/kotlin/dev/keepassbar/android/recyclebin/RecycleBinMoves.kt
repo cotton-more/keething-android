@@ -10,7 +10,10 @@ import dev.keepassbar.vault.session.SessionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -22,9 +25,19 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
 
+    private val mutableLeaving = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * Entries Delete moved, or is moving, that the list may still show: it hides them at once rather than when the
+     * save is done and the vault listed again. A failed save or Undo shows them again; [settled] drops the rest.
+     */
+    val leaving: StateFlow<Set<String>> = mutableLeaving
+
     fun moveToRecycleBin(database: DatabaseSession, entry: Entry) {
         val title = entry.displayTitle
+        mutableLeaving.update { it + entry.id }
         save(database, VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified)) { problem ->
+            if (problem != null) mutableLeaving.update { it - entry.id }
             mutableNotices.trySend(
                 if (problem != null) {
                     Notice(problem, isProblem = true)
@@ -37,14 +50,21 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
 
     /** Back out of the bin, into the group it came from; [done] gets the problem, or null. */
     fun restore(database: DatabaseSession, entryId: String, done: (problem: String?) -> Unit = ::restored) {
+        mutableLeaving.update { it - entryId }
         val vault = (database.session.state.value as? SessionState.Unlocked)?.vault ?: return
         val entry = vault.recycleBin.firstOrNull { it.id == entryId }
             ?: return done("This entry is not in the recycle bin any more (restored elsewhere?). Nothing was changed.")
         save(database, VaultEdit.Restore(entry.id, entry.lastModified), done)
     }
 
+    /** The list was built from a vault whose entries are [listed]: those not among them have left for good. */
+    fun settled(listed: Set<String>) {
+        mutableLeaving.update { leaving -> leaving.filterTo(HashSet()) { it in listed } }
+    }
+
     /** Notices of a vault that is locked now go unseen. */
     fun forget() {
+        mutableLeaving.value = emptySet()
         while (mutableNotices.tryReceive().isSuccess) Unit
     }
 

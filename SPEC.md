@@ -494,7 +494,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   list is a Java resource found by its absolute path: R8 renames the package in a release build (a relative
   path crashed the first phone run).
 - **Delete** (the card's bin icon): moves the entry to the recycle bin at once, no question; the card
-  closes and the list says "Moved “…” to the recycle bin" with Undo (10 s), which restores it.
+  closes and the list says "Moved “…” to the recycle bin" with Undo (10 s), which restores it. The list
+  keeps its scroll position: the row fades out at once (not when the save is done) and the rows below close
+  up; a failed save or Undo puts it back in its place. A vault read again (a save, a sync) is listed while
+  the one before stays on screen, so no reload empties the list or scrolls it to the top.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
 - **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),

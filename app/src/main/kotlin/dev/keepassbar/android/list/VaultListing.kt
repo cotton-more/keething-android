@@ -35,6 +35,20 @@ internal data class ListSection(val kind: Kind, val rows: List<EntryRow>) {
     enum class Kind { SUGGESTED, RECENT, ALL, RESULTS, RECYCLE_BIN, CODES }
 }
 
+/** The sections without the rows of [ids]; the recycle bin keeps them, a section left empty goes. */
+internal fun List<ListSection>.without(ids: Set<String>): List<ListSection> {
+    if (ids.isEmpty()) return this
+    return mapNotNull { section ->
+        if (section.kind == ListSection.Kind.RECYCLE_BIN) return@mapNotNull section
+        val rows = section.rows.filterNot { it.id in ids }
+        when {
+            rows.size == section.rows.size -> section
+            rows.isEmpty() -> null
+            else -> section.copy(rows = rows)
+        }
+    }
+}
+
 /**
  * A vault prepared for the list: the search indexes and each entry's deadline are computed once per vault
  * (it takes a moment for ~2000 entries: build it off the main thread), then [sections] answers every query.

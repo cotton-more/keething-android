@@ -5,6 +5,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.keepassbar.android.clipboard.SensitiveClipboard
+import dev.keepassbar.android.recyclebin.RecycleBinMoves
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.ui.CustomIconImages
 import dev.keepassbar.android.ui.Notice
@@ -54,6 +55,7 @@ private class Prepared(val listing: VaultListing, val icons: CustomIconImages)
 internal class EntryListViewModel(
     private val database: DatabaseSession,
     private val recents: RecentEntries,
+    private val recycleBin: RecycleBinMoves,
     private val clipboard: SensitiveClipboard,
     private val query: TextFieldState,
     /** The "Codes" shortcut's list (SPEC §6.2); read in a snapshot, so a change lists again. */
@@ -72,7 +74,12 @@ internal class EntryListViewModel(
         .mapLatest { vault ->
             vault?.let { withContext(Dispatchers.Default) { Prepared(VaultListing(it, Instant.now()), CustomIconImages(it.customIcons)) } }
         }
-        .onEach { it?.let { prepared -> recents.keepOnly(prepared.listing.ids) } }
+        .onEach {
+            it?.let { prepared ->
+                recents.keepOnly(prepared.listing.ids)
+                recycleBin.settled(prepared.listing.ids)
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val sections: StateFlow<List<ListSection>> =
@@ -84,15 +91,16 @@ internal class EntryListViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val state: StateFlow<ListUiState> = combine(unlocked, prepared, sections) { unlocked, prepared, sections ->
-        // A lock wipes the vault at once: nothing of it is shown while the screen fades out.
-        if (unlocked == null || prepared == null || prepared.listing.vault !== unlocked.vault) {
+    val state: StateFlow<ListUiState> = combine(unlocked, prepared, sections, recycleBin.leaving) { unlocked, prepared, sections, leaving ->
+        // A lock wipes the vault at once: nothing of it is shown while the screen fades out. A vault read again
+        // (a save, a sync) is listed while the one before stays on screen, so the list keeps its scroll position.
+        if (unlocked == null || prepared == null) {
             return@combine ListUiState(database.file.name, preparing = unlocked != null)
         }
         ListUiState(
             databaseName = database.file.name,
-            entryCount = unlocked.vault.entries.size,
-            sections = sections,
+            entryCount = prepared.listing.vault.entries.size,
+            sections = sections.without(leaving),
             icons = prepared.icons,
             conflictCopies = unlocked.conflictCopies,
             reloadFailure = unlocked.reloadFailure,

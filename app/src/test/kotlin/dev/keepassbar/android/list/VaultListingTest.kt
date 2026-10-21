@@ -116,4 +116,14 @@ class VaultListingTest {
         assertEquals(RowDeadline("Expired yesterday", ExpiryHint.Status.EXPIRED), rows.getValue("x").deadline)
         assertNull(rows.getValue("db").deadline)
     }
+
+    @Test
+    fun entriesLeavingForTheRecycleBinAreHiddenEverywhereButThere() {
+        val sections = listing.sections("", recentIds = listOf("db")).without(setOf("db"))
+
+        assertEquals(listOf(ListSection.Kind.ALL), sections.map { it.kind }, "Recent, left empty, goes")
+        assertEquals(listOf("az", "gh", "pp"), sections.single().rows.map { it.id })
+        val bin = listing.sections("-", emptyList())
+        assertEquals(bin, bin.without(setOf("r1")), "the recycle bin keeps them")
+    }
 }

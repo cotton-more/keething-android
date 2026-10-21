@@ -128,7 +128,7 @@ internal fun EntryListScreen(
     onNewEntry: () -> Unit,
 ) {
     val codes by rememberUpdatedState(codesOnly)
-    val model = viewModel { EntryListViewModel(database, container.recents, container.clipboard, query, codesOnly = { codes }) }
+    val model = viewModel { EntryListViewModel(database, container.recents, container.recycleBin, container.clipboard, query, codesOnly = { codes }) }
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
@@ -216,7 +216,8 @@ internal fun EntryListScreen(
                             rowView(Modifier)
                         }
                     } else {
-                        rowView(Modifier.padding(bottom = SegmentGap))
+                        // A deleted row fades out and the rows below close up (SPEC §6.2).
+                        rowView(Modifier.animateItem().padding(bottom = SegmentGap))
                     }
                 }
                 item(key = "gap/${section.kind}", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
