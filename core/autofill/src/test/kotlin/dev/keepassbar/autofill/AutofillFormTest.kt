@@ -68,16 +68,33 @@ class AutofillFormTest {
     }
 
     @Test
-    fun aSignUpIsNotFilled() {
+    fun aSignUpIsNotFilledButItsNewPasswordIsSaved() {
         val fields = listOf(FormField(0, inputType = 0x21), FormField(1, listOf("newPassword")), FormField(2, listOf("newPassword")))
-        assertNull(AutofillForm.parse(app, fields, own))
+        val form = AutofillForm.parse(app, fields, own)!!
+        assertTrue(form.isSignUp)
+        assertEquals(listOf(0), form.usernames, "the username is saved with it")
+        assertEquals(emptyList(), form.passwords)
+        assertEquals(listOf(1, 2), form.newPasswords, "a generated password goes into both")
+        assertEquals(listOf(1, 2), form.savedPasswords)
+        assertEquals(listOf(0, 1, 2), form.allFields)
     }
 
     @Test
-    fun aPasswordChangeGetsOnlyTheCurrentPassword() {
+    fun aPasswordChangeGetsOnlyTheCurrentPasswordAndSavesTheNewOne() {
         val fields = listOf(password(0, "current_password"), password(1, "new_password"), password(2, "confirm_password"))
         val form = AutofillForm.parse(app, fields, own)!!
         assertEquals(listOf(0), form.passwords)
+        assertEquals(listOf(0), form.fields, "the entry fills the current one only")
+        assertEquals(listOf(1, 2), form.newPasswords)
+        assertEquals(listOf(1, 2), form.savedPasswords)
+        assertFalse(form.isSignUp)
+    }
+
+    @Test
+    fun aLoginSavesItsPassword() {
+        val form = AutofillForm.parse(app, listOf(text(0, "login"), password(1)), own)!!
+        assertEquals(listOf(1), form.savedPasswords)
+        assertEquals(emptyList(), AutofillForm.parse(app, listOf(FormField(0, listOf("smsOTPCode"))), own)!!.savedPasswords, "a code is not saved")
     }
 
     @Test

@@ -69,6 +69,12 @@
             android:exported="false"
             android:theme="@style/Theme.KeePassBar.Autofill"
             android:windowSoftInputMode="adjustResize" />
+        <!-- Autofill's save offer, opened by the system after its "Save to KeePassBar?" (SPEC §7). -->
+        <activity
+            android:name=".autofill.SaveLoginActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- Attachments opened in another app, read-only (SPEC §4). -->
         <provider

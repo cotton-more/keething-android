@@ -37,6 +37,8 @@ internal class EntryEditorViewModel(
     private val database: DatabaseSession,
     entryId: String?,
     groupId: String?,
+    /** Values to start with (a login typed elsewhere, SPEC §7): they count as changes. */
+    prefill: ((EntryDraft) -> EntryDraft)? = null,
     now: Instant = Instant.now(),
 ) : ViewModel() {
     /** Null when the entry is gone (deleted elsewhere) or the vault is locked: the editor closes. */
@@ -44,7 +46,7 @@ internal class EntryEditorViewModel(
         if (entryId == null) EntryEditor.create(vault, groupId, now) else vault.entries.firstOrNull { it.id == entryId }?.let { EntryEditor.edit(it, now) }
     }
 
-    var draft: EntryDraft by mutableStateOf(editor?.start ?: EntryDraft())
+    var draft: EntryDraft by mutableStateOf(editor?.start?.let { prefill?.invoke(it) ?: it } ?: EntryDraft())
         private set
 
     var phase: SavePhase by mutableStateOf(SavePhase.Editing)

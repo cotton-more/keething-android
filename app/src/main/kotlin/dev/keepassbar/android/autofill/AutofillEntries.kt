@@ -18,10 +18,13 @@ internal class AutofillEntries(private val context: Context) {
     private var matcher: AutofillMatcher? = null
 
     /** Best first; for a form that asks only for a one-time code, only the entries that have one. */
-    fun candidates(vault: Vault, form: AutofillForm): List<AutofillCandidate> {
-        val target = form.target
+    fun candidates(vault: Vault, form: AutofillForm): List<AutofillCandidate> =
+        candidates(vault, form.target).filter { !form.asksOnlyForCode || it.entry.totp != null }
+
+    /** The entries of [target], best first. */
+    fun candidates(vault: Vault, target: FillTarget): List<AutofillCandidate> {
         val appWebsites = if (target is FillTarget.App) websites.verifiedHosts(target.packageName) else emptyList()
-        return matcher(vault).candidates(target, appWebsites).filter { !form.asksOnlyForCode || it.entry.totp != null }
+        return matcher(vault).candidates(target, appWebsites)
     }
 
     /** What the user sees as the target: the page's host, or the app's name. */

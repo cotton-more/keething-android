@@ -489,7 +489,8 @@ service, the screen it opens and the system's view structure are in `app/autofil
   wiederholen", "Код подтверждения"). A visible-password input type counts only with a password word (apps
   use it to keep the keyboard from suggesting words). A form has usernames (or, when none, the phone number,
   or the unnamed text field right before the first password), passwords and codes. Nothing is offered on a
-  sign-up (only new passwords), on KeePassBar's own screens, or on a screen without such fields; asking for
+  sign-up (only new passwords: it gets "Generate a password" and the save offer, below), on KeePassBar's own
+  screens, or on a screen without such fields; asking for
   autofill by hand (long press › Autofill) takes the focused unnamed field as the username. A password
   change gets only the current password. Never a field's text, only what it is.
 - **The target**: in a known browser (Chrome, Firefox and their forks, Brave, Edge, Samsung Internet,
@@ -546,11 +547,36 @@ service, the screen it opens and the system's view structure are in `app/autofil
   installed under a browser's package name; Chrome is a system app); `android://<hash>@<package>` URLs
   (Chrome's way to name an app; not known to be in the owner's database); honouring an app's
   `importantForAutofill="no"` (apps set it on login fields too).
-- **Save** (comes with writing, ROADMAP step 7): `SaveInfo` for username + password; on `onSaveRequest` a
-  screen asks: update the matching entry's password (when the username matches) or create a new entry
-  (title from the site, URL, username, password, group chosen), written through the normal save path
-  (§3.3). For an app, the URL is `androidapp://<package>`. For a sign-up the password field can be filled
-  with a generated password (one screen: length, symbols on/off).
+- **Save**: a form with a password gets `SaveInfo` (the password, or a sign-up's or a password change's new
+  one, required; the username optional; also when all its fields go, for an app that changes screens), locked
+  or not, so the system offers "Save username and password to KeePassBar" after the form is sent with a
+  password no dataset filled (a login filled from an entry and sent unchanged is not offered: the system
+  compares). On Save, the service reads what was typed (`ScreenFields` with the texts, the one place it does;
+  the username from an earlier screen of the same form when this one has none) and keeps it in the app's
+  memory as a wipeable secret for up to 10 minutes (`PendingSaves`); the save screen's intent carries only a
+  random token, so the password never goes through the system in an intent. The save screen
+  (`SaveLoginActivity`, not exported, `FLAG_SECURE`) unlocks first if need be, then decides
+  (`SavePlanner`, `core/autofill`): the matching entry with the username typed (any case) — or, without one,
+  the one whose current password was typed in a password change, or the only matching entry — gets the new
+  password: the editor of that entry opens with it, under "Update the password of “…”?" and "Save as a new
+  entry instead"; it has the password already: "Already saved in KeePassBar" and nothing written (when
+  locked; unlocked the system does not ask); otherwise the new-entry editor opens prefilled: title the page's
+  host without `www.` or the app's name, the username, the password, the address (`https://host`, or
+  `androidapp://<package>`), the root group to start with. Saving is the editor's (§3.3, "Saving and
+  checking…", then Done and a toast back in the app or browser).
+- **Generate**: a new-password field (a sign-up, or a password change's new one) gets "Generate a password"
+  (a wand), also locked: it opens the password generator (§6.2) over the app or page; "Use this password"
+  fills every new-password field (the repetition too), and the save offer then carries it. Nothing of an
+  entry is offered on a sign-up.
+- Not done, and why: choosing an entry by hand for an app does not yet offer to add its `androidapp://`
+  address (ROADMAP Later); a password change's "which entry" by the current password is JVM-tested only.
+- Save checked on the test phone (release build, `autofill.kdbx`, the local `save-signup` / `save-login`
+  pages): in Chrome a sign-up's password generated (Strong, 20 characters, both fields), saved as a new entry
+  `localhost`; the same username with another password typed: "Update the password of “localhost”?", saved;
+  the same login again: no offer; locked, a second username: the unlock, then a new entry. keepassxc-cli on
+  the Mac read both entries with their passwords. In Firefox the generator filled both fields and the save
+  offer came (declined there). Not checked: an app's login (none on the test phone without the owner's
+  accounts), a password change page, a username on an earlier screen.
 - Checked on the test phone (Pixel 6, Android 17; debug and release builds, a fictitious database and local
   test pages over `adb reverse`): Firefox and Chrome, locked and unlocked, chips and the dropdown, a login
   with hints and one without, username first, a sign-up (nothing offered), a frame of another site (Chrome

@@ -14,10 +14,10 @@ Effort: max (XML tree, writer, the save checks; a mistake can damage the databas
 The app is read-only until this step: it cannot damage the database. Editing on the phone is rare for
 the owner, so writing comes after autofill and before Google Play, without hurry.
 
-- Autofill: the save and update offers, the password generator (`core/generator`, done) for sign-ups;
-  choosing an entry by hand for an app could offer to add its `androidapp://` address. Done already: the
-  core (tree, writer, editing, the save checks), replacing the file by a rename with its time set, the
-  backups, the editor, new entry, delete with Undo, restore, the password generator.
+Done already: the core (tree, writer, editing, the save checks), replacing the file by a rename with its
+time set, the backups, the editor, new entry, delete with Undo, restore, the password generator, autofill's
+save and update offers and the generator for sign-ups.
+
 - Check on a copy of the real database (as the Mac's `KDBXProbe --lifecycle`), then with Syncthing for real.
 
 ## Later
@@ -25,7 +25,8 @@ the owner, so writing comes after autofill and before Google Play, without hurry
 Effort: per item, said when it starts.
 
 Setting up one-time codes (secret, link, QR from the camera), merging a Syncthing conflict copy, history,
-adding / removing / renaming attachments, reordering custom fields, field types in the editor (the Mac's
+adding / removing / renaming attachments, reordering custom fields, autofill: choosing an entry by hand for
+an app offers to add its `androidapp://` address, field types in the editor (the Mac's
 per-entry `KeePassBar.FieldTypes`; the card reads only the older KeePassBar entry's rules), a native Argon2 (e.g. argon2kt) if the
 unlock feels slow (2.3 s on the Pixel 6, almost all of it the key derivation; SPEC §4).
 

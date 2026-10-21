@@ -22,7 +22,7 @@ Wireless debugging › "Pair device with pairing code"; the dialog must stay ope
 ## Checking autofill on the phone
 
 `tools/autofill-test/` holds local test pages (a login with and without hints, username first, a one-time
-code, a sign-up, a frame of another site) and a script that writes a fictitious database whose entries
+code, a sign-up, a frame of another site, and a login and a sign-up that are sent, for the save offer) and a script that writes a fictitious database whose entries
 match them (password `pw`):
 
     tools/autofill-test/make-database.py autofill.kdbx        # needs KeePassXC's keepassxc-cli

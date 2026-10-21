@@ -73,7 +73,7 @@ public class AutofillMatcher(entries: List<Entry>, collator: Collator = Collator
 
 /** `androidapp://com.example.app` (Keepass2Android's way to name an app in an entry's URL fields). */
 internal object AndroidAppAddress {
-    private const val SCHEME = "androidapp://"
+    const val SCHEME = "androidapp://"
     private val PACKAGE = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
 
     fun packageOf(text: String): String? {

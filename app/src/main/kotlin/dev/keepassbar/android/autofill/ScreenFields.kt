@@ -7,14 +7,21 @@ import dev.keepassbar.autofill.form.FormField
 
 /**
  * The input fields of the screen to fill, in tree order, read from the system's view structure: what the
- * rules look at (hints, input type, HTML attributes, ids), never the text in a field. [ids] maps a field's
- * [FormField.index] back to its view.
+ * rules look at (hints, input type, HTML attributes, ids), never the text in a field — except for a save
+ * ([texts], SPEC §7), where what was typed is the point. [ids] maps a field's [FormField.index] back to its view.
  */
-internal class ScreenFields private constructor(val packageName: String, val fields: List<FormField>, val ids: List<AutofillId>) {
+internal class ScreenFields private constructor(
+    val packageName: String,
+    val fields: List<FormField>,
+    val ids: List<AutofillId>,
+    /** What each field holds; read only for a save request, else empty. */
+    val texts: List<String?>,
+) {
     companion object {
-        fun read(structure: AssistStructure): ScreenFields {
+        fun read(structure: AssistStructure, withTexts: Boolean = false): ScreenFields {
             val fields = mutableListOf<FormField>()
             val ids = mutableListOf<AutofillId>()
+            val texts = mutableListOf<String?>()
 
             fun visit(node: AssistStructure.ViewNode, parentVisible: Boolean, parentDomain: String?, parentScheme: String?) {
                 val visible = parentVisible && node.visibility == View.VISIBLE
@@ -41,12 +48,13 @@ internal class ScreenFields private constructor(val packageName: String, val fie
                         webScheme = scheme,
                     )
                     ids += id
+                    if (withTexts) texts += node.autofillValue?.takeIf { it.isText }?.textValue?.toString()
                 }
                 for (i in 0 until node.childCount) visit(node.getChildAt(i), visible, domain, scheme)
             }
 
             for (w in 0 until structure.windowNodeCount) visit(structure.getWindowNodeAt(w).rootViewNode, true, null, null)
-            return ScreenFields(structure.activityComponent.packageName, fields, ids)
+            return ScreenFields(structure.activityComponent.packageName, fields, ids, texts)
         }
     }
 }

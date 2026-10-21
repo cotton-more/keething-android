@@ -5,6 +5,7 @@ import dev.keepassbar.android.attachment.AndroidAttachments
 import dev.keepassbar.android.attachment.AttachmentFiles
 import dev.keepassbar.android.autofill.AutofillEntries
 import dev.keepassbar.android.autofill.FillResponses
+import dev.keepassbar.android.autofill.PendingSaves
 import dev.keepassbar.android.biometric.FingerprintPrompt
 import dev.keepassbar.android.biometric.KeystorePasswordStore
 import dev.keepassbar.android.clipboard.AndroidSystemClipboard
@@ -77,6 +78,9 @@ internal class AppContainer(context: Context) {
     val autofillEntries = AutofillEntries(context)
 
     val fillResponses = FillResponses(context, sessions, autofillEntries)
+
+    /** Logins typed elsewhere, on their way to the save screen (SPEC §7). */
+    val pendingSaves = PendingSaves()
 
     init {
         clearOnLock()

@@ -131,8 +131,12 @@ internal fun EntryEditorScreen(
     generator: () -> PasswordGeneratorState,
     onClose: () -> Unit,
     onSaved: (entryId: String) -> Unit,
+    prefill: ((EntryDraft) -> EntryDraft)? = null,
+    /** What the editor is for, above the fields (the save offer of autofill). */
+    banner: (@Composable () -> Unit)? = null,
+    doneLabel: String = "Back to the entry",
 ) {
-    val model = viewModel(key = "editor/$entryId") { EntryEditorViewModel(database, entryId, groupId) }
+    val model = viewModel(key = "editor/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill) }
     val editor = model.editor
     LaunchedEffect(editor == null) { if (editor == null) onClose() }
     if (editor == null) return
@@ -194,11 +198,12 @@ internal fun EntryEditorScreen(
                         .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    banner?.invoke()
                     EditorForm(editor, draft, model::update, model::addCodes, generator)
                 }
             }
         }
-        SaveSheet(phase, onBackToEntry = { (phase as? SavePhase.Saved)?.let { onSaved(it.entryId) } }, onKeepEditing = model::keepEditing)
+        SaveSheet(phase, doneLabel, onBackToEntry = { (phase as? SavePhase.Saved)?.let { onSaved(it.entryId) } }, onKeepEditing = model::keepEditing)
     }
 }
 
@@ -615,7 +620,7 @@ private fun AddCodesDialog(onAdd: (text: String, prefix: String) -> String?, onD
 /** The mock-up's sheet over the editor: "Saving and checking…", then saved or why not. Not dismissed by a tap. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SaveSheet(phase: SavePhase, onBackToEntry: () -> Unit, onKeepEditing: () -> Unit) {
+private fun SaveSheet(phase: SavePhase, doneLabel: String, onBackToEntry: () -> Unit, onKeepEditing: () -> Unit) {
     val shown = phase != SavePhase.Editing
     AnimatedVisibility(shown, enter = fadeIn(), exit = fadeOut()) {
         Box(
@@ -656,7 +661,7 @@ private fun SaveSheet(phase: SavePhase, onBackToEntry: () -> Unit, onKeepEditing
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Button(onClick = onBackToEntry, modifier = Modifier.align(Alignment.End)) { Text("Back to the entry") }
+                            Button(onClick = onBackToEntry, modifier = Modifier.align(Alignment.End)) { Text(doneLabel) }
                         }
                         is SavePhase.Failed -> {
                             SheetTitle(Icons.Rounded.ErrorOutline, "Not saved", MaterialTheme.colorScheme.error)

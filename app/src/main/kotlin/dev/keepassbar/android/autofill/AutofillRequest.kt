@@ -23,6 +23,9 @@ internal enum class AutofillMode {
      * the code field, or goes to the clipboard when the form has none.
      */
     CODE,
+
+    /** A sign-up's or a password change's new password: the generator, its password into every new-password field. */
+    GENERATE,
 }
 
 /**
@@ -39,7 +42,7 @@ internal class AutofillRequest(
 ) {
     /** For a dataset's authentication: each one its own pending intent (extras do not tell them apart). */
     fun sender(context: Context): IntentSender {
-        val fields = form.fields
+        val fields = form.allFields
         val intent = Intent(context, AutofillActivity::class.java)
             .putExtra(MODE, mode.name)
             .putExtra(ENTRY, entryId)
@@ -51,6 +54,7 @@ internal class AutofillRequest(
             .putExtra(USERNAMES, form.usernames.toIntArray())
             .putExtra(PASSWORDS, form.passwords.toIntArray())
             .putExtra(CODES, form.codes.toIntArray())
+            .putExtra(NEW_PASSWORDS, form.newPasswords.toIntArray())
         val flags = PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getActivity(context, requestCodes.incrementAndGet(), intent, flags).intentSender
     }
@@ -66,6 +70,7 @@ internal class AutofillRequest(
         private const val USERNAMES = "usernames"
         private const val PASSWORDS = "passwords"
         private const val CODES = "codes"
+        private const val NEW_PASSWORDS = "newPasswords"
 
         private val requestCodes = AtomicInteger()
 
@@ -84,6 +89,7 @@ internal class AutofillRequest(
                 usernames = intent.getIntArrayExtra(USERNAMES)?.toList().orEmpty(),
                 passwords = intent.getIntArrayExtra(PASSWORDS)?.toList().orEmpty(),
                 codes = intent.getIntArrayExtra(CODES)?.toList().orEmpty(),
+                newPasswords = intent.getIntArrayExtra(NEW_PASSWORDS)?.toList().orEmpty(),
             )
             return AutofillRequest(mode, form, fields.toList().zip(ids).toMap(), intent.getStringExtra(ENTRY))
         }

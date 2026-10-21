@@ -1,0 +1,4 @@
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;margin:24px}input{display:block;font-size:18px;margin:8px 0 16px;padding:8px;width:90%}</style><title>Log in and save</title><h1>Log in (saves)</h1><p>Sends the form, then goes on: the browser offers to save what was typed. Nothing leaves the phone.
+<form id="f"><input type="text" name="username" autocomplete="username" placeholder="Username">
+<input type="password" name="password" autocomplete="current-password" placeholder="Password"><button>Log in</button></form>
+<script>f.onsubmit = e => { e.preventDefault(); setTimeout(() => location.href = 'welcome.html', 100) }</script>

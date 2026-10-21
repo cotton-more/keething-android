@@ -5,6 +5,7 @@ import android.service.autofill.Dataset
 import android.service.autofill.Field
 import android.service.autofill.FillResponse
 import android.service.autofill.Presentations
+import android.service.autofill.SaveInfo
 import android.view.autofill.AutofillId
 import android.view.autofill.AutofillValue
 import android.view.inputmethod.InlineSuggestionsRequest
@@ -26,21 +27,36 @@ internal fun filledDataset(form: AutofillForm, ids: Map<Int, AutofillId>, entry:
     return builder.build()
 }
 
-/** The answer to a fill request (SPEC §7). */
+/**
+ * The answer to a fill request (SPEC §7): the matching entries (or "Unlock KeePassBar"), "Generate a password"
+ * for a new-password field, and the save offer for the password typed.
+ */
 internal class FillResponses(private val context: Context, private val sessions: Sessions, private val entries: AutofillEntries) {
     fun response(screen: ScreenFields, form: AutofillForm, inline: InlineSuggestionsRequest?): FillResponse? {
         val database = sessions.current.value ?: return null
         // The lock alarm may be late: a fill request checks the time too (SPEC §4).
         sessions.checkBackgroundTime()
         val presentations = AutofillPresentations(context, inline)
-        val ids = form.fields.associateWith(screen.ids::get)
-        val label = entries.label(form.target)
+        val ids = form.allFields.associateWith(screen.ids::get)
         val response = FillResponse.Builder()
-        val unlocked = database.session.state.value as? SessionState.Unlocked
+        // A sign-up gets nothing of an entry: only a new password, and the offer to save it.
+        if (!form.isSignUp) addEntries(response, database.session.state.value, form, ids, presentations)
+        if (form.newPasswords.isNotEmpty()) {
+            val generate = AutofillRequest(AutofillMode.GENERATE, form, ids)
+            val presentation = presentations.action("Generate a password", "KeePassBar", R.drawable.ic_autofill_generate, 0, pinned = false)
+            response.addDataset(authenticated(generate, form.newPasswords, presentation))
+        }
+        saveInfo(form, ids)?.let(response::setSaveInfo)
+        return response.build()
+    }
+
+    private fun addEntries(response: FillResponse.Builder, state: SessionState, form: AutofillForm, ids: Map<Int, AutofillId>, presentations: AutofillPresentations) {
+        val label = entries.label(form.target)
+        val unlocked = state as? SessionState.Unlocked
         if (unlocked == null) {
             val unlock = AutofillRequest(AutofillMode.UNLOCK, form, ids)
-            response.addDataset(authenticated(unlock, presentations.action("Unlock KeePassBar", "to fill $label", R.drawable.ic_autofill_lock, 0, pinned = false)))
-            return response.build()
+            response.addDataset(authenticated(unlock, form.fields, presentations.action("Unlock KeePassBar", "to fill $label", R.drawable.ic_autofill_lock, 0, pinned = false)))
+            return
         }
         val candidates = entries.candidates(unlocked.vault, form).take(MAX_SUGGESTIONS)
         var shown = 0
@@ -49,7 +65,7 @@ internal class FillResponses(private val context: Context, private val sessions:
             val presentation = presentations.entry(shown, entry.displayTitle, entry.username.ifEmpty { null })
             // An entry with a code makes it when tapped: for the code field, or for the clipboard after a login.
             val dataset = if (entry.totp != null) {
-                authenticated(AutofillRequest(AutofillMode.CODE, form, ids, entry.id), presentation)
+                authenticated(AutofillRequest(AutofillMode.CODE, form, ids, entry.id), form.fields, presentation)
             } else {
                 filledDataset(form, ids, entry, code = null, presentation)
             }
@@ -60,14 +76,26 @@ internal class FillResponses(private val context: Context, private val sessions:
         }
         val pick = AutofillRequest(AutofillMode.PICK, form, ids)
         val title = if (shown == 0) "Search KeePassBar" else "Another entry"
-        response.addDataset(authenticated(pick, presentations.action(title, "to fill $label", R.drawable.ic_autofill_search, shown, pinned = true)))
-        return response.build()
+        response.addDataset(authenticated(pick, form.fields, presentations.action(title, "to fill $label", R.drawable.ic_autofill_search, shown, pinned = true)))
     }
 
-    /** A dataset whose values come from the autofill screen: the fields are named, their values are not known yet. */
-    private fun authenticated(request: AutofillRequest, presentations: Presentations): Dataset {
+    /**
+     * The system offers to save when the form is sent with a password that no dataset filled (SPEC §7, Save):
+     * the password (the new one, when there is one) is required, the username optional. Also when every
+     * field has gone (an app that changes screens without leaving the activity).
+     */
+    private fun saveInfo(form: AutofillForm, ids: Map<Int, AutofillId>): SaveInfo? {
+        if (form.savedPasswords.isEmpty()) return null
+        return SaveInfo.Builder(SaveInfo.SAVE_DATA_TYPE_USERNAME or SaveInfo.SAVE_DATA_TYPE_PASSWORD, form.savedPasswords.map(ids::getValue).toTypedArray())
+            .apply { if (form.usernames.isNotEmpty()) setOptionalIds(form.usernames.map(ids::getValue).toTypedArray()) }
+            .setFlags(SaveInfo.FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE)
+            .build()
+    }
+
+    /** A dataset whose values come from the autofill screen: [fields] are named, their values are not known yet. */
+    private fun authenticated(request: AutofillRequest, fields: List<Int>, presentations: Presentations): Dataset {
         val builder = Dataset.Builder(presentations).setAuthentication(request.sender(context))
-        for (index in request.form.fields) builder.setField(request.ids.getValue(index), Field.Builder().build())
+        for (index in fields) builder.setField(request.ids.getValue(index), Field.Builder().build())
         return builder.build()
     }
 
