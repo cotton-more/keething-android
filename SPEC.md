@@ -52,7 +52,7 @@ Writing comes after them (ROADMAP step 7) and must be done before a Google Play 
   (a password without an entry, copied).
 
 Non-goals (v1): SSH agent, e-mail aliases,
-reports (but Groups & tags, without its changes), history UI, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
+reports (but Groups & tags, without its changes), restoring a version from the history, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
 only, §3.4), deleting entries for good / emptying the recycle bin, adding / removing / renaming
 attachments, reordering custom fields, a Quick Settings tile, a one-time code pinned to the notification
 shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
@@ -184,6 +184,11 @@ keeps the new time. The way out is in §3.3 step 7.
   that failed to open (damaged) is not read again until the file changes.
 - An earlier vault stays intact until the lock (a card may still show one of its entries); the lock wipes
   every vault of the session.
+- Histories are skipped: an unlock and a reload read no entry's `History`. An entry's history is read when
+  its History screen opens (§6.2): the file once more with the in-memory key (no key derivation), keeping
+  that entry's `History` items only (`KdbxReader.open(…, historyOf)`), every other secret of that read
+  wiped at once and the attachments' bytes too; as the Mac does it (Mac SPEC §3.22), but streamed, so it
+  costs the memory of a reload, not that of the save's XML tree.
 
 ### 3.3 Writing
 
@@ -514,6 +519,15 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   do: `@Work`, `#bank`, `-` for the bin, "Top level" the whole list; Back clears the search. The search
   matches by name prefix at any level (§1), so `@Work` also lists a group "Workshop" or another "Work"
   elsewhere. The screen follows a vault read again.
+- **History** (the clock in the card's bar, for an entry in the bin too; Mac SPEC §3.22 without restoring):
+  "Reading the file…", then the versions newest first, each dated by its modification time, the current one
+  marked, each with what it changed from the one before (`card/history`, the Mac's `EntryVersionDiff`):
+  title, username, password, URL, notes, custom fields (added / removed / changed, a change of protection
+  or of type, the order), tags, expiry, the one-time code (that it changed, never its values), attachments
+  (added / removed / size). Old values struck through above the new; protected ones masked, an eye each.
+  The oldest version kept has nothing to compare with; "No earlier versions are kept" when there are none.
+  The versions are wiped when the screen goes (a lock closes it); the values compared are plain strings
+  while it is open, as in the editor.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
 - **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),

@@ -4,6 +4,8 @@ import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.storage.DatabaseRead
 import dev.keepassbar.domain.storage.DatabaseStore
 import dev.keepassbar.domain.storage.FileVersion
+import dev.keepassbar.domain.vault.Entry
+import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.kdbx.key.DatabaseKey
 import dev.keepassbar.kdbx.reader.KdbxDatabase
@@ -64,6 +66,57 @@ public class VaultOpener {
         }
         return OpenResult.Opened(database.toOpenedVault(found.version))
     }
+
+    /**
+     * The versions of one entry (SPEC §6.2; Mac `KDBXFileLoader.history`): the file read again with [key], keeping
+     * that entry's history, which an unlock skips. Every other secret read is wiped at once, the attachments too
+     * (a version shows their names and sizes only).
+     */
+    internal fun history(store: DatabaseStore, key: DatabaseKey, entryId: String): HistoryResult {
+        val found = when (val read = store.read()) {
+            is DatabaseRead.Found -> read
+            DatabaseRead.Missing -> return HistoryResult.Failed(OpenFailure.Missing)
+            DatabaseRead.AccessDenied -> return HistoryResult.Failed(OpenFailure.AccessDenied)
+        }
+        val database = try {
+            KdbxReader.open(found.bytes, key, historyOf = entryId)
+        } catch (failure: KdbxException) {
+            return HistoryResult.Failed(failure.toOpenFailure())
+        } catch (_: OutOfMemoryError) {
+            return HistoryResult.Failed(OpenFailure.OutOfMemory)
+        }
+        val document = database.document
+        val sizes = database.binaries.map(Secret::size)
+        database.binaries.forEach(Secret::wipe)
+        val current = document.entries.firstOrNull { it.uuid == entryId }
+        for (entry in document.entries) {
+            if (entry !== current) entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
+        }
+        if (current == null) {
+            document.history.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
+            return HistoryResult.Failed(null)
+        }
+        val mapper = EntryMapper(sizes, document.meta.customIcons.keys)
+        return HistoryResult.Read(EntryVersions(mapper.map(current), document.history.map(mapper::map)))
+    }
+}
+
+/**
+ * An entry as the file has it now ([current]) and its earlier versions, oldest first. Holds secrets: [wipe] it
+ * when it is not shown any more.
+ */
+public class EntryVersions(public val current: Entry, public val history: List<Entry>) {
+    public fun wipe() {
+        current.wipe()
+        history.forEach(Entry::wipe)
+    }
+}
+
+public sealed interface HistoryResult {
+    public class Read(public val versions: EntryVersions) : HistoryResult
+
+    /** Why the file could not be read; null: it has no such entry (any more). */
+    public class Failed(public val failure: OpenFailure?) : HistoryResult
 }
 
 /**

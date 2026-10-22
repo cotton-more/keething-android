@@ -18,7 +18,7 @@ import org.xml.sax.ext.DefaultHandler2
 
 /**
  * Event-based reader of the KeePass XML (Mac `KDBXXMLReader`): groups, entries, `Meta`; histories are
- * skipped. Never builds a tree.
+ * skipped, but for the one of the entry asked for ([read]'s `historyOf`, SPEC §6.2). Never builds a tree.
  *
  * Unlike the Mac app, which first turns the protected values into plain text inside the XML, a value marked
  * `Protected="True"` (base64 of its bytes XORed with the inner stream, in document order) is decrypted
@@ -28,8 +28,15 @@ import org.xml.sax.ext.DefaultHandler2
  * fixtures).
  */
 internal object KdbxXmlReader {
-    fun read(xml: ByteArray, offset: Int = 0, length: Int = xml.size - offset, stream: ChaCha20? = null): KdbxDocument {
-        val handler = Handler(stream)
+    /** [historyOf]: the UUID of the entry whose history items are read too ([KdbxDocument.history]). */
+    fun read(
+        xml: ByteArray,
+        offset: Int = 0,
+        length: Int = xml.size - offset,
+        stream: ChaCha20? = null,
+        historyOf: String? = null,
+    ): KdbxDocument {
+        val handler = Handler(stream, historyOf)
         try {
             val reader = SAXParserFactory.newInstance().newSAXParser().xmlReader
             reader.contentHandler = handler
@@ -69,7 +76,7 @@ internal object KdbxXmlReader {
         val customData = LinkedHashMap<String, String>()
     }
 
-    private class Handler(private val stream: ChaCha20?) : DefaultHandler2() {
+    private class Handler(private val stream: ChaCha20?, private val historyOf: String?) : DefaultHandler2() {
         var failure: KdbxException? = null
             private set
 
@@ -81,6 +88,14 @@ internal object KdbxXmlReader {
         private val groups = ArrayList<KdbxGroup?>()
         private val entries = ArrayList<KdbxEntry>()
         private var entry: EntryFrame? = null
+
+        /**
+         * Reading the history of the entry [historyOf]: the stack depth of its `History` element (0 when not), the
+         * entry itself (set aside meanwhile; [entry] is the history item being read) and the items read.
+         */
+        private var historyDepth = 0
+        private var historyOwner: EntryFrame? = null
+        private val history = ArrayList<KdbxEntry>()
 
         private var recycleBinUuid = ""
         private var recycleBinEnabled = ""
@@ -111,6 +126,7 @@ internal object KdbxXmlReader {
             KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons),
             groups.filterNotNull(),
             entries,
+            history,
         )
 
         /** Overwrites every secret read so far (the read failed). */
@@ -119,7 +135,9 @@ internal object KdbxXmlReader {
                 (value as? FieldValue.Protected)?.secret?.wipe()
             }
             entries.forEach { e -> e.fields.forEach { wipe(it.value) } }
+            history.forEach { e -> e.fields.forEach { wipe(it.value) } }
             entry?.fields?.forEach { wipe(it.value) }
+            historyOwner?.fields?.forEach { wipe(it.value) }
             wipe(itemValue)
         }
 
@@ -173,8 +191,17 @@ internal object KdbxXmlReader {
                     groupFrames.add(GroupFrame(groups.size))
                     groups.add(null)
                 }
-                "Entry" -> if (inRoot() && parent == "Group" && !inEntry) entry = EntryFrame()
-                "History" -> if (inEntry && parent == "Entry") skipDepth = stack.size
+                "Entry" -> if (!inEntry && ((inRoot() && parent == "Group") || (historyDepth > 0 && parent == "History"))) entry = EntryFrame()
+                "History" -> if (inEntry && parent == "Entry") {
+                    // The entry's UUID comes first in it, as KeePass writes it.
+                    if (historyDepth == 0 && historyOf != null && entry?.uuid == historyOf) {
+                        historyDepth = stack.size
+                        historyOwner = entry
+                        entry = null
+                    } else {
+                        skipDepth = stack.size
+                    }
+                }
                 "UUID" -> if (parent == "Group" || (parent == "Entry" && inEntry) ||
                     (parent == "Icon" && grand == "CustomIcons")
                 ) {
@@ -275,7 +302,15 @@ internal object KdbxXmlReader {
                     }
                     "Binary" -> if (parent == "Entry" && inEntry) entry?.attachments?.add(KdbxAttachmentRef(itemKey, itemRef))
                     "Item" -> if (inEntryDataItem(0)) entry?.customData?.put(dataKey, dataValue)
-                    "Entry" -> if (parent == "Group" && inEntry) finishEntry()
+                    "Entry" -> when {
+                        parent == "Group" && inEntry -> finishEntry(entries)
+                        parent == "History" && inEntry && historyDepth > 0 -> finishEntry(history)
+                    }
+                    "History" -> if (historyDepth == stack.size) {
+                        historyDepth = 0
+                        entry = historyOwner
+                        historyOwner = null
+                    }
                 }
                 if (inEntryDataItem(1)) {
                     if (name == "Key") dataKey = captured else if (name == "Value") dataValue = captured
@@ -308,10 +343,10 @@ internal object KdbxXmlReader {
             if (iconUuid.isNotEmpty() && image.isNotEmpty()) customIcons[iconUuid] = CustomIcon(image)
         }
 
-        private fun finishEntry() {
+        private fun finishEntry(into: MutableList<KdbxEntry>) {
             val e = entry ?: return
             entry = null
-            entries += KdbxEntry(
+            into += KdbxEntry(
                 uuid = e.uuid,
                 fields = e.fields.toList(),
                 tags = e.tags,

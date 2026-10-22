@@ -7,6 +7,7 @@ import dev.keepassbar.domain.vault.EntryChanges
 import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.kdbx.key.DatabaseKey
 import dev.keepassbar.kdbx.reader.KdbxReader
+import dev.keepassbar.vault.opening.HistoryResult
 import dev.keepassbar.vault.opening.OpenFailure
 import dev.keepassbar.vault.opening.VaultOpener
 import dev.keepassbar.vault.saving.SaveFailure
@@ -23,6 +24,8 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -356,6 +359,48 @@ class VaultSessionTest {
         runCurrent()
         assertEquals(reads, f.store.reads, "its own write is not read again")
         assertNull(f.unlockedState.keyDerivation, "nothing derived")
+    }
+
+    // History
+
+    @Test
+    fun theHistoryIsReadFromTheFileWithTheKeyInMemoryOldestFirst() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first { !it.password.isEmpty() }
+        for (notes in listOf("first", "second")) {
+            val current = f.vault.entries.single { it.id == entry.id }
+            assertNotNull(f.session.save(VaultEdit.Update(entry.id, current.lastModified, EntryChanges(notes = notes))))
+            runCurrent()
+        }
+
+        val read = async { f.session.history(entry.id) }
+        runCurrent()
+
+        val versions = assertIs<HistoryResult.Read>(read.await()).versions
+        assertEquals("second", versions.current.notes)
+        val saved = versions.history.takeLast(2)
+        assertEquals(listOf(entry.notes, "first"), saved.map { it.notes }, "after the versions the fixture has")
+        assertEquals(entry.password.reveal(), saved[0].password.reveal(), "its secrets, read")
+        assertEquals(entry.groupPath, saved[0].groupPath)
+        assertNull(f.unlockedState.keyDerivation, "nothing derived")
+        val other = f.vault.entries.first { it.id != entry.id }
+        val others = assertIs<HistoryResult.Read>(async { f.session.history(other.id) }.also { runCurrent() }.await()).versions
+        assertEquals(other.title, others.current.title)
+        assertTrue(others.history.all { it.id == other.id && it.notes != "first" }, "only that entry's own versions")
+        assertNull(assertIs<HistoryResult.Failed>(async { f.session.history("gone") }.also { runCurrent() }.await()).failure)
+    }
+
+    @Test
+    fun aLockWhileTheHistoryIsReadWipesItAndNothingIsReturned() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first()
+        // Started: the file is being read when the lock comes.
+        val read = async(start = CoroutineStart.UNDISPATCHED) { f.session.history(entry.id) }
+        f.session.lock()
+        runCurrent()
+
+        assertNull(read.await())
+        assertNull(f.session.history(entry.id), "locked")
     }
 
     @Test

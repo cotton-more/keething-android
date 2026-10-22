@@ -39,12 +39,13 @@ public object KdbxReader {
     /** Reads only the format, without a key. */
     public fun format(file: ByteArray): KdbxFormat = Header.parse(file).format
 
-    public fun open(file: ByteArray, key: DatabaseKey): KdbxDatabase =
+    /** [historyOf]: the UUID of an entry whose history items are read too (`document.history`). */
+    public fun open(file: ByteArray, key: DatabaseKey, historyOf: String? = null): KdbxDatabase =
         decryptPayload(file, key) { header, plain, inner, keyDerivation ->
             val stream = streamOf(inner)
             inner.wipeKey()
             try {
-                val document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, stream)
+                val document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, stream, historyOf)
                 KdbxDatabase(header.format, document, inner.binaries, keyDerivation)
             } catch (failure: KdbxException) {
                 inner.binaries.forEach(Secret::wipe)

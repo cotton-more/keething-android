@@ -10,6 +10,7 @@ import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.kdbx.key.DatabaseKey
 import dev.keepassbar.vault.opening.AttachmentContents
+import dev.keepassbar.vault.opening.HistoryResult
 import dev.keepassbar.vault.opening.OpenFailure
 import dev.keepassbar.vault.opening.OpenResult
 import dev.keepassbar.vault.opening.VaultOpener
@@ -146,6 +147,27 @@ public class VaultSession(
         triedVersion = null
         reloadPending = false
         mutableState.value = SessionState.Locked(reason)
+    }
+
+    /**
+     * The versions of [entryId] (SPEC §6.2): the file read again with the key in memory (no key derivation),
+     * keeping that entry's history. Null when not unlocked, or locked before the read was done (its result is
+     * wiped then). The caller wipes the versions when it no longer shows them.
+     */
+    public suspend fun history(entryId: String): HistoryResult? {
+        if (mutableState.value !is SessionState.Unlocked) return null
+        val token = generation
+        val attempt = key?.copy() ?: return null
+        val result = try {
+            withContext(io) { opener.history(store, attempt, entryId) }
+        } finally {
+            attempt.wipe()
+        }
+        if (token != generation) {
+            (result as? HistoryResult.Read)?.versions?.wipe()
+            return null
+        }
+        return result
     }
 
     /** A copy of one attachment's bytes (the caller wipes it); null when locked or there is none. */

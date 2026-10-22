@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -95,8 +96,8 @@ import java.time.format.FormatStyle
  * An entry's card (SPEC §6.2), laid out by the Mac app's rules (`core/card`): sections, masked values with
  * an eye, live codes, tap to copy, links that open the browser, attachments to open in another app or save.
  * The password's menu shows it as a QR code or in large type ([onShowPassword]), or shares it after a
- * warning. The bar edits the entry ([onEdit]) or moves it into the recycle bin at once, the list then offering
- * Undo; an entry in the bin has Restore instead.
+ * warning. The bar shows the entry's earlier versions ([onHistory]), edits it ([onEdit]) or moves it into the
+ * recycle bin at once, the list then offering Undo; an entry in the bin has Restore instead.
  */
 @Composable
 internal fun EntryCardScreen(
@@ -108,6 +109,7 @@ internal fun EntryCardScreen(
     onSearch: (String) -> Unit,
     onShowPassword: (PasswordView) -> Unit,
     onEdit: () -> Unit,
+    onHistory: () -> Unit,
 ) {
     val model = viewModel {
         EntryCardViewModel(
@@ -198,6 +200,9 @@ internal fun EntryCardScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") }
                 },
                 actions = {
+                    IconButton(onClick = onHistory) {
+                        Icon(Icons.Rounded.History, contentDescription = "History", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     if (content.inRecycleBin) {
                         FilledTonalButton(onClick = model::restore, enabled = !model.restoring, modifier = Modifier.padding(end = 8.dp)) {
                             Icon(Icons.Rounded.RestoreFromTrash, contentDescription = null, Modifier.size(18.dp))

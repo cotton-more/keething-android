@@ -33,6 +33,7 @@ import androidx.navigation3.ui.NavDisplay
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.editor.EntryEditorScreen
 import dev.keepassbar.android.entry.EntryCardScreen
+import dev.keepassbar.android.history.EntryHistoryScreen
 import dev.keepassbar.android.entry.PasswordScreen
 import dev.keepassbar.android.entry.PasswordView
 import dev.keepassbar.android.groups.GroupsScreen
@@ -53,6 +54,9 @@ internal sealed interface Screen {
 
     /** A password full screen; the entry's id only, the password is read from the vault. */
     data class Password(val entryId: String, val view: PasswordView) : Screen
+
+    /** An entry's earlier versions. */
+    data class History(val entryId: String) : Screen
 
     /** The editor of an entry, or of a new one ([entryId] null) in [groupId]. */
     data class Editor(val entryId: String?, val groupId: String? = null) : Screen
@@ -190,7 +194,11 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             onSearch = navigation::search,
                             onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
                             onEdit = { navigation.open(Screen.Editor(key.entryId)) },
+                            onHistory = { navigation.open(Screen.History(key.entryId)) },
                         )
+                    }
+                    entry<Screen.History> { key ->
+                        EntryHistoryScreen(database, key.entryId, onBack = navigation::back)
                     }
                     entry<Screen.Editor> { key ->
                         EntryEditorScreen(

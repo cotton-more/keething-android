@@ -14,6 +14,8 @@ public class KdbxDocument(
     public val groups: List<KdbxGroup>,
     /** Every entry outside the entries' histories, in file order. */
     public val entries: List<KdbxEntry>,
+    /** The history items of the entry the reader was asked for, oldest first (as the file keeps them). */
+    public val history: List<KdbxEntry> = emptyList(),
 )
 
 public data class KdbxMeta(

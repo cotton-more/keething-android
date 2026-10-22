@@ -15,7 +15,8 @@ import kotlin.test.assertTrue
 
 /** The Mac `ParsingComponentTests` expectations for the reader, and the protected values' stream. */
 class KdbxXmlReaderTest {
-    private fun read(xml: String, stream: ChaCha20? = null) = KdbxXmlReader.read(xml.encodeToByteArray(), stream = stream)
+    private fun read(xml: String, stream: ChaCha20? = null, historyOf: String? = null) =
+        KdbxXmlReader.read(xml.encodeToByteArray(), stream = stream, historyOf = historyOf)
 
     private fun doc(meta: String = "", root: String) = "<KeePassFile><Meta>$meta</Meta><Root>$root</Root></KeePassFile>"
 
@@ -61,6 +62,30 @@ class KdbxXmlReaderTest {
         assertEquals(1, d.entries.size)
         assertEquals("cur", d.entries[0].uuid)
         assertEquals(listOf(plain("Title", "NEW")), d.entries[0].fields)
+    }
+
+    @Test
+    fun theHistoryOfTheEntryAskedForIsReadOldestFirstTheOthersAreSkipped() {
+        val history = "<History>" + entry("cur", listOf("Title" to "V1"), "<Times><LastModificationTime>2026-01-01T00:00:00Z</LastModificationTime></Times>") +
+            entry("cur", listOf("Title" to "V2"), "<Binary><Key>a.txt</Key><Value Ref=\"0\"/></Binary>") + "</History>"
+        val other = "<History>" + entry("other", listOf("Title" to "OTHER OLD")) + "</History>"
+        val xml = doc(
+            root = "<Group><UUID>R</UUID><Name>P</Name><Group><UUID>W</UUID><Name>Work</Name>" +
+                entry("other", listOf("Title" to "O"), other) + entry("cur", listOf("Title" to "NOW"), history) +
+                entry("last", listOf("Title" to "L")) + "</Group></Group>",
+        )
+
+        val d = read(xml, historyOf = "cur")
+
+        assertEquals(listOf("other", "cur", "last"), d.entries.map { it.uuid }, "the items are not entries of their own")
+        assertEquals(listOf(plain("Title", "NOW")), d.entries[1].fields, "the entry itself is read whole after its history")
+        assertEquals(listOf(listOf(plain("Title", "V1")), listOf(plain("Title", "V2"))), d.history.map { it.fields })
+        assertEquals(listOf("cur", "cur"), d.history.map { it.uuid })
+        assertEquals(listOf("Work"), d.history[0].groupPath)
+        assertEquals(java.time.Instant.parse("2026-01-01T00:00:00Z"), d.history[0].lastModified)
+        assertEquals(listOf(KdbxAttachmentRef("a.txt", 0)), d.history[1].attachments)
+        assertEquals(emptyList(), read(xml).history, "none asked for")
+        assertEquals(emptyList(), read(xml, historyOf = "last").history, "an entry without one")
     }
 
     @Test
@@ -191,6 +216,10 @@ class KdbxXmlReaderTest {
         assertEquals(listOf("first <&> 🔑", ""), d.entries[0].fields.map { it.value.text() })
         // After the history's value in the stream: right only if the skipped history moved the stream on.
         assertEquals("second-password", d.entries[1].fields.single().value.text())
+
+        val withHistory = read(xml, ChaCha20(key, nonce), historyOf = "a")
+        assertEquals("old-password", withHistory.history.single().fields.single().value.text())
+        assertEquals("second-password", withHistory.entries[1].fields.single().value.text())
     }
 
     @Test
