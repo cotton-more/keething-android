@@ -42,7 +42,6 @@ import androidx.compose.material.icons.rounded.HistoryToggleOff
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.FilledIconButton
@@ -491,11 +490,9 @@ internal fun SearchField(query: TextFieldState, placeholder: String = SEARCH_HIN
                 .height(56.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(start = 20.dp, end = 4.dp),
+                .padding(start = 24.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Rounded.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(12.dp))
             // What is searched for names the accounts: the keyboard does not learn it.
             NoLearningKeyboard {
                 BasicTextField(
