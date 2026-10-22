@@ -56,7 +56,10 @@ reports (but Groups & tags, without its changes), restoring a version from the h
 only, §3.4), deleting entries for good / emptying the recycle bin, adding / removing / renaming
 attachments, reordering custom fields, a Quick Settings tile, a one-time code pinned to the notification
 shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
-foreground service for little gain), Google Play (§8.1).
+foreground service for little gain), an entry pinned to the notification shade with Copy username / password /
+code (dropped 2026-10-22: doable without a service, but it saves only a switch back to the app, whose card
+stays open until the lock, autofill covers most logins, and it needs the notification permission; worth it
+only for frequent copying into apps autofill does not reach), Google Play (§8.1).
 
 ## 2. Architecture
 
