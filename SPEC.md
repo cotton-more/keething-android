@@ -522,6 +522,17 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   do: `@Work`, `#bank`, `-` for the bin, "Top level" the whole list; Back clears the search. The search
   matches by name prefix at any level (§1), so `@Work` also lists a group "Workshop" or another "Work"
   elsewhere. The screen follows a vault read again.
+- **Used recovery codes** (a list of codes on the card, an entry outside the bin): copying a code offers **Mark
+  as used** in its notice; a long press on a code offers "Mark as used" / "Mark as not used". The mark is
+  written into the field's value, in front of the code: `used 2026-10-22 · 1234-5678` ("used" in any case, the
+  day in ISO 8601, then ` · `, U+00B7 with a space each side; `card/UsedCode`). So KeePassXC and the Mac show
+  it as it is, a field renamed anywhere keeps it, and taking it off gives the code back unchanged. It is saved
+  as an ordinary edit of that one field (protected as it was, the old version into the history, SPEC §3.3),
+  with a progress ring on the code meanwhile and a notice with Undo after. Only the codes of a list are read
+  so; another field with such a text stays text. On the card a used code is struck through with "used Oct 22,
+  2026" under it, and the list's title says "3 of 4 left" (in the error colour when none are); copying a used
+  code copies the code alone. The editor shows the value as it is stored. The Mac app's side:
+  `~/Projects/keepass-bar/HANDOVER-used-recovery-codes.md`.
 - **History** (the clock in the card's bar, for an entry in the bin too; Mac SPEC §3.22 without restoring):
   "Reading the file…", then the versions newest first, each dated by its modification time, the current one
   marked, each with what it changed from the one before (`card/history`, the Mac's `EntryVersionDiff`):

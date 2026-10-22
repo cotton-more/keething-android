@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -187,6 +188,56 @@ class CardFieldsTest {
         assertEquals(listOf(CardSection.Kind.Codes, CardSection.Kind.Codes, CardSection.Kind.Custom), custom.map { it.kind })
         assertEquals("Recovery Codes 01", custom[0].rows.first().noticeLabel)
         assertEquals(listOf("1", "2", "3"), custom[1].rows.map { it.label }, "id-named codes are numbered")
+    }
+
+    @Test
+    fun aCodeMarkedUsedShowsItsDayAndCopiesTheCodeAlone() {
+        val c = card(
+            listOf(
+                field("Recovery_1", "used 2026-10-22 \u00B7 1111-2222", protected = true),
+                field("Recovery_2", "3333-4444", protected = true),
+                field("Recovery_3", "USED 2026-01-05 \u00B7 5555"),
+            ),
+            types = (1..3).associate { "Recovery_$it" to "code" },
+        )
+        val rows = c.sections.single { it.kind == CardSection.Kind.Codes }.rows
+        assertEquals(listOf(java.time.LocalDate.of(2026, 10, 22), null, java.time.LocalDate.of(2026, 1, 5)), rows.map { it.usedOn })
+        assertEquals(listOf("1111-2222", "3333-4444", "5555"), rows.map { it.storedText() })
+        val notCodes = card(listOf(field("Note", "used 2026-10-22 \u00B7 not a code"))).sections.flatMap { it.rows }.single { it.label == "Note" }
+        assertNull(notCodes.usedOn, "only a list of codes has used ones")
+        assertEquals("used 2026-10-22 \u00B7 not a code", notCodes.storedText())
+    }
+
+    @Test
+    fun theUsedMarkGoesInFrontOfTheCodeAndComesOffAgain() {
+        val day = java.time.LocalDate.of(2026, 10, 22)
+        assertEquals("used 2026-10-22 \u00B7 1234-5678", UsedCode.mark("1234-5678", day))
+        assertEquals("used 2026-10-22 \u00B7 1234-5678", UsedCode.mark("used 2026-10-22 \u00B7 1234-5678", day.plusDays(1)), "marked once")
+        assertEquals("1234-5678", UsedCode.unmark(UsedCode.mark("1234-5678", day)))
+        assertEquals("1234-5678", UsedCode.unmark("1234-5678"))
+        assertEquals("a \u00B7 b", UsedCode.parse("used 2026-10-22 \u00B7 a \u00B7 b")?.code, "the first separator only")
+        assertNull(UsedCode.parse("used 2026-13-40 \u00B7 x"), "not a day")
+        assertNull(UsedCode.parse("used yesterday \u00B7 x"))
+        assertNull(UsedCode.parse("1234 used 2026-10-22 \u00B7 x"))
+    }
+
+    @Test
+    fun markingACodeIsAnEditOfItsValueProtectedAsItWas() {
+        val day = java.time.LocalDate.of(2026, 10, 22)
+        val entry = Entry(
+            "e", customFields = listOf(field("Recovery_1", "1111", protected = true), field("Recovery_2", "2222", protected = true), field("Note", "n")),
+        )
+        val marked = assertNotNull(UsedCode.changes(entry, 1, used = true, day)).customFields!!
+        assertEquals(listOf(field("Recovery_1", "1111", protected = true), field("Recovery_2", "used 2026-10-22 \u00B7 2222", protected = true), field("Note", "n")), marked)
+        assertNull(UsedCode.changes(entry, 1, used = false, day), "not used: nothing to take off")
+        assertNull(UsedCode.changes(entry, 9, used = true, day))
+        val back = UsedCode.changes(entry.copy(customFields = marked), 1, used = false, day)!!.customFields!!
+        assertEquals(entry.customFields, back)
+        val first = (entry.customFields[0].value as dev.keepassbar.domain.vault.FieldValue.Protected).secret
+        (marked[0].value as dev.keepassbar.domain.vault.FieldValue.Protected).secret.wipe()
+        assertEquals("1111", first.reveal(), "the change holds copies: wiping it leaves the entry")
+        assertEquals(1, RowIds.customIndex(RowIds.custom(1)))
+        assertNull(RowIds.customIndex(RowIds.PASSWORD))
     }
 
     // Field types (Mac SPEC §3.12)

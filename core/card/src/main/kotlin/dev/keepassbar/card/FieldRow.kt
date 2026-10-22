@@ -2,6 +2,7 @@ package dev.keepassbar.card
 
 import dev.keepassbar.domain.totp.TotpConfig
 import dev.keepassbar.domain.vault.FieldValue
+import java.time.LocalDate
 
 /** How a row's value is presented. Only unprotected values are ever anything but text. */
 public sealed interface ValueStyle {
@@ -22,6 +23,9 @@ public object RowIds {
     public const val NOTES: String = "notes"
 
     public fun custom(index: Int): String = "custom-$index"
+
+    /** The index of the custom field a row id names; null for another row. */
+    public fun customIndex(id: String): Int? = id.removePrefix("custom-").takeIf { it != id }?.toIntOrNull()
 
     public fun attachment(index: Int): String = "attachment-$index"
 }
@@ -54,6 +58,8 @@ public data class FieldRow(
     val totp: TotpConfig? = null,
     /** An attachment row's size in bytes, when known. */
     val size: Int? = null,
+    /** A code of a list marked used ([UsedCode]): the day; the row's text and copy are the code alone. */
+    val usedOn: LocalDate? = null,
 ) {
     public enum class Kind { USERNAME, PASSWORD, URL, TOTP, NOTES, CUSTOM, ATTACHMENT }
 
@@ -82,10 +88,13 @@ public data class FieldRow(
     /** The text shown in clear: [shownText], else the value (revealing a protected one). */
     public fun revealedText(): String = shownText ?: storedText()
 
-    /** The value as stored (revealing a protected one): what copying and sharing give. */
-    public fun storedText(): String = when (value) {
-        is FieldValue.Plain -> value.text
-        is FieldValue.Protected -> value.secret.reveal()
+    /** The value as stored (revealing a protected one): what copying and sharing give. A used code: the code alone. */
+    public fun storedText(): String {
+        val text = when (value) {
+            is FieldValue.Plain -> value.text
+            is FieldValue.Protected -> value.secret.reveal()
+        }
+        return if (usedOn != null) UsedCode.unmark(text) else text
     }
 
     /** The same row, masked until revealed although the database does not protect it. */

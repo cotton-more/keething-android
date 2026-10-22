@@ -16,6 +16,8 @@ import dev.keepassbar.android.attachment.AttachmentNames
 import dev.keepassbar.android.attachment.AttachmentTypes
 import dev.keepassbar.android.attachment.SaveRequest
 import dev.keepassbar.android.clipboard.SensitiveClipboard
+import dev.keepassbar.android.editor.SAVE_BUSY
+import dev.keepassbar.android.editor.problem
 import dev.keepassbar.android.list.RecentEntries
 import dev.keepassbar.android.recyclebin.RecycleBinMoves
 import dev.keepassbar.android.session.DatabaseSession
@@ -26,10 +28,14 @@ import dev.keepassbar.card.EntryCardBuilder
 import dev.keepassbar.card.FieldRow
 import dev.keepassbar.card.GroupPathFormatter
 import dev.keepassbar.card.RevealState
+import dev.keepassbar.card.RowIds
 import dev.keepassbar.card.TotpDisplay
+import dev.keepassbar.card.UsedCode
 import dev.keepassbar.domain.vault.Vault
+import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.vault.session.SessionState
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -115,7 +121,53 @@ internal class EntryCardViewModel(
         }
         clipboard.copy(text, sensitive = row.isConcealed || row.kind == FieldRow.Kind.TOTP)
         if (content.value?.inRecycleBin == false) recents.note(entryId)
-        mutableNotices.trySend(Notice.copied(row.noticeLabel))
+        // A code of a list is copied to be used: the notice offers to mark it so.
+        val copied = Notice.copied(row.noticeLabel)
+        mutableNotices.trySend(if (canMarkUsed(row) && row.usedOn == null) copied.copy(undo = { setUsed(row, true) }, actionLabel = "Mark as used") else copied)
+    }
+
+    /** The code row being marked used (or not); one at a time, while its save runs. */
+    var marking: String? by mutableStateOf(null)
+        private set
+
+    /** A code of a list (recovery codes), of an entry outside the recycle bin. */
+    fun canMarkUsed(row: FieldRow): Boolean {
+        val current = content.value ?: return false
+        return !current.inRecycleBin && current.card.sections.any { section ->
+            section.kind == CardSection.Kind.Codes && section.rows.any { it.id == row.id }
+        }
+    }
+
+    /**
+     * Marks a code of a list used today, or takes the mark off (SPEC §6.2): the mark is written in front of the code
+     * ([UsedCode]) and saved as any edit (SPEC §3.3), the old version into the history; the notice says how it went,
+     * with Undo.
+     */
+    fun setUsed(row: FieldRow, used: Boolean) {
+        if (marking != null || !canMarkUsed(row)) return
+        val entry = unlockedVault()?.entries?.firstOrNull { it.id == entryId } ?: return
+        val index = RowIds.customIndex(row.id) ?: return
+        val changes = UsedCode.changes(entry, index, used, LocalDate.now()) ?: return
+        val pending = database.session.save(VaultEdit.Update(entry.id, entry.lastModified, changes))
+        if (pending == null) {
+            changes.wipe()
+            return problem(SAVE_BUSY)
+        }
+        // The session reads the change's secrets until the save is over.
+        pending.invokeOnCompletion { changes.wipe() }
+        marking = row.id
+        viewModelScope.launch {
+            val outcome = pending.await()
+            marking = null
+            val failure = outcome.problem(database.file)
+            mutableNotices.trySend(
+                when {
+                    failure != null -> Notice(failure, isProblem = true)
+                    used -> Notice("${row.noticeLabel} marked as used", undo = { setUsed(row, false) })
+                    else -> Notice("${row.noticeLabel} marked as not used", undo = { setUsed(row, true) })
+                },
+            )
+        }
     }
 
     /** Writes the attachment to a file of its own and hands it to the app the user picks. */

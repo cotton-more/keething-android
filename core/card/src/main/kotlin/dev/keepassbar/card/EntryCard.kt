@@ -203,7 +203,9 @@ public object EntryCardBuilder {
                 if (isCodes && label.isEmpty()) label = "${n + 1}"
                 val title = block.title ?: "Value"
                 val notice = if (label.isEmpty()) title else if (isCodes) "$title $label" else label
-                context.row(item.index, item.field, label, notice)
+                context.row(item.index, item.field, label, notice).let { row ->
+                    if (isCodes) row.copy(usedOn = UsedCode.parse(row.storedText())?.day) else row
+                }
             }
             CardSection(
                 "section-${block.items[0].index}",

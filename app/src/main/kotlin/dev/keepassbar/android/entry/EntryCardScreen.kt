@@ -159,6 +159,8 @@ internal fun EntryCardScreen(
                 PasswordAction.SHARE -> sharing = true
             }
         },
+        onSetUsed = if (state.content?.inRecycleBin == false) model::setUsed else null,
+        marking = model.marking,
     )
     if (sharing) {
         ShareWarning(
@@ -383,6 +385,10 @@ internal class CardActions(
     val onOpenAttachment: (FieldRow) -> Unit,
     val onSaveAttachment: (FieldRow) -> Unit,
     val onPasswordMenu: (PasswordAction) -> Unit,
+    /** Marks a code of a list used, or not; null when the entry cannot be changed (in the recycle bin). */
+    val onSetUsed: ((FieldRow, Boolean) -> Unit)? = null,
+    /** The code row whose mark is being saved. */
+    val marking: String? = null,
 )
 
 /** Tapping anywhere on a row copies it (SPEC §6.2). */

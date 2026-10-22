@@ -76,6 +76,12 @@ import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.TotpDisplay
 import dev.keepassbar.card.WiFiNetwork
 import java.time.Instant
+import java.time.format.FormatStyle
+import java.time.format.DateTimeFormatter
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 
 private val OUTER = 22.dp
 
@@ -335,17 +341,30 @@ private fun NotesView(row: FieldRow, actions: CardActions) {
     }
 }
 
-/** A list of codes (recovery codes): a numbered grid with one eye for all of them (SPEC §6). */
+/**
+ * A list of codes (recovery codes): a numbered grid with one eye for all of them (SPEC §6). A code marked used is
+ * struck through with its day, and the title says how many are left; a long press marks a code used or not.
+ */
 @Composable
 private fun CodesView(section: CardSection, reveal: RevealState, actions: CardActions) {
     val concealed = section.rows.filter { it.isConcealed && !it.isEmpty }
     val shown = concealed.isNotEmpty() && concealed.all { reveal.isRevealed(it.id) }
+    val used = section.rows.count { it.usedOn != null }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(OUTER)).background(MaterialTheme.extraColors.row).padding(start = 18.dp, end = 6.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(section.title.orEmpty(), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
+                Text(section.title.orEmpty(), style = MaterialTheme.typography.titleSmall)
+                if (used > 0) {
+                    Text(
+                        "${section.rows.size - used} of ${section.rows.size} left",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (used == section.rows.size) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (concealed.isNotEmpty()) {
                 IconButton(onClick = { actions.onToggleSection(section) }) {
                     Icon(
@@ -358,32 +377,74 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
         }
         for (pair in section.rows.chunked(2)) {
             Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (row in pair) {
-                    Surface(
-                        onClick = { actions.onCopy(row) },
-                        enabled = row.isCopyable,
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Row(Modifier.heightIn(min = 40.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(row.label, Modifier.width(24.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            val text = reveal.displayValue(row)
-                            Text(
-                                if (row.isConcealed && reveal.isRevealed(row.id)) colouredSecret(text) else AnnotatedString(text),
-                                fontFamily = MonospaceFamily,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
+                for (row in pair) CodeCell(row, reveal, actions, Modifier.weight(1f))
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
 }
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, modifier: Modifier) {
+    var menu by remember { mutableStateOf(false) }
+    val setUsed = actions.onSetUsed
+    val saving = actions.marking == row.id
+    val usedOn = row.usedOn
+    Box(modifier) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .combinedClickable(
+                    enabled = row.isCopyable,
+                    onClickLabel = "Copy ${row.noticeLabel.lowercase()}",
+                    onClick = { actions.onCopy(row) },
+                    onLongClickLabel = if (usedOn == null) "Mark as used" else "Mark as not used",
+                    onLongClick = if (setUsed != null && actions.marking == null) ({ menu = true }) else null,
+                )
+                .heightIn(min = 40.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(row.label, Modifier.width(24.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f)) {
+                val text = reveal.displayValue(row)
+                Text(
+                    if (row.isConcealed && reveal.isRevealed(row.id) && usedOn == null) colouredSecret(text) else AnnotatedString(text),
+                    fontFamily = MonospaceFamily,
+                    style = MaterialTheme.typography.bodyMedium.copy(textDecoration = if (usedOn != null) TextDecoration.LineThrough else null),
+                    color = if (usedOn != null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (usedOn != null) {
+                    Text(
+                        "used " + USED_DAY.format(usedOn),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
+            if (saving) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+        }
+        if (setUsed != null) {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(if (usedOn == null) "Mark as used" else "Mark as not used") },
+                    onClick = {
+                        menu = false
+                        setUsed(row, usedOn == null)
+                    },
+                )
+            }
+        }
+    }
+}
+
+private val USED_DAY: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
 
 /** The payment card drawn as a card: brand, number (masked down to its last four digits), holder, expiry. */
 @Composable

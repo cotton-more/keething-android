@@ -29,8 +29,16 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
-/** A short message at the bottom of a screen: something copied, or a problem; [undo] offers to take a change back. */
-internal data class Notice(val text: String, val isProblem: Boolean = false, val undo: (() -> Unit)? = null) {
+/**
+ * A short message at the bottom of a screen: something copied, or a problem; [undo] offers to take a change back,
+ * or to do what [actionLabel] says.
+ */
+internal data class Notice(
+    val text: String,
+    val isProblem: Boolean = false,
+    val undo: (() -> Unit)? = null,
+    val actionLabel: String = "Undo",
+) {
     companion object {
         /** "Password copied · clears in 30 s" (SPEC §6). */
         fun copied(what: String) = Notice("$what copied · clears in 30 s")
@@ -39,7 +47,7 @@ internal data class Notice(val text: String, val isProblem: Boolean = false, val
 
 private class NoticeVisuals(val notice: Notice) : SnackbarVisuals {
     override val message: String get() = notice.text
-    override val actionLabel: String? get() = if (notice.undo != null) "Undo" else null
+    override val actionLabel: String? get() = if (notice.undo != null) notice.actionLabel else null
     override val withDismissAction: Boolean get() = false
     override val duration: SnackbarDuration get() = if (notice.undo != null) SnackbarDuration.Long else SnackbarDuration.Short
 }
