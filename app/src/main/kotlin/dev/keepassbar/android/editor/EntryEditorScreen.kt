@@ -26,6 +26,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import dev.keepassbar.card.FieldType
 import java.time.LocalDate
@@ -185,6 +187,14 @@ internal fun EntryEditorScreen(
         )
     }
 
+    // The keyboard is closed first: the save sheet comes up from the bottom, under where the keyboard was.
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val save = {
+        focus.clearFocus()
+        keyboard?.hide()
+        model.save()
+    }
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
     Box(Modifier.fillMaxSize()) {
         Scaffold(
@@ -199,7 +209,7 @@ internal fun EntryEditorScreen(
                         }
                     },
                     actions = {
-                        Button(onClick = model::save, enabled = editor.canSave(draft) && phase == SavePhase.Editing, modifier = Modifier.padding(end = 8.dp)) {
+                        Button(onClick = save, enabled = editor.canSave(draft) && phase == SavePhase.Editing, modifier = Modifier.padding(end = 8.dp)) {
                             Text("Save")
                         }
                     },
