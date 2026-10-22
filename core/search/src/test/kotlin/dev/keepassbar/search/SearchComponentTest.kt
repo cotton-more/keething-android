@@ -175,6 +175,13 @@ class SearchComponentTest {
     }
 
     @Test
+    fun namesStartingWithWhatIsTypedFirstThenFuzzyOnesByScoreNothingTypedNone() {
+        assertEquals(listOf("Banking", "bank"), FuzzyNames.matching("ba", listOf("Travel", "Banking", "bank", "Shared")))
+        assertEquals(listOf("Banking"), FuzzyNames.matching("bnk", listOf("Travel", "Banking", "Work")))
+        assertEquals(emptyList(), FuzzyNames.matching(" ", listOf("a")))
+    }
+
+    @Test
     fun groupPathsGivenAddTheEmptyGroupsInTreeOrder() {
         val facets = SearchFacets.of(
             listOf(entry("a", group = listOf("Work", "Git"))),

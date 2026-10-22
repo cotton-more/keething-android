@@ -233,7 +233,7 @@ internal fun EntryEditorScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     banner?.invoke()
-                    EditorForm(editor, draft, model::update, model::addCodes, generator)
+                    EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags)
                 }
             }
         }
@@ -248,6 +248,7 @@ private fun EditorForm(
     update: (EntryDraft) -> Unit,
     addCodes: (text: String, prefix: String) -> String?,
     generator: () -> PasswordGeneratorState,
+    knownTags: List<String>,
 ) {
     if (editor.isNew) GroupChoice(editor.groups, draft.groupId) { update(draft.copy(groupId = it)) }
     EditorField("Title", draft.title, { update(draft.copy(title = it)) }, highlighted = true, capitalization = KeyboardCapitalization.Sentences)
@@ -275,7 +276,7 @@ private fun EditorForm(
     }
     EditorField("Website", draft.url, { update(draft.copy(url = it)) }, keyboardType = KeyboardType.Uri)
     EditorField("Notes", draft.notes, { update(draft.copy(notes = it)) }, singleLine = false, capitalization = KeyboardCapitalization.Sentences)
-    EditorField("Tags", draft.tags, { update(draft.copy(tags = it)) }, placeholder = "Separated by commas")
+    TagsField(draft, update, knownTags)
     ExpiryRow(draft, update)
 
     Text(

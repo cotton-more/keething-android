@@ -12,6 +12,7 @@ import dev.keepassbar.card.editing.EntryDraft
 import dev.keepassbar.card.editing.EntryEditor
 import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.vault.session.SaveOutcome
+import dev.keepassbar.search.SearchFacets
 import dev.keepassbar.vault.session.SessionState
 import java.time.Instant
 import kotlin.time.TimeSource
@@ -45,6 +46,11 @@ internal class EntryEditorViewModel(
     val editor: EntryEditor? = (database.session.state.value as? SessionState.Unlocked)?.vault?.let { vault ->
         if (entryId == null) EntryEditor.create(vault, groupId, now) else vault.entries.firstOrNull { it.id == entryId }?.let { EntryEditor.edit(it, now) }
     }
+
+    /** The vault's tags, the most used first: the tag field's completions. */
+    val knownTags: List<String> = (database.session.state.value as? SessionState.Unlocked)?.vault?.let { vault ->
+        SearchFacets.of(vault.entries).tags.sortedByDescending { it.count }.map { it.name }
+    }.orEmpty()
 
     var draft: EntryDraft by mutableStateOf(editor?.start?.let { prefill?.invoke(it) ?: it } ?: EntryDraft())
         private set

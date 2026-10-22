@@ -467,9 +467,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   password row and draws the `WIFI:` code beside "Point the other phone's camera at the code" and Hide.
   Masking the password, leaving the card or a lock removes it; an open network's code is always shown.
 - **Editor** (the card's pencil; a new entry from the button next to the search field): title, username,
-  password (masked, an eye shows it coloured), website, notes, tags (separated by commas or semicolons, each
-  once in any case), KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
-  name above value, the type (§6.3), a Protected switch, remove. **Add field** is a menu: Text, Date, Date
+  password (masked, an eye shows it coloured), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
+  name above value, the type (§6.3), a Protected switch, remove. **Tags** (Mac SPEC §3.24) are chips with ✕
+  and a field after them, "Add a tag" (a tap anywhere in the box types one): Enter, a comma or a semicolon
+  adds it (not when the entry has it already, in any case or accent), Backspace in the empty field takes
+  the last chip off; typing offers the vault's tags that start with it (most used first), then those it
+  matches fuzzily as the search does ("trvl" → Travel), those on the entry left out, as chips under the
+  field, a tap adds one. What is still typed when saving is saved too. **Add field** is a menu: Text, Date, Date
   until (expiry), URL, Password, *Card ›* and *Wi-Fi ›* parts (the menu shows the parts in its place, with a
   way back) add a field of that type named after it (Text, Date, Valid until, Website, "Password 2" as KeePass
   keeps "Password" for itself, Card number, Cardholder, Expiry date, CVC, PIN, Card type, Network name, Wi-Fi

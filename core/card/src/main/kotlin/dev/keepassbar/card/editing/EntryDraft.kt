@@ -3,6 +3,8 @@ package dev.keepassbar.card.editing
 import dev.keepassbar.card.FieldDate
 import dev.keepassbar.card.FieldType
 import dev.keepassbar.domain.vault.EntryChanges
+import dev.keepassbar.search.FuzzyNames
+import dev.keepassbar.search.SearchNormalizer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -32,8 +34,10 @@ public data class EntryDraft(
     val password: String = "",
     val url: String = "",
     val notes: String = "",
-    /** The tags as typed, separated by commas (or semicolons). */
-    val tags: String = "",
+    /** The tags as chips (Mac SPEC §3.24), each once in any case or accent. */
+    val tags: List<String> = emptyList(),
+    /** A tag being typed; what is still typed when saving is saved too ([savedTags]). */
+    val tagInput: String = "",
     val fields: List<FieldDraft> = emptyList(),
     val expires: Boolean = false,
     /** When the entry expires, while [expires]: the entry's own time, else a year from when the editor opened. */
@@ -81,5 +85,51 @@ public data class EntryDraft(
         return copy(expires = true, expiryTime = day.atTime(time).atZone(zone).toInstant())
     }
 
+    // Tags (Mac SPEC §3.24)
+
+    /** What is typed in the tag field: a comma or semicolon makes everything before the last one chips. */
+    public fun typingTag(text: String): EntryDraft {
+        val last = text.indexOfLast(::isTagSeparator)
+        if (last < 0) return copy(tagInput = text)
+        val rest = text.substring(last + 1)
+        return addingTags(text.substring(0, last)).copy(tagInput = rest.ifBlank { "" })
+    }
+
+    /** Enter in the tag field, or a completion tapped: [chosen], else what is typed, becomes a chip. */
+    public fun commitTag(chosen: String? = null): EntryDraft = addingTags(chosen ?: tagInput).copy(tagInput = "")
+
+    public fun removeTag(tag: String): EntryDraft = copy(tags = tags - tag)
+
+    /** Backspace in the empty tag field takes the last chip off. */
+    public fun removeLastTag(): EntryDraft = if (tagInput.isEmpty() && tags.isNotEmpty()) copy(tags = tags.dropLast(1)) else this
+
+    /** The tags saved: the chips, then what is still typed. */
+    public val savedTags: List<String> get() = addingTags(tagInput).tags
+
+    /**
+     * The tags of [known] (the vault's, most used first) that match what is typed (those starting with it first,
+     * then fuzzy matches, "trvl" → Travel), not on the entry yet; none when nothing is typed.
+     */
+    public fun tagSuggestions(known: List<String>): List<String> =
+        FuzzyNames.matching(tagInput, known.filter { tag -> tags.none { sameTag(it, tag) } }).take(MAXIMUM_TAG_SUGGESTIONS)
+
+    /** Each tag of [text] (commas and semicolons separate several) that the entry does not have yet, in any case. */
+    private fun addingTags(text: String): EntryDraft {
+        val added = tags.toMutableList()
+        for (part in text.split(',', ';')) {
+            val tag = part.trim()
+            if (tag.isNotEmpty() && added.none { sameTag(it, tag) }) added += tag
+        }
+        return if (added.size == tags.size) this else copy(tags = added)
+    }
+
     internal fun nextFieldId(): Int = (fields.maxOfOrNull { it.id } ?: 0) + 1
+
+    private companion object {
+        const val MAXIMUM_TAG_SUGGESTIONS = 8
+
+        fun isTagSeparator(c: Char) = c == ',' || c == ';'
+
+        fun sameTag(a: String, b: String) = SearchNormalizer.normalize(a) == SearchNormalizer.normalize(b)
+    }
 }

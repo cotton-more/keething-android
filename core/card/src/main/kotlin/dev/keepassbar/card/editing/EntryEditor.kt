@@ -14,7 +14,6 @@ import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.domain.vault.VaultGroup
-import dev.keepassbar.search.SearchNormalizer
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
@@ -148,7 +147,7 @@ public class EntryEditor private constructor(
 
     private fun shape(draft: EntryDraft): Shape {
         val fields = draft.fields.filterNot { it.isBlank }.map { FieldText(it.name.trim(), it.value, it.isProtected) }
-        val tags = tags(draft.tags)
+        val tags = draft.savedTags
         // The file keeps seconds: a date less than a second off is the same.
         val moved = draft.expires && Duration.between(draft.expiryTime, original.expiryTime ?: start.expiryTime).abs() >= Duration.ofSeconds(1)
         return Shape(
@@ -215,7 +214,7 @@ public class EntryEditor private constructor(
             }
             val draft = EntryDraft(
                 title = entry.title, username = entry.username, password = entry.password.reveal(), url = entry.url,
-                notes = entry.notes, tags = entry.tags.joinToString(", "), fields = fields,
+                notes = entry.notes, tags = entry.tags, fields = fields,
                 expires = entry.expires, expiryTime = entry.expiryTime ?: aYearAfter(now), groupId = entry.groupId,
             )
             return EntryEditor(entry, isNew = false, start = draft, groups = emptyList())
@@ -244,10 +243,6 @@ public class EntryEditor private constructor(
             '_' in prefix -> "The list's name cannot contain “_” (it separates the name from the number)."
             else -> null
         }
-
-        /** The tags typed: separated by commas or semicolons, each once (in any case or accent). */
-        public fun tags(text: String): List<String> =
-            text.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }.distinctBy(SearchNormalizer::normalize)
 
         private val numbering = Regex("^\\d{1,2}[.)]\\s+")
 

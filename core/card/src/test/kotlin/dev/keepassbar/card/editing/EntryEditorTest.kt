@@ -41,12 +41,12 @@ class EntryEditorTest {
         val editor = EntryEditor.edit(entry, now)
         var draft = editor.start
         assertEquals("old", draft.password, "the password is there to edit")
-        assertEquals("a, b", draft.tags)
+        assertEquals(listOf("a", "b"), draft.tags)
         assertFalse(editor.isDirty(draft) || editor.canSave(draft))
 
         draft = draft.copy(password = "new").rename(1, "Comment").addField()
         draft = draft.changeField(draft.fields[2].id) { it.copy(name = "Code", value = "42", isProtected = true) }
-        draft = draft.copy(tags = "b, c")
+        draft = draft.removeTag("a").typingTag("c")
         assertEquals(
             EntryChanges(
                 password = Secret.of("new"),
@@ -107,9 +107,35 @@ class EntryEditorTest {
     @Test
     fun tagsAreSeparatedByCommasOrSemicolonsOnceEachInAnyCase() {
         val editor = EntryEditor.edit(entry, now)
-        assertEquals(listOf("a", "b", "Ü"), editor.changes(editor.start.copy(tags = " a;b ,, A, Ü ;ü,")).tags)
-        assertNull(editor.changes(editor.start.copy(tags = "a;b")).tags, "the same tags written differently")
-        assertEquals(emptyList(), editor.changes(editor.start.copy(tags = " , ")).tags)
+        assertEquals(listOf("a", "b", "Ü"), editor.changes(editor.start.typingTag(" a;b ,, A, Ü ;ü,")).tags)
+        assertNull(editor.changes(editor.start.typingTag("A; b")).tags, "the same tags written differently")
+        assertEquals(emptyList(), editor.changes(editor.start.removeTag("a").removeLastTag().typingTag(" , ")).tags)
+    }
+
+    @Test
+    fun tagChipsACommaOrEnterAddsOneNoDoublesTheTypedRestIsSavedCompletion() {
+        val known = listOf("Shopping", "shared", "Bank", "Travel")
+        val editor = EntryEditor.edit(entry.copy(tags = listOf("Bank")), now)
+        var draft = editor.start
+        assertEquals(listOf("Bank"), draft.tags)
+        assertEquals(listOf("Shopping", "shared"), draft.typingTag("sh").tagSuggestions(known))
+        assertEquals(listOf("Travel"), draft.typingTag("trvl").tagSuggestions(known), "fuzzy, as the search")
+        assertEquals(listOf("Shopping"), draft.typingTag("hop").tagSuggestions(known), "inside a word")
+        draft = draft.typingTag("travel, bank; Shop")
+        assertEquals(listOf("Bank", "travel"), draft.tags, "the typed ones before the last comma become chips; Bank is there")
+        assertEquals(" Shop", draft.tagInput)
+        assertEquals(listOf("Bank", "travel", "Shop"), editor.changes(draft).tags, "what is still typed is saved too")
+        draft = draft.commitTag("Shopping")
+        assertEquals(listOf("Bank", "travel", "Shopping"), draft.tags)
+        assertEquals("", draft.tagInput)
+        assertEquals(emptyList(), draft.tagSuggestions(known), "nothing typed, nothing offered")
+        assertEquals(listOf("shared"), draft.typingTag("s").tagSuggestions(known), "a tag on the entry is not offered")
+        draft = draft.removeLastTag().removeTag("Bank")
+        assertEquals(listOf("travel"), draft.tags)
+        assertEquals(listOf("travel"), editor.changes(draft).tags)
+        assertEquals(listOf("travel"), draft.typingTag("Travel").commitTag().tags, "the same tag in another case")
+        assertEquals(draft, draft.typingTag("x").removeLastTag().copy(tagInput = ""), "backspace with something typed leaves the chips")
+        assertEquals("", draft.typingTag("a, ").tagInput, "nothing after the last comma")
     }
 
     @Test

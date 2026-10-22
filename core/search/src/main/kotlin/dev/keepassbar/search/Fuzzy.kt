@@ -118,3 +118,23 @@ internal object FuzzyMatcher {
         return total
     }
 }
+
+/** Names offered for what is typed (Mac `FuzzyNames`): the tags the editor completes. */
+public object FuzzyNames {
+    /** Those starting with [typed] first, in their order, then those it matches fuzzily, best first; nothing typed, none. */
+    public fun matching(typed: String, names: List<String>): List<String> {
+        val term = SearchNormalizer.normalize(typed.trim())
+        if (term.isEmpty()) return emptyList()
+        val prefixed = mutableListOf<String>()
+        val fuzzy = mutableListOf<Pair<String, Int>>()
+        for (name in names) {
+            if (SearchNormalizer.normalize(name).startsWith(term)) {
+                prefixed += name
+            } else {
+                FuzzyMatcher.score(term, FuzzyText(name))?.let { fuzzy += name to it }
+            }
+        }
+        // A stable sort: equal scores keep the names' order.
+        return prefixed + fuzzy.sortedByDescending { it.second }.map { it.first }
+    }
+}
