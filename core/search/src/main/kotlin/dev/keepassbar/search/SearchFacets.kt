@@ -19,7 +19,10 @@ public data class AttachmentFacet(val name: String, val count: Int)
 
 /** The groups, tags and attachment names of a vault, for the `@` / `#` / `+` suggestions (Mac `SearchFacets`). */
 public class SearchFacets private constructor(
-    /** Every group that holds entries (directly or below), parents before children, siblings by name. */
+    /**
+     * Every group that holds entries (directly or below), and every one of the `groupPaths` given (empty ones
+     * too, with 0); parents before children, siblings by name.
+     */
     public val groups: List<GroupFacet>,
     /** Every tag by name; tags differing only in case or diacritics are one (the first spelling wins). */
     public val tags: List<TagFacet>,
@@ -40,9 +43,15 @@ public class SearchFacets private constructor(
     }
 
     public companion object {
-        public fun of(entries: List<Entry>, collator: Collator = Collator.getInstance()): SearchFacets {
+        /** [groupPaths]: the vault's groups, so that a group without entries is there too (the Groups screen). */
+        public fun of(
+            entries: List<Entry>,
+            collator: Collator = Collator.getInstance(),
+            groupPaths: List<List<String>> = emptyList(),
+        ): SearchFacets {
             val sorter = (collator.clone() as Collator).apply { strength = Collator.SECONDARY }
             val groupCounts = LinkedHashMap<List<String>, Int>()
+            for (path in groupPaths) if (path.isNotEmpty()) groupCounts[path] = 0
             for (entry in entries) {
                 for (depth in entry.groupPath.indices) {
                     val path = entry.groupPath.subList(0, depth + 1).toList()

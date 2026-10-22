@@ -126,4 +126,19 @@ class VaultListingTest {
         val bin = listing.sections("-", emptyList())
         assertEquals(bin, bin.without(setOf("r1")), "the recycle bin keeps them")
     }
+
+    @Test
+    fun aRowNamesItsGroupByPathAndAnEntryInTheBinByItsPathInsideTheBin() {
+        val inGroup = Entry(id = "g", title = "Sparkasse", groupPath = listOf("Finanzen", "Banken"))
+        val binned = Entry(id = "b", title = "Old", groupPath = listOf("Recycle Bin", "Work"))
+        val binnedAlone = Entry(id = "c", title = "Older", groupPath = listOf("Recycle Bin"))
+        val listing = VaultListing(Vault(entries = listOf(inGroup, bahn), recycleBin = listOf(binned, binnedAlone)), now, Collator.getInstance(Locale.ENGLISH))
+
+        val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
+        assertEquals("Finanzen › Banken", rows.getValue("g").group)
+        assertEquals("", rows.getValue("db").group, "the root group is not named")
+        val bin = listing.sections("-", emptyList()).single().rows.associateBy { it.id }
+        assertEquals("Work", bin.getValue("b").group)
+        assertEquals("", bin.getValue("c").group)
+    }
 }

@@ -36,6 +36,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.HistoryToggleOff
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Password
@@ -124,6 +126,7 @@ internal fun EntryListScreen(
     codesOnly: Boolean,
     onOpen: (id: String, origin: String) -> Unit,
     onSettings: () -> Unit,
+    onGroups: () -> Unit,
     onLeaveCodes: () -> Unit,
     onNewEntry: () -> Unit,
 ) {
@@ -158,8 +161,8 @@ internal fun EntryListScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             Header(
-                state, scroll, codesOnly, onLock = container.sessions::lock, onGenerator = { generating = true }, onSettings = onSettings,
-                onLeaveCodes = onLeaveCodes,
+                state, scroll, codesOnly, onLock = container.sessions::lock, onGenerator = { generating = true }, onGroups = onGroups,
+                onSettings = onSettings, onLeaveCodes = onLeaveCodes,
             )
         },
         bottomBar = {
@@ -272,6 +275,7 @@ private fun Header(
     codesOnly: Boolean,
     onLock: () -> Unit,
     onGenerator: () -> Unit,
+    onGroups: () -> Unit,
     onSettings: () -> Unit,
     onLeaveCodes: () -> Unit,
 ) {
@@ -286,6 +290,7 @@ private fun Header(
         subtitle = { Text(state.databaseName + count, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         actions = {
             if (!codesOnly) {
+                IconButton(onClick = onGroups) { Icon(Icons.Rounded.FolderOpen, contentDescription = "Groups and tags") }
                 IconButton(onClick = onGenerator) { Icon(Icons.Rounded.Password, contentDescription = "Password generator") }
             }
             IconButton(onClick = onLock) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
@@ -383,6 +388,18 @@ internal fun EntryRowView(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            if (row.group.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Rounded.Folder, contentDescription = "Group", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
+                    Text(
+                        row.group,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             row.deadline?.let { deadline ->
                 val colour = if (deadline.status == ExpiryHint.Status.EXPIRED) MaterialTheme.colorScheme.error else MaterialTheme.extraColors.warn

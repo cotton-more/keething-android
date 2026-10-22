@@ -33,6 +33,7 @@ Goals (v1)
 - Entry card: title, group path, username, password (masked), URLs, one-time codes live with a
   countdown, notes, custom fields in file order with the Mac app's layout rules (sections, lists of codes,
   dates, links), attachments.
+- Groups & tags (§6.2): the group tree and the tags, each with how many entries it has; a tap lists them.
 - Copy any field; the clipboard is marked sensitive and cleared after 30 s.
 - Attachments: open and save a copy. One-time codes: show and copy (setting them up is optional, later).
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
@@ -51,7 +52,7 @@ Writing comes after them (ROADMAP step 7) and must be done before a Google Play 
   (a password without an entry, copied).
 
 Non-goals (v1): SSH agent, e-mail aliases,
-reports, history UI, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
+reports (but Groups & tags, without its changes), history UI, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
 only, §3.4), deleting entries for good / emptying the recycle bin, adding / removing / renaming
 attachments, reordering custom fields, a Quick Settings tile, a one-time code pinned to the notification
 shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
@@ -439,8 +440,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   fingerprint next time" switch under the field turns it on, so the password typed then sets it up. A wrong password shakes the
   field. The first list after an unlock says how long the key derivation took.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
-  site; a long press copies the password. The header (large "Keething", the database and its entries,
-  the password generator, lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
+  site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group, the
+  path inside the bin for an entry in it, as the Mac's rows); a long press copies the password. The header
+  (large "Keething", the database and its entries, Groups & tags, the password generator, lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
   which something was copied, kept as ids only (they survive a lock and say nothing without the database);
   a recent row swiped either way leaves the list ("Removed from Recent" with Undo, which puts it back in its
   place), the entry itself untouched.
@@ -498,6 +500,16 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   keeps its scroll position: the row fades out at once (not when the save is done) and the rows below close
   up; a failed save or Undo puts it back in its place. A vault read again (a save, a sync) is listed while
   the one before stays on screen, so no reload empties the list or scrolls it to the top.
+- **Groups & tags** (the folder in the list's header; the Mac's Groups & Tags window, §3.25 there, without
+  changing anything): **Groups** as segmented rows, "Top level" (the root group) first, then tree order
+  (parents first, siblings by name, indented by depth), each with how many entries are in it and below it
+  and, when some are in its groups, how many right in it ("3 here"); empty groups too. The counts are those
+  of the list (the Mac app's settings entry left out). Then the **Recycle bin** with its count, when it has
+  entries. **Tags**: every tag outside the bin by name with its count, spellings differing only in case or
+  diacritics as one ("also bank, Bänk"). A tap goes back to the list searching for it, as the card's chips
+  do: `@Work`, `#bank`, `-` for the bin, "Top level" the whole list; Back clears the search. The search
+  matches by name prefix at any level (§1), so `@Work` also lists a group "Workshop" or another "Work"
+  elsewhere. The screen follows a vault read again.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
 - **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),

@@ -17,6 +17,8 @@ internal data class EntryRow(
     val title: String,
     /** `username · host`, either part left out when empty. */
     val subtitle: String,
+    /** The group's path, `Finanzen › Banken` (inside the recycle bin for an entry in it); empty for the root group. */
+    val group: String,
     val avatar: EntryAvatar,
     val customIconId: String?,
     val hasAttachments: Boolean,
@@ -95,6 +97,7 @@ internal class VaultListing(val vault: Vault, now: Instant, collator: Collator =
         id = entry.id,
         title = entry.displayTitle,
         subtitle = listOf(entry.username, entry.urlHost.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
+        group = (if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1)).joinToString(" › "),
         avatar = EntryAvatar.of(entry.displayTitle),
         customIconId = entry.customIconId?.takeIf { it in vault.customIcons },
         hasAttachments = entry.attachments.isNotEmpty(),

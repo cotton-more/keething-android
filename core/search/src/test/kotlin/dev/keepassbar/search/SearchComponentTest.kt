@@ -175,6 +175,17 @@ class SearchComponentTest {
     }
 
     @Test
+    fun groupPathsGivenAddTheEmptyGroupsInTreeOrder() {
+        val facets = SearchFacets.of(
+            listOf(entry("a", group = listOf("Work", "Git"))),
+            englishCollator,
+            groupPaths = listOf(emptyList(), listOf("Work"), listOf("Work", "Git"), listOf("Work", "Archive"), listOf("bank")),
+        )
+        assertEquals(listOf(listOf("bank"), listOf("Work"), listOf("Work", "Archive"), listOf("Work", "Git")), facets.groups.map { it.path })
+        assertEquals(listOf(0, 1, 0, 1), facets.groups.map { it.count }, "the root group's empty path is left out")
+    }
+
+    @Test
     fun tagFacetsWithCountsMergedAcrossCaseAndDiacritics() {
         val facets = SearchFacets.of(
             listOf(entry("a", tags = listOf("Dev", "work")), entry("b", tags = listOf("dev")), entry("c", tags = listOf("Café")), entry("d", tags = listOf("cafe", "CAFE"))),

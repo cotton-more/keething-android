@@ -35,6 +35,7 @@ import dev.keepassbar.android.editor.EntryEditorScreen
 import dev.keepassbar.android.entry.EntryCardScreen
 import dev.keepassbar.android.entry.PasswordScreen
 import dev.keepassbar.android.entry.PasswordView
+import dev.keepassbar.android.groups.GroupsScreen
 import dev.keepassbar.android.list.EntryListScreen
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.settings.SettingsScreen
@@ -55,6 +56,9 @@ internal sealed interface Screen {
 
     /** The editor of an entry, or of a new one ([entryId] null) in [groupId]. */
     data class Editor(val entryId: String?, val groupId: String? = null) : Screen
+
+    /** The group tree and the tags, each with its entries' count. */
+    data object Groups : Screen
 
     data object Settings : Screen
 
@@ -93,7 +97,7 @@ internal class NavigationState : ViewModel() {
         if (backStack.size > 1) backStack[backStack.lastIndex] = screen else backStack += screen
     }
 
-    /** The card's group or tag chip: back to the list, searching for [filter]. */
+    /** The card's group or tag chip, a row of Groups & tags: back to the list, searching for [filter]. */
     fun search(filter: String) {
         backStack.retainAll { it == Screen.Entries }
         codesOnly = false
@@ -171,6 +175,7 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             codesOnly = navigation.codesOnly,
                             onOpen = { id, origin -> navigation.open(Screen.Card(id, origin)) },
                             onSettings = { navigation.open(Screen.Settings) },
+                            onGroups = { navigation.open(Screen.Groups) },
                             onLeaveCodes = { navigation.codesOnly = false },
                             onNewEntry = { navigation.open(Screen.Editor(entryId = null)) },
                         )
@@ -199,6 +204,9 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                     }
                     entry<Screen.Password> { key ->
                         PasswordScreen(database, key.entryId, key.view, onBack = navigation::back)
+                    }
+                    entry<Screen.Groups> {
+                        GroupsScreen(database, onBack = navigation::back, onSearch = navigation::search)
                     }
                     entry<Screen.Settings> {
                         SettingsScreen(
