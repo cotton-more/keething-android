@@ -529,8 +529,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   it as it is, a field renamed anywhere keeps it, and taking it off gives the code back unchanged. It is saved
   as an ordinary edit of that one field (protected as it was, the old version into the history, SPEC §3.3),
   with a progress ring on the code meanwhile and a notice with Undo after. Only the codes of a list are read
-  so; another field with such a text stays text. On the card a used code is struck through with "used Oct 22,
-  2026" under it, and the list's title says "3 of 4 left" (in the error colour when none are); copying a used
+  so; another field with such a text stays text. On the card a used code is "used Oct 22, 2026" alone while the
+  codes are hidden, and struck through above that line when they are shown; the list's title says "3 of 4
+  left" (in the error colour when none are); copying a used
   code copies the code alone. The editor shows the value as it is stored. The Mac app's side:
   `~/Projects/keepass-bar/HANDOVER-used-recovery-codes.md`.
 - **History** (the clock in the card's bar, for an entry in the bin too; Mac SPEC §3.22 without restoring):

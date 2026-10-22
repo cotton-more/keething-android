@@ -411,14 +411,18 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
             Text(row.label, Modifier.width(24.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {
                 val text = reveal.displayValue(row)
-                Text(
-                    if (row.isConcealed && reveal.isRevealed(row.id) && usedOn == null) colouredSecret(text) else AnnotatedString(text),
-                    fontFamily = MonospaceFamily,
-                    style = MaterialTheme.typography.bodyMedium.copy(textDecoration = if (usedOn != null) TextDecoration.LineThrough else null),
-                    color = if (usedOn != null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                val masked = row.isConcealed && !reveal.isRevealed(row.id)
+                // A used code masked is only its mark; shown, it is struck through above it.
+                if (usedOn == null || !masked) {
+                    Text(
+                        if (row.isConcealed && !masked && usedOn == null) colouredSecret(text) else AnnotatedString(text),
+                        fontFamily = MonospaceFamily,
+                        style = MaterialTheme.typography.bodyMedium.copy(textDecoration = if (usedOn != null) TextDecoration.LineThrough else null),
+                        color = if (usedOn != null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 if (usedOn != null) {
                     Text(
                         "used " + USED_DAY.format(usedOn),
