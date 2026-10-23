@@ -115,6 +115,25 @@ internal fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Group("Sharing: a request lasts") {
+            val validity by container.settings.requestValidity.collectAsStateWithLifecycle()
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                AppSettings.REQUEST_VALIDITIES.forEachIndexed { index, option ->
+                    SegmentedButton(
+                        selected = option == validity,
+                        onClick = { container.settings.chooseRequestValidity(option) },
+                        shape = SegmentedButtonDefaults.itemShape(index, AppSettings.REQUEST_VALIDITIES.size),
+                    ) {
+                        Text(if (option.inWholeDays == 1L) "1 day" else "${option.inWholeDays} days")
+                    }
+                }
+            }
+            Text(
+                "Then the phone that asked forgets its key, and an answer can no longer be opened. New requests only.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Group("This phone") {
             val keyDerivation = (session as? SessionState.Unlocked)?.keyDerivation
             Text(

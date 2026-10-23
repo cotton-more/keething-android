@@ -1,6 +1,7 @@
 package dev.keepassbar.domain.vault
 
 import dev.keepassbar.domain.secret.Secret
+import dev.keepassbar.domain.totp.TotpConfig
 import java.time.Instant
 
 /**
@@ -23,6 +24,8 @@ public data class EntryChanges(
     val fieldTypes: Map<String, String>? = null,
     val tags: List<String>? = null,
     val expiry: Expiry? = null,
+    /** The one-time code (Mac SPEC §3.23): set (the `otp` link written, the older fields removed) or removed. */
+    val totp: TotpChange? = null,
 ) {
     public data class Expiry(val expires: Boolean, val time: Instant?)
 
@@ -32,6 +35,7 @@ public data class EntryChanges(
     public fun wipe() {
         password?.wipe()
         customFields?.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
+        (totp as? TotpChange.Set)?.config?.secret?.wipe()
     }
 
     public companion object {
@@ -50,4 +54,15 @@ public data class EntryChanges(
         /** Keys that are not custom fields: the standard ones and the one-time code's. */
         public val RESERVED_FIELD_NAMES: Set<String> = STANDARD_KEYS.toSet() + TOTP_FIELD_NAMES
     }
+}
+
+/** A one-time code set or removed (Mac `TOTPChange`). */
+public sealed interface TotpChange {
+    /** [uri] is what goes into `otp`; [config] what it means (the save's check compares it). */
+    public data class Set(val config: TotpConfig, val uri: String) : TotpChange {
+        // The link holds the key: never in a log.
+        override fun toString(): String = "Set(•••)"
+    }
+
+    public data object Remove : TotpChange
 }

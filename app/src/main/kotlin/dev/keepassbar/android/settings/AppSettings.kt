@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import dev.keepassbar.domain.settings.SettingsStore
 import java.io.File
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +17,10 @@ internal class SharedPreferencesSettingsStore(private val preferences: SharedPre
     override fun setString(key: String, value: String?) = preferences.edit { putString(key, value) }
 }
 
-/** The few settings the app has (SPEC §6.2: database file, lock timeout; the fingerprint's is `BiometricUnlock`'s). */
+/**
+ * The few settings the app has (SPEC §6.2: database file, lock timeout, how long a request lasts; the fingerprint's is
+ * `BiometricUnlock`'s).
+ */
 internal class AppSettings(private val store: SettingsStore) {
     private val mutableDatabase = MutableStateFlow(store.string(DATABASE_PATH)?.let(::File))
 
@@ -41,11 +45,33 @@ internal class AppSettings(private val store: SettingsStore) {
         mutableLockTimeout.value = timeout
     }
 
+    private val mutableRequestValidity = MutableStateFlow(
+        store.string(REQUEST_VALIDITY_DAYS)?.toIntOrNull()?.days?.takeIf { it in REQUEST_VALIDITIES } ?: DEFAULT_REQUEST_VALIDITY,
+    )
+
+    /** How long a request for entries stays valid (SPEC §10); then this phone forgets its key. */
+    val requestValidity: StateFlow<Duration> = mutableRequestValidity.asStateFlow()
+
+    fun chooseRequestValidity(validity: Duration) {
+        require(validity in REQUEST_VALIDITIES)
+        store.setString(REQUEST_VALIDITY_DAYS, validity.inWholeDays.toString())
+        mutableRequestValidity.value = validity
+    }
+
+    /** The name a request was last made with: the next one starts with it. */
+    var requestName: String
+        get() = store.string(REQUEST_NAME).orEmpty()
+        set(value) = store.setString(REQUEST_NAME, value.trim().ifEmpty { null })
+
     companion object {
         val DEFAULT_LOCK_TIMEOUT = 5.minutes
         val LOCK_TIMEOUTS = listOf(1.minutes, 5.minutes, 15.minutes, 60.minutes)
+        val DEFAULT_REQUEST_VALIDITY = 3.days
+        val REQUEST_VALIDITIES = listOf(1.days, 3.days, 7.days)
 
         private const val DATABASE_PATH = "databasePath"
         private const val LOCK_TIMEOUT_MINUTES = "lockTimeoutMinutes"
+        private const val REQUEST_VALIDITY_DAYS = "requestValidityDays"
+        private const val REQUEST_NAME = "requestName"
     }
 }

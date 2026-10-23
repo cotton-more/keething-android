@@ -40,6 +40,16 @@ import dev.keepassbar.android.groups.GroupsScreen
 import dev.keepassbar.android.list.EntryListScreen
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.settings.SettingsScreen
+import dev.keepassbar.android.sharing.AnswerScreen
+import dev.keepassbar.android.sharing.AskScreen
+import dev.keepassbar.android.sharing.ChooseEntriesScreen
+import dev.keepassbar.android.sharing.MadeAnswer
+import dev.keepassbar.android.sharing.MyRequestScreen
+import dev.keepassbar.android.sharing.ReadCodeScreen
+import dev.keepassbar.android.sharing.ReceivedScreen
+import dev.keepassbar.android.sharing.ReviewScreen
+import dev.keepassbar.android.sharing.SharingScreen
+import dev.keepassbar.android.sharing.TheirRequestScreen
 import dev.keepassbar.android.setup.SetupScreen
 import dev.keepassbar.android.storageprobe.StorageProbeScreen
 import dev.keepassbar.android.unlock.LockScreen
@@ -67,6 +77,30 @@ internal sealed interface Screen {
     data object Settings : Screen
 
     data object StorageProbe : Screen
+
+    /** Sharing (SPEC §10): the requests both ways. */
+    data object Sharing : Screen
+
+    data object ShareAsk : Screen
+
+    /** A request of mine, by its id. */
+    data class ShareMine(val id: String) : Screen
+
+    /** Reading a code; [incoming]: codes another app handed over. */
+    data class ShareRead(val incoming: List<String> = emptyList()) : Screen
+
+    /** A request someone sent; [preselected]: the entry whose card it was picked from. */
+    data class ShareTheirs(val id: String, val preselected: List<String> = emptyList()) : Screen
+
+    data class ShareChoose(val id: String, val preselected: List<String> = emptyList()) : Screen
+
+    data class ShareReview(val id: String, val entryIds: List<String>) : Screen
+
+    /** An answer made; its request is gone already. */
+    data class ShareAnswer(val answer: MadeAnswer) : Screen
+
+    /** An answer to a request of mine, as text (it is sealed): its screen opens it. */
+    data class ShareReceived(val answerText: String) : Screen
 }
 
 /** What survives a rotation: where the user is. Never a secret; reset by every lock. */
@@ -106,6 +140,19 @@ internal class NavigationState : ViewModel() {
         backStack.retainAll { it == Screen.Entries }
         codesOnly = false
         query.edit { replace(0, length, filter) }
+    }
+
+    /**
+     * [screen] leaves the stack, wherever it is: a screen whose request went (answered, deleted, expired) closes
+     * itself, also while it is still drawn on its way out under the next one, which a plain [back] would close.
+     */
+    fun close(screen: Screen) {
+        if (backStack.size > 1) backStack.remove(screen)
+    }
+
+    /** Out of a sharing flow that ended (an answer made): back to Sharing, or to the card it began on. */
+    fun leaveSharing() {
+        while (backStack.size > 1 && backStack.last() !is Screen.Sharing && backStack.last() !is Screen.Card) backStack.removeAt(backStack.lastIndex)
     }
 
     /** A lock: nothing opened or typed lingers. */
@@ -154,6 +201,15 @@ internal fun KeePassBarApp(container: AppContainer) {
 
 @Composable
 private fun VaultScreens(container: AppContainer, database: DatabaseSession, navigation: NavigationState) {
+    // Codes another app handed over (SPEC §10) are read once the vault is open.
+    val incoming by container.incomingCodes.collectAsStateWithLifecycle()
+    LaunchedEffect(incoming) {
+        incoming?.let { codes ->
+            container.incomingCodes.value = null
+            // One picture after another from a messenger: the screen reading them is replaced, not stacked.
+            if (navigation.backStack.last() is Screen.ShareRead) navigation.replace(Screen.ShareRead(codes)) else navigation.open(Screen.ShareRead(codes))
+        }
+    }
     SharedTransitionLayout {
         CompositionLocalProvider(LocalSharedTransitionScope provides this) {
             val enter = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
@@ -182,6 +238,7 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             onGroups = { navigation.open(Screen.Groups) },
                             onLeaveCodes = { navigation.codesOnly = false },
                             onNewEntry = { navigation.open(Screen.Editor(entryId = null)) },
+                            onSharing = { navigation.open(Screen.Sharing) },
                         )
                     }
                     entry<Screen.Card> { key ->
@@ -195,6 +252,11 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
                             onEdit = { navigation.open(Screen.Editor(key.entryId)) },
                             onHistory = { navigation.open(Screen.History(key.entryId)) },
+                            onSendTo = { their ->
+                                val chosen = listOf(key.entryId)
+                                navigation.open(if (their.checked) Screen.ShareReview(their.request.id, chosen) else Screen.ShareTheirs(their.request.id, chosen))
+                            },
+                            onReadRequest = { navigation.open(Screen.ShareRead()) },
                         )
                     }
                     entry<Screen.History> { key ->
@@ -226,6 +288,55 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                         )
                     }
                     entry<Screen.StorageProbe> { StorageProbeScreen(container) }
+                    entry<Screen.Sharing> {
+                        SharingScreen(
+                            container = container,
+                            onBack = navigation::back,
+                            onTheirs = { navigation.open(Screen.ShareTheirs(it)) },
+                            onMine = { navigation.open(Screen.ShareMine(it)) },
+                            onRead = { navigation.open(Screen.ShareRead()) },
+                            onAsk = { navigation.open(Screen.ShareAsk) },
+                        )
+                    }
+                    entry<Screen.ShareAsk> {
+                        AskScreen(container, onClose = navigation::back, onCreated = { navigation.replace(Screen.ShareMine(it)) })
+                    }
+                    entry<Screen.ShareMine> { key -> MyRequestScreen(container, key.id, onClose = { navigation.close(key) }) }
+                    entry<Screen.ShareRead> { key ->
+                        ReadCodeScreen(
+                            container = container,
+                            incoming = key.incoming,
+                            onClose = navigation::back,
+                            onTheirs = { navigation.replace(Screen.ShareTheirs(it)) },
+                            onAnswer = { navigation.replace(Screen.ShareReceived(it)) },
+                        )
+                    }
+                    entry<Screen.ShareTheirs> { key ->
+                        TheirRequestScreen(container, key.id, onBack = { navigation.close(key) }, onChoose = { navigation.open(Screen.ShareChoose(key.id, key.preselected)) })
+                    }
+                    entry<Screen.ShareChoose> { key ->
+                        ChooseEntriesScreen(
+                            container = container,
+                            database = database,
+                            id = key.id,
+                            preselected = key.preselected,
+                            onClose = { navigation.close(key) },
+                            onNext = { navigation.open(Screen.ShareReview(key.id, it)) },
+                        )
+                    }
+                    entry<Screen.ShareReview> { key ->
+                        ReviewScreen(container, database, key.id, key.entryIds, onBack = { navigation.close(key) }, onMade = { navigation.replace(Screen.ShareAnswer(it)) })
+                    }
+                    entry<Screen.ShareAnswer> { key -> AnswerScreen(container, key.answer, onDone = navigation::leaveSharing) }
+                    entry<Screen.ShareReceived> { key ->
+                        ReceivedScreen(
+                            container = container,
+                            database = database,
+                            answerText = key.answerText,
+                            onClose = navigation::back,
+                            onOpenEntry = { navigation.replace(Screen.Card(it, origin = "received")) },
+                        )
+                    }
                 },
             )
         }

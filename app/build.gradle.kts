@@ -47,6 +47,7 @@ dependencies {
     implementation(project(":core:card"))
     implementation(project(":core:autofill"))
     implementation(project(":core:generator"))
+    implementation(project(":core:sharing"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
@@ -61,6 +62,11 @@ dependencies {
     implementation(libs.autofill)
     // QR codes of a password and a Wi-Fi network (SPEC §6.2); MIT, `assets/licenses`.
     implementation(libs.qrcodegen)
+    // Reading the sharing's QR codes (SPEC §10): the camera, and ZXing to decode a frame or a picture; Apache 2.0.
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+    implementation(libs.zxing.core)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.kotlin.test.junit5)

@@ -1,6 +1,7 @@
 package dev.keepassbar.android
 
 import android.content.Context
+import android.util.Log
 import dev.keepassbar.android.attachment.AndroidAttachments
 import dev.keepassbar.android.attachment.AttachmentFiles
 import dev.keepassbar.android.autofill.AutofillEntries
@@ -19,20 +20,29 @@ import dev.keepassbar.android.session.LockAlarm
 import dev.keepassbar.android.session.Sessions
 import dev.keepassbar.android.settings.AppSettings
 import dev.keepassbar.android.settings.SharedPreferencesSettingsStore
+import dev.keepassbar.android.sharing.CodePictures
+import dev.keepassbar.android.sharing.FileSharingStore
+import dev.keepassbar.android.sharing.SharingKey
 import dev.keepassbar.android.storage.FileDatabaseBackups
 import dev.keepassbar.android.storage.FileObserverFolderWatcher
 import dev.keepassbar.android.storage.PathDatabaseStore
 import dev.keepassbar.android.storageprobe.ProbeSettings
 import dev.keepassbar.domain.storage.DatabaseStore
+import dev.keepassbar.sharing.message.PartCollector
+import dev.keepassbar.sharing.requests.ShareRequests
 import dev.keepassbar.vault.session.SessionState
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** The composition root: the one place that picks the implementations behind the ports. */
 internal class AppContainer(context: Context) {
@@ -82,8 +92,47 @@ internal class AppContainer(context: Context) {
     /** Logins typed elsewhere, on their way to the save screen (SPEC §7). */
     val pendingSaves = PendingSaves()
 
+    /** The requests for entries, both ways (SPEC §10): read when the vault unlocks, wiped when it locks. */
+    val shareRequests = ShareRequests(FileSharingStore(File(context.noBackupFilesDir, "sharing/requests")), AndroidClock)
+
+    private val sharingKey = SharingKey(File(context.noBackupFilesDir, "sharing/key"))
+
+    /** The pictures of requests and answers, made to be sent; what a process that died left goes at once. */
+    val codePictures = CodePictures(context).also(CodePictures::clear)
+
+    /** Codes another app handed over (a picture or a text shared to Keething), until the unlocked vault reads them. */
+    val incomingCodes = MutableStateFlow<List<String>?>(null)
+
+    /**
+     * The parts of a large answer read so far (SPEC §10), for the whole app: a messenger hands its pictures over one at a
+     * time. Pieces of a sealed answer, nothing secret.
+     */
+    val answerParts = PartCollector()
+
     init {
         clearOnLock()
+        followTheLockWithTheRequests()
+    }
+
+    /** The requests open with their key when the vault unlocks, and are wiped when it locks. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun followTheLockWithTheRequests() {
+        appScope.launch {
+            sessions.current
+                .flatMapLatest { database -> database?.session?.state?.map { database.takeIf { _ -> it is SessionState.Unlocked } } ?: flowOf(null) }
+                .distinctUntilChanged()
+                .collect { unlocked ->
+                    if (unlocked == null) {
+                        shareRequests.close()
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            runCatching { sharingKey.load() }
+                                .onSuccess(shareRequests::open)
+                                .onFailure { Log.w("Sharing", "the requests' key: ${it.javaClass.simpleName}") }
+                        }
+                    }
+                }
+        }
     }
 
     /** What outlives a screen and holds the vault's data goes with the lock. */
@@ -97,6 +146,7 @@ internal class AppContainer(context: Context) {
                         attachmentFiles.clear()
                         autofillEntries.clear()
                         recycleBin.forget()
+                        answerParts.clear()
                     }
                 }
         }

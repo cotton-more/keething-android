@@ -105,3 +105,19 @@ Then open `http://localhost:8000` in Chrome (Settings › Autofill services › 
 service") or Firefox on the phone.
 
 The public suffix list is built in (`core/search`); `tools/update-public-suffix-list.sh` fetches a new one.
+
+## Checking sharing between two devices
+
+Sharing (SPEC §10) needs two Keething installs: the test phone and the emulator do, each with a fictitious
+database. A request or an answer goes from one to the other as its picture: Save picture on one, then hand it to
+"Read with Keething" on the other as a messenger would (`-s` picks the device):
+
+    adb -s <from> pull /sdcard/Pictures/Keething/keething-request.png .
+    adb -s <to> push keething-request.png /sdcard/Download/
+    adb -s <to> shell am start -a android.intent.action.SEND -t image/png \
+        --eu android.intent.extra.STREAM file:///sdcard/Download/keething-request.png \
+        -n dev.keepassbar.android/.sharing.ReceiveCodeActivity
+
+An answer of several codes is saved as `keething-answer-1-of-2.png` and so on: hand them over one after the other.
+`keepassxc-cli show -s --all` on the receiving database (pulled to the Mac) shows what was saved. The camera
+needs a hand: point the phone at the other screen.

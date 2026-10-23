@@ -1,9 +1,11 @@
 package dev.keepassbar.kdbx.editing
 
 import dev.keepassbar.domain.secret.Secret
+import dev.keepassbar.domain.totp.TotpConfig
 import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.EntryChanges
 import dev.keepassbar.domain.vault.FieldValue
+import dev.keepassbar.domain.vault.TotpChange
 import dev.keepassbar.kdbx.KeePassXcCli
 import dev.keepassbar.kdbx.editing.EditingFixtures.open
 import dev.keepassbar.kdbx.editing.EditingFixtures.reread
@@ -86,6 +88,45 @@ class EntryEditingTest {
         assertNull(snapshot.first("History"), "a history entry has no history of its own")
         assertEquals(Secret.of("p&ss<w>rd \"ü\" 🔑"), snapshot.string("Password").secret, "still protected in the history")
     }
+
+    @Test
+    fun aOneTimeCodeSetIsOneProtectedOtpLinkTheOldFieldsGoAndRemovedNoneIsLeft() {
+        val one = EditingFixtures.document("kdbx4-aes-aeskdf").entry("Entry <one> ü")
+        assertNotNull(one.field("otp"), "the fixture has a code")
+        val editable = open("kdbx4-aes-aeskdf")
+        val element = editable.element(one.uuid)
+        val uri = "otpauth://totp/Entry:me?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&period=30&digits=8&issuer=Entry"
+        val legacy = XElement("String").apply {
+            append(XElement("Key", "TOTP Seed"))
+            append(XElement("Value", "GEZDGNBV"))
+        }
+        element.insertAfter(legacy, element.first("Times"))
+        fun totpKeys() = element.all("String").mapNotNull { it.first("Key")?.text }.filter { it in EntryChanges.TOTP_FIELD_NAMES }
+
+        EntryEditing.apply(EntryChanges(totp = TotpChange.Set(config(), uri)), element, editable.root, now)
+
+        assertEquals(listOf("otp"), totpKeys())
+        val edited = reread(editable).entries.single { it.uuid == one.uuid }
+        assertEquals(protected(uri), edited.field("otp"))
+        assertEquals(one.custom(), edited.custom(), "custom fields untouched")
+
+        EntryEditing.apply(EntryChanges(totp = TotpChange.Remove), element, editable.root, now)
+        assertEquals(emptyList(), totpKeys())
+    }
+
+    @Test
+    fun aNewEntryGetsItsOtpAfterTheOtherFields() {
+        val editable = open("kdbx4-aes-aeskdf")
+        val entry = XElement("Entry").apply { append(XElement("UUID", "AAAAAAAAAAAAAAAAAAAAAA==")); append(XElement("Times")) }
+        val uri = "otpauth://totp/A:none?secret=GEZDGNBV&period=30&digits=6&issuer=A"
+
+        EntryEditing.write(EntryChanges(title = "A", customFields = listOf(CustomField.plain("X", "1")), totp = TotpChange.Set(config(), uri)), entry, editable.root, now)
+
+        assertEquals(listOf("Title", "X", "otp"), entry.all("String").map { it.first("Key")?.text })
+        assertEquals(Secret.of(uri), entry.all("String").last().first("Value")?.secret)
+    }
+
+    private fun config() = TotpConfig(Secret.of("12345678901234567890"), digits = 8)
 
     @Test
     fun customFieldsInANewOrderAreWrittenInItWithValuesAndProtectionKept() {

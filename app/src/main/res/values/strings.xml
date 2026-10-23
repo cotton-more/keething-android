@@ -2,4 +2,5 @@
     <string name="app_name">Keething</string>
     <string name="shortcut_codes">Codes</string>
     <string name="shortcut_codes_long">One-time codes</string>
+    <string name="read_with_keething">Read with Keething</string>
 </resources>

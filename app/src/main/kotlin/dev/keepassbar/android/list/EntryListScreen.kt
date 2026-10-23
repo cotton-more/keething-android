@@ -41,9 +41,12 @@ import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.HistoryToggleOff
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Password
+import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -128,8 +131,10 @@ internal fun EntryListScreen(
     onGroups: () -> Unit,
     onLeaveCodes: () -> Unit,
     onNewEntry: () -> Unit,
+    onSharing: () -> Unit,
 ) {
     val codes by rememberUpdatedState(codesOnly)
+    val requests by container.shareRequests.book.collectAsStateWithLifecycle()
     val model = viewModel { EntryListViewModel(database, container.recents, container.recycleBin, container.clipboard, query, codesOnly = { codes }) }
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -161,7 +166,7 @@ internal fun EntryListScreen(
         topBar = {
             Header(
                 state, scroll, codesOnly, onLock = container.sessions::lock, onGenerator = { generating = true }, onGroups = onGroups,
-                onSettings = onSettings, onLeaveCodes = onLeaveCodes,
+                onSettings = onSettings, onLeaveCodes = onLeaveCodes, onSharing = onSharing, toAnswer = requests?.theirs?.size ?: 0,
             )
         },
         bottomBar = {
@@ -277,6 +282,9 @@ private fun Header(
     onGroups: () -> Unit,
     onSettings: () -> Unit,
     onLeaveCodes: () -> Unit,
+    onSharing: () -> Unit,
+    /** Requests waiting for an answer (SPEC §10): a dot on Sharing. */
+    toAnswer: Int,
 ) {
     val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
     LargeFlexibleTopAppBar(
@@ -291,6 +299,11 @@ private fun Header(
             if (!codesOnly) {
                 IconButton(onClick = onGroups) { Icon(Icons.Rounded.FolderOpen, contentDescription = "Groups and tags") }
                 IconButton(onClick = onGenerator) { Icon(Icons.Rounded.Password, contentDescription = "Password generator") }
+                IconButton(onClick = onSharing) {
+                    BadgedBox(badge = { if (toAnswer > 0) Badge() }) {
+                        Icon(Icons.Rounded.People, contentDescription = if (toAnswer > 0) "Sharing, $toAnswer to answer" else "Sharing")
+                    }
+                }
             }
             IconButton(onClick = onLock) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
             IconButton(onClick = onSettings) { Icon(Icons.Rounded.Tune, contentDescription = "Settings") }

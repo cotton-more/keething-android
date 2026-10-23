@@ -26,4 +26,22 @@ public object Base32 {
         }
         return out.toByteArray()
     }
+
+    /** RFC 4648 without padding, as otpauth links carry it. */
+    public fun encode(bytes: ByteArray): String = buildString {
+        var buffer = 0
+        var bits = 0
+        for (byte in bytes) {
+            buffer = (buffer shl 8) or (byte.toInt() and 0xFF)
+            bits += 8
+            while (bits >= 5) {
+                bits -= 5
+                append(ALPHABET[(buffer ushr bits) and 31])
+            }
+            buffer = buffer and ((1 shl bits) - 1)
+        }
+        if (bits > 0) append(ALPHABET[(buffer shl (5 - bits)) and 31])
+    }
+
+    private const val ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 }

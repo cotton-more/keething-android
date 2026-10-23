@@ -16,12 +16,11 @@ version from the history, adding / removing / renaming attachments, reordering c
 choosing an entry by hand for an app offers to add its `androidapp://` address, a native Argon2 (e.g.
 argon2kt) if the unlock feels slow (2.3 s on the Pixel 6, almost all of it the key derivation; SPEC §4).
 
-An idea to think through first: **share an entry encrypted** — a link or a QR code that holds one entry
-(like a database of one entry) encrypted, which Keething on the other device recognises, decrypts and
-shows. Share… and Show as QR stay as they are. Open: how the two sides agree on the key (a passphrase told
-another way, a key in the link's fragment, a key exchange between the two apps), what format (a one-entry
-KDBX the other side can also open in KeePassXC, or a small format of our own), and the size limit of a QR
-code (attachments left out).
+**Contacts for sharing** (SPEC §10; agreed to come after the first version): a person's key kept after one
+check of the pictures, so that sending to that person needs no request each time, and the answers
+authenticated (both sides' keys, HPKE's auth mode or a signature), which closes the gap that anyone with a
+request can answer it. The keys belong in the database (the Mac, a lost phone); a contact may remember the
+app to send through.
 
 ## 8. Google Play (SPEC §8.1)
 

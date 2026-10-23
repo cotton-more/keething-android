@@ -21,8 +21,8 @@ Why not KeePassDX / Keepass2Android: KeePassDX keeps losing the database file wh
 new version; Keepass2Android works but its interface is not liked. So the two things this app must do
 better are: **never lose the file** (§3) and **a clean, readable, beautiful interface** (§6).
 
-Not a kitchen sink: search, view, copy, edit, save, autofill, share a password — and nothing that does not
-serve those.
+Not a kitchen sink: search, view, copy, edit, save, autofill, share a password or an entry — and nothing that
+does not serve those.
 
 ## 1. Goals / non-goals
 
@@ -38,6 +38,8 @@ Goals (v1)
 - Attachments: open and save a copy. One-time codes: show and copy (setting them up is optional, later).
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
   warning.
+- Share entries encrypted for one phone (§10): the other side asks with a request, the answer opens only there;
+  both ways as a QR code, a picture or text, through any messenger or mail.
 - Autofill (§7): fill logins in apps and browsers, fill one-time codes.
 - Quick access to one-time codes: a "Codes" launcher shortcut, and the code on the clipboard after
   autofill filled a login (§7).
@@ -87,9 +89,11 @@ core/card     how an entry card is laid out and edited (the Mac app's Presentati
               rules, `card/editing`)                                     → domain, totp, search
 core/generator the password generator: kinds, options, exact entropy, the EFF word list (a
               resource)                                                  → nothing
+core/sharing  sharing entries (§10): HPKE, the request and answer formats, the pictures, the requests
+              both ways and their sealed file                      → domain, kdbx (Argon2), totp
 app           Android: the adapters behind the ports (storage, biometrics, clipboard, clock), Compose UI,
               AutofillService (§7), the composition root
-                                          → vault, search, totp, card, autofill, generator (not kdbx)
+                                 → vault, search, totp, card, autofill, generator, sharing (not kdbx)
 ```
 
 A new module is added when a feature has its own rules and its own tests, not for every package.
@@ -197,7 +201,8 @@ keeps the new time. The way out is in §3.3 step 7.
 
 What the phone writes (`VaultEdit`): an entry's fields (title, username, password, URL, notes, custom fields,
 their types, tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it.
-Deleting for good, history, attachments, one-time codes and groups are left to the Mac (§1).
+Deleting for good, history, attachments, one-time codes (but that of an entry received, §10, written as
+KeePassXC's `otp` link) and groups are left to the Mac (§1).
 
 The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/vault` `VaultSaver`, `core/kdbx`
 `EditableDatabase`):
@@ -281,8 +286,9 @@ decrypted content, the tree, the new file and its reading back at once.
   are wiped on lock. The database key is the password's composite key (SHA-256 of its SHA-256: the password
   itself is not kept) and the key derived from it. Using the derived key for reloads and saves avoids running
   Argon2 again (the Mac ROADMAP's "faster saving"); it is derived again when the file's KDF parameters or
-  seed changed. KeePassXC keeps the KDF seed when it saves (only the master seed is new), so a reload after a
-  KeePassXC edit needs no Argon2; a writer that gives the file a new KDF salt makes the next reload derive.
+  seed changed. The app's own saves keep the KDF salt; KeePassXC gives the file a new one on every save (checked
+  on 2026-10-23 with keepassxc-cli 2.7.12: a new salt after each of two saves), so the first reload after a
+  KeePassXC edit derives the key again.
 - Unlock time, measured on the test phone (Pixel 6, Android 17, release build) with a fictitious database
   of 1,895 entries (165 KB) and the owner's real KDF parameters (Argon2d, 64 MiB, 42 iterations,
   parallelism 2): 2.4 s for the first unlock in a process, 2.3 s once warm; the key derivation alone is
@@ -357,6 +363,8 @@ decrypted content, the tree, the new file and its reading back at once.
     Files by Google's text preview takes the intent and closes at once, also for a `.txt` (it does not open
     other apps' `content://` text); the other apps open it.
 - Network: none (no `INTERNET` permission at all in v1).
+- Camera: only to read the code of a sharing request or answer (§10); the permission is asked when Read a code
+  first opens, and reading a picture or pasting works without it.
 
 ## 5. Biometric unlock
 
@@ -435,7 +443,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Sans Code, bundled (SIL Open Font License, `assets/licenses`): every character must be clear.
 - The generator's words are the EFF large word list (CC BY 3.0 US, `assets/licenses`).
 - QR codes are made by Nayuki's `qrcodegen` (MIT, `assets/licenses`; 38 KB, no dependencies, medium error
-  correction as on the Mac); nothing reads them in the app.
+  correction as on the Mac). The sharing's codes (§10) are read by ZXing (Apache 2.0, `assets/licenses`) from
+  the camera (CameraX) or a picture: no Google Play services.
 - Few settings, fixed sensible defaults instead of switches.
 
 ### 6.2 Screens
@@ -450,7 +459,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group, the
   path inside the bin for an entry in it, as the Mac's rows); a long press copies the password. The header
-  (large "Keething", the database and its entries, Groups & tags, the password generator, lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
+  (large "Keething", the database and its entries, Groups & tags, the password generator, Sharing (§10; a dot
+  while requests wait for an answer), lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
   which something was copied, kept as ids only (they survive a lock and say nothing without the database);
   a recent row swiped either way leaves the list ("Removed from Recent" with Undo, which puts it back in its
   place), the entry itself untouched.
@@ -458,7 +468,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
-  open the browser, attachments open in another app / save to a folder, §4). Custom fields are read by their
+  open the browser, attachments open in another app / save to a folder, §4). Its bar's paper plane sends the
+  entry to a request someone sent (§10). Custom fields are read by their
   types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
   title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
@@ -546,7 +557,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
 - **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),
-  lock timeout; the last key derivation and the memory used, to check them on the phone; the storage probe
+  lock timeout, how long a sharing request lasts (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.
 - **Launcher shortcut** "Codes" (long press on the icon; static, `res/xml/shortcuts.xml`): unlock, then
   the list titled "Codes" with only the entries with a one-time code, by title, each row's live code a
@@ -727,3 +738,133 @@ AES + Argon2d, ChaCha20 + Argon2id, a KDBX 3 one (must be refused as unsupported
 another fictitious database: two entries with attachments; KDBX 4 exports carry no `Meta/Binaries`) and `sample.xml` (hand-made, the real structure). The core's tests use them
 the way the Mac tests do (an export's `Meta/Binaries` are not read: KDBX 4 keeps attachments in the file's
 inner header). Never use the real database in tests.
+
+## 10. Sharing entries
+
+Entries encrypted for one phone, carried any way: a messenger, mail, a picture, a phone's screen scanned in
+person. Both sides run Keething. Agreed with the owner on 2026-10-23 (the mock-ups are the canvas's "Sharing"
+rows); contacts, a person's key kept so that no request is needed each time, come later (ROADMAP).
+
+### 10.1 How it works
+
+- **A request.** The one who wants an entry asks for it (Sharing › Ask for an entry): their name and what for,
+  one line each, both sent as they are ("whoever carries it can read them"). The phone makes an X25519 key pair;
+  the request carries the public key, the name, the reason, when it was made and until when it is valid: 1, 3 or
+  7 days (Settings; 3 to start with; never more than 7). The name is remembered for the next request and answer.
+- **The pictures.** Six of the 64 emoji Matrix uses to check a key (`sas-emoji.json` of the Matrix
+  specification, Apache 2.0, `assets/licenses`), each with its English name, made from the whole request:
+  Argon2id (64 MiB, 3 passes, 2 lanes, salt "Keething pictures") of its SHA-256, the first 36 bits, six a
+  picture. The asking phone shows them, with their names; the answering phone does not. The asker reads them out
+  by a call or in person, not in the chat the code came through, and the one who answers taps them in that order
+  on a grid of all 64 (six places above it, a key to take the last one back). The request is checked only when the
+  six tapped are its own, in order: the core compares them, so none can be skipped or waved through (chosen by the
+  owner on 2026-10-23 over a "They match" button: someone who looks at four of six leaves 24 bits, a few GPU
+  hours). Six that differ: "Tap them again", or "They really differ · delete it". In person: tap what the asker's
+  screen shows. A request swapped on the way (another key, another reason, another name) has other pictures;
+  making one with the same six takes 2^36 tries on average, each 64 MiB of Argon2id (0.25 s a request on the
+  Pixel 6; the review of 2026-10-23 estimated 400 to 800 days of a high-end GPU, a few thousand dollars of rented
+  ones). The pictures are never drawn on a request's picture: an attacker would draw them too. Entries are chosen
+  only once the request is checked; the core refuses an answer before that.
+- **The answer.** The entries chosen (at most 50) and, of each, the parts left on: username, password, website,
+  notes, each custom field, and the one-time code, off to start with ("With it, <name> can sign in without you: the
+  second step is no longer yours alone"); so are custom fields KeePass keeps a code's secret in (`TimeOtp-…`,
+  `HmacOtp-…`, not read as a code here), with the same warning. The title, tags, expiry and the custom fields' types always go; attachments
+  ("1 attachment stays on this phone"), history and the icon never do. The sender names themselves ("From",
+  remembered). Sealed with HPKE (RFC 9180, base mode: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM),
+  `info` "Keething answer v1" followed by the request's whole SHA-256: it opens only for the very request it
+  answers, its name, reason and validity included. Making it removes the request on the sender's phone and keeps
+  its id until it expires: one answer per request, the same request read again is "Answered already". The answer
+  stays on its screen until Done.
+- **Receiving.** The asking phone opens it with the request's private key: "From <name>", the entries with their
+  fields (protected ones masked with an eye, each copied as the card copies), and "Only this phone could open it,
+  but anyone who saw your request could have made it, and the name is theirs to choose". Save makes each entry a
+  new one in the group chosen (the top level to start with), each its own checked save (§3.3), a one-time code as
+  KeePassXC's `otp` link (`TotpSetup`, the Mac's `TOTPSetup`), tagged `received` besides the sender's tags (once,
+  in any case): what came from outside is found with `#received`, and taking the tag off says it was looked at.
+  When all are saved the request is closed: its key goes and the answer can no longer be opened. A save that
+  fails stops there; trying again saves the rest only.
+  "Close the request without saving" closes it too, after a question.
+- **Expiry.** A request goes with its key when it has expired (whenever the requests are read or changed); an
+  expired request cannot be answered ("It ran out on …. Ask <name> to send a new one"). One made more than a day
+  ahead of this phone's clock, or valid for longer than a week and a day from now, is refused ("dates are wrong").
+- Not done, and why: who answered cannot be proven (anyone who has the request can seal an answer for it), so
+  what arrives always becomes new entries, never an update of an existing one; contacts, with both sides' keys,
+  will close that gap. Until a request is closed or expires, its private key on the asking phone opens the answer
+  that travelled; afterwards nothing does, not even that phone with the database's password.
+
+### 10.2 The formats (`core/sharing`)
+
+- **Text**: `keething:`, the message in base64url without padding, and `.`. A QR code holds the same text. In
+  pasted text the codes are found among other words, line breaks inside a code (an e-mail's wrapping) ignored; a
+  code without its end is "cut short".
+- **Request**: version 1, kind 1, created and expires (seconds, 64-bit big-endian), the public key (32 bytes),
+  the name and the reason (UTF-8 after their length, unsigned LEB128, the shortest form only). The name at most
+  64 characters, the reason 200, one line each, no control or format characters (a right-to-left override, a
+  zero-width space). A public key of small order is refused. Its id: the first 16 bytes of its SHA-256.
+- **Answer**: version 1, kind 2, the request's id, HPKE's `enc` (32 bytes), the ciphertext with its tag; the
+  first three are the AEAD's associated data.
+- **Content** (sealed): version 1, the sender's name, the entries (title, username, password, URL, notes, tags,
+  expiry, custom fields with a protected flag, field types, the one-time code as its key, digits, period and
+  algorithm), then zeros up to a multiple of 128 bytes (its length says little about a password's). Read
+  strictly: a field named as KeePass's own fields or the code's, two fields of one name, a type for a field that
+  is not there, a control character XML cannot hold, a date outside the years 1 to 9999, more than 50 entries, no
+  entries: refused. The sender reads what it made by the same rules before sealing, so what one side sends the
+  other reads. The secrets are read into wipeable buffers. Any failure reading a code is "cannot be read", never
+  a crash.
+- **Parts**: a message over 600 bytes (a QR code of version 23 at medium correction, which a phone camera reads
+  off another phone's screen) is split: version 1, kind 3, the first 8 bytes of the whole message's SHA-256, the
+  index, the count, the piece; at most 16 parts. They are read in any order, from one picture or several, also
+  one picture at a time from a messenger; pieces of two messages never make one. Text carries any message whole.
+
+### 10.3 On the phone
+
+- **Kept**: the requests both ways and the ids answered are one file, `noBackupFilesDir/sharing/requests`,
+  sealed with AES-256-GCM under 32 random bytes kept in `sharing/key`, wrapped by an AES key in the Android
+  Keystore (`SharingKey`; no user authentication, never leaves the Keystore). Read at the unlock, in memory while
+  unlocked, wiped on lock. A file that cannot be read is left as it is and nothing replaces it. Not keyed to the
+  database's own key: KeePassXC gives the file a new key-derivation salt on every save (§4), and the requests
+  waiting for an answer would go with each of its edits. Not in the database: KeePass keeps an entry's old versions
+  in its history, so a key deleted from an entry would stay in the file and sync to the Mac. Skipped, and why:
+  sealing the file with the database's password (it was the first design) would keep the keys from someone who
+  runs code as the app on an unlocked phone without the password; that is outside what the app defends against
+  (§4), and its cost was losing the requests to every KeePassXC save.
+- **Sending**: a request's or an answer's code is shown at full brightness for a camera, sent as a picture (a PNG
+  of about 1000 px, a caption under the code: "Keething · Alex asks for" and the reason, or "Keething · answer to
+  “…”" and "Code 1 of 2: all are needed"; from `cacheDir/sharing` through a `FileProvider`, cleared when the app
+  starts), sent as text (a few words for the person, then the code), or saved to Pictures/Keething. The share
+  sheet leaves out Keething's own "Read with Keething".
+- **Reading**: the back camera (CameraX, frames at about Full HD, ZXing); pictures from the system's photo
+  picker, several at once (all of an answer's parts); pasted text; and "Read with Keething" in other apps' share
+  sheet: a picture, several, or a text from a messenger or mail, read at once by a see-through activity of its
+  own (no task of the app's, so it never opens inside the other app's), then shown once the vault is unlocked.
+  Only pictures another app serves (`content:`, not the app's own providers) are read: the app reads with its own
+  rights, which the sender must not borrow.
+  The parts read so far are kept for the whole app (a lock clears them).
+- **Screens**: Sharing from the list's header: "To answer" (the asker, the reason, when it expires, Checked or
+  Check first) and "Waiting for an answer", Read a code and Ask for an entry at the foot. Ask for an entry; Your
+  request (the code, the pictures, Send the picture, Send as text, Save picture, delete after a question); Read a
+  code (a banner says what a code could not do: cut short, not a Keething code, nothing in what was shared, own
+  request, expired, dates wrong, answered already, not for a request on this phone, code 1 of 2 read); a request
+  to answer (the six places and the 64 pictures to tap; Tap them again, They really differ · delete it; once
+  checked, Choose entries); Choose entries (the list with boxes, searched as the list is, the recycle bin left
+  out); What to send; the answer (its codes with Previous and Next); an answer received (Save into, Save, Close
+  without saving; then Saved and checked with Open the entry). From a card: Send to a request (the requests to
+  answer; one not checked goes to its pictures first, the entry already chosen). A screen whose request went
+  closes itself.
+- Logs say durations and counts only ("request made in 248 ms", "handed over: 1 texts").
+- Checked on 2026-10-23: the JVM tests (RFC 9180's vectors, the pictures against OpenSSL's Argon2id, the
+  formats, the requests, the parts, a one-time code written on a new entry). Apple's CryptoKit (`HPKE` with
+  Curve25519 / HKDF-SHA256 / AES-GCM-256, assembled as a custom suite: CryptoKit has no ready name for it) opened
+  an answer made here and sealed one this opens: `InteropVectorTest` holds both, every byte fixed, for the Mac. On the Pixel 6 (release build,
+  `autofill.kdbx`) and the Android 17 emulator (debug build, `demo.kdbx`) as two phones, fictitious databases
+  only: a request's picture made on one and handed to the other through "Read with Keething", the same six
+  pictures on both; an answer of 2 entries (one with its one-time code) back the same way, saved and checked,
+  and keepassxc-cli read the new entries with every field, protected ones included, as in the original, and the
+  same current code; an answer of 11 entries in 2 codes, handed over one picture at a time, and both pictures
+  picked at once; Send as text, copied from the share sheet and pasted (own request); the share sheet with 2
+  pictures; Save picture; Send to a request from a card. After the review's fixes: the requests sealed with the
+  Keystore-kept key, a request handed over as a `content:` picture (a `file:` path refused: "No code in what was
+  shared"), an answer saved with the tag `received` (keepassxc-cli read it), the same request read again after
+  answering ("Answered already"). The pictures tapped (the emulator answering the phone's request): a wrong sixth
+  said so, the last one taken back and the right one tapped, then Checked and Choose entries. Not checked: the
+  camera reading a code.

@@ -5,6 +5,7 @@ import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.EntryChanges
 import dev.keepassbar.domain.vault.EntryFieldTypes
 import dev.keepassbar.domain.vault.FieldValue
+import dev.keepassbar.domain.vault.TotpChange
 import dev.keepassbar.kdbx.tree.XElement
 import dev.keepassbar.kdbx.xml.KdbxTime
 import java.time.Instant
@@ -55,6 +56,7 @@ internal object EntryEditing {
             setCustomData(EntryFieldTypes.FORMER_CUSTOM_DATA_KEY, null, entry, now)
         }
         changes.tags?.let { setTags(it, entry) }
+        changes.totp?.let { setTotp(it, entry) }
 
         val times = child("Times", entry, before = listOf("String", "Binary", "AutoType", "History"))
         val iso = times.elements.any { KdbxTime.isIso(it.text) }
@@ -152,6 +154,20 @@ internal object EntryEditing {
             entry.insertAfter(element, previous)
             previous = element
         }
+    }
+
+    /**
+     * One source for the code: every one-time code field goes, then a set one is written as a protected `otp` (as
+     * KeePassXC does), where `otp` was, else after the other fields.
+     */
+    private fun setTotp(change: TotpChange, entry: XElement) {
+        val old = strings(entry).filter { it.second in EntryChanges.TOTP_FIELD_NAMES }
+        val place = if (change is TotpChange.Set) old.firstOrNull { it.second == "otp" }?.first else null
+        old.filter { it.first !== place }.forEach { (element, _) ->
+            element.wipeSecrets()
+            entry.remove(element)
+        }
+        if (change is TotpChange.Set) setString("otp", FieldValue.Protected(Secret.of(change.uri)), entry)
     }
 
     private fun copyOf(value: FieldValue): FieldValue =

@@ -2,6 +2,7 @@ package dev.keepassbar.vault.saving
 
 import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.domain.vault.EntryChanges
+import dev.keepassbar.domain.vault.TotpChange
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.kdbx.editing.AppliedEdit
@@ -89,6 +90,7 @@ internal object SaveCheck {
             expected = expected.copy(expires = expiry.expires)
             expiry.time?.let { expected = expected.copy(expiryTime = seconds(it)) }
         }
+        changes.totp?.let { expected = expected.copy(totp = (it as? TotpChange.Set)?.config) }
         return expected
     }
 

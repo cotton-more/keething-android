@@ -26,5 +26,6 @@ include(
     ":core:card",
     ":core:autofill",
     ":core:generator",
+    ":core:sharing",
     ":app",
 )

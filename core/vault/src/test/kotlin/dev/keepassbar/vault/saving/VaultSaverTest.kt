@@ -4,9 +4,11 @@ import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.storage.DatabaseBackups
 import dev.keepassbar.domain.storage.DatabaseRead
 import dev.keepassbar.domain.storage.DatabaseStore
+import dev.keepassbar.domain.totp.TotpConfig
 import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.domain.vault.EntryChanges
+import dev.keepassbar.domain.vault.TotpChange
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.kdbx.key.DatabaseKey
@@ -154,6 +156,22 @@ class VaultSaverTest {
         assertEquals(emptyMap(), cleared.fieldTypes)
         val afterNotes = saved(saver.save(VaultEdit.Update(id, cleared.lastModified, EntryChanges(notes = "n")), key, now))
         assertEquals(unlock(store), afterNotes, "an edit without types leaves them out")
+    }
+
+    @Test
+    fun aNewEntryWithAOneTimeCodeIsSavedAndChecked() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val root = unlock(store, key).groups.single { it.isRoot }
+        val config = TotpConfig(Secret.of("12345678901234567890"), digits = 8, period = 60, algorithm = TotpConfig.Algorithm.SHA256)
+        val uri = "otpauth://totp/Coded:me?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&period=60&digits=8&issuer=Coded&algorithm=SHA256"
+
+        val created = saved(
+            VaultSaver(store, backups).save(VaultEdit.Create(Entry.newId(), root.id, EntryChanges(title = "Coded", totp = TotpChange.Set(config, uri))), key, now),
+        ).titled("Coded")
+
+        assertEquals(config, created.totp)
+        assertEquals(config, unlock(store).titled("Coded").totp)
     }
 
     @Test

@@ -1,7 +1,5 @@
 package dev.keepassbar.android.entry
 
-import android.view.WindowManager
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -29,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.FullBrightness
 import dev.keepassbar.android.ui.QrCodeImage
 import dev.keepassbar.android.ui.colouredSecret
 import dev.keepassbar.android.ui.qrCodeOf
@@ -169,16 +167,5 @@ private fun characters(text: String): List<String> = buildList {
         val length = Character.charCount(text.codePointAt(index))
         add(text.substring(index, index + length))
         index += length
-    }
-}
-
-/** The screen at full brightness while a code is shown, so a camera reads it; as it was afterwards. */
-@Composable
-private fun FullBrightness() {
-    val window = LocalActivity.current?.window ?: return
-    DisposableEffect(window) {
-        val before = window.attributes.screenBrightness
-        window.attributes = window.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL }
-        onDispose { window.attributes = window.attributes.apply { screenBrightness = before } }
     }
 }

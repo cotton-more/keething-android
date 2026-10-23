@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The pictures of requests and answers handed to a messenger or mail (SPEC §10): only this folder of the cache. -->
+<paths>
+    <cache-path name="sharing" path="sharing/" />
+</paths>

@@ -7,12 +7,12 @@ import java.util.concurrent.Executors
 /**
  * Argon2d and Argon2id, version 0x13 (RFC 9106): the key derivation of KDBX 4. Port of the Mac `Argon2`.
  * The lanes of a slice are filled in parallel, as the specification allows, so the result is the same as a
- * sequential run.
+ * sequential run. Public for the sharing's pictures (SPEC §10), which stretch a request's digest with it.
  */
-internal object Argon2 {
-    enum class Variant(val id: Int) { D(0), ID(2) }
+public object Argon2 {
+    public enum class Variant(internal val id: Int) { D(0), ID(2) }
 
-    data class Parameters(
+    public data class Parameters(
         val variant: Variant,
         val iterations: Int,
         /** In KiB (1 KiB blocks). */
@@ -24,7 +24,7 @@ internal object Argon2 {
     private const val WORDS = 128
     private const val SYNC_POINTS = 4
 
-    fun hash(
+    public fun hash(
         password: ByteArray,
         salt: ByteArray,
         parameters: Parameters,
@@ -88,7 +88,7 @@ internal object Argon2 {
     }
 
     /** H' of the specification: BLAKE2b extended to any length. */
-    fun variableHash(input: ByteArray, length: Int): ByteArray {
+    internal fun variableHash(input: ByteArray, length: Int): ByteArray {
         val first = Blake2b(minOf(length, 64))
         first.update(length)
         first.update(input)

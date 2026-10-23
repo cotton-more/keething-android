@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.History
@@ -76,6 +77,7 @@ import dev.keepassbar.android.attachment.SaveAttachment
 import dev.keepassbar.android.navigation.sharedIcon
 import dev.keepassbar.android.navigation.sharedTitle
 import dev.keepassbar.android.session.DatabaseSession
+import dev.keepassbar.android.sharing.SendToRequestSheet
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.NoticeEffect
@@ -88,6 +90,7 @@ import dev.keepassbar.card.ExpiryHint
 import dev.keepassbar.card.FieldRow
 import dev.keepassbar.search.FilterCompletion
 import dev.keepassbar.search.FilterKind
+import dev.keepassbar.sharing.requests.TheirRequest
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -110,6 +113,9 @@ internal fun EntryCardScreen(
     onShowPassword: (PasswordView) -> Unit,
     onEdit: () -> Unit,
     onHistory: () -> Unit,
+    /** A request someone sent, picked to answer with this entry (SPEC §10). */
+    onSendTo: (TheirRequest) -> Unit,
+    onReadRequest: () -> Unit,
 ) {
     val model = viewModel {
         EntryCardViewModel(
@@ -145,6 +151,22 @@ internal fun EntryCardScreen(
     }
     val now = rememberSecondsNow()
     var sharing by rememberSaveable { mutableStateOf(false) }
+    var sending by rememberSaveable { mutableStateOf(false) }
+    if (sending) {
+        SendToRequestSheet(
+            container = container,
+            title = content.card.title,
+            onPick = { their ->
+                sending = false
+                onSendTo(their)
+            },
+            onRead = {
+                sending = false
+                onReadRequest()
+            },
+            onDismiss = { sending = false },
+        )
+    }
     val actions = CardActions(
         onCopy = model::copy,
         onToggle = model::toggleReveal,
@@ -212,6 +234,9 @@ internal fun EntryCardScreen(
                             Text("Restore")
                         }
                     } else {
+                        IconButton(onClick = { sending = true }) {
+                            Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = "Send to a request", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         IconButton(onClick = onEdit) {
                             Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
