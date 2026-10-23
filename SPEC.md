@@ -721,7 +721,7 @@ service, the screen it opens and the system's view structure are in `app/autofil
 - Google's developer verification for side-loaded apps (rolling out 2026–2027): check its state before the
   first install; installing over `adb` is expected to stay possible.
 
-### 8.1 Google Play (ROADMAP step 8)
+### 8.1 Google Play (ROADMAP step 8, RELEASE.md)
 
 Decided (2026-10-21): the app is to be published on Google Play. It needs the SAF storage (§3.1: Play does not
 allow all-files access for a password manager), a privacy policy, a store listing, the licences shown in the

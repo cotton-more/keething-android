@@ -1,6 +1,6 @@
 # Developing Keething for Android
 
-How to build, test and install the app on this Mac. What the app does is in SPEC.md, the plan in ROADMAP.md.
+How to build, test and install the app on this Mac. What the app does is in SPEC.md, the plan in .x/ROADMAP.md (not in the repository).
 
 ## What is needed
 
