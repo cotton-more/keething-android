@@ -166,7 +166,7 @@ private fun EntryPicker(
                                 notices.trySend(Notice("${entry.displayTitle} has $what", isProblem = true))
                             }
                         },
-                        onCopyPassword = null,
+                        onLongPress = null,
                         onCopyCode = null,
                         onOpenLabel = "Fill",
                         modifier = Modifier.padding(bottom = SegmentGap),

@@ -239,6 +239,7 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             query = navigation.query,
                             codesOnly = navigation.codesOnly,
                             onOpen = { id, origin -> navigation.open(Screen.Card(id, origin)) },
+                            onEdit = { id -> navigation.open(Screen.Editor(id)) },
                             onSettings = { navigation.open(Screen.Settings) },
                             onGroups = { navigation.open(Screen.Groups) },
                             onLeaveCodes = { navigation.codesOnly = false },

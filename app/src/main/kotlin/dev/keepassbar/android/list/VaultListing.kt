@@ -9,6 +9,7 @@ import dev.keepassbar.domain.totp.TotpConfig
 import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.search.EntrySearch
+import dev.keepassbar.search.SearchFacets
 import java.text.Collator
 import java.time.Instant
 
@@ -23,6 +24,9 @@ internal data class EntryRow(
     val avatar: EntryAvatar,
     val customIconId: String?,
     val hasAttachments: Boolean,
+    /** What a swipe can copy (SPEC §6.2). */
+    val hasUsername: Boolean,
+    val hasPassword: Boolean,
     val totp: TotpConfig?,
     val deadline: RowDeadline?,
     /** A payment card's or a Wi-Fi network's small face, drawn instead of the icon (SPEC §6.2). */
@@ -58,7 +62,7 @@ internal fun List<ListSection>.without(ids: Set<String>): List<ListSection> {
  * A vault prepared for the list: the search indexes and each entry's deadline are computed once per vault
  * (it takes a moment for ~2000 entries: build it off the main thread), then [sections] answers every query.
  */
-internal class VaultListing(val vault: Vault, now: Instant, collator: Collator = Collator.getInstance()) {
+internal class VaultListing(val vault: Vault, now: Instant, private val collator: Collator = Collator.getInstance()) {
     private val index = EntrySearch.index(vault.entries, collator)
     private val binIndex = EntrySearch.index(vault.recycleBin, collator)
     private val byId: Map<String, Entry> = vault.entries.associateBy { it.id }
@@ -74,6 +78,12 @@ internal class VaultListing(val vault: Vault, now: Instant, collator: Collator =
         .toMap()
 
     val ids: Set<String> get() = byId.keys
+
+    /** The groups, tags and file names for the chips over the keyboard (SPEC §6.2); only the list asks for them. */
+    val facets: SearchFacets by lazy { SearchFacets.of(vault.entries, collator) }
+
+    /** The same inside the recycle bin, the bin's own group left out of the paths (as its rows show them). */
+    val binFacets: SearchFacets by lazy { SearchFacets.of(vault.recycleBin.map { it.copy(groupPath = it.groupPath.drop(1)) }, collator) }
 
     /**
      * Nothing typed: the recently used entries, then all by title. Typed: the matches, best first. A query
@@ -111,6 +121,8 @@ internal class VaultListing(val vault: Vault, now: Instant, collator: Collator =
         avatar = EntryAvatar.of(entry.displayTitle),
         customIconId = entry.customIconId?.takeIf { it in vault.customIcons },
         hasAttachments = entry.attachments.isNotEmpty(),
+        hasUsername = entry.username.isNotEmpty(),
+        hasPassword = !entry.password.isEmpty(),
         totp = entry.totp,
         deadline = deadlines[entry.id],
         face = faces[entry.id],

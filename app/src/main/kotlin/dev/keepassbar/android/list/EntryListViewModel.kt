@@ -10,6 +10,7 @@ import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.ui.CustomIconImages
 import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.android.unlock.describe
+import dev.keepassbar.card.OpenableUrl
 import dev.keepassbar.domain.storage.ConflictCopy
 import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.totp.TotpGenerator
@@ -43,6 +44,17 @@ internal data class ListUiState(
     val reloadFailure: OpenFailure? = null,
     /** Building the search index of a freshly opened vault. */
     val preparing: Boolean = true,
+)
+
+/** What a long press on a row offers (SPEC §6.2), read from the entry when the sheet opens. */
+internal data class QuickActions(
+    val id: String,
+    val row: EntryRow,
+    val username: String,
+    /** The site to open, as the card's link would (`OpenableUrl`); null when there is none. */
+    val url: String?,
+    val host: String?,
+    val inRecycleBin: Boolean,
 )
 
 /** What the sections are listed from. */
@@ -91,6 +103,14 @@ internal class EntryListViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** The chips over the keyboard for the query (SPEC §6.2); built from the vault the first time they are asked for. */
+    val chips: StateFlow<List<SearchChip>> =
+        combine(prepared, snapshotFlow { query.text.toString() to codesOnly() }) { prepared, (text, codes) -> Triple(prepared, text, codes) }
+            .mapLatest { (prepared, text, codes) ->
+                prepared?.let { withContext(Dispatchers.Default) { searchChips(text, it.listing.facets, it.listing.binFacets, codes) } }.orEmpty()
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
+
     val state: StateFlow<ListUiState> = combine(unlocked, prepared, sections, recycleBin.leaving) { unlocked, prepared, sections, leaving ->
         // A lock wipes the vault at once: nothing of it is shown while the screen fades out. A vault read again
         // (a save, a sync) is listed while the one before stays on screen, so the list keeps its scroll position.
@@ -115,13 +135,22 @@ internal class EntryListViewModel(
         }
     }
 
-    /** A long press on a row (SPEC §6.2). */
+    /** A row swiped right, or its quick actions (SPEC §6.2). */
     fun copyPassword(id: String) {
         val entry = entry(id) ?: return
         if (entry.password.isEmpty()) return notice(Notice("No password to copy", isProblem = true))
         clipboard.copy(entry.password.reveal(), sensitive = true)
         used(entry)
         notice(Notice.copied("Password"))
+    }
+
+    /** A row swiped left, or its quick actions (SPEC §6.2). */
+    fun copyUsername(id: String) {
+        val entry = entry(id) ?: return
+        if (entry.username.isEmpty()) return notice(Notice("No username to copy", isProblem = true))
+        clipboard.copy(entry.username, sensitive = false)
+        used(entry)
+        notice(Notice.copied("Username"))
     }
 
     /** A password made by the generator, without an entry (SPEC §6.2). */
@@ -139,8 +168,28 @@ internal class EntryListViewModel(
         notice(Notice.copied("One-time code"))
     }
 
+    /** The quick actions of a row; null when the entry has gone (deleted elsewhere, or locked). */
+    fun quickActions(row: EntryRow): QuickActions? {
+        val vault = unlocked.value?.vault ?: return null
+        val inBin = vault.entries.none { it.id == row.id }
+        val entry = entry(row.id) ?: return null
+        val url = OpenableUrl.of(entry.url)
+        return QuickActions(row.id, row, entry.username, url, url?.let { entry.urlHost ?: it }, inBin)
+    }
+
+    /** Delete from the quick actions: as the card's (SPEC §6.2), into the bin at once, with Undo. */
+    fun moveToRecycleBin(id: String) {
+        val entry = unlocked.value?.vault?.entries?.firstOrNull { it.id == id } ?: return
+        recycleBin.moveToRecycleBin(database, entry)
+    }
+
+    /** Opening the site from the quick actions counts as using the entry, as copying does. */
+    fun opened(id: String) {
+        entry(id)?.let(::used)
+    }
+
     /**
-     * A swipe on a recently used row (SPEC §6.2): off the list, with Undo; the entry stays in the database. A row no
+     * "Remove from Recent" in a recent row's quick actions (SPEC §6.2): off the list, with Undo; the entry stays in the database. A row no
      * longer on the list says nothing, so a notice with a working Undo is never replaced by one without.
      */
     fun removeFromRecent(id: String) {

@@ -1,12 +1,17 @@
 package dev.keepassbar.android.list
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,7 +29,10 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -31,60 +40,77 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AttachFile
+import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.HistoryToggleOff
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Password
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxState
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keepassbar.android.AppContainer
@@ -98,8 +124,9 @@ import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.CodeRing
 import dev.keepassbar.android.ui.CustomIconImages
 import dev.keepassbar.android.ui.EntryMark
-import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoLearningKeyboard
+import dev.keepassbar.android.ui.Notice
+import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.SegmentGap
 import dev.keepassbar.android.ui.rememberSecondsNow
@@ -112,14 +139,17 @@ import java.text.NumberFormat
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
  * The list (SPEC §6.2): nothing typed shows the recently used entries, then all by title; the search field
- * is at the bottom, in thumb reach above the keyboard. A row opens its card; a long press copies the
- * password; a row with a one-time code shows it live, as a button that copies it; a recently used row
- * swiped either way leaves Recent, with Undo. [codesOnly]: the "Codes" shortcut's list, only the entries
- * with a one-time code; Back or the arrow leaves it for the whole list.
+ * is at the bottom, in thumb reach above the keyboard, with the filters as chips over it while it has the focus.
+ * A row opens its card; swiped right it copies the password, left the username; a long press offers the quick
+ * actions; a row with a one-time code shows it live, as a button that copies it. [codesOnly]: the "Codes"
+ * shortcut's list, only the entries with a one-time code; Back or the arrow leaves it for the whole list.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun EntryListScreen(
     container: AppContainer,
@@ -127,6 +157,7 @@ internal fun EntryListScreen(
     query: TextFieldState,
     codesOnly: Boolean,
     onOpen: (id: String, origin: String) -> Unit,
+    onEdit: (id: String) -> Unit,
     onSettings: () -> Unit,
     onGroups: () -> Unit,
     onLeaveCodes: () -> Unit,
@@ -137,10 +168,15 @@ internal fun EntryListScreen(
     val requests by container.shareRequests.book.collectAsStateWithLifecycle()
     val model = viewModel { EntryListViewModel(database, container.recents, container.recycleBin, container.clipboard, query, codesOnly = { codes }) }
     val state by model.state.collectAsStateWithLifecycle()
+    val chips by model.chips.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    // The screen's own problems (no app opens a link): shown as the model's are.
+    val problems = remember { Channel<Notice>(Channel.BUFFERED) }
     NoticeEffect(model.notices, snackbar)
     NoticeEffect(container.recycleBin.notices, snackbar)
-    BackHandler(enabled = query.text.isNotEmpty() || codesOnly) {
+    NoticeEffect(remember { problems.receiveAsFlow() }, snackbar)
+    // While the keyboard is open, Back closes it first, as everywhere on Android; then it clears the search.
+    BackHandler(enabled = (query.text.isNotEmpty() || codesOnly) && !WindowInsets.isImeVisible) {
         if (query.text.isNotEmpty()) query.clearText() else onLeaveCodes()
     }
     val now = rememberSecondsNow()
@@ -158,100 +194,151 @@ internal fun EntryListScreen(
         )
     }
 
-    // The header collapses into a compact bar while the list scrolls, and is opaque once anything is under it.
-    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // The quick actions of a long-pressed row, with the section it was in (Remove from Recent is only for a recent row).
+    var quick by remember { mutableStateOf<Pair<QuickActions, ListSection.Kind>?>(null) }
+    val context = LocalContext.current
+    quick?.let { (actions, kind) ->
+        QuickActionsSheet(
+            actions = actions,
+            fromRecent = kind == ListSection.Kind.RECENT,
+            icons = state.icons,
+            now = now,
+            handler = object : QuickActionHandler {
+                override fun copyUsername(id: String) = model.copyUsername(id)
+                override fun copyPassword(id: String) = model.copyPassword(id)
+                override fun copyCode(id: String) = model.copyCode(id)
+                override fun edit(id: String) = onEdit(id)
+                override fun removeFromRecent(id: String) = model.removeFromRecent(id)
+                override fun moveToRecycleBin(id: String) = model.moveToRecycleBin(id)
+                override fun openSite(id: String, url: String) {
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
+                        model.opened(id)
+                    } catch (_: ActivityNotFoundException) {
+                        problems.trySend(Notice("No app opens this link", isProblem = true))
+                    }
+                }
+            },
+            onDismiss = { quick = null },
+        )
+    }
+
+    // Landscape on a phone: one row fits, so the header is compact from the start.
+    val compactHeader = LocalConfiguration.current.screenHeightDp < 480
+    // The large header collapses into a compact bar while the list scrolls, and is opaque once anything is under it.
+    val scroll = if (compactHeader) TopAppBarDefaults.pinnedScrollBehavior() else TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var searchFocused by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    // The keyboard takes half the screen: the large header makes room as the search field takes the focus, and comes
+    // back when it lets the focus go with the list at its top.
+    LaunchedEffect(searchFocused) {
+        if (compactHeader) return@LaunchedEffect
+        val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+        if (!searchFocused && !atTop) return@LaunchedEffect
+        val bar = scroll.state
+        animate(bar.heightOffset, if (searchFocused) bar.heightOffsetLimit else 0f) { value, _ -> bar.heightOffset = value }
+    }
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             Header(
-                state, scroll, codesOnly, onLock = container.sessions::lock, onGenerator = { generating = true }, onGroups = onGroups,
+                state, scroll, codesOnly, compactHeader, onLock = container.sessions::lock, onGenerator = { generating = true }, onGroups = onGroups,
                 onSettings = onSettings, onLeaveCodes = onLeaveCodes, onSharing = onSharing, toAnswer = requests?.theirs?.size ?: 0,
             )
         },
         bottomBar = {
-            SearchField(query, placeholder = if (codesOnly) "Search entries with a code" else SEARCH_HINT) {
+            SearchField(
+                query,
+                placeholder = if (codesOnly) "Search entries with a code" else SEARCH_HINT,
+                onFocusChange = { searchFocused = it },
+                above = { if (searchFocused) SearchChipRow(chips) { query.setTextAndPlaceCursorAtEnd(it) } },
+            ) {
                 if (!codesOnly) NewEntryButton(onNewEntry)
             }
         },
         snackbarHost = { NoticeHost(snackbar) },
     ) { padding ->
-        LazyColumn(
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
-        ) {
-            if (state.conflictCopies.isNotEmpty()) {
-                item(key = "conflict") {
-                    val newest = state.conflictCopies.first()
-                    Banner(
-                        title = "Syncthing found two versions",
-                        text = "Open: ${state.databaseName}. The other one is from ${newest.createdAt.format(CONFLICT_TIME)} " +
-                            "(device ${newest.deviceId}) — merge it in KeePassXC (Database › Merge), then delete it.",
-                    )
-                }
-            }
-            state.reloadFailure?.let { failure ->
-                item(key = "reload") {
-                    Banner(title = "Showing the version read before", text = model.describe(failure))
-                }
-            }
-            if (state.preparing) {
-                item(key = "preparing") {
-                    Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
-                }
-            }
-            for (section in state.sections) {
-                item(key = "header/${section.kind}", contentType = "header") {
-                    SectionTitle(section.title())
-                }
-                itemsIndexed(section.rows, key = { _, row -> "${section.kind}/${row.id}" }, contentType = { _, _ -> "row" }) { index, row ->
-                    val shape = segmentShape(index, section.rows.size)
-                    val rowView = @Composable { modifier: Modifier ->
-                        EntryRowView(
-                            row = row,
-                            shape = shape,
-                            sharedKey = "${section.kind}/${row.id}",
-                            icons = state.icons,
-                            now = now,
-                            onOpen = { onOpen(row.id, section.kind.name) },
-                            onCopyPassword = { model.copyPassword(row.id) },
-                            onCopyCode = { model.copyCode(row.id) },
-                            modifier = modifier,
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val codeUnder = codeGoesUnder(maxWidth)
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
+            ) {
+                if (state.conflictCopies.isNotEmpty()) {
+                    item(key = "conflict") {
+                        val newest = state.conflictCopies.first()
+                        Banner(
+                            title = "Syncthing found two versions",
+                            text = "Open: ${state.databaseName}. The other one is from ${newest.createdAt.format(CONFLICT_TIME)} " +
+                                "(device ${newest.deviceId}) — merge it in KeePassXC (Database › Merge), then delete it.",
                         )
                     }
-                    if (section.kind == ListSection.Kind.RECENT) {
-                        SwipeToRemove(shape, onRemove = { model.removeFromRecent(row.id) }, Modifier.animateItem().padding(bottom = SegmentGap)) {
-                            rowView(Modifier)
-                        }
-                    } else {
-                        // A deleted row fades out and the rows below close up (SPEC §6.2).
-                        rowView(Modifier.animateItem().padding(bottom = SegmentGap))
+                }
+                state.reloadFailure?.let { failure ->
+                    item(key = "reload") {
+                        Banner(title = "Showing the version read before", text = model.describe(failure))
                     }
                 }
-                item(key = "gap/${section.kind}", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
-            }
-            if (!state.preparing && state.sections.isEmpty() && codesOnly && query.text.isBlank()) {
-                item(key = "no codes") {
-                    Text(
-                        "No entry has a one-time code.",
-                        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                if (state.preparing) {
+                    item(key = "preparing") {
+                        Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+                    }
                 }
-            }
-            if (!state.preparing && state.sections.isEmpty() && query.text.isNotBlank()) {
-                item(key = "nothing") {
-                    val emptyBin = EntrySearch.recycleBinQuery(query.text.toString())?.isBlank() == true
-                    Text(
-                        when {
-                            emptyBin -> "The recycle bin is empty."
-                            codesOnly -> "No entry with a one-time code matches “${query.text}”."
-                            else -> "Nothing matches “${query.text}”."
-                        },
-                        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                for (section in state.sections) {
+                    item(key = "header/${section.kind}", contentType = "header") {
+                        SectionTitle(section.title())
+                    }
+                    itemsIndexed(section.rows, key = { _, row -> "${section.kind}/${row.id}" }, contentType = { _, _ -> "row" }) { index, row ->
+                        val shape = segmentShape(index, section.rows.size)
+                        // A deleted row fades out and the rows below close up (SPEC §6.2).
+                        SwipeToCopy(
+                            shape,
+                            hasPassword = row.hasPassword,
+                            hasUsername = row.hasUsername,
+                            onCopyPassword = { model.copyPassword(row.id) },
+                            onCopyUsername = { model.copyUsername(row.id) },
+                            modifier = Modifier.animateItem().padding(bottom = SegmentGap),
+                        ) {
+                            EntryRowView(
+                                row = row,
+                                shape = shape,
+                                sharedKey = "${section.kind}/${row.id}",
+                                icons = state.icons,
+                                now = now,
+                                onOpen = { onOpen(row.id, section.kind.name) },
+                                onLongPress = { model.quickActions(row)?.let { quick = it to section.kind } },
+                                onCopyCode = { model.copyCode(row.id) },
+                                codeUnder = codeUnder,
+                            )
+                        }
+                    }
+                    item(key = "gap/${section.kind}", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
+                }
+                if (!state.preparing && state.sections.isEmpty() && codesOnly && query.text.isBlank()) {
+                    item(key = "no codes") {
+                        Text(
+                            "No entry has a one-time code.",
+                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (!state.preparing && state.sections.isEmpty() && query.text.isNotBlank()) {
+                    item(key = "nothing") {
+                        val emptyBin = EntrySearch.recycleBinQuery(query.text.toString())?.isBlank() == true
+                        Text(
+                            when {
+                                emptyBin -> "The recycle bin is empty."
+                                codesOnly -> "No entry with a one-time code matches “${query.text}”."
+                                else -> "Nothing matches “${query.text}”."
+                            },
+                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -269,14 +356,39 @@ internal fun ListSection.title(): String = when (kind) {
     ListSection.Kind.CODES -> "Entries with a one-time code"
 }
 
-/** The search field's hint for the whole list. */
-internal const val SEARCH_HINT = "@group · #tag · +file · -deleted"
+/** The search field's hint; the filters are chips over the keyboard (SPEC §6.2). */
+internal const val SEARCH_HINT = "Search"
+
+/**
+ * Whether a row's code goes under its title rather than beside it: when the pill beside it would leave the title
+ * less than about seven and a half characters' room ("Apfel …" at a large text size). [listWidth]: the list's.
+ */
+@Composable
+private fun codeGoesUnder(listWidth: Dp): Boolean {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val codeStyle = codeTextStyle()
+    val title = MaterialTheme.typography.bodyLarge.fontSize
+    return remember(listWidth, density, codeStyle, title) {
+        with(density) {
+            val code = measurer.measure("000 000", codeStyle).size.width.toDp()
+            // The pill: its paddings, gap and ring, and its margin; the row: the list's and its own paddings, the icon and its gap.
+            val pill = code + 12.dp + 8.dp + 6.dp + 16.dp + 8.dp
+            val room = listWidth - 32.dp - 16.dp - 44.dp - 16.dp - 8.dp - pill
+            room < title.toDp() * 7.5f
+        }
+    }
+}
+
+@Composable
+private fun codeTextStyle() = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
 
 @Composable
 private fun Header(
     state: ListUiState,
     scroll: TopAppBarScrollBehavior,
     codesOnly: Boolean,
+    compact: Boolean,
     onLock: () -> Unit,
     onGenerator: () -> Unit,
     onGroups: () -> Unit,
@@ -287,33 +399,76 @@ private fun Header(
     toAnswer: Int,
 ) {
     val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
-    LargeFlexibleTopAppBar(
-        title = { Text(if (codesOnly) "Codes" else "Keething") },
-        navigationIcon = {
-            if (codesOnly) {
-                IconButton(onClick = onLeaveCodes) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "All entries") }
-            }
-        },
-        subtitle = { Text(state.databaseName + count, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        actions = {
-            if (!codesOnly) {
-                IconButton(onClick = onGroups) { Icon(Icons.Rounded.FolderOpen, contentDescription = "Groups and tags") }
-                IconButton(onClick = onGenerator) { Icon(Icons.Rounded.Password, contentDescription = "Password generator") }
-                IconButton(onClick = onSharing) {
-                    BadgedBox(badge = { if (toAnswer > 0) Badge() }) {
-                        Icon(Icons.Rounded.People, contentDescription = if (toAnswer > 0) "Sharing, $toAnswer to answer" else "Sharing")
-                    }
+    val title = @Composable { Text(if (codesOnly) "Codes" else "Keething") }
+    val subtitle = @Composable { Text(state.databaseName + count, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    val navigationIcon = @Composable {
+        if (codesOnly) {
+            IconButton(onClick = onLeaveCodes) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "All entries") }
+        }
+    }
+    // Lock first and set apart, so that a tap meant for another icon does not lock (SPEC §6.2).
+    val actions = @Composable {
+        IconButton(onClick = onLock, modifier = Modifier.padding(end = 10.dp)) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
+        if (!codesOnly) {
+            IconButton(onClick = onGroups) { Icon(Icons.Rounded.FolderOpen, contentDescription = "Groups and tags") }
+            IconButton(onClick = onSharing) {
+                BadgedBox(badge = { if (toAnswer > 0) Badge() }) {
+                    Icon(Icons.Rounded.People, contentDescription = if (toAnswer > 0) "Sharing, $toAnswer to answer" else "Sharing")
                 }
             }
-            IconButton(onClick = onLock) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
-            IconButton(onClick = onSettings) { Icon(Icons.Rounded.Tune, contentDescription = "Settings") }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        ),
-        scrollBehavior = scroll,
+        }
+        MoreMenu(onGenerator, onSettings)
+    }
+    val colors = TopAppBarDefaults.topAppBarColors(
+        containerColor = MaterialTheme.colorScheme.surface,
+        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
     )
+    if (compact) {
+        TopAppBar(
+            title = title,
+            subtitle = subtitle,
+            navigationIcon = navigationIcon,
+            actions = { actions() },
+            colors = colors,
+            scrollBehavior = scroll,
+        )
+    } else {
+        LargeFlexibleTopAppBar(
+            title = title,
+            subtitle = subtitle,
+            navigationIcon = navigationIcon,
+            actions = { actions() },
+            colors = colors,
+            scrollBehavior = scroll,
+        )
+    }
+}
+
+/** ⋮ in the header: the password generator (the editor's wand) and Settings. */
+@Composable
+private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More") }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("Generate a password") },
+                leadingIcon = { Icon(Icons.Rounded.AutoFixHigh, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                onClick = {
+                    open = false
+                    onGenerator()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Settings") },
+                leadingIcon = { Icon(Icons.Rounded.Tune, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onSettings()
+                },
+            )
+        }
+    }
 }
 
 @Composable
@@ -341,7 +496,10 @@ internal fun SectionTitle(title: String) {
     )
 }
 
-/** A row of the list; also autofill's entry picker, which neither copies nor shows the live code ([onCopyCode] null). */
+/**
+ * A row of the list; also autofill's entry picker, which neither offers quick actions nor shows the live code
+ * ([onLongPress], [onCopyCode] null). [codeUnder]: the code under the title, where the row is too narrow for it beside.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun EntryRowView(
@@ -351,10 +509,11 @@ internal fun EntryRowView(
     icons: CustomIconImages?,
     now: State<Instant>,
     onOpen: () -> Unit,
-    onCopyPassword: (() -> Unit)?,
+    onLongPress: (() -> Unit)?,
     onCopyCode: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onOpenLabel: String? = null,
+    codeUnder: Boolean = false,
 ) {
     Row(
         modifier
@@ -365,8 +524,8 @@ internal fun EntryRowView(
             .combinedClickable(
                 onClick = onOpen,
                 onClickLabel = onOpenLabel,
-                onLongClick = onCopyPassword,
-                onLongClickLabel = onCopyPassword?.let { "Copy password" },
+                onLongClick = onLongPress,
+                onLongClickLabel = onLongPress?.let { "More actions" },
             )
             .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -420,53 +579,30 @@ internal fun EntryRowView(
                     Text(deadline.text, style = MaterialTheme.typography.labelLarge, color = colour, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
+            if (codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(top = 6.dp), height = 32.dp) }
         }
-        if (onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode) }
+        if (!codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(start = 8.dp)) }
     }
-}
-
-/** A recently used row swiped either way leaves the list (SPEC §6.2); what is under it says so. */
-@Composable
-private fun SwipeToRemove(shape: RoundedCornerShape, onRemove: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    // Not saveable: a row put back by Undo comes back under the same key, and a saved state would dismiss it again.
-    val state = remember { SwipeToDismissBoxState(SwipeToDismissBoxValue.Settled, positionalThreshold = { distance -> distance * 0.4f }) }
-    SwipeToDismissBox(
-        state = state,
-        modifier = modifier,
-        onDismiss = { onRemove() },
-        backgroundContent = {
-            val toEnd = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
-            Row(
-                Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.secondaryContainer).padding(horizontal = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, if (toEnd) Alignment.Start else Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val colour = MaterialTheme.colorScheme.onSecondaryContainer
-                Icon(Icons.Rounded.HistoryToggleOff, contentDescription = null, tint = colour)
-                Text("Remove from Recent", style = MaterialTheme.typography.labelLarge, color = colour)
-            }
-        },
-    ) { content() }
 }
 
 /** The live code of a row, with the ring that runs down its period; a tap copies it. */
 @Composable
-private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Unit) {
+private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Unit, modifier: Modifier, height: Dp = 36.dp) {
     val display = TotpDisplay.of(config, now.value)
     Surface(
         onClick = onCopy,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        modifier = Modifier.padding(start = 8.dp).semantics { contentDescription = "Copy one-time code" },
+        modifier = modifier.semantics { contentDescription = "Copy one-time code" },
     ) {
         Row(
-            Modifier.height(48.dp).padding(start = 12.dp, end = 12.dp),
+            Modifier.height(height).padding(start = 12.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(display.formatted, fontFamily = MonospaceFamily, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
-            CodeRing(display.period, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.outlineVariant)
+            Text(display.formatted, style = codeTextStyle())
+            CodeRing(display.period, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.outlineVariant, size = 16.dp, stroke = 2.5.dp)
         }
     }
 }
@@ -485,60 +621,125 @@ private fun NewEntryButton(onClick: () -> Unit) {
     ) { Icon(Icons.Rounded.Add, contentDescription = "New entry") }
 }
 
+/** The chips over the keyboard (SPEC §6.2); a tap puts its query in the field, the cursor at its end. */
 @Composable
-internal fun SearchField(query: TextFieldState, placeholder: String = SEARCH_HINT, trailing: (@Composable () -> Unit)? = null) {
+private fun SearchChipRow(chips: List<SearchChip>, onPick: (String) -> Unit) {
+    if (chips.isEmpty()) return
+    LazyRow(
+        Modifier.fillMaxWidth().padding(top = 8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(chips, key = { it.label + "/" + it.query }) { chip ->
+            FilterChip(
+                selected = chip.selected,
+                onClick = { onPick(chip.query) },
+                label = {
+                    Text(
+                        buildAnnotatedString {
+                            chip.sigil?.let { sigil ->
+                                withStyle(SpanStyle(fontFamily = MonospaceFamily, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+                                    append(if (sigil == '-') "−" else sigil.toString())
+                                }
+                                append(" ")
+                            }
+                            append(chip.label)
+                            chip.count?.let { count ->
+                                append("  ")
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)) { append(count.toString()) }
+                            }
+                        },
+                        maxLines = 1,
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.extraColors.row),
+            )
+        }
+    }
+}
+
+/**
+ * The search field at the bottom, above the keyboard. [above]: what goes over it (the list's chips);
+ * [onFocusChange] hears it take and lose the focus, which it gives up when the keyboard is closed.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun SearchField(
+    query: TextFieldState,
+    placeholder: String = SEARCH_HINT,
+    onFocusChange: (Boolean) -> Unit = {},
+    above: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
     val keyboard = LocalSoftwareKeyboardController.current
-    Row(
+    val focus = LocalFocusManager.current
+    // Closing the keyboard (Back, its own key) ends the search's focus too, and with it the chips.
+    val imeVisible = WindowInsets.isImeVisible
+    var imeWasVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(imeVisible) {
+        if (imeWasVisible && !imeVisible) focus.clearFocus()
+        imeWasVisible = imeVisible
+    }
+    Column(
         Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
-            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
     ) {
+        above?.invoke()
         Row(
-            Modifier
-                .weight(1f)
-                .height(56.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(start = 24.dp, end = 4.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // What is searched for names the accounts: the keyboard does not learn it.
-            NoLearningKeyboard {
-                BasicTextField(
-                    state = query,
-                    modifier = Modifier.weight(1f).semantics { contentDescription = "Search entries" },
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                    lineLimits = TextFieldLineLimits.SingleLine,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.None,
-                        autoCorrectEnabled = false,
-                        imeAction = ImeAction.Search,
-                    ),
-                    onKeyboardAction = { keyboard?.hide() },
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    decorator = { field ->
-                        Box(contentAlignment = Alignment.CenterStart) {
-                            if (query.text.isEmpty()) {
-                                Text(
-                                    placeholder,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                )
+            Row(
+                Modifier
+                    .weight(1f)
+                    .height(56.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .padding(start = 20.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(Icons.Rounded.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                // What is searched for names the accounts: the keyboard does not learn it.
+                NoLearningKeyboard {
+                    BasicTextField(
+                        state = query,
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { onFocusChange(it.isFocused) }
+                            .semantics { contentDescription = "Search entries" },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                        lineLimits = TextFieldLineLimits.SingleLine,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            autoCorrectEnabled = false,
+                            imeAction = ImeAction.Search,
+                        ),
+                        onKeyboardAction = { keyboard?.hide() },
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        decorator = { field ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (query.text.isEmpty()) {
+                                    Text(
+                                        placeholder,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                    )
+                                }
+                                field()
                             }
-                            field()
-                        }
-                    },
-                )
+                        },
+                    )
+                }
+                if (query.text.isNotEmpty()) {
+                    IconButton(onClick = { query.clearText() }) { Icon(Icons.Rounded.Close, contentDescription = "Clear the search") }
+                }
             }
-            if (query.text.isNotEmpty()) {
-                IconButton(onClick = { query.clearText() }) { Icon(Icons.Rounded.Close, contentDescription = "Clear the search") }
-            }
+            trailing?.invoke()
         }
-        trailing?.invoke()
     }
 }

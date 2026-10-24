@@ -459,12 +459,29 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   field. The first list after an unlock says how long the key derivation took.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group, the
-  path inside the bin for an entry in it, as the Mac's rows); a long press copies the password. The header
-  (large "Keething", the database and its entries, Groups & tags, the password generator, Sharing (§10; a dot
-  while requests wait for an answer), lock and settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top. Recently used: the last 8 entries whose card was opened or from
-  which something was copied, kept as ids only (they survive a lock and say nothing without the database);
-  a recent row swiped either way leaves the list ("Removed from Recent" with Undo, which puts it back in its
-  place), the entry itself untouched.
+  path inside the bin for an entry in it, as the Mac's rows). The header (large "Keething", the database and its
+  entries; Lock first and set apart, so that a tap meant for another icon does not lock, then Groups & tags,
+  Sharing (§10; a dot while requests wait for an answer) and ⋮ with "Generate a password" (the editor's wand) and
+  Settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top; it collapses
+  too as the search field takes the focus (the keyboard takes half the screen), and comes back when the field
+  lets it go with the list at its top. On a screen less than 480 dp high (a phone in landscape) it is the compact
+  bar from the start. Recently used: the last 8 entries whose card was opened or from which something was copied,
+  kept as ids only (they survive a lock and say nothing without the database).
+  **Search field**: a magnifier and "Search"; while it has the focus, chips over the keyboard: `@ group`, `# tag`,
+  `+ file`, `− bin` (the bin's toggles the recycle bin search; none in the Codes list). A tap on one adds its sign
+  to the query, and then the chips are what the filter being typed can be, as the Mac's suggestions (Mac SPEC
+  §3.6, `FilterCompletion`, `SearchFacets`): the groups by path in tree order, the tags, the file names (a bare `+`
+  first "Any file"), each with its entry count; inside the bin search its own groups and tags. A tap puts the name
+  in (quoted when it has a space) with a space after it; none matching, no chips. Closing the keyboard ends the
+  focus and the chips. Back closes the keyboard first, then clears the search, then leaves the Codes list.
+  **Gestures**: a row swiped right copies the password, swiped left the username; past 88 dp what is under the row
+  turns solid with a tick, and let go the row springs back (a side with nothing to copy says "No password" / "No
+  username" and does nothing; both are accessibility actions too). A long press opens the **quick actions**:
+  copy the username (shown), the password or the one-time code (live), open the site (as the card's link), then
+  Edit, Remove from Recent (a recent row: "Removed from Recent" with Undo, which puts it back in its place, the
+  entry itself untouched) and Move to the recycle bin (as Delete on the card, with Undo); an entry in the bin has
+  only the copies and the site. A row's code is a pill beside the title, or under it where the pill would leave
+  the title less than about seven and a half characters (large text on a narrow phone).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
   payment card's or a Wi-Fi network's row (its fields typed, §6.3) shows the small face instead of the icon (a card
   in its network's colours, the label of a router) and says which it is instead of the username and site
@@ -535,7 +552,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   takes it to the Mac from here" with "Back to the entry" (a new entry's card), or why not with "Back to
   editing". ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields.
 - **Password generator** (Mac SPEC §3.20, `core/generator`): a sheet from the wand in the editor's password
-  field ("Use this password" puts it in, shown) and from the key icon in the list's header (a password
+  field ("Use this password" puts it in, shown) and from ⋮ › Generate a password in the list's header (a password
   without an entry: Copy, sensitive and cleared after 30 s). Kinds PIN (4–16 digits), Strong (8–64
   characters, A–Z / a–z / 0–9 / symbols each at least once, look-alikes `0 O o 1 l I |` optionally left
   out), Words (2–8 EFF words in Capitals or CAPITALS joined by digits and symbols, at least the chosen
