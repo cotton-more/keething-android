@@ -30,12 +30,12 @@
     (ROADMAP step 2).
     -->
     <application
-        android:name=".KeePassBarApplication"
+        android:name=".KeethingApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:largeHeap="true"
-        android:theme="@style/Theme.KeePassBar">
+        android:theme="@style/Theme.Keething">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -62,7 +62,7 @@
 
         <!-- Autofill (SPEC §7): the service, and the screen it opens over the app being filled. -->
         <service
-            android:name=".autofill.KeePassBarAutofillService"
+            android:name=".autofill.KeethingAutofillService"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -78,7 +78,7 @@
             android:name=".autofill.AutofillActivity"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:theme="@style/Theme.KeePassBar.Autofill"
+            android:theme="@style/Theme.Keething.Autofill"
             android:windowSoftInputMode="adjustResize" />
         <!-- Autofill's save offer, opened by the system after its "Save to Keething?" (SPEC §7). -->
         <activity
@@ -99,7 +99,7 @@
             android:label="@string/read_with_keething"
             android:noHistory="true"
             android:taskAffinity=""
-            android:theme="@style/Theme.KeePassBar.Autofill">
+            android:theme="@style/Theme.Keething.Autofill">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />

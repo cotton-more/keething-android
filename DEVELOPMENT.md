@@ -118,7 +118,7 @@ database. A request or an answer goes from one to the other as its picture: Save
         --projection _id --where "_display_name=\'keething-request.png\'"     # its media id
     adb -s <to> shell am start -a android.intent.action.SEND -t image/png \
         --eu android.intent.extra.STREAM content://media/external/images/media/<id> \
-        -n dev.keepassbar.android/.sharing.ReceiveCodeActivity
+        -n dev.keething.android/.sharing.ReceiveCodeActivity
 
 "Read with Keething" reads only pictures another app serves (`content:`), as a messenger does; a `file:` path
 gets "No code in what was shared".
@@ -126,7 +126,7 @@ gets "No code in what was shared".
 A code as text (an envelope's from Send as text, say) goes the same way, without a file:
 
     adb -s <to> shell am start -a android.intent.action.SEND -t text/plain \
-        --es android.intent.extra.TEXT "'keething:…'" -n dev.keepassbar.android/.sharing.ReceiveCodeActivity
+        --es android.intent.extra.TEXT "'keething:…'" -n dev.keething.android/.sharing.ReceiveCodeActivity
 
 An envelope's ten pictures are read from the sender's screen (`uiautomator dump`: the pictures' description lists
 their names) and tapped on the other one.

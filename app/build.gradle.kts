@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.keepassbar.android"
+    namespace = "dev.keething.android"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.keepassbar.android"
+        applicationId = "dev.keething.android"
         minSdk = 34
         targetSdk = 37
         versionCode = 1

@@ -15,7 +15,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "keepass-bar-android"
+rootProject.name = "keething-android"
 
 include(
     ":core:domain",

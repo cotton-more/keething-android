@@ -1,5 +1,5 @@
 plugins {
-    alias(libs.plugins.keepassbar.kotlin.library)
+    alias(libs.plugins.keething.kotlin.library)
 }
 
 dependencies {
@@ -15,7 +15,7 @@ dependencies {
 tasks.register<JavaExec>("probe") {
     description = "Round trip and lifecycle on a copy of a database; the password on standard input"
     classpath = sourceSets["test"].runtimeClasspath
-    mainClass.set("dev.keepassbar.vault.probe.KdbxProbeKt")
+    mainClass.set("dev.keething.vault.probe.KdbxProbeKt")
     standardInput = System.`in`
     maxHeapSize = "2g"
     args(providers.gradleProperty("database").getOrElse(""))

@@ -8,8 +8,8 @@
         android:shortcutLongLabel="@string/shortcut_codes_long"
         android:shortcutShortLabel="@string/shortcut_codes">
         <intent
-            android:action="dev.keepassbar.android.action.CODES"
-            android:targetClass="dev.keepassbar.android.MainActivity"
-            android:targetPackage="dev.keepassbar.android" />
+            android:action="dev.keething.android.action.CODES"
+            android:targetClass="dev.keething.android.MainActivity"
+            android:targetPackage="dev.keething.android" />
     </shortcut>
 </shortcuts>

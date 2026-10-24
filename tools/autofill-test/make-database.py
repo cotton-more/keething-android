@@ -5,7 +5,7 @@
 
 Its entries match the pages in pages/ (served at http://localhost:8000 through `adb reverse`), a few
 real sites and apps by their verified websites, and Keep by `androidapp://`; two Wi-Fi networks (one open)
-check the card's QR code, typed by the "KeePassBar" entry. keepassxc-cli writes KDBX 3.1
+check the card's QR code, typed by the "Keething" entry. keepassxc-cli writes KDBX 3.1
 on import, which the app refuses, so the import is merged into a copy of a KDBX 4 fixture (that adds the
 fixture's two entries).
 """
@@ -36,7 +36,7 @@ ENTRIES = [
     ("Home Wi-Fi (fictitious)", "", "", "",
      [("SSID", "Example;Net"), ("Wi-Fi password", "wifi-Pa55:word", True), ("Security", "WPA2")]),
     ("Cafe Wi-Fi (fictitious)", "", "", "", [("SSID", "Cafe Guest")]),
-    ("KeePassBar", "", "", "", [("Notes", "SSID = wifi.ssid\nWi-Fi password = wifi.password\nSecurity = wifi.security")]),
+    ("Keething", "", "", "", [("Notes", "SSID = wifi.ssid\nWi-Fi password = wifi.password\nSecurity = wifi.security")]),
 ]
 
 

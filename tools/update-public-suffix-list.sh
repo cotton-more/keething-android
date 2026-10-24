@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-OUT=core/search/src/main/resources/dev/keepassbar/search/site/public_suffix_list.txt
+OUT=core/search/src/main/resources/dev/keething/search/site/public_suffix_list.txt
 TMP=$(mktemp)
 trap '/bin/rm -f "$TMP"' EXIT
 

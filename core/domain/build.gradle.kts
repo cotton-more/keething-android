@@ -1,3 +1,3 @@
 plugins {
-    alias(libs.plugins.keepassbar.kotlin.library)
+    alias(libs.plugins.keething.kotlin.library)
 }

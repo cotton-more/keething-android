@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Builds the release APK and signs it (SPEC §8): tools/build-apk.sh [--install]
-#   KEYSTORE   the signing keystore (default ~/.keystores/keepassbar.jks); apksigner asks for its password.
+#   KEYSTORE   the signing keystore (default ~/.keystores/keething.jks); apksigner asks for its password.
 #   --install  also installs it with adb (the device in ANDROID_SERIAL, or the only one connected).
 # The APK lands in ~/Downloads as Keething-<version>-<commit>.apk.
 set -e

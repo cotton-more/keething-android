@@ -1,4 +1,4 @@
-# KeePassBar for Android — notes for Claude
+# Keething for Android — notes for Claude
 
 - Start with SPEC.md (what the app does) and .x/ROADMAP.md (what comes next; `.x/` holds the plans, RELEASE.md
   too, and is not under version control). Keep both up to date with the code: a behaviour change updates SPEC.md

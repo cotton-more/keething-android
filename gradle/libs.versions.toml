@@ -45,4 +45,4 @@ kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", v
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-keepassbar-kotlin-library = { id = "keepassbar.kotlin-library" }
+keething-kotlin-library = { id = "keething.kotlin-library" }

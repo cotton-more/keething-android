@@ -26,7 +26,7 @@ class KotlinLibraryConventionPlugin : Plugin<Project> {
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
             inputs.dir(fixtures).withPropertyName("fixtures")
-            systemProperty("keepassbar.fixtures", fixtures.absolutePath)
+            systemProperty("keething.fixtures", fixtures.absolutePath)
         }
     }
 }

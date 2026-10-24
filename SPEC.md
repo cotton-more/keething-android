@@ -1,9 +1,9 @@
 # Keething for Android — spec
 
-Named KeePassBar until 2026-10-21, as was the Mac app. The code (modules, packages, the application id
-`dev.keepassbar.android`) keeps the old name. The names in the database follow the Mac (Mac SPEC, the
-introduction): the settings entry titled "Keething", else "KeePassBar"; the field types under
-`Keething.FieldTypes`, else `KeePassBar.FieldTypes`, which a write of the types removes (§3.3).
+The application id is `dev.keething.android`, the packages `dev.keething.*`. The Mac app's settings entry is
+the one titled "Keething" (the Mac still also reads one titled "KeePassBar", the apps' former name; this app
+does not: rename such an entry to "Keething"). The field types are read under `Keething.FieldTypes`, else the former
+`KeePassBar.FieldTypes`, which a write of the types removes (§3.3).
 
 A small Android client for the same KeePassXC database the Mac app Keething (`~/Projects/keepass-bar`)
 reads and writes: unlock with a fingerprint, search, view an entry with its custom fields laid out readably,
@@ -112,7 +112,7 @@ Code design:
   that hurts.
 - No fanaticism: no use-case class around a single call, no interface with one implementation unless it
   is a port (a side effect to fake in tests), no module per screen.
-- Shared build setup lives in `build-logic/` (the `keepassbar.kotlin-library` convention plugin);
+- Shared build setup lives in `build-logic/` (the `keething.kotlin-library` convention plugin);
   versions in `gradle/libs.versions.toml`.
 
 Rules carried over from the Mac app:
@@ -125,13 +125,13 @@ Rules carried over from the Mac app:
 
 The Mac app's code (Swift) is the reference for every format detail: read it before writing the Kotlin
 version. The key places:
-- `Sources/KeePassBarKDBX/` — KDBXReader, KDBXWriter, XMLTree, EntryEditing, EntryLifecycle,
+- `Sources/KeethingKDBX/` — KDBXReader, KDBXWriter, XMLTree, EntryEditing, EntryLifecycle,
   AttachmentPool, Argon2, ChaCha20, BLAKE2b
-- `Sources/KeePassBarLoading/KDBXFileSaver.swift` — re-read, apply, write, read back and verify
-- `Sources/KeePassBarParsing/` — XML → Entry (which keys are custom fields, TOTP, attachments, recycle bin)
-- `Sources/KeePassBarTOTP/` — Base32, otpauth parsing, KeePassXC's otpauth format, legacy TOTP fields
-- `Sources/KeePassBarSearch/` — search rules, ranking, site matching with the public suffix list
-- `Sources/KeePassBarPresentation/EntryCardBuilder.swift` and friends — how a card is laid out
+- `Sources/KeethingLoading/KDBXFileSaver.swift` — re-read, apply, write, read back and verify
+- `Sources/KeethingParsing/` — XML → Entry (which keys are custom fields, TOTP, attachments, recycle bin)
+- `Sources/KeethingTOTP/` — Base32, otpauth parsing, KeePassXC's otpauth format, legacy TOTP fields
+- `Sources/KeethingSearch/` — search rules, ranking, site matching with the public suffix list
+- `Sources/KeethingPresentation/EntryCardBuilder.swift` and friends — how a card is laid out
 - `SPEC.md` of the Mac app — the behaviour in words (§3.1–3.4, §3.6.2, §3.16–3.18, §3.22, §3.23)
 
 ## 3. The database file and Syncthing
@@ -230,7 +230,7 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
 7. Back up the old file into app-private storage (`filesDir/backups`, `<name> <local date and time>.kdbx`,
    the newest 10 of each database; not in the Syncthing folder, and the app allows no Android backup, so they
    stay on the phone) and replace: temporary file in the same folder, then rename. The temporary file is
-   `.syncthing.keepassbar-<uuid>.tmp`: Syncthing never scans or sends `.syncthing.*.tmp` (its own downloads),
+   `.syncthing.keething-<uuid>.tmp`: Syncthing never scans or sends `.syncthing.*.tmp` (its own downloads),
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
    app's temporary file, only the final one.
@@ -321,7 +321,7 @@ decrypted content, the tree, the new file and its reading back at once.
   The alarm thawed the frozen app each time, but late: inexact, its window is about ¾ of the timeout (the
   5-minute one went off after 8 min 45 s). The check on coming back is what guarantees the lock on time.
 - `FLAG_SECURE` on every window that can show a secret (no screenshots, blank in recents). A debug build
-  only leaves it off while `files/allow-screenshots` exists (`adb shell run-as dev.keepassbar.android touch
+  only leaves it off while `files/allow-screenshots` exists (`adb shell run-as dev.keething.android touch
   files/allow-screenshots`), so the emulator can be checked with screenshots; a release build ignores it.
 - Clipboard: secrets (protected and concealed values, one-time codes) are marked
   `ClipDescription.EXTRA_IS_SENSITIVE` (no preview on Android 13+); plain values (username, URL, notes) are

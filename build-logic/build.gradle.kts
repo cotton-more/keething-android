@@ -14,7 +14,7 @@ dependencies {
 gradlePlugin {
     plugins {
         register("kotlinLibrary") {
-            id = libs.plugins.keepassbar.kotlin.library.get().pluginId
+            id = libs.plugins.keething.kotlin.library.get().pluginId
             implementationClass = "KotlinLibraryConventionPlugin"
         }
     }
