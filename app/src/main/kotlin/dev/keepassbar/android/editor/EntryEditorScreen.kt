@@ -10,6 +10,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -18,6 +19,8 @@ import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Pin
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -26,6 +29,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -54,14 +58,12 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoFixHigh
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -70,6 +72,8 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -81,6 +85,8 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearWavyProgressIndicator
@@ -111,7 +117,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -131,6 +137,7 @@ import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.NoLearningKeyboard
 import dev.keepassbar.android.ui.colouredSecret
 import dev.keepassbar.card.GroupPathFormatter
+import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.editing.CodeList
 import dev.keepassbar.card.editing.EntryDraft
 import dev.keepassbar.card.editing.EntryEditor
@@ -144,9 +151,9 @@ import java.time.format.FormatStyle
 
 /**
  * The entry editor (SPEC §6.2, the agreed mock-up; Mac editor's rules): the standard fields, the tags, the
- * expiry and the custom fields (name above value, a type, a protected switch); problems keep Save off and are
- * said at the field. A list of codes is folded into one row, as the card lists it. Saving shows "Saving and checking…",
- * then the outcome. [onSaved] gets the entry saved (a new one's id).
+ * expiry and the custom fields (name above value; type, protected and remove under it); problems keep Save off and
+ * are said at the field. A list of codes is folded into one row, as the card lists it. Saving shows "Saving and
+ * checking…"; saved, [onSaved] gets the entry (a new one's id) at once, and only a failure stays on the sheet.
  */
 @Composable
 internal fun EntryEditorScreen(
@@ -159,7 +166,6 @@ internal fun EntryEditorScreen(
     prefill: ((EntryDraft) -> EntryDraft)? = null,
     /** What the editor is for, above the fields (the save offer of autofill). */
     banner: (@Composable () -> Unit)? = null,
-    doneLabel: String = "Back to the entry",
 ) {
     val model = viewModel(key = "editor/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill) }
     val editor = model.editor
@@ -167,13 +173,14 @@ internal fun EntryEditorScreen(
     if (editor == null) return
     val draft = model.draft
     val phase = model.phase
+    LaunchedEffect(phase) { if (phase is SavePhase.Saved) onSaved(phase.entryId) }
     var confirmingDiscard by rememberSaveable { mutableStateOf(false) }
     val close = { if (editor.isDirty(draft)) confirmingDiscard = true else onClose() }
     BackHandler {
         when (phase) {
             SavePhase.Editing -> close()
             SavePhase.Saving -> {}
-            is SavePhase.Saved -> onSaved(phase.entryId)
+            is SavePhase.Saved -> {}
             is SavePhase.Failed -> model.keepEditing()
         }
     }
@@ -237,7 +244,7 @@ internal fun EntryEditorScreen(
                 }
             }
         }
-        SaveSheet(phase, doneLabel, onBackToEntry = { (phase as? SavePhase.Saved)?.let { onSaved(it.entryId) } }, onKeepEditing = model::keepEditing)
+        SaveSheet(phase, onKeepEditing = model::keepEditing)
     }
 }
 
@@ -335,18 +342,25 @@ private fun EditorField(
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    /** Masked: dots for each character while typed in, the card's fixed dots otherwise ([visualTransformation] unused). */
+    hidden: Boolean = false,
     trailingIcon: (@Composable () -> Unit)? = null,
 ) {
+    var focused by remember { mutableStateOf(false) }
     TextField(
         value = value,
         onValueChange = onChange,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
         label = { Text(label, color = if (highlighted) MaterialTheme.colorScheme.primary else Color.Unspecified) },
         placeholder = placeholder?.let { { Text(it) } },
         singleLine = singleLine,
         minLines = if (singleLine) 1 else 3,
         textStyle = textStyle,
-        visualTransformation = visualTransformation,
+        visualTransformation = when {
+            !hidden -> visualTransformation
+            focused -> PasswordVisualTransformation()
+            else -> FixedMask
+        },
         trailingIcon = trailingIcon,
         keyboardOptions = KeyboardOptions(
             capitalization = capitalization,
@@ -355,6 +369,18 @@ private fun EditorField(
         ),
         shape = RoundedCornerShape(18.dp),
         colors = editorFieldColors(containerColor),
+    )
+}
+
+/** A masked value not being typed in: the card's dots, which do not tell its length; the cursor goes to its end. */
+private val FixedMask = VisualTransformation { text ->
+    val dots = if (text.isEmpty()) "" else RevealState.MASK
+    TransformedText(
+        AnnotatedString(dots),
+        object : OffsetMapping {
+            override fun originalToTransformed(offset: Int) = dots.length
+            override fun transformedToOriginal(offset: Int) = text.length
+        },
     )
 }
 
@@ -382,7 +408,8 @@ private fun PasswordField(password: String, onChange: (String) -> Unit, revealed
         onChange,
         keyboardType = KeyboardType.Password,
         textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),
-        visualTransformation = if (revealed) colouredSecretTransformation() else PasswordVisualTransformation(),
+        visualTransformation = colouredSecretTransformation(),
+        hidden = !revealed,
         trailingIcon = {
             Row {
                 RevealButton(revealed, "password", onToggle)
@@ -461,7 +488,7 @@ private fun ExpiryRow(draft: EntryDraft, update: (EntryDraft) -> Unit) {
 @Composable
 private fun GroupChoice(groups: List<VaultGroup>, chosen: String, onChoose: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    val label = { group: VaultGroup -> if (group.isRoot) group.name else GroupPathFormatter.text(group.path) }
+    val label = { group: VaultGroup -> if (group.isRoot) "Top level" else GroupPathFormatter.text(group.path) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         TextField(
             value = groups.firstOrNull { it.id == chosen }?.let(label).orEmpty(),
@@ -563,8 +590,8 @@ private fun CodeListRow(list: CodeList, open: Boolean, onToggle: () -> Unit) {
 }
 
 /**
- * One custom field: its name above its value, its type, the protected switch, remove; the problem with its name
- * below, or a value typed as a date that is none. A protected value or a password is masked (an eye shows it); a
+ * One custom field: its name above its value, the problem with it or a value typed as a date that is none, and
+ * under them its type, protected and remove (the name has the row's whole width). A protected value or a password is masked (an eye shows it); a
  * password offers the generator, a date the calendar (Mac SPEC §3.12, §3.16).
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -606,24 +633,16 @@ private fun FieldEditor(
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.extraColors.row)
             .then(if (problem != null) Modifier.border(2.dp, MaterialTheme.colorScheme.error, RoundedCornerShape(18.dp)) else Modifier)
-            .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 8.dp),
+            .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            EditorField(
-                "Name",
-                field.name,
-                { onChange(field.copy(name = it)) },
-                modifier = Modifier.weight(1f),
-                containerColor = transparent,
-                textStyle = MaterialTheme.typography.titleSmall,
-                capitalization = KeyboardCapitalization.Sentences,
-            )
-            FieldTypeButton(field, guessed, onType)
-            ProtectedSwitch(field.isProtected) { onChange(field.copy(isProtected = it)) }
-            IconButton(onClick = onRemove) {
-                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove field ${field.name}".trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        EditorField(
+            "Name",
+            field.name,
+            { onChange(field.copy(name = it)) },
+            containerColor = transparent,
+            textStyle = MaterialTheme.typography.titleSmall,
+            capitalization = KeyboardCapitalization.Sentences,
+        )
         EditorField(
             "Value",
             field.value,
@@ -639,11 +658,8 @@ private fun FieldEditor(
                 else -> KeyboardType.Text
             },
             textStyle = if (masked) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
-            visualTransformation = when {
-                !masked -> VisualTransformation.None
-                revealed -> colouredSecretTransformation()
-                else -> PasswordVisualTransformation()
-            },
+            visualTransformation = if (masked) colouredSecretTransformation() else VisualTransformation.None,
+            hidden = masked && !revealed,
             trailingIcon = {
                 Row {
                     if (masked) RevealButton(revealed, "value") { revealed = !revealed }
@@ -666,6 +682,18 @@ private fun FieldEditor(
             Row(Modifier.padding(start = 16.dp, top = 2.dp, end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(if (problem != null) Icons.Rounded.ErrorOutline else Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(16.dp), tint = colour)
                 Text(note, style = MaterialTheme.typography.bodySmall, color = colour)
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FieldTypeChip(field, guessed, onType)
+            ProtectedChip(field.isProtected) { onChange(field.copy(isProtected = it)) }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = onRemove) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove field ${field.name}".trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -698,22 +726,34 @@ private fun FieldEditor(
 }
 
 /**
- * A field's type (Mac SPEC §3.12): the icon is the type it has, or (dimmed) what its value is read as. The menu:
- * *Automatic* (no type), the types of their own, a payment card's and a Wi-Fi network's parts.
+ * A field's type (Mac SPEC §3.12) as a chip: the type it has, or what its value is read as ("Text · auto"), or a
+ * type this app does not know. The menu: *Automatic* (no type), the types of their own, a payment card's and a
+ * Wi-Fi network's parts.
  */
 @Composable
-private fun FieldTypeButton(field: FieldDraft, guessed: FieldType, onType: (FieldType?) -> Unit) {
+private fun FieldTypeChip(field: FieldDraft, guessed: FieldType, onType: (FieldType?) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val type = field.type
     val shown = type ?: guessed
+    val label = when {
+        type != null -> type.fullTitle
+        field.typeName != null -> "“${field.typeName}”"
+        else -> "${guessed.fullTitle} · auto"
+    }
     Box {
-        IconButton(onClick = { open = true }) {
-            Icon(
-                shown.icon(),
-                contentDescription = "Field type: ${shown.fullTitle}" + if (field.typeName == null) " (automatic)" else "",
-                tint = if (field.typeName == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-            )
-        }
+        AssistChip(
+            onClick = { open = true },
+            label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = {
+                Icon(
+                    shown.icon(),
+                    contentDescription = null,
+                    Modifier.size(AssistChipDefaults.IconSize),
+                    tint = if (field.typeName == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                )
+            },
+            trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, Modifier.size(AssistChipDefaults.IconSize)) },
+        )
         FieldTypeMenu(
             open,
             onDismiss = { open = false },
@@ -852,19 +892,17 @@ private fun FieldType.icon(): ImageVector = when {
     }
 }
 
+/** KeePass's in-memory protection of the value: a chip that is on or off, a closed lock when on. */
 @Composable
-private fun ProtectedSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(22.dp))
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Protected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Switch(checked = checked, onCheckedChange = null)
-    }
+private fun ProtectedChip(checked: Boolean, onChange: (Boolean) -> Unit) {
+    FilterChip(
+        selected = checked,
+        onClick = { onChange(!checked) },
+        label = { Text("Protected", maxLines = 1) },
+        leadingIcon = {
+            Icon(if (checked) Icons.Rounded.Lock else Icons.Rounded.LockOpen, contentDescription = null, Modifier.size(FilterChipDefaults.IconSize))
+        },
+    )
 }
 
 /** A block of codes pasted or typed (backup codes), added as a numbered list of protected fields. */
@@ -908,11 +946,11 @@ private fun AddCodesDialog(onAdd: (text: String, prefix: String) -> String?, onD
     )
 }
 
-/** The mock-up's sheet over the editor: "Saving and checking…", then saved or why not. Not dismissed by a tap. */
+/** The mock-up's sheet over the editor: "Saving and checking…", then why it was not saved. Not dismissed by a tap. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun SaveSheet(phase: SavePhase, doneLabel: String, onBackToEntry: () -> Unit, onKeepEditing: () -> Unit) {
-    val shown = phase != SavePhase.Editing
+private fun SaveSheet(phase: SavePhase, onKeepEditing: () -> Unit) {
+    val shown = phase == SavePhase.Saving || phase is SavePhase.Failed
     AnimatedVisibility(shown, enter = fadeIn(), exit = fadeOut()) {
         Box(
             Modifier
@@ -936,7 +974,7 @@ private fun SaveSheet(phase: SavePhase, doneLabel: String, onBackToEntry: () -> 
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     when (val current = last) {
-                        SavePhase.Editing, SavePhase.Saving -> {
+                        SavePhase.Editing, SavePhase.Saving, is SavePhase.Saved -> {
                             Text("Saving and checking…", style = MaterialTheme.typography.headlineSmall)
                             Text(
                                 "Writing a new file, reading it back, comparing every entry. The old file is kept as a backup.",
@@ -944,15 +982,6 @@ private fun SaveSheet(phase: SavePhase, doneLabel: String, onBackToEntry: () -> 
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             LinearWavyProgressIndicator(Modifier.fillMaxWidth())
-                        }
-                        is SavePhase.Saved -> {
-                            SheetTitle(Icons.Rounded.CheckCircle, "Saved and checked", MaterialTheme.colorScheme.primary)
-                            Text(
-                                "Syncthing takes it to the Mac from here.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Button(onClick = onBackToEntry, modifier = Modifier.align(Alignment.End)) { Text(doneLabel) }
                         }
                         is SavePhase.Failed -> {
                             SheetTitle(Icons.Rounded.ErrorOutline, "Not saved", MaterialTheme.colorScheme.error)

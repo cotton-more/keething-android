@@ -140,7 +140,7 @@ internal fun PaymentCardSection(
                 Note(Icons.Rounded.ErrorOutline, "The number fails its check digit (a typo?)", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
             }
             val others = section.rows.filter { it.id !in card.faceRowIds }
-            if (others.isNotEmpty()) RowGroup(others) { row, shape -> FieldRowView(row, reveal, now, actions, shape, copyButton = true) }
+            if (others.isNotEmpty()) RowGroup(others) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
         }
     }
 }
@@ -453,7 +453,7 @@ internal fun WiFiSection(
                 }
             }
             val others = section.rows.filter { it.id !in network.faceRowIds }
-            if (others.isNotEmpty()) RowGroup(others) { row, shape -> FieldRowView(row, reveal, now, actions, shape, copyButton = true) }
+            if (others.isNotEmpty()) RowGroup(others) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
         }
     }
 }

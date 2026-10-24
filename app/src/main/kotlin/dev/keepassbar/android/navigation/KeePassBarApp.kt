@@ -276,7 +276,10 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             groupId = key.groupId,
                             generator = container::passwordGenerator,
                             onClose = navigation::back,
-                            onSaved = { id -> if (key.entryId == null) navigation.replace(Screen.Card(id, origin = "new")) else navigation.back() },
+                            onSaved = { id ->
+                                container.entrySaved()
+                                if (key.entryId == null) navigation.replace(Screen.Card(id, origin = "new")) else navigation.back()
+                            },
                         )
                     }
                     entry<Screen.Password> { key ->

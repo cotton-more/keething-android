@@ -10,7 +10,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
@@ -38,7 +40,6 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -64,7 +65,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.painterResource
+import dev.keepassbar.android.R
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.focusRequester
@@ -132,17 +134,7 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.weight(1f))
-        Box(
-            Modifier.size(104.dp).rotate(-8f).clip(RoundedCornerShape(36.dp)).background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Rounded.Key,
-                contentDescription = null,
-                Modifier.size(52.dp).rotate(8f),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-        }
+        AppLogo(Modifier.size(104.dp))
         Spacer(Modifier.height(24.dp))
         Text("Keething", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(8.dp))
@@ -342,5 +334,17 @@ private fun PasswordRow(model: LockViewModel, enabled: Boolean, focusAtOnce: Boo
         ) {
             Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Unlock")
         }
+    }
+}
+
+/**
+ * The launcher icon's two layers, cut as the launcher cuts them: the middle 72 of their 108 dp, in a rounded square.
+ */
+@Composable
+private fun AppLogo(modifier: Modifier) {
+    BoxWithConstraints(modifier.clip(RoundedCornerShape(30)), contentAlignment = Alignment.Center) {
+        val layer = Modifier.requiredSize(maxWidth * 108 / 72)
+        Image(painterResource(R.drawable.ic_launcher_background), contentDescription = null, layer)
+        Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, layer)
     }
 }

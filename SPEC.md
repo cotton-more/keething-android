@@ -451,7 +451,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 ### 6.2 Screens
 - **Choose the database** (first start, or from the lock screen and Settings): all-files access, the folder
   in the system picker, the `.kdbx` file in it (conflict copies left out).
-- **Lock**: password field (a password keyboard: nothing capitalised, corrected or learnt), the database
+- **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database
   with its folder and when it changed (a tap chooses another), reason of the last lock. When the fingerprint
   is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
   field then does not open the keyboard by itself, and typing hides the button. While it is off, a "Use
@@ -490,8 +490,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
-  open the browser, attachments open in another app / save to a folder, §4). Its bar's paper plane sends the
-  entry to a request someone sent (§10). Custom fields are read by their
+  open the browser, attachments open in another app / save to a folder, §4). Every row that copies on a tap
+  has the same copy button (username, URL, code, custom fields alike). **Edit** is a button at the bottom
+  right, in reach of the thumb; the bar's ⋮ holds History, Send to a request (§10) and Move to the recycle bin
+  (at once, the list offering Undo). In the recycle bin: Restore in the bar, History under ⋮, no Edit. Custom fields are read by their
   types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. The header
   is compact: the icon (56 dp) beside the title, the group and tag chips under the title. Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
@@ -529,9 +531,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     says so. The square **QR code** button opens it full screen too: a view like Show as QR, at full brightness,
     "Join <network>", reading the entry from the vault by its id and closing on a lock (`PasswordView.WIFI_QR`).
     Masking the key, leaving the card or a lock blurs the code again; an open network's code is always shown.
-- **Editor** (the card's pencil; a new entry from the button next to the search field): title, username,
-  password (masked, an eye shows it coloured), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
-  name above value, the type (§6.3), a Protected switch, remove. **Tags** (Mac SPEC §3.24) are chips with ✕
+- **Editor** (the card's Edit; a new entry from the button next to the search field): title, username,
+  password (masked, an eye shows it coloured; masked, it shows the card's fixed dots, not its length, and a dot a
+  character only while typed in), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
+  name above value, each with the row's whole width, and under them the type as a chip (§6.3), a Protected chip
+  (a lock, closed when on) and remove; a protected value is masked as the password is. **Tags** (Mac SPEC §3.24) are chips with ✕
   and a field after them, "Add a tag" (a tap anywhere in the box types one): Enter, a comma or a semicolon
   adds it (not when the entry has it already, in any case or accent), Backspace in the empty field takes
   the last chip off; typing offers the vault's tags that start with it (most used first), then those it
@@ -547,10 +551,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   until tapped. The Mac editor's rules (`card/editing`): only what differs
   from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
   one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
-  entry needs a title or a website and goes into the group chosen (the root group to start with; an
-  existing entry is not moved). Save shows "Saving and checking…", then "Saved and checked · Syncthing
-  takes it to the Mac from here" with "Back to the entry" (a new entry's card), or why not with "Back to
-  editing". ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields.
+  entry needs a title or a website and goes into the group chosen ("Top level", the root group, to start
+  with; an existing entry is not moved). Save shows "Saving and checking…"; saved, the editor goes back to the
+  card (a new entry's card) at once, which says "Saved and checked" in a snackbar; not saved, the sheet says
+  why, with "Back to editing" (save from autofill: a toast, and back to the app). ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields.
 - **Password generator** (Mac SPEC §3.20, `core/generator`): a sheet from the wand in the editor's password
   field ("Use this password" puts it in, shown) and from ⋮ › Generate a password in the list's header (a password
   without an entry: Copy, sensitive and cleared after 30 s). Kinds PIN (4–16 digits), Strong (8–64
@@ -562,7 +566,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   likely. The options are remembered (`passwordGenerator` in the app's settings), never a password. The word
   list is a Java resource found by its absolute path: R8 renames the package in a release build (a relative
   path crashed the first phone run).
-- **Delete** (the card's bin icon): moves the entry to the recycle bin at once, no question; the card
+- **Delete** (the card's ⋮ › Move to the recycle bin): moves the entry to the recycle bin at once, no question; the card
   closes and the list says "Moved “…” to the recycle bin" with Undo (10 s), which restores it. The list
   keeps its scroll position: the row fades out at once (not when the save is done) and the rows below close
   up; a failed save or Undo puts it back in its place. A vault read again (a save, a sync) is listed while
@@ -638,8 +642,8 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   §3.3), so the face appears here and the Mac draws its view too; nothing is typed without it, so the phone never
   shows a face the Mac does not. "Not now" is remembered per entry (its id in the app's settings, as Recent keeps
   ids); not offered in the recycle bin, nor for fields typed otherwise.
-- **The editor**: the type button beside a field's name shows the type it has, or, dimmed, what its value
-  is read as; its menu: *Automatic (…)* (no type; what it is read as in brackets), Text, Date, Date until
+- **The editor**: the type chip under a field's value names the type it has ("Card expiry ▾"), or what its
+  value is read as ("Text · auto ▾"), or a type not known here ("“x.y” ▾"); its menu: *Automatic (…)* (no type; what it is read as in brackets), Text, Date, Date until
   (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, and a type not known here, kept, shown disabled. A type
   given to a field without a name names it. A field typed `date`, `until` or `card.expiry` and not protected
   has a calendar (the day written `2027-10-31`, a card's expiry as its month `2027-10`); a value that is no

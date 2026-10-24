@@ -81,7 +81,7 @@ private val OUTER = 22.dp
 internal fun CardSectionView(section: CardSection, avatar: EntryAvatar, reveal: RevealState, now: State<Instant>, actions: CardActions, wifiQrPayload: String?) {
     when (val kind = section.kind) {
         CardSection.Kind.Credentials -> RowGroup(section.rows) { row, shape ->
-            FieldRowView(row, reveal, now, actions, shape, tile = credentialTile(row), copyButton = true)
+            FieldRowView(row, reveal, now, actions, shape, tile = credentialTile(row))
         }
         CardSection.Kind.Notes -> NotesView(section.rows.single(), actions)
         CardSection.Kind.Custom -> Titled(section.title) {
@@ -156,7 +156,6 @@ internal fun FieldRowView(
     actions: CardActions,
     shape: Shape,
     tile: Tile? = null,
-    copyButton: Boolean = false,
 ) {
     Row(
         Modifier
@@ -208,7 +207,8 @@ internal fun FieldRowView(
                 Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open in the browser", tint = MaterialTheme.colorScheme.primary)
             }
         }
-        if (copyButton && row.isCopyable) {
+        // Every row that copies on a tap says so with the same button.
+        if (row.isCopyable) {
             IconButton(onClick = { actions.onCopy(row) }) {
                 Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy ${row.noticeLabel.lowercase()}", tint = MaterialTheme.colorScheme.primary)
             }

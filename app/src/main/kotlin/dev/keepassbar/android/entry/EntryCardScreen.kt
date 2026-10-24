@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -42,6 +43,10 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
@@ -106,8 +111,9 @@ import java.time.format.FormatStyle
  * An entry's card (SPEC §6.2), laid out by the Mac app's rules (`core/card`): sections, masked values with
  * an eye, live codes, tap to copy, links that open the browser, attachments to open in another app or save.
  * The password's menu shows it as a QR code or in large type ([onShowPassword]), or shares it after a
- * warning. The bar shows the entry's earlier versions ([onHistory]), edits it ([onEdit]) or moves it into the
- * recycle bin at once, the list then offering Undo; an entry in the bin has Restore instead.
+ * warning. Edit ([onEdit]) is a button at the bottom, in reach of the thumb; the bar's menu shows the entry's
+ * earlier versions ([onHistory]), sends it, or moves it into the recycle bin at once, the list then offering Undo.
+ * An entry in the bin has Restore in the bar instead, and no Edit.
  */
 @Composable
 internal fun EntryCardScreen(
@@ -134,6 +140,7 @@ internal fun EntryCardScreen(
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
+    NoticeEffect(container.savedNotices, snackbar)
     val context = LocalContext.current
     val saveDialog = rememberLauncherForActivityResult(SaveAttachment(), model::saved)
     LaunchedEffect(model) {
@@ -249,26 +256,19 @@ internal fun EntryCardScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") }
                 },
                 actions = {
-                    IconButton(onClick = onHistory) {
-                        Icon(Icons.Rounded.History, contentDescription = "History", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
                     if (content.inRecycleBin) {
-                        FilledTonalButton(onClick = model::restore, enabled = !model.restoring, modifier = Modifier.padding(end = 8.dp)) {
+                        FilledTonalButton(onClick = model::restore, enabled = !model.restoring) {
                             Icon(Icons.Rounded.RestoreFromTrash, contentDescription = null, Modifier.size(18.dp))
                             Spacer(Modifier.size(8.dp))
                             Text("Restore")
                         }
-                    } else {
-                        IconButton(onClick = { sending = true }) {
-                            Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = "Send to a request", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        IconButton(onClick = onEdit) {
-                            Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        IconButton(onClick = { if (model.moveToRecycleBin()) onBack() }) {
-                            Icon(Icons.Rounded.DeleteOutline, contentDescription = "Move to the recycle bin", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
                     }
+                    CardMenu(
+                        inRecycleBin = content.inRecycleBin,
+                        onHistory = onHistory,
+                        onSend = { sending = true },
+                        onDelete = { if (model.moveToRecycleBin()) onBack() },
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -279,6 +279,16 @@ internal fun EntryCardScreen(
             )
         },
         snackbarHost = { NoticeHost(snackbar, Modifier.navigationBarsPadding()) },
+        floatingActionButton = {
+            if (!content.inRecycleBin) {
+                ExtendedFloatingActionButton(
+                    onClick = onEdit,
+                    icon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                    text = { Text("Edit") },
+                    modifier = Modifier.navigationBarsPadding(),
+                )
+            }
+        },
     ) { padding ->
         Column(
             Modifier
@@ -286,7 +296,8 @@ internal fun EntryCardScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(top = padding.calculateTopPadding())
                 .navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
+                // Room under the last row for the Edit button.
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Header(content, sharedKey = "$origin/$entryId", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
@@ -299,6 +310,35 @@ internal fun EntryCardScreen(
                 CardSectionView(section, content.card.avatar, state.reveal, now, actions, wifiQrPayload)
             }
             Footer(content.card)
+        }
+    }
+}
+
+/** History, Send, Move to the recycle bin (at once; the list offers Undo). In the bin: History only. */
+@Composable
+private fun CardMenu(inRecycleBin: Boolean, onHistory: () -> Unit, onSend: () -> Unit, onDelete: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            val item: @Composable (String, ImageVector, () -> Unit) -> Unit = { text, icon, act ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    leadingIcon = { Icon(icon, contentDescription = null) },
+                    onClick = {
+                        open = false
+                        act()
+                    },
+                )
+            }
+            item("History", Icons.Rounded.History, onHistory)
+            if (!inRecycleBin) {
+                item("Send to a request", Icons.AutoMirrored.Rounded.Send, onSend)
+                HorizontalDivider()
+                item("Move to the recycle bin", Icons.Rounded.DeleteOutline, onDelete)
+            }
         }
     }
 }

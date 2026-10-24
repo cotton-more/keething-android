@@ -27,6 +27,7 @@ import dev.keepassbar.android.storage.FileDatabaseBackups
 import dev.keepassbar.android.storage.FileObserverFolderWatcher
 import dev.keepassbar.android.storage.PathDatabaseStore
 import dev.keepassbar.android.storageprobe.ProbeSettings
+import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.domain.storage.DatabaseStore
 import dev.keepassbar.sharing.message.PartCollector
 import dev.keepassbar.sharing.requests.ShareRequests
@@ -36,11 +37,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -71,6 +75,15 @@ internal class AppContainer(context: Context) {
 
     /** Delete and Restore: saves whose outcome the list shows after the card closed (SPEC §6.2). */
     val recycleBin = RecycleBinMoves(appScope)
+
+    private val saves = Channel<Notice>(Channel.CONFLATED)
+
+    /** "Saved and checked" from the editor, said by the card it goes back to (SPEC §6.2). */
+    val savedNotices: Flow<Notice> = saves.receiveAsFlow()
+
+    fun entrySaved() {
+        saves.trySend(Notice("Saved and checked"))
+    }
 
     /** A new generator: its options are remembered, its passwords are not. */
     fun passwordGenerator(): PasswordGeneratorState = PasswordGeneratorState(settingsStore)

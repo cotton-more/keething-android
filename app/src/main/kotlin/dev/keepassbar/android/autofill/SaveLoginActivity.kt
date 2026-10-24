@@ -147,7 +147,6 @@ private fun SaveLoginScreen(
                         action = "Save as a new entry instead" to { model.asNew = true },
                     )
                 },
-                doneLabel = "Done",
             )
             is SavePlan.New -> EntryEditorScreen(
                 database = current,
@@ -158,7 +157,6 @@ private fun SaveLoginScreen(
                 onSaved = { onDone("Saved to Keething") },
                 prefill = { it.copy(title = plan.title, url = plan.url, username = save.username.ifEmpty { it.username }, password = password) },
                 banner = { Banner("Save the login typed in $label", "A new entry; check its name and group.") },
-                doneLabel = "Done",
             )
         }
     }
