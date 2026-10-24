@@ -5,10 +5,13 @@ import dev.keepassbar.domain.biometric.BiometricPasswordStore
 import dev.keepassbar.domain.biometric.StoredPasswordOpening
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.settings.SettingsStore
+import dev.keepassbar.domain.time.Clock
 import dev.keepassbar.vault.opening.OpenFailure
 import dev.keepassbar.vault.session.SessionState
 import dev.keepassbar.vault.session.UnlockOutcome
 import dev.keepassbar.vault.session.VaultSession
+import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -35,8 +38,23 @@ public data class BiometricState(
      * "Opening…" from here, not only once the vault's own unlock starts.
      */
     val opening: Boolean = false,
+    /** Ask for the typed password after this many days without one; null: never (SPEC §5). */
+    val reminderDays: Int? = DEFAULT_REMINDER_DAYS,
+    /** [reminderDays] have passed since the last typed unlock: the fingerprint waits until the password is typed. */
+    val passwordDue: Boolean = false,
 ) {
-    public val canUnlock: Boolean get() = enabled && availability == BiometricAvailability.Available && stored
+    /** It is set up and works on this phone, whether or not the password is due now. */
+    public val isSetUp: Boolean get() = enabled && availability == BiometricAvailability.Available && stored
+
+    /** The lock screen offers the fingerprint. */
+    public val canUnlock: Boolean get() = isSetUp && !passwordDue
+
+    public companion object {
+        public const val DEFAULT_REMINDER_DAYS: Int = 14
+
+        /** The choices in Settings; null is "Never". */
+        public val REMINDER_CHOICES: List<Int?> = listOf(7, 14, 30, null)
+    }
 }
 
 /** What came of an unlock with the fingerprint. */
@@ -55,6 +73,9 @@ public sealed interface FingerprintOutcome {
 
     /** The fingerprints changed and the key with them: the stored password is deleted. */
     public data object KeyInvalidated : FingerprintOutcome
+
+    /** [BiometricState.reminderDays] have passed: the password is to be typed this time. */
+    public data object PasswordDue : FingerprintOutcome
 
     /** The database no longer opens with the stored password (changed elsewhere): it is deleted. */
     public data object StoredPasswordRejected : FingerprintOutcome
@@ -77,6 +98,8 @@ public sealed interface FingerprintOutcome {
  * - The stored password is opened only after a fingerprint, never to find out whether it is there.
  * - New fingerprints (the key is invalidated) or a stored password the database rejects delete it; a
  *   cancelled or failed fingerprint keeps it.
+ * - After [BiometricState.reminderDays] without a typed unlock the password is due: the fingerprint is not
+ *   offered until it is typed again, so it is not forgotten. The stored copy stays.
  *
  * Call it from [scope]'s thread (the main thread); the store's file and keystore work runs on [io], which
  * runs one task at a time in the app, so saves and deletes happen in the order they were asked for.
@@ -85,17 +108,20 @@ public class BiometricUnlock(
     private val session: VaultSession,
     private val store: BiometricPasswordStore,
     private val settings: SettingsStore,
+    private val clock: Clock,
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher,
 ) {
-    private val mutableState = MutableStateFlow(BiometricState(enabled = settings.string(ENABLED) == ON))
+    private val mutableState = MutableStateFlow(
+        BiometricState(enabled = settings.string(ENABLED) == ON, reminderDays = reminderDays()).let { it.copy(passwordDue = isDue(it.reminderDays)) },
+    )
     public val state: StateFlow<BiometricState> = mutableState.asStateFlow()
 
-    /** Asks the phone again whether it can, and the store whether a password is there. */
+    /** Asks the phone again whether it can, the store whether a password is there, and the clock whether the password is due. */
     public suspend fun refresh() {
         val availability = withContext(io) { store.availability() }
         val stored = withContext(io) { runCatching { store.hasPassword() }.getOrDefault(false) }
-        mutableState.update { it.copy(availability = availability, stored = stored) }
+        mutableState.update { it.copy(availability = availability, stored = stored, passwordDue = isDue(it.reminderDays)) }
     }
 
     /**
@@ -104,8 +130,16 @@ public class BiometricUnlock(
      */
     public suspend fun setEnabled(enabled: Boolean): String? {
         settings.setString(ENABLED, if (enabled) ON else null)
-        mutableState.update { it.copy(enabled = enabled, setupFailure = null) }
+        // The days count from here: the password was typed a moment ago, or is typed at the next unlock.
+        if (enabled) typedNow()
+        mutableState.update { it.copy(enabled = enabled, setupFailure = null, passwordDue = isDue(it.reminderDays)) }
         return if (enabled) null else delete()
+    }
+
+    /** Ask for the typed password after [days] without one; null: never. */
+    public fun setReminderDays(days: Int?) {
+        settings.setString(REMINDER, days?.toString() ?: NEVER)
+        mutableState.update { it.copy(reminderDays = days, passwordDue = isDue(days)) }
     }
 
     /**
@@ -117,7 +151,11 @@ public class BiometricUnlock(
         val kept = password.copy()
         scope.launch {
             try {
-                if (outcome.await() == UnlockOutcome.Opened && state.value.enabled) storeTyped(kept)
+                if (outcome.await() == UnlockOutcome.Opened) {
+                    typedNow()
+                    mutableState.update { it.copy(passwordDue = false) }
+                    if (state.value.enabled) storeTyped(kept)
+                }
             } finally {
                 kept.wipe()
             }
@@ -129,6 +167,10 @@ public class BiometricUnlock(
     public suspend fun unlockWithFingerprint(): FingerprintOutcome {
         if (state.value.prompting || session.state.value !is SessionState.Locked) return FingerprintOutcome.InProgress
         if (!state.value.enabled) return FingerprintOutcome.NotAvailable("it is turned off in Settings")
+        if (isDue(state.value.reminderDays)) {
+            mutableState.update { it.copy(passwordDue = true) }
+            return FingerprintOutcome.PasswordDue
+        }
         mutableState.update { it.copy(prompting = true) }
         try {
             val availability = withContext(io) { store.availability() }
@@ -211,10 +253,38 @@ public class BiometricUnlock(
         return failure
     }
 
+    private fun reminderDays(): Int? = when (val saved = settings.string(REMINDER)) {
+        null -> BiometricState.DEFAULT_REMINDER_DAYS
+        NEVER -> null
+        else -> saved.toIntOrNull() ?: BiometricState.DEFAULT_REMINDER_DAYS
+    }
+
+    private fun typedNow() {
+        settings.setString(LAST_TYPED, clock.now().toEpochMilli().toString())
+    }
+
+    /**
+     * Wall-clock days, as the user counts them. No time saved yet (it was turned on before this rule), or one
+     * in the future (the clock was set back): the days count from now.
+     */
+    private fun isDue(days: Int?): Boolean {
+        if (days == null) return false
+        val now = clock.now()
+        val last = settings.string(LAST_TYPED)?.toLongOrNull()?.let(Instant::ofEpochMilli)
+        if (last == null || last.isAfter(now)) {
+            typedNow()
+            return false
+        }
+        return Duration.between(last, now) >= Duration.ofDays(days.toLong())
+    }
+
     private fun Exception.reason(): String = message ?: javaClass.simpleName
 
     private companion object {
         const val ENABLED = "biometricUnlock"
         const val ON = "on"
+        const val REMINDER = "passwordReminderDays"
+        const val NEVER = "never"
+        const val LAST_TYPED = "lastTypedUnlock"
     }
 }

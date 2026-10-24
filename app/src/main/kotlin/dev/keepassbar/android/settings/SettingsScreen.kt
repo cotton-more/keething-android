@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -219,6 +220,36 @@ private fun FingerprintSetting(container: AppContainer, database: DatabaseSessio
         problem ?: state.describe(unavailable, location),
         style = MaterialTheme.typography.bodyMedium,
         color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (state.enabled) PasswordReminderSetting(database, state)
+}
+
+/** How often the fingerprint steps aside for the typed password (SPEC §5). */
+@Composable
+private fun PasswordReminderSetting(database: DatabaseSession, state: BiometricState) {
+    Spacer(Modifier.height(4.dp))
+    Text("Ask for the master password every", style = MaterialTheme.typography.bodyLarge)
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        BiometricState.REMINDER_CHOICES.forEachIndexed { index, days ->
+            SegmentedButton(
+                selected = days == state.reminderDays,
+                onClick = { database.biometric.setReminderDays(days) },
+                shape = SegmentedButtonDefaults.itemShape(index, BiometricState.REMINDER_CHOICES.size),
+            ) {
+                FitText(if (days == null) "Never" else "$days days")
+            }
+        }
+    }
+    Text(
+        if (state.reminderDays == null) {
+            "The fingerprint always opens it. If you forget the master password, the database cannot be opened " +
+                "by anyone, not even with Keething."
+        } else {
+            "After this long without typing it, the next unlock asks for the password, so it is not forgotten. " +
+                "Then the fingerprint again."
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (state.reminderDays == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 

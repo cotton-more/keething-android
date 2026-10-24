@@ -143,7 +143,10 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
             Spacer(Modifier.height(8.dp))
         }
         DatabaseLine(database, fileInfo, onChooseDatabase)
-        (fingerprintNotice ?: reason?.notice(timeout, database.file))?.let { notice ->
+        // A problem first; then why the fingerprint is not offered; then why it is locked.
+        val reasonNotice = reason?.notice(timeout, database.file)
+        val dueNotice = biometric.reminderDays?.takeIf { biometric.isSetUp && biometric.passwordDue }?.let(::passwordDueNotice)
+        (fingerprintNotice ?: reasonNotice?.takeIf { it.isProblem } ?: dueNotice ?: reasonNotice)?.let { notice ->
             Spacer(Modifier.height(12.dp))
             ReasonChip(notice)
         }

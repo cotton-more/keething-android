@@ -403,6 +403,17 @@ rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`
   the field. Cancel or "Use password" → the password field takes the focus, nothing deleted. A failed check
   (too many attempts) shows the system's words and keeps it; so does a database that could not be opened
   for another reason (missing, damaged).
+- **The typed password now and then**: with the fingerprint on, the master password is never typed and gets
+  forgotten (1Key asks again too). After 14 days without a typed unlock (Settings: 7, 14, 30 days or Never) the password
+  is due: the lock screen does not offer the fingerprint, by itself or with its button, and says "It has been
+  14 days: type the master password, so it is not forgotten" (after a problem, before the reason of the lock);
+  the field takes the focus. The next typed unlock that opens the vault starts the days again, and the
+  fingerprint is back; a fingerprint unlock, a wrong password or the cancelled prompt do not count. The stored
+  copy stays meanwhile. The days count from the last typed unlock or from turning the switch on, on the wall
+  clock; with no time saved yet (turned on before this rule) or one in the future (the clock set back) they count
+  from now: it is a reminder, not a barrier, the fingerprint already says who it is. Never is there for those who
+  type the password elsewhere every day (the Mac app); Settings then says in red that a forgotten password
+  opens the database for nobody. One setting and one time for the app, not per database.
 - Not done, and why: `setUnlockedDeviceRequired` (the prompt cannot be shown over the lock screen anyway);
   a marker of the enrolled set like the Mac's `evaluatedPolicyDomainState` (the Keystore's invalidation does
   that job here). Unlike the Mac, the key is bound to the app: the Keystore keeps it per app (UID).
@@ -477,7 +488,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   with its folder and when it changed (a tap chooses another), reason of the last lock. When the fingerprint
   is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
   field then does not open the keyboard by itself, and typing hides the button. While it is off, a "Use
-  fingerprint next time" switch under the field turns it on, so the password typed then sets it up. A wrong password shakes the
+  fingerprint next time" switch under the field turns it on, so the password typed then sets it up. When the
+  password is due (§5) the button is not there and the reason chip says so. A wrong password shakes the
   field. The first list after an unlock says how long the key derivation took. On a screen less than 480 dp high
   (a phone in landscape) the logo, name and database are on the left and the field on the right; with the keyboard
   up only the database's line stays beside the field.
@@ -709,7 +721,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   while it is open, as in the editor.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
-- **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),
+- **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE) and,
+  while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.
 - **Launcher shortcut** "Codes" (long press on the icon; static, `res/xml/shortcuts.xml`): unlock, then

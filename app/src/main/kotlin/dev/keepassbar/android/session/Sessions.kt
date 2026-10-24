@@ -117,7 +117,7 @@ internal class Sessions(
         )
         // Which states the session went through (names only, never data): how a lock came about.
         scope.launch { session.state.collect { Log.i(TAG, it.describe()) } }
-        val biometric = BiometricUnlock(session, biometricStore, settingsStore, scope, biometricIo)
+        val biometric = BiometricUnlock(session, biometricStore, settingsStore, AndroidClock, scope, biometricIo)
         scope.launch { biometric.refresh() }
         scope.launch {
             biometric.state.map { it.copy(prompting = false) }.distinctUntilChanged().collect { Log.i(TAG, it.describe()) }

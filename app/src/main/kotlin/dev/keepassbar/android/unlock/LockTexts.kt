@@ -29,7 +29,12 @@ internal fun FingerprintOutcome.notice(): LockNotice? = when (this) {
     // The system's own words: "Too many attempts. Try again later." and the like.
     is FingerprintOutcome.AuthenticationFailed -> LockNotice(reason, isProblem = true)
     is FingerprintOutcome.StorageError -> LockNotice("The stored password could not be read ($reason).", isProblem = true)
+    FingerprintOutcome.PasswordDue -> null
 }
+
+/** The fingerprint waits while the password is due (SPEC §5): the screen says why it is not offered. */
+internal fun passwordDueNotice(days: Int): LockNotice =
+    LockNotice("It has been $days days: type the master password, so it is not forgotten.", isProblem = false)
 
 internal fun OpenFailure.describe(file: File): String = when (this) {
     OpenFailure.WrongPassword -> "Wrong password."

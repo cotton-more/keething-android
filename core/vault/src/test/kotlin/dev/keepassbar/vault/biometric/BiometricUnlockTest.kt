@@ -20,6 +20,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CompletableDeferred
@@ -36,16 +37,17 @@ import kotlinx.coroutines.test.runTest
 class BiometricUnlockTest {
     private class Fixture(scope: TestScope, database: ByteArray?, val settings: MapSettings, fileReads: CoroutineDispatcher) {
         val store = FakePasswordStore()
+        val clock = FakeClock(scope.testScheduler)
         val session = VaultSession(
             store = FakeStore(database),
             opener = VaultOpener(),
             backups = { _, _, _ -> },
-            clock = FakeClock(scope.testScheduler),
+            clock = clock,
             scope = scope.backgroundScope,
             io = fileReads,
             lockTimeout = { 5.minutes },
         )
-        val biometric = BiometricUnlock(session, store, settings, scope.backgroundScope, StandardTestDispatcher(scope.testScheduler))
+        val biometric = BiometricUnlock(session, store, settings, clock, scope.backgroundScope, StandardTestDispatcher(scope.testScheduler))
     }
 
     /** The fixture database opens with "pw". The session reads the file on [fileReads], by default the test's scheduler. */
@@ -430,6 +432,113 @@ class BiometricUnlockTest {
         assertEquals("pw", f.store.stored?.reveal())
     }
 
+    // Asking for the typed password now and then
+
+    @Test
+    fun afterFourteenDaysWithoutATypedUnlockThePasswordIsDueAndTheFingerprintIsNotOffered() = runTest {
+        val f = storedPassword("pw")
+        assertEquals(14, f.biometric.state.value.reminderDays, "the default")
+
+        f.clock.sleep(13.days)
+        f.biometric.refresh()
+        assertTrue(f.biometric.state.value.canUnlock)
+
+        f.clock.sleep(1.days)
+        f.biometric.refresh()
+        assertTrue(f.biometric.state.value.passwordDue)
+        assertTrue(f.biometric.state.value.isSetUp)
+        assertFalse(f.biometric.state.value.canUnlock)
+        assertEquals(FingerprintOutcome.PasswordDue, f.biometric.unlockWithFingerprint())
+        assertTrue(f.session.state.value is SessionState.Locked)
+        assertEquals("pw", f.store.stored?.reveal(), "the stored copy stays")
+    }
+
+    @Test
+    fun aTypedUnlockStartsTheDaysAgainAndAFingerprintUnlockDoesNot() = runTest {
+        val f = storedPassword("pw")
+        f.clock.sleep(10.days)
+        assertEquals(FingerprintOutcome.Unlocked, f.biometric.unlockWithFingerprint())
+        f.session.lock()
+
+        f.clock.sleep(4.days)
+        f.biometric.refresh()
+        assertTrue(f.biometric.state.value.passwordDue, "the fingerprint unlock did not count")
+
+        assertTrue(f.typed("pw"))
+        runCurrent()
+        assertFalse(f.biometric.state.value.passwordDue)
+        f.session.lock()
+
+        f.clock.sleep(13.days)
+        f.biometric.refresh()
+        assertTrue(f.biometric.state.value.canUnlock)
+    }
+
+    @Test
+    fun aWrongTypedPasswordDoesNotStartTheDaysAgain() = runTest {
+        val f = storedPassword("pw")
+        f.clock.sleep(14.days)
+        f.biometric.refresh()
+
+        f.typed("wrong")
+        runCurrent()
+        f.biometric.refresh()
+
+        assertTrue(f.biometric.state.value.passwordDue)
+    }
+
+    @Test
+    fun theDaysCanBeChosenOrTurnedOffAndAreRemembered() = runTest {
+        val f = storedPassword("pw")
+        f.clock.sleep(8.days)
+        f.biometric.refresh()
+        assertFalse(f.biometric.state.value.passwordDue)
+
+        f.biometric.setReminderDays(7)
+        assertTrue(f.biometric.state.value.passwordDue)
+
+        f.biometric.setReminderDays(null)
+        assertFalse(f.biometric.state.value.passwordDue)
+        f.clock.sleep(365.days)
+        f.biometric.refresh()
+        assertTrue(f.biometric.state.value.canUnlock)
+
+        val next = BiometricUnlock(f.session, f.store, f.settings, f.clock, backgroundScope, StandardTestDispatcher(testScheduler))
+        assertNull(next.state.value.reminderDays)
+    }
+
+    @Test
+    fun theDaysCountFromTurningItOn() = runTest {
+        val f = fixture(enabled = false)
+        assertTrue(f.typed("pw"))
+        runCurrent()
+        f.session.lock()
+
+        f.clock.sleep(20.days)
+        f.biometric.setEnabled(true)
+        f.store.stored = Secret.of("pw")
+        f.biometric.refresh()
+
+        assertFalse(f.biometric.state.value.passwordDue)
+    }
+
+    @Test
+    fun noTimeSavedYetOrOneInTheFutureCountsFromNow() = runTest {
+        val settings = MapSettings()
+        settings.setString("biometricUnlock", "on") // turned on before this rule: no time saved
+        val f = fixture(enabled = false, settings = settings)
+        f.store.stored = Secret.of("pw")
+        f.clock.sleep(13.days)
+        f.biometric.refresh()
+        assertTrue(f.biometric.state.value.canUnlock)
+
+        settings.setString("lastTypedUnlock", f.clock.now().plusSeconds(30L * 86_400).toEpochMilli().toString()) // the clock was set back
+        f.biometric.refresh()
+        f.clock.sleep(13.days)
+        f.biometric.refresh()
+        assertTrue(f.biometric.state.value.canUnlock)
+    }
+
     // Another database
 
     @Test
@@ -437,7 +546,7 @@ class BiometricUnlockTest {
         val f = storedPassword("pw")
 
         launch(start = CoroutineStart.UNDISPATCHED) { f.biometric.setEnabled(false) }
-        val next = BiometricUnlock(f.session, f.store, f.settings, backgroundScope, StandardTestDispatcher(testScheduler))
+        val next = BiometricUnlock(f.session, f.store, f.settings, f.clock, backgroundScope, StandardTestDispatcher(testScheduler))
         assertFalse(next.state.value.enabled, "the next database's session starts with it off")
         assertEquals("pw", f.store.stored?.reveal(), "not deleted yet")
 
