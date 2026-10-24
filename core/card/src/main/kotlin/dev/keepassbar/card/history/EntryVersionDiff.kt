@@ -46,6 +46,9 @@ public object EntryVersionDiff {
             }
             result += VersionChange(field, kind, before, after, protected)
         }
+        // A recovery phrase is masked as a protected value is, protected or not.
+        fun secret(name: String): Boolean =
+            listOf(old.fieldTypes[name], new.fieldTypes[name]).any { it?.let(FieldType::of)?.isNeverCopied == true }
         fun typeText(name: String?): String = if (name == null) "no type" else "type " + (FieldType.of(name)?.fullTitle ?: name)
 
         compare("Title", old.title, new.title)
@@ -64,7 +67,7 @@ public object EntryVersionDiff {
                 result += VersionChange(field.name, VersionChange.Kind.ADDED, null, "", isProtected = false)
                 continue
             }
-            compare(field.name, before?.text(), value, protected = field.isProtected || before?.isProtected == true)
+            compare(field.name, before?.text(), value, protected = field.isProtected || before?.isProtected == true || secret(field.name))
             if (before != null && before.text() == value && before.isProtected != field.isProtected) {
                 result += VersionChange(
                     field.name, VersionChange.Kind.CHANGED,
@@ -82,7 +85,7 @@ public object EntryVersionDiff {
         }
         for (field in old.customFields) {
             if (field.name in newNames) continue
-            compare(field.name, field.text(), null, protected = field.isProtected)
+            compare(field.name, field.text(), null, protected = field.isProtected || secret(field.name))
             if (field.text().isEmpty()) result += VersionChange(field.name, VersionChange.Kind.REMOVED, "", null, isProtected = false)
         }
         if (old.customFields.map { it.name } != new.customFields.map { it.name } && old.customFields.map { it.name }.toSet() == newNames) {

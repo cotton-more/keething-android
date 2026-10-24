@@ -3,7 +3,9 @@ package dev.keepassbar.android.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.card.Countries
+import dev.keepassbar.card.CryptoNetwork
 import dev.keepassbar.card.CardBrand
 import dev.keepassbar.card.EntryAvatar
 import dev.keepassbar.card.EntryFace
@@ -125,6 +128,7 @@ internal fun EntryMark(avatar: EntryAvatar, image: ImageBitmap?, face: EntryFace
         is EntryFace.Bank -> MiniBank(face, size, modifier)
         is EntryFace.Document -> MiniDocument(size, modifier)
         is EntryFace.Ssh -> MiniTerminal(size, modifier)
+        is EntryFace.Crypto -> MiniWallet(face, size, modifier)
         null -> EntryIcon(avatar, image, size, modifier)
     }
 }
@@ -212,6 +216,53 @@ private fun MiniDocument(size: Dp, modifier: Modifier) {
                         .background(colors.paperLabel.copy(alpha = 0.7f)),
                 )
             }
+        }
+    }
+}
+
+/** The network's colour and sign, on its round badge. */
+private fun networkBadge(network: CryptoNetwork?): Pair<Color, String> = when (network) {
+    CryptoNetwork.BITCOIN -> Color(0xFFE8871A) to "₿"
+    CryptoNetwork.BITCOIN_TESTNET -> Color(0xFF5E8C74) to "₿"
+    CryptoNetwork.LITECOIN -> Color(0xFF345D9D) to "Ł"
+    CryptoNetwork.DOGECOIN -> Color(0xFFB59A2E) to "Ð"
+    CryptoNetwork.ETHEREUM -> Color(0xFF5B6BB0) to "Ξ"
+    CryptoNetwork.TRON -> Color(0xFFC8312B) to "T"
+    CryptoNetwork.SOLANA -> Color(0xFF7B5BD6) to "◎"
+    null -> Color(0xFF59606B) to "◇"
+}
+
+@Composable
+internal fun NetworkBadge(network: CryptoNetwork?, size: Dp, modifier: Modifier = Modifier) {
+    val (colour, sign) = networkBadge(network)
+    Box(modifier.size(size).clip(CircleShape).background(colour), contentAlignment = Alignment.Center) {
+        Text(sign, color = Color.White, fontSize = (size.value * 0.52f).sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+    }
+}
+
+/** A crypto wallet: a small steel plate with words stamped on it, the network's badge at its corner. */
+@Composable
+private fun MiniWallet(face: EntryFace.Crypto, size: Dp, modifier: Modifier) {
+    Box(modifier.size(size)) {
+        val shape = RoundedCornerShape(size * 0.36f)
+        Box(
+            Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Brush.verticalGradient(listOf(Color(0xFFE6E9ED), Color(0xFFC3C8D0))))
+                .border(1.dp, Color(0x1F000000), shape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(size * 0.09f)) {
+                repeat(3) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(size * 0.1f)) {
+                        repeat(2) { Box(Modifier.size(size * 0.25f, size * 0.07f).clip(RoundedCornerShape(size * 0.035f)).background(Color(0xFF59606B))) }
+                    }
+                }
+            }
+        }
+        if (face.network != null) {
+            NetworkBadge(face.network, size * 0.4f, Modifier.align(Alignment.BottomEnd).offset(x = size * 0.08f, y = size * 0.06f))
         }
     }
 }

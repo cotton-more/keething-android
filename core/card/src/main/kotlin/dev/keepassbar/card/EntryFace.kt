@@ -5,8 +5,8 @@ import java.util.Locale
 
 /**
  * What the list shows of an entry its typed fields make a payment card, a Wi-Fi network, a bank account, an identity
- * document or an SSH login (SPEC §6.2): a small face instead of the monogram, and a line saying which it is instead of
- * the username and site.
+ * document, an SSH login or a crypto wallet (SPEC §6.2): a small face instead of the monogram, and a line saying which it
+ * is instead of the username and site.
  */
 public sealed interface EntryFace {
     /** The line under the title. */
@@ -44,6 +44,15 @@ public sealed interface EntryFace {
     /** An SSH login: `user@host:port`. */
     public data class Ssh(val target: String) : EntryFace {
         override val subtitle: String get() = target
+    }
+
+    /** A crypto wallet: its network, the first address's start and end, or that it holds a recovery phrase. */
+    public data class Crypto(val network: CryptoNetwork?, val address: String?, val hasPhrase: Boolean) : EntryFace {
+        override val subtitle: String
+            get() = listOfNotNull(
+                network?.displayName ?: "Crypto wallet",
+                address?.let { if (it.length > 14) it.take(6) + "…" + it.takeLast(4) else it } ?: "recovery phrase".takeIf { hasPhrase },
+            ).joinToString(" · ")
     }
 
     public companion object {
@@ -95,6 +104,16 @@ public sealed interface EntryFace {
                 val user = text(FieldType.SSH_USER) ?: target.user ?: entry.username.takeIf { it.isNotEmpty() }
                 val port = text(FieldType.SSH_PORT)?.toIntOrNull()?.takeIf { it in 1..65535 } ?: target.port
                 return Ssh(SshLogin(target.host, port, user, "", null, null, "", null).target)
+            }
+            if (entry.customFields.any { interpreter.type(it).let { t -> t == FieldType.CRYPTO_SEED || t == FieldType.CRYPTO_ADDRESS || t == FieldType.CRYPTO_XPUB } }) {
+                val wallet = CryptoWallet.make(
+                    seed = null, passphrase = null,
+                    addresses = entry.customFields.withIndex().filter { interpreter.type(it.value) == FieldType.CRYPTO_ADDRESS },
+                    xpub = entry.customFields.withIndex().firstOrNull { interpreter.type(it.value) == FieldType.CRYPTO_XPUB },
+                    path = entry.customFields.withIndex().firstOrNull { interpreter.type(it.value) == FieldType.CRYPTO_PATH },
+                    label = { "" },
+                )
+                return Crypto(wallet.network, wallet.addresses.firstOrNull()?.text, typed(FieldType.CRYPTO_SEED) != null)
             }
             return null
         }

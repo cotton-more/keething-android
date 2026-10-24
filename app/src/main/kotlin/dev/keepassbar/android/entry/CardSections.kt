@@ -107,6 +107,7 @@ internal fun CardSectionView(
         is CardSection.Kind.BankAccount -> BankAccountSection(section, kind.account, reveal, now, actions)
         is CardSection.Kind.Document -> DocumentSection(section, kind.document, reveal, now, actions)
         is CardSection.Kind.Ssh -> SshSection(section, kind.login, extras.sshKey, extras.sshApp, extras.hasPassword, reveal, now, actions)
+        is CardSection.Kind.Crypto -> CryptoSection(section, kind.wallet, reveal, now, actions)
         CardSection.Kind.Attachments -> RowGroup(section.rows) { row, shape -> AttachmentRowView(row, actions, shape) }
     }
 }

@@ -450,7 +450,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   chip beside a row's text goes under it where it would leave the title less than about seven and a half
   characters (as a list row's code, §6.2). A " · " never starts a line, a date or "722 ms" is not broken, and a
   shown password wraps at the line's end, not after a `/` or a `-` as if it were two words.
-- The generator's words are the EFF large word list (CC BY 3.0 US, `assets/licenses`).
+- The generator's words are the EFF large word list (CC BY 3.0 US, `assets/licenses`). A recovery phrase is checked
+  against BIP-39's ten word lists (MIT, `assets/licenses`; 184 KB, read when first needed).
 - QR codes are made by Nayuki's `qrcodegen` (MIT, `assets/licenses`; 38 KB, no dependencies, medium error
   correction as on the Mac). The sharing's codes (§10) are read by ZXing (Apache 2.0, `assets/licenses`) from
   the camera (CameraX) or a picture: no Google Play services.
@@ -491,11 +492,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   only the copies and the site. A row's code is a pill beside the title, or under it where the pill would leave
   the title less than about seven and a half characters (large text on a narrow phone).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
-  payment card's, a Wi-Fi network's, a bank account's, an identity document's or an SSH login's row (its fields
-  typed, §6.3) shows the small face instead of the icon (a card in its network's colours, the label of a router, a
-  bank with the country's flag at its corner, a small paper document, a terminal's `>_`) and says which it is instead
-  of the username and site (`Visa •• 4242 · 12/26`, `WPA2 · FRITZ!Box 7590`, `DE89 •• 3000 · Commerzbank`,
-  `Passport · Germany · until 03/2029`, `alex@db.example.com:2222`; a protected number gives no digits); the card's
+  payment card's, a Wi-Fi network's, a bank account's, an identity document's, an SSH login's or a crypto wallet's
+  row (its fields typed, §6.3) shows the small face instead of the icon (a card in its network's colours, the label
+  of a router, a bank with the country's flag at its corner, a small paper document, a terminal's `>_`, a small steel
+  plate with the network's badge at its corner) and says which it is instead of the username and site
+  (`Visa •• 4242 · 12/26`, `WPA2 · FRITZ!Box 7590`, `DE89 •• 3000 · Commerzbank`, `Passport · Germany · until
+  03/2029`, `alex@db.example.com:2222`, `Bitcoin · bc1qar…5mdq`, `Crypto wallet · recovery phrase`; a protected
+  number gives no digits); the card's
   header shows it too (`EntryFace`). A
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
@@ -516,12 +519,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   full-screen views read the password from the vault by the entry's id, close on a lock, and are left with
   Back or ✕. The share sheet shows the text and has its own Copy, which the app cannot mark sensitive or
   clear: the warning comes first for that reason.
-- **Entry faces** (agreed on the canvas, rows "Entry faces" and "More faces"): a payment card, a Wi-Fi network, a
-  bank account, an identity document and an SSH login are drawn as what they are, and the face is the interface;
-  the rows under it are only what the face does not show. The Mac draws a card's and a network's fields as a card
-  and rows (Mac SPEC §3.13): their data rules are the Mac's (`PaymentCard`, `WiFiNetwork`), the faces are the
-  phone's. The bank, document and SSH types are the phone's (§6.3) until the Mac takes them over
-  (`~/Projects/keepass-bar/HANDOVER-more-faces.md`); the Mac keeps them and shows those fields as rows meanwhile.
+- **Entry faces** (agreed on the canvas, rows "Entry faces", "More faces" and "Crypto wallets"): a payment card, a
+  Wi-Fi network, a bank account, an identity document, an SSH login and a crypto wallet are drawn as what they are,
+  and the face is the interface; the rows under it are only what the face does not show. The Mac draws a card's and
+  a network's fields as a card and rows (Mac SPEC §3.13): their data rules are the Mac's (`PaymentCard`,
+  `WiFiNetwork`), the faces are the phone's. The bank, document, SSH and crypto types are the phone's (§6.3) until
+  the Mac takes them over (`~/Projects/keepass-bar/HANDOVER-more-faces.md`, `HANDOVER-crypto.md`); the Mac keeps
+  them and shows those fields as rows meanwhile.
   - **Payment card**: a card 1.586:1 (at most 440 dp wide), in its network's colours (Mac `PaymentCardView`;
     Visa, Mastercard, American Express, Mir; another network in the entry's colour), with a chip, the contactless
     mark and the network's mark drawn simply. Its front: the number masked to its last four digits, the holder,
@@ -581,22 +585,53 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     in <app>** when an app on the phone opens `ssh://` links (ConnectBot, JuiceSSH; `ssh://user@host:port`), "an SSH
     app" when several do. The `ssh.host` field takes `host`, `user@host`, `host:port`, `[v6]:port` or an `ssh://`
     link.
+  - **Crypto wallet** (`CryptoWallet`, an entry with a `crypto.seed`, `crypto.address` or `crypto.xpub`): the
+    recovery phrase on a steel plate (brushed steel in either theme, as such phrases are kept), hidden: a lock,
+    "Whoever has these words has the wallet", **Show** and **Word by word**. The phrase is read only then (it is a
+    secret like the password): shown, a numbered grid of its words, three to a line (two with large text), its
+    count and language as a chip, and its check (`SeedPhrase`): a BIP-39 phrase's checksum in whichever of the
+    BIP's ten word lists its words are in (MIT, `assets/licenses`; a typo in any word is caught: "Word 7, “worht”,
+    is not a BIP-39 word. A typo?", outlined in red; "The checksum fails: a word is wrong, or two are swapped"; 12,
+    15, 18, 21 or 24 words); an Electrum seed (Electrum's seed version, its HMAC-SHA512) is named as one, not failed.
+    Numbers and commas written between the words are left out, words of the Latin lists count without their
+    accents, and a word is shown as its list spells it. The passphrase (the "25th word") is a line on the plate with
+    its own eye. **Neither is ever copied** (the clipboard is where phrases are stolen): no copy button, no tap to
+    copy, no QR code, no share; in the editor its value is masked and its text menu has no Copy, Cut or the other
+    apps' items ("Ask Gemini", "Translate"), only Paste and Select all; the history masks it even when not
+    protected. **Word by word** is a full-screen view, a word at a time, large, with its number, the words before
+    and after it, a bar of where it is, Back / Next and sideways swipes (read from the vault by the entry's id, as
+    the password's views). An extended key typed `crypto.xpub` that is private (`xprv…`) is masked and never copied
+    too, with a note saying why. Then the first unprotected receiving address as a label: the network read from the
+    address's format with its badge (`CryptoAddress`: Bitcoin `1…`, `3…`, `bc1q…`, `bc1p…` with Base58Check or
+    Bech32 / Bech32m; its testnet; Litecoin; Dogecoin; Ethereum `0x…` with EIP-55's mixed-case checksum (Keccak-256),
+    "or another EVM network"; Tron `T…`; Solana by its shape, which has no checksum), the kind ("Native SegWit
+    (bc1q…)"), a chip "checked" / "EIP-55" / "no checksum" / "fails its check" (with a note), its QR code (the plain
+    address; a tap opens it full screen) and the address in groups of four, the first two and last two bold, to
+    check where it is pasted (malware swaps addresses on the clipboard; the copy notice says so). **Copy address**,
+    **Show QR**: full screen at full brightness with "Only Bitcoin to this address…", Copy and Share (an address
+    is public: no warning). Under it the other addresses (badge, start and end, QR, copy), the extended public key
+    (`zpub6rFR7y4Q2A…2AGutZYs`, "Shows every address and balance of the wallet: share it with care"; its checksum),
+    the derivation path with what it says ("BIP-84 · Bitcoin, native SegWit · account 1"), then the rest.
 - **Editor** (the card's Edit; a new entry from the button next to the search field): title, username,
   password (masked, an eye shows it coloured; masked, it shows the card's fixed dots, not its length, and a dot a
   character only while typed in), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
   name above value, each with the row's whole width, and under them the type as a chip (§6.3), a Protected chip
-  (a lock, closed when on) and remove; a protected value is masked as the password is. **Tags** (Mac SPEC §3.24) are chips with ✕
+  (a lock, closed when on) and remove; a protected value is masked as the password is. The text menu of the
+  password, a protected or password-typed value and the lock screen's master password has no items other apps add
+  ("Ask Gemini", "Translate", "Read aloud": they would hand it the text); the master password's and a recovery
+  phrase's have no Copy or Cut either. **Tags** (Mac SPEC §3.24) are chips with ✕
   and a field after them, "Add a tag" (a tap anywhere in the box types one): Enter, a comma or a semicolon
   adds it (not when the entry has it already, in any case or accent), Backspace in the empty field takes
   the last chip off; typing offers the vault's tags that start with it (most used first), then those it
   matches fuzzily as the search does ("trvl" → Travel), those on the entry left out, as chips under the
   field, a tap adds one. What is still typed when saving is saved too. **Add field** is a menu: Text, Date, Date
-  until (expiry), URL, Password, *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›* and *SSH ›* parts (the
+  until (expiry), URL, Password, *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›*, *SSH ›* and *Crypto ›* parts (the
   menu shows the parts in its place, with a way back) add a field of that type named after it (Text, Date, Valid
   until, Website, "Password 2" as KeePass keeps "Password" for itself, Card number, Cardholder, Expiry date, CVC,
   PIN, Card type, Network name, Wi-Fi password, Security, IBAN, BIC, Bank, Account holder, Account number, Bank
   code, Correspondent account, Document type, Document number, Full name, Issuing country, Date of birth, Date of
-  issue, Host, Port, SSH user; "CVC 2" when the name is taken); the cursor goes into its value and the form scrolls
+  issue, Host, Port, SSH user, Recovery phrase, Passphrase, Address, xpub, Derivation path; "CVC 2" when the name is
+  taken); the cursor goes into its value and the form scrolls
   to it above the keyboard. **Codes…** takes a block of codes pasted or typed (numbering and bullets dropped,
   at most 50) and adds them as protected fields `<list>_1`, `_2`, … typed `code`, which the card shows as a
   numbered list; such a list is folded into one row in the editor ("Recovery codes · 10 codes · protected")
@@ -687,7 +722,9 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   `bank.bic`, `bank.name`, `bank.holder`, `bank.account` where there is no IBAN, `bank.code` for a national bank
   code such as a БИК or a routing number, `bank.corr` for a correspondent account), an identity document's
   (`doc.type`, `doc.number`, `doc.name`, `doc.country`, `doc.birth`, `doc.issued` dates, `doc.expiry` a date
-  something ends on like `until`) and an SSH login's (`ssh.host`, `ssh.port`, `ssh.user`). Type names ignore
+  something ends on like `until`), an SSH login's (`ssh.host`, `ssh.port`, `ssh.user`) and a crypto wallet's
+  (`crypto.seed` the recovery phrase, `crypto.passphrase`, `crypto.address` a receiving address, several allowed,
+  `crypto.xpub` an extended public key, `crypto.path` the derivation path). Type names ignore
   case and outer spaces; field names match exactly. A type this version does not know is kept (the editor
   too) and counts as none.
 - **A field without a type** is read by its value (unmistakable dates, http(s) links, numbered codes, and an IBAN:
@@ -695,7 +732,7 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   spaces; the editor names it "IBAN · auto"; it makes no face without the types). The
   rules the settings entry held before (`<field name> = <type>` lines) are no longer read: the Mac's field
   report moves them into the entries. Protected fields are never read, typed or not.
-- **The offer to type a card, a network, an account, a document or an SSH login** (the phone's own;
+- **The offer to type a card, a network, an account, a document, an SSH login or a crypto wallet** (the phone's own;
   `TypeSuggestion`): fields without a type named as a payment card's parts (a number — 12 to 19 digits when unprotected, a protected one by its name — and at least an
   expiry, a CVC or a holder; 1Password's names, English, German and Russian ones, a 1Password section left out) or a
   Wi-Fi network's (a name, and a password field, or a security field saying it is open: a network whose password is
@@ -706,16 +743,21 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   its name — a bare "Number" only with two parts only a document has, as a short card's number and expiry would
   otherwise pass — and at least a date or a country) and an SSH login (a host by its name whose value is a host, and
   a port, a user, KeePassXC's SSH agent settings or "SSH" in the names or title: a host alone could be a
-  website's). The tap saves the types (an edit of the field types only, §3.3), so the face appears here (and the
+  website's), and a crypto wallet (a recovery phrase by its value when it passes its check, else by its name — "Seed",
+  "Recovery phrase", "Mnemonic", "Сид-фраза"… — when protected or when most of its words are a list's; an address or
+  extended public key by its checksum, one without a checksum only under an address's name; then a passphrase
+  beside a phrase and a derivation path, "Looks like a crypto wallet · Show as wallet"). The tap saves the types (an edit of the field types only, §3.3), so the face appears here (and the
   Mac draws a card's and a network's view too); nothing is typed without it. "Not now" is remembered per entry (its id in the app's settings, as Recent keeps
   ids); not offered in the recycle bin, nor for fields typed otherwise.
 - **The editor**: the type chip under a field's value names the type it has ("Card expiry ▾"), or what its
   value is read as ("Text · auto ▾"), or a type not known here ("“x.y” ▾"); its menu: *Automatic (…)* (no type; what it is read as in brackets), Text, Date, Date until
-  (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›*, *SSH ›*, and a type not known
+  (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›*, *SSH ›*, *Crypto ›*, and a type not known
   here, kept, shown disabled. A type
   given to a field without a name names it. A field typed `date`, `until` or `card.expiry` and not protected
   has a calendar (the day written `2027-10-31`, a card's expiry as its month `2027-10`); a value that is no
-  date says so under it ("Not a date, shown as text…") and is saved all the same. The types saved are every
+  date says so under it ("Not a date, shown as text…") and is saved all the same; likewise a recovery phrase that
+  fails its check (read here even when protected: the form holds its text anyway), an address or extended key whose
+  checksum fails, a private key typed as the extended key, a path that is none. The types saved are every
   field's that has one, but `text` only where the value would be read as something else; a rename carries
   the type along; types of fields the entry no longer has go with the next save, which they do not cause.
   A card number, CVC or PIN gets the number keyboard, an SSH port the digits.

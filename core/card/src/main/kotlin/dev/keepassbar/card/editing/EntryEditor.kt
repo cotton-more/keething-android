@@ -1,11 +1,16 @@
 package dev.keepassbar.card.editing
 
+import dev.keepassbar.card.AddressCheck
+import dev.keepassbar.card.CryptoAddress
+import dev.keepassbar.card.DerivationPath
 import dev.keepassbar.card.EntryCardBuilder
+import dev.keepassbar.card.ExtendedKey
 import dev.keepassbar.card.FieldDate
 import dev.keepassbar.card.FieldInterpreter
 import dev.keepassbar.card.FieldType
 import dev.keepassbar.card.FieldTypes
 import dev.keepassbar.card.ImportedFieldName
+import dev.keepassbar.card.SeedPhrase
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.Entry
@@ -65,12 +70,37 @@ public class EntryEditor private constructor(
      * empty, protected (never read) or of another type.
      */
     public fun fieldWarning(field: FieldDraft): String? {
+        if (field.type?.isCryptoPart == true) return cryptoWarning(field)
         val type = field.type?.takeIf { it.isDate } ?: return null
         if (field.isProtected || field.value.isBlank() || FieldDate.parse(field.value, typed = true) != null) return null
         return if (type == FieldType.CARD_EXPIRY) {
             "Not a date, shown as text. Write it as 2027-10."
         } else {
             "Not a date, shown as text. Write it as 2027-10-31, or 2027-10 for a month."
+        }
+    }
+
+    /**
+     * A recovery phrase that fails its check (read in the editor even when protected: the text is in the form anyway), an
+     * address or key whose checksum fails, a path that is none; null when it passes, is empty, or is not checked.
+     */
+    private fun cryptoWarning(field: FieldDraft): String? {
+        val value = field.value.trim().takeIf { it.isNotEmpty() } ?: return null
+        return when (field.type) {
+            FieldType.CRYPTO_SEED -> SeedPhrase.read(value)?.takeIf { !it.passes }?.summary()
+            // An address of a network not known here is shown as it is, without a warning.
+            FieldType.CRYPTO_ADDRESS -> if (CryptoAddress.read(value)?.check == AddressCheck.FAILS) "The address fails its checksum. A typo?" else null
+            FieldType.CRYPTO_XPUB -> {
+                val key = ExtendedKey.read(value)
+                when {
+                    key == null -> null
+                    !key.passes -> "The key fails its checksum. A typo?"
+                    key.isPrivate -> "A private key (${key.prefix}): whoever has it has the wallet. It is shown, never copied."
+                    else -> null
+                }
+            }
+            FieldType.CRYPTO_PATH -> if (DerivationPath.isPath(value)) null else "Not a derivation path: write it as m/84'/0'/0'."
+            else -> null
         }
     }
 

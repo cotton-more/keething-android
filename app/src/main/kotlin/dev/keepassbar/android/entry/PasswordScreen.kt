@@ -41,11 +41,39 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Intent
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.Button
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import dev.keepassbar.android.clipboard.SensitiveClipboard
+import dev.keepassbar.card.AddressCheck
+import dev.keepassbar.card.CryptoAddress
+import dev.keepassbar.card.CryptoNetwork
 import dev.keepassbar.card.EntryCardBuilder
+import dev.keepassbar.card.SeedPhrase
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.FullBrightness
+import dev.keepassbar.android.ui.NetworkBadge
 import dev.keepassbar.android.ui.QrCodeImage
 import dev.keepassbar.android.ui.colouredSecret
 import dev.keepassbar.android.ui.qrCodeOf
@@ -53,26 +81,31 @@ import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.vault.session.SessionState
 import java.time.Instant
 
-/** The full-screen views of a password (SPEC §6.2), and the QR code to join an entry's Wi-Fi network. */
-internal enum class PasswordView { QR_CODE, LARGE_TYPE, WIFI_QR }
+/**
+ * The full-screen views of a password (SPEC §6.2), the QR code to join an entry's Wi-Fi network, a wallet's recovery
+ * phrase word by word and a receiving address's QR code.
+ */
+internal enum class PasswordView { QR_CODE, LARGE_TYPE, WIFI_QR, SEED_WORDS, ADDRESS_QR }
 
 /**
  * A password shown full screen, read from the vault by the entry's id (the back stack never holds it): as a
- * QR code for another phone to scan, or in large type to type it elsewhere. Closes when the vault locks or
- * the entry is gone.
+ * QR code for another phone to scan, or in large type to type it elsewhere. Likewise a wallet's recovery phrase, a
+ * word at a time, and an address's QR code ([rowId] says which). Closes when the vault locks or the entry is gone.
  */
 @Composable
-internal fun PasswordScreen(database: DatabaseSession, entryId: String, view: PasswordView, onBack: () -> Unit) {
+internal fun PasswordScreen(database: DatabaseSession, entryId: String, view: PasswordView, rowId: String?, clipboard: SensitiveClipboard, onBack: () -> Unit) {
     val state by database.session.state.collectAsStateWithLifecycle()
     val vault = (state as? SessionState.Unlocked)?.vault
     val entry: Entry? = remember(vault, entryId) { vault?.let { it.entries.firstOrNull { e -> e.id == entryId } ?: it.recycleBin.firstOrNull { e -> e.id == entryId } } }
-    // A network's code holds its key, read as the card reads it; else the entry's password.
-    val network = remember(entry, view) { entry?.takeIf { view == PasswordView.WIFI_QR }?.let { EntryCardBuilder.build(it, Instant.now()) } }
-    val password = remember(entry, network) {
-        if (view == PasswordView.WIFI_QR) {
-            network?.wifi?.let { wifi -> wifi.qrPayload(wifi.passwordRowId?.let { id -> network.rows.firstOrNull { it.id == id } }?.storedText().orEmpty()) }
-        } else {
-            entry?.password?.takeIf { !it.isEmpty() }?.reveal()
+    // A network's code holds its key, read as the card reads it; a wallet's parts too; else the entry's password.
+    val card = remember(entry, view) { entry?.takeIf { view != PasswordView.QR_CODE && view != PasswordView.LARGE_TYPE }?.let { EntryCardBuilder.build(it, Instant.now()) } }
+    val network = card?.takeIf { view == PasswordView.WIFI_QR }
+    val password = remember(entry, card) {
+        when (view) {
+            PasswordView.WIFI_QR -> network?.wifi?.let { wifi -> wifi.qrPayload(wifi.passwordRowId?.let { id -> network.rows.firstOrNull { it.id == id } }?.storedText().orEmpty()) }
+            PasswordView.SEED_WORDS -> card?.crypto?.seedRowId?.let { id -> card.rows.firstOrNull { it.id == id } }?.takeIf { !it.isEmpty }?.storedText()
+            PasswordView.ADDRESS_QR -> card?.crypto?.addresses?.firstOrNull { it.rowId == rowId }?.text
+            else -> entry?.password?.takeIf { !it.isEmpty() }?.reveal()
         }
     }
     LaunchedEffect(password == null) { if (password == null) onBack() }
@@ -102,6 +135,8 @@ internal fun PasswordScreen(database: DatabaseSession, entryId: String, view: Pa
                 PasswordView.QR_CODE -> QrCodeView(password)
                 PasswordView.LARGE_TYPE -> LargeType(password)
                 PasswordView.WIFI_QR -> NetworkQrCode(password, network?.wifi?.ssid.orEmpty())
+                PasswordView.SEED_WORDS -> SeedWords(password)
+                PasswordView.ADDRESS_QR -> AddressQrCode(password) { clipboard.copy(password, sensitive = false) }
             }
         }
     }
@@ -143,6 +178,136 @@ private fun NetworkQrCode(payload: String, ssid: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
     )
+}
+
+/**
+ * The recovery phrase a word at a time (SPEC §6.2), large, numbered, with the words before and after it, to write it down
+ * or type it into a wallet without losing the place. Back and Next, or a sideways swipe.
+ */
+@Composable
+private fun SeedWords(text: String) {
+    val words = remember(text) { SeedPhrase.read(text)?.words.orEmpty() }
+    if (words.isEmpty()) return
+    var index by rememberSaveable { mutableIntStateOf(0) }
+    val current = index.coerceIn(words.indices)
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().height(6.dp).semantics { contentDescription = "Word ${current + 1} of ${words.size}" },
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        for (i in words.indices) {
+            Box(
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(3.dp))
+                    .background(if (i == current) colors.primary else if (i < current) colors.onSurfaceVariant else colors.outlineVariant),
+            )
+        }
+    }
+    var drag by remember { mutableFloatStateOf(0f) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(32.dp))
+            .background(MaterialTheme.extraColors.row)
+            .pointerInput(words.size) {
+                detectHorizontalDragGestures(
+                    onDragStart = { drag = 0f },
+                    onDragEnd = {
+                        if (drag < -80f && index < words.size - 1) index++
+                        if (drag > 80f && index > 0) index--
+                    },
+                    onHorizontalDrag = { _, amount -> drag += amount },
+                )
+            }
+            .padding(horizontal = 12.dp, vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("Word ${current + 1} of ${words.size}", style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+        Text(
+            words[current],
+            fontFamily = MonospaceFamily,
+            fontSize = 52.sp,
+            lineHeight = 64.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            listOfNotNull(
+                words.getOrNull(current - 1)?.let { "$current $it" },
+                words.getOrNull(current + 1)?.let { "${current + 2} $it" },
+            ).joinToString("   ·   "),
+            fontFamily = MonospaceFamily,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        FilledTonalButton(onClick = { index = current - 1 }, enabled = current > 0, modifier = Modifier.weight(1f).heightIn(min = 64.dp)) {
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = null)
+            Text("Back", style = MaterialTheme.typography.titleMedium)
+        }
+        Button(onClick = { index = current + 1 }, enabled = current < words.size - 1, modifier = Modifier.weight(1.4f).heightIn(min = 64.dp)) {
+            Text(if (current == words.size - 1) "Last word" else "Next", style = MaterialTheme.typography.titleMedium)
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
+        }
+    }
+    Text(
+        "Swipe, or tap the buttons. Screenshots are blocked; this closes when the app locks.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = colors.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+    )
+}
+
+/** A receiving address's QR code (SPEC §6.2), to show someone who sends money: the plain address, at full brightness. */
+@Composable
+private fun AddressQrCode(address: String, onCopy: () -> Unit) {
+    FullBrightness()
+    val read = remember(address) { CryptoAddress.read(address) }
+    val context = LocalContext.current
+    read?.network?.let { network ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            NetworkBadge(network, 28.dp)
+            Text("Receive · ${network.displayName}", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+    QrCodeImage(address, description = "QR code of the address", modifier = Modifier.fillMaxWidth().widthIn(max = 340.dp))
+    Text(
+        groupedAddress(address, MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.onSurfaceVariant),
+        fontFamily = MonospaceFamily,
+        fontSize = 19.sp,
+        lineHeight = 28.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.widthIn(max = 340.dp),
+    )
+    read?.network?.let { network ->
+        Note(
+            Icons.Rounded.WarningAmber,
+            if (network == CryptoNetwork.ETHEREUM) "Ethereum or the EVM network this wallet uses: coins of another network sent here can be lost." else "Only ${network.displayName} to this address. Coins of another network sent here can be lost.",
+            MaterialTheme.extraColors.warnContainer,
+            MaterialTheme.extraColors.onWarnContainer,
+        )
+    }
+    if (read?.check == AddressCheck.FAILS) {
+        Note(Icons.Rounded.ErrorOutline, "The address fails its checksum (a typo?)", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = onCopy) {
+            Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+            Text("Copy")
+        }
+        // An address is public: the share sheet without a warning.
+        FilledTonalButton(onClick = {
+            val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, address)
+            context.startActivity(Intent.createChooser(send, null))
+        }) {
+            Icon(Icons.Rounded.Share, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+            Text("Share")
+        }
+    }
 }
 
 /** Each character in its own cell, numbered, so a long password is typed without losing the place. */

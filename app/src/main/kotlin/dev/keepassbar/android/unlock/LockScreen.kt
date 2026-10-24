@@ -87,6 +87,7 @@ import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.storage.AllFilesAccess
 import dev.keepassbar.android.theme.MonospaceFamily
+import dev.keepassbar.android.ui.SecretTextMenu
 import dev.keepassbar.android.ui.dotsAtLineEnd
 import dev.keepassbar.domain.biometric.BiometricAvailability
 import dev.keepassbar.vault.opening.OpenFailure
@@ -291,39 +292,42 @@ private fun PasswordRow(model: LockViewModel, enabled: Boolean, focusAtOnce: Boo
     // "Use password" in the fingerprint prompt, since this screen appeared.
     LaunchedEffect(passwordWanted) { if (enabled && passwordWanted > wantedBefore) focus.requestFocus() }
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SecureTextField(
-            state = model.password,
-            modifier = Modifier.weight(1f).focusRequester(focus),
-            enabled = enabled,
-            placeholder = { Text("Master password") },
-            textStyle = if (revealed) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
-            textObfuscationMode = if (revealed) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
-            trailingIcon = {
-                IconButton(onClick = { revealed = !revealed }) {
-                    Icon(
-                        if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                        contentDescription = if (revealed) "Hide password" else "Show password",
-                    )
-                }
-            },
-            // All of it, not only the action: a password field keeps the keyboard from capitalising, correcting
-            // and learning what is typed.
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.None,
-                autoCorrectEnabled = false,
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Done,
-            ),
-            onKeyboardAction = { model.unlock() },
-            shape = CircleShape,
-            colors = TextFieldDefaults.colors(
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ),
-        )
+        // Copying is off in a secure field; other apps' items in its menu ("Ask Gemini") go too.
+        SecretTextMenu(copyable = false, modifier = Modifier.weight(1f)) {
+            SecureTextField(
+                state = model.password,
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                enabled = enabled,
+                placeholder = { Text("Master password") },
+                textStyle = if (revealed) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
+                textObfuscationMode = if (revealed) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
+                trailingIcon = {
+                    IconButton(onClick = { revealed = !revealed }) {
+                        Icon(
+                            if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                            contentDescription = if (revealed) "Hide password" else "Show password",
+                        )
+                    }
+                },
+                // All of it, not only the action: a password field keeps the keyboard from capitalising, correcting
+                // and learning what is typed.
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrectEnabled = false,
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done,
+                ),
+                onKeyboardAction = { model.unlock() },
+                shape = CircleShape,
+                colors = TextFieldDefaults.colors(
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
+            )
+        }
         FilledIconButton(
             onClick = model::unlock,
             enabled = enabled,

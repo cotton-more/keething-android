@@ -64,6 +64,22 @@ public enum class FieldType(public val typeName: String) {
     SSH_HOST("ssh.host"),
     SSH_PORT("ssh.port"),
     SSH_USER("ssh.user"),
+
+    /**
+     * Parts of a crypto wallet: an entry with a `crypto.seed`, a `crypto.address` or a `crypto.xpub` is drawn as one. The
+     * recovery phrase and its passphrase are never copied (SPEC §6.2).
+     */
+    CRYPTO_SEED("crypto.seed"),
+    CRYPTO_PASSPHRASE("crypto.passphrase"),
+
+    /** A receiving address (public); an entry may have several. */
+    CRYPTO_ADDRESS("crypto.address"),
+
+    /** An extended public key (`xpub…`, `zpub…`): every address and balance of the wallet. */
+    CRYPTO_XPUB("crypto.xpub"),
+
+    /** The derivation path (`m/84'/0'/0'`). */
+    CRYPTO_PATH("crypto.path"),
     ;
 
     /** Read as a date. */
@@ -76,6 +92,10 @@ public enum class FieldType(public val typeName: String) {
     public val isBankPart: Boolean get() = typeName.startsWith("bank.")
     public val isDocumentPart: Boolean get() = typeName.startsWith("doc.")
     public val isSshPart: Boolean get() = typeName.startsWith("ssh.")
+    public val isCryptoPart: Boolean get() = typeName.startsWith("crypto.")
+
+    /** Never copied, nor in a QR code: whoever has it has the wallet (a recovery phrase, its passphrase). */
+    public val isNeverCopied: Boolean get() = this == CRYPTO_SEED || this == CRYPTO_PASSPHRASE
 
     /** A password: the editor offers the generator for it. */
     public val isPassword: Boolean get() = this == PASSWORD || this == WIFI_PASSWORD
@@ -115,6 +135,11 @@ public enum class FieldType(public val typeName: String) {
             SSH_HOST -> "Host"
             SSH_PORT -> "Port"
             SSH_USER -> "User"
+            CRYPTO_SEED -> "Recovery phrase"
+            CRYPTO_PASSPHRASE -> "Passphrase (25th word)"
+            CRYPTO_ADDRESS -> "Receiving address"
+            CRYPTO_XPUB -> "Extended public key"
+            CRYPTO_PATH -> "Derivation path"
         }
 
     /** The name where it stands alone ("Card expiry"). */
@@ -127,6 +152,7 @@ public enum class FieldType(public val typeName: String) {
             this == DOC_BIRTH -> "Date of birth"
             isDocumentPart -> "Document " + title.lowercase()
             isSshPart -> "SSH " + title.lowercase()
+            this == CRYPTO_PASSPHRASE -> "Wallet passphrase"
             else -> title
         }
 
@@ -168,6 +194,11 @@ public enum class FieldType(public val typeName: String) {
             SSH_HOST -> "Host"
             SSH_PORT -> "Port"
             SSH_USER -> "SSH user"
+            CRYPTO_SEED -> "Recovery phrase"
+            CRYPTO_PASSPHRASE -> "Passphrase"
+            CRYPTO_ADDRESS -> "Address"
+            CRYPTO_XPUB -> "xpub"
+            CRYPTO_PATH -> "Derivation path"
         }
 
     public companion object {
@@ -178,10 +209,11 @@ public enum class FieldType(public val typeName: String) {
         public val BANK: List<FieldType> = entries.filter { it.isBankPart }
         public val DOCUMENT: List<FieldType> = entries.filter { it.isDocumentPart }
         public val SSH: List<FieldType> = entries.filter { it.isSshPart }
+        public val CRYPTO: List<FieldType> = entries.filter { it.isCryptoPart }
 
         /** The kinds of entries whose parts the editor's menus offer, by their menu title. */
         public val KINDS: List<Pair<String, List<FieldType>>> =
-            listOf("Card" to CARD, "Wi-Fi" to WIFI, "Bank account" to BANK, "Document" to DOCUMENT, "SSH" to SSH)
+            listOf("Card" to CARD, "Wi-Fi" to WIFI, "Bank account" to BANK, "Document" to DOCUMENT, "SSH" to SSH, "Crypto" to CRYPTO)
 
         /** A stored type name (case and outer spaces ignored); null when it is none this version knows. */
         public fun of(typeName: String): FieldType? {

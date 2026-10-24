@@ -63,8 +63,8 @@ internal sealed interface Screen {
     /** [origin]: the list section the card was opened from, so the row it grows from is the right one. */
     data class Card(val entryId: String, val origin: String) : Screen
 
-    /** A password full screen; the entry's id only, the password is read from the vault. */
-    data class Password(val entryId: String, val view: PasswordView) : Screen
+    /** A password full screen; the entry's id only (and a field's row id), the password is read from the vault. */
+    data class Password(val entryId: String, val view: PasswordView, val rowId: String? = null) : Screen
 
     /** An entry's earlier versions. */
     data class History(val entryId: String) : Screen
@@ -256,6 +256,7 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             onBack = navigation::back,
                             onSearch = navigation::search,
                             onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
+                            onShowAddress = { rowId -> navigation.open(Screen.Password(key.entryId, PasswordView.ADDRESS_QR, rowId)) },
                             onEdit = { navigation.open(Screen.Editor(key.entryId)) },
                             onHistory = { navigation.open(Screen.History(key.entryId)) },
                             onSendTo = { their ->
@@ -283,7 +284,7 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                         )
                     }
                     entry<Screen.Password> { key ->
-                        PasswordScreen(database, key.entryId, key.view, onBack = navigation::back)
+                        PasswordScreen(database, key.entryId, key.view, key.rowId, container.clipboard, onBack = navigation::back)
                     }
                     entry<Screen.Groups> {
                         GroupsScreen(database, onBack = navigation::back, onSearch = navigation::search)

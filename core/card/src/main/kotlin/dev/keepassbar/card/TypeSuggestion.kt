@@ -19,6 +19,7 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         BANK_ACCOUNT("a bank account"),
         DOCUMENT("an identity document"),
         SSH("an SSH login"),
+        CRYPTO("a crypto wallet"),
     }
 
     /** The entry's types with these added (Mac SPEC §3.12): saved as any edit. */
@@ -26,7 +27,7 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         EntryChanges(fieldTypes = entry.fieldTypes + types.mapValues { it.value.typeName })
 
     public companion object {
-        public fun of(entry: Entry): TypeSuggestion? = card(entry) ?: wifi(entry) ?: bank(entry) ?: document(entry) ?: ssh(entry)
+        public fun of(entry: Entry): TypeSuggestion? = card(entry) ?: wifi(entry) ?: bank(entry) ?: document(entry) ?: ssh(entry) ?: crypto(entry)
 
         private fun card(entry: Entry): TypeSuggestion? {
             val interpreter = FieldInterpreter(entry)
@@ -107,6 +108,29 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
             port?.let { types[it.name] = FieldType.SSH_PORT }
             user?.let { types[it.name] = FieldType.SSH_USER }
             return TypeSuggestion(Kind.SSH, types)
+        }
+
+        private fun crypto(entry: Entry): TypeSuggestion? {
+            val interpreter = FieldInterpreter(entry)
+            if (entry.customFields.any { interpreter.type(it)?.isCryptoPart == true }) return null
+            val free = entry.customFields.filter { interpreter.type(it) == null }
+            // A phrase by its value (its checksum, or words of a list under a phrase's name), or by its name when protected.
+            val seed = free.firstOrNull { field -> field.plainText?.let(SeedPhrase::read)?.passes == true }
+                ?: free.firstOrNull { name(it) in SEED && (it.plainText?.let(SeedPhrase::read)?.isWords ?: !it.isEmpty) }
+            // Addresses and keys by a checksum that passes; one without (Solana's) only under an address's name.
+            val addresses = free.filter { field ->
+                val read = field.plainText?.let(CryptoAddress::read) ?: return@filter false
+                read.check == AddressCheck.PASSES || (read.check == AddressCheck.NONE && name(field) in ADDRESS)
+            }
+            val xpub = free.firstOrNull { field -> field.plainText?.let(ExtendedKey::read)?.let { it.passes && !it.isPrivate } == true }
+            if (seed == null && addresses.isEmpty() && xpub == null) return null
+            val types = linkedMapOf<String, FieldType>()
+            seed?.let { types[it.name] = FieldType.CRYPTO_SEED }
+            if (seed != null) free.firstOrNull { it.name !in types && name(it) in PASSPHRASE && !it.isEmpty }?.let { types[it.name] = FieldType.CRYPTO_PASSPHRASE }
+            addresses.forEach { types[it.name] = FieldType.CRYPTO_ADDRESS }
+            xpub?.let { types[it.name] = FieldType.CRYPTO_XPUB }
+            free.firstOrNull { it.name !in types && it.plainText?.let(DerivationPath::describe) != null }?.let { types[it.name] = FieldType.CRYPTO_PATH }
+            return TypeSuggestion(Kind.CRYPTO, types)
         }
 
         /** A field's name as compared: without its 1Password section, folded, words split on anything else. */
@@ -200,6 +224,21 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         )
         private val SSH_PORT = setOf("port", "ssh port", "порт")
         private val SSH_USER = setOf("user", "ssh user", "login", "benutzer", "пользователь", "логин")
+
+        private val SEED = setOf(
+            "seed", "seed phrase", "seedphrase", "seed words", "wallet seed", "recovery seed", "recovery phrase", "secret recovery phrase",
+            "recovery words", "backup phrase", "mnemonic", "mnemonic phrase", "mnemonic words", "bip39", "bip 39", "secret phrase",
+            "wiederherstellungsphrase", "seed satz", "сид", "сид фраза", "seed фраза", "мнемоническая фраза", "мнемоника",
+            "фраза восстановления", "секретная фраза", "кодовые слова",
+        )
+        private val PASSPHRASE = setOf(
+            "passphrase", "seed passphrase", "bip39 passphrase", "bip 39 passphrase", "25th word", "13th word", "extra word",
+            "парольная фраза", "кодовая фраза", "25 е слово", "25 слово",
+        )
+        private val ADDRESS = setOf(
+            "address", "wallet address", "receiving address", "receive address", "deposit address", "public address",
+            "adresse", "empfangsadresse", "адрес", "адрес кошелька",
+        )
 
         /** What the face reads as an open network (as [WiFiNetwork] does). */
         private val OPEN = setOf("none", "open", "offen", "нет", "открытая")

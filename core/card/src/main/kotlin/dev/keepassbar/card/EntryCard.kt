@@ -39,6 +39,9 @@ public data class CardSection(val id: String, val kind: Kind, val title: String?
         /** The `ssh.*` fields, drawn as a terminal with the command. */
         public data class Ssh(val login: SshLogin) : Kind
 
+        /** The `crypto.*` fields, drawn as a wallet: the recovery phrase on a steel plate, the address with its QR code. */
+        public data class Crypto(val wallet: CryptoWallet) : Kind
+
         public data object Attachments : Kind
     }
 }
@@ -73,6 +76,7 @@ public data class EntryCard(
     val bankAccount: BankAccount? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.BankAccount)?.account }
     val document: IdentityDocument? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.Document)?.document }
     val ssh: SshLogin? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.Ssh)?.login }
+    val crypto: CryptoWallet? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.Crypto)?.wallet }
 
     /**
      * The text of the Wi-Fi network's QR code (SPEC §3.13; Mac `EntryCardModel.wifiQRPayload`): it holds the
@@ -94,7 +98,7 @@ public data class EntryCard(
  */
 public object EntryCardBuilder {
     /** The views of kinds of entries, in card order. */
-    private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection, BankAccountSection, DocumentSection, SshSection)
+    private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection, BankAccountSection, DocumentSection, SshSection, CryptoSection)
 
     public fun build(entry: Entry, now: Instant, locale: Locale = Locale.getDefault()): EntryCard {
         fun row(id: String, kind: FieldRow.Kind, label: String, value: FieldValue) = FieldRow(id, kind, label, value)

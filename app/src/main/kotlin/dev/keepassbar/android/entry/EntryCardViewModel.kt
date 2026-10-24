@@ -30,6 +30,7 @@ import dev.keepassbar.card.EntryCard
 import dev.keepassbar.card.EntryCardBuilder
 import dev.keepassbar.card.EntryFace
 import dev.keepassbar.card.FieldRow
+import dev.keepassbar.card.FieldType
 import dev.keepassbar.card.GroupPathFormatter
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.RowIds
@@ -201,7 +202,12 @@ internal class EntryCardViewModel(
         clipboard.copy(text, sensitive = row.isConcealed || row.kind == FieldRow.Kind.TOTP)
         if (content.value?.inRecycleBin == false) recents.note(entryId)
         // A code of a list is copied to be used: the notice offers to mark it so.
-        val copied = if (row.copiesCompact) Notice("${row.noticeLabel} copied without spaces · clears in 30 s") else Notice.copied(row.noticeLabel)
+        val copied = when {
+            row.copiesCompact -> Notice("${row.noticeLabel} copied without spaces · clears in 30 s")
+            // Malware swaps addresses on the clipboard: the start and end are what to check.
+            row.type == FieldType.CRYPTO_ADDRESS -> Notice("${row.noticeLabel} copied · check its start and end where you paste it")
+            else -> Notice.copied(row.noticeLabel)
+        }
         mutableNotices.trySend(if (canMarkUsed(row) && row.usedOn == null) copied.copy(undo = { setUsed(row, true) }, actionLabel = "Mark as used") else copied)
     }
 

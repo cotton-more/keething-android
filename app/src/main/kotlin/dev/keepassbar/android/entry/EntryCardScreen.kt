@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Terminal
@@ -128,6 +129,8 @@ internal fun EntryCardScreen(
     onBack: () -> Unit,
     onSearch: (String) -> Unit,
     onShowPassword: (PasswordView) -> Unit,
+    /** A wallet's address as a QR code, full screen, by its row. */
+    onShowAddress: (String) -> Unit,
     onEdit: () -> Unit,
     onHistory: () -> Unit,
     /** A request someone sent, picked to answer with this entry (SPEC §10). */
@@ -221,6 +224,8 @@ internal fun EntryCardScreen(
         },
         onCopyText = model::copyText,
         onShareBank = { model.bankShareIntent()?.let(context::startActivity) },
+        onSeedWords = { onShowPassword(PasswordView.SEED_WORDS) },
+        onAddressQr = onShowAddress,
     )
     val sshApp = remember(content.card.ssh?.uri) { content.card.ssh?.let { sshApp(context, it.uri, model::problem) } }
     val extras = FaceExtras(
@@ -449,6 +454,11 @@ private class Offer(val icon: ImageVector, val text: String, val button: String)
                 "Show these fields with the ssh command and a ~/.ssh/config block. Their types are saved in the entry.",
                 "Show as SSH",
             )
+            TypeSuggestion.Kind.CRYPTO -> Offer(
+                Icons.Rounded.AccountBalanceWallet,
+                "Show these fields as a wallet: the recovery phrase checked and never copied, the address with its QR code. Their types are saved in the entry.",
+                "Show as wallet",
+            )
         }
     }
 }
@@ -593,6 +603,10 @@ internal class CardActions(
     val onCopyText: (what: String, text: String) -> Unit = { _, _ -> },
     /** The bank account's details to the share sheet. */
     val onShareBank: () -> Unit = {},
+    /** The wallet's recovery phrase a word at a time, full screen. */
+    val onSeedWords: () -> Unit = {},
+    /** A receiving address's QR code full screen, by its row. */
+    val onAddressQr: (String) -> Unit = {},
 )
 
 /** Tapping anywhere on a row copies it (SPEC §6.2). */

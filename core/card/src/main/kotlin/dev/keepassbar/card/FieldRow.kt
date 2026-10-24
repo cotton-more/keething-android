@@ -62,6 +62,8 @@ public data class FieldRow(
     val usedOn: LocalDate? = null,
     /** An account number (an IBAN): copied without its spaces, which bank forms often refuse or cut off. */
     val copiesCompact: Boolean = false,
+    /** A wallet's recovery phrase, its passphrase, a private key: shown, never copied (SPEC §6.2). */
+    val neverCopied: Boolean = false,
 ) {
     public enum class Kind { USERNAME, PASSWORD, URL, TOTP, NOTES, CUSTOM, ATTACHMENT }
 
@@ -76,9 +78,9 @@ public data class FieldRow(
             is FieldValue.Protected -> value.secret.isEmpty()
         }
 
-    /** An attachment is opened or saved, not copied; a code is always there. */
+    /** An attachment is opened or saved, not copied; a code is always there; a wallet's secrets never are. */
     val isCopyable: Boolean
-        get() = when (kind) {
+        get() = !neverCopied && when (kind) {
             Kind.ATTACHMENT -> false
             Kind.TOTP -> true
             else -> !isEmpty

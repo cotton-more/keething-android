@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Terminal
@@ -138,6 +139,7 @@ import dev.keepassbar.android.generator.PasswordGeneratorState
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.SecretTextMenu
 import dev.keepassbar.android.ui.NoLearningKeyboard
 import dev.keepassbar.android.ui.colouredSecret
 import dev.keepassbar.card.GroupPathFormatter
@@ -348,32 +350,38 @@ private fun EditorField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     /** Masked: dots for each character while typed in, the card's fixed dots otherwise ([visualTransformation] unused). */
     hidden: Boolean = false,
+    /** A secret: its text menu without other apps' items ([SecretTextMenu]); not [copyable]: without Copy and Cut too. */
+    secret: Boolean = false,
+    copyable: Boolean = true,
     trailingIcon: (@Composable () -> Unit)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
-    TextField(
-        value = value,
-        onValueChange = onChange,
-        modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
-        label = { Text(label, color = if (highlighted) MaterialTheme.colorScheme.primary else Color.Unspecified) },
-        placeholder = placeholder?.let { { Text(it) } },
-        singleLine = singleLine,
-        minLines = if (singleLine) 1 else 3,
-        textStyle = textStyle,
-        visualTransformation = when {
-            !hidden -> visualTransformation
-            focused -> PasswordVisualTransformation()
-            else -> FixedMask
-        },
-        trailingIcon = trailingIcon,
-        keyboardOptions = KeyboardOptions(
-            capitalization = capitalization,
-            autoCorrectEnabled = keyboardType == KeyboardType.Text && capitalization == KeyboardCapitalization.Sentences,
-            keyboardType = keyboardType,
-        ),
-        shape = RoundedCornerShape(18.dp),
-        colors = editorFieldColors(containerColor),
-    )
+    val field: @Composable () -> Unit = {
+        TextField(
+            value = value,
+            onValueChange = onChange,
+            modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+            label = { Text(label, color = if (highlighted) MaterialTheme.colorScheme.primary else Color.Unspecified) },
+            placeholder = placeholder?.let { { Text(it) } },
+            singleLine = singleLine,
+            minLines = if (singleLine) 1 else 3,
+            textStyle = textStyle,
+            visualTransformation = when {
+                !hidden -> visualTransformation
+                focused -> PasswordVisualTransformation()
+                else -> FixedMask
+            },
+            trailingIcon = trailingIcon,
+            keyboardOptions = KeyboardOptions(
+                capitalization = capitalization,
+                autoCorrectEnabled = keyboardType == KeyboardType.Text && capitalization == KeyboardCapitalization.Sentences,
+                keyboardType = keyboardType,
+            ),
+            shape = RoundedCornerShape(18.dp),
+            colors = editorFieldColors(containerColor),
+        )
+    }
+    if (secret) SecretTextMenu(copyable, content = field) else field()
 }
 
 /** A masked value not being typed in: the card's dots, which do not tell its length; the cursor goes to its end. */
@@ -414,6 +422,7 @@ private fun PasswordField(password: String, onChange: (String) -> Unit, revealed
         textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),
         visualTransformation = colouredSecretTransformation(),
         hidden = !revealed,
+        secret = true,
         trailingIcon = {
             Row {
                 RevealButton(revealed, "password", onToggle)
@@ -617,7 +626,7 @@ private fun FieldEditor(
     var generating by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val type = field.type
-    val masked = field.isProtected || type?.isPassword == true
+    val masked = field.isProtected || type?.isPassword == true || type?.isNeverCopied == true
     val valueFocus = remember { FocusRequester() }
     val bringIntoView = remember { BringIntoViewRequester() }
     if (focusNow) {
@@ -665,6 +674,9 @@ private fun FieldEditor(
             textStyle = if (masked) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
             visualTransformation = if (masked) colouredSecretTransformation() else VisualTransformation.None,
             hidden = masked && !revealed,
+            secret = masked,
+            // A recovery phrase and its passphrase: no Copy in the field's menu either.
+            copyable = type?.isNeverCopied != true,
             trailingIcon = {
                 Row {
                     if (masked) RevealButton(revealed, "value") { revealed = !revealed }
@@ -821,8 +833,9 @@ private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit) {
 }
 
 /**
- * The types in a menu: [basic] ones, then *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›* and *SSH ›*, which show
- * their parts in its place (with a way back). [top] and [bottom] add items around them; they get a way to close the menu.
+ * The types in a menu: [basic] ones, then *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›*, *SSH ›* and *Crypto ›*,
+ * which show their parts in its place (with a way back). [top] and [bottom] add items around them; they get a way to
+ * close the menu.
  */
 @Composable
 private fun FieldTypeMenu(
@@ -890,6 +903,7 @@ private fun FieldType.icon(): ImageVector = when {
     isBankPart -> Icons.Rounded.AccountBalance
     isDocumentPart -> Icons.Rounded.Badge
     isSshPart -> Icons.Rounded.Terminal
+    isCryptoPart -> Icons.Rounded.AccountBalanceWallet
     else -> when (this) {
         FieldType.DATE -> Icons.Rounded.Event
         FieldType.UNTIL -> Icons.Rounded.EventBusy
