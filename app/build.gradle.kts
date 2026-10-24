@@ -59,6 +59,8 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.navigation3)
     implementation(libs.navigation3.runtime)
     implementation(libs.navigation3.ui)
+    // The list and the card side by side on a wide screen (SPEC §6.1).
+    implementation(libs.compose.material3.adaptive.navigation3)
     implementation(libs.autofill)
     // QR codes of a password and a Wi-Fi network (SPEC §6.2); MIT, `assets/licenses`.
     implementation(libs.qrcodegen)

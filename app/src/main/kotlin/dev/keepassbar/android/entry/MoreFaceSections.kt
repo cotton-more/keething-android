@@ -85,73 +85,75 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
     val shown = !concealed || reveal.isRevealed(account.numberRowId)
     Titled(section.title) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(colors.sticker)
-                    .border(1.dp, colors.stickerEdge, RoundedCornerShape(22.dp))
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FaceTile(Icons.Rounded.AccountBalance)
-                    Text("BANK ACCOUNT", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = colors.stickerLabel, maxLines = 1)
-                    CountryChip(account.country)
-                }
-                account.holderRowId?.let { id ->
-                    StickerLine("ACCOUNT HOLDER", rows[id], actions) {
-                        Text(account.holder.orEmpty(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            FaceWidth {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(colors.sticker)
+                        .border(1.dp, colors.stickerEdge, RoundedCornerShape(22.dp))
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        FaceTile(Icons.Rounded.AccountBalance)
+                        Text("BANK ACCOUNT", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = colors.stickerLabel, maxLines = 1)
+                        CountryChip(account.country)
                     }
-                }
-                StickerLine(account.numberLabel, number, actions) {
-                    val text = if (shown) account.numberShown ?: number?.let(reveal::displayValue).orEmpty() else RevealState.MASK
-                    val accent = MaterialTheme.extraColors.digit
-                    Text(
-                        buildAnnotatedString {
-                            val groups = text.split(' ')
-                            groups.forEachIndexed { i, group ->
-                                if (i > 0) append(' ')
-                                // An IBAN's country and check digits in the accent.
-                                if (i == 0 && shown && account.numberLabel == "IBAN") withStyle(SpanStyle(color = accent)) { append(group) } else append(group)
-                            }
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontFamily = MonospaceFamily,
-                        letterSpacing = 0.5.sp,
-                    )
-                }
-                if (account.items.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        for (item in account.items) {
-                            FaceItem(item.label, rows[item.rowId], actions) {
-                                Text(item.value, style = MaterialTheme.typography.bodyLarge, fontFamily = if (item.monospace) MonospaceFamily else null)
+                    account.holderRowId?.let { id ->
+                        StickerLine("ACCOUNT HOLDER", rows[id], actions) {
+                            Text(account.holder.orEmpty(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    StickerLine(account.numberLabel, number, actions) {
+                        val text = if (shown) account.numberShown ?: number?.let(reveal::displayValue).orEmpty() else RevealState.MASK
+                        val accent = MaterialTheme.extraColors.digit
+                        Text(
+                            buildAnnotatedString {
+                                val groups = text.split(' ')
+                                groups.forEachIndexed { i, group ->
+                                    if (i > 0) append(' ')
+                                    // An IBAN's country and check digits in the accent.
+                                    if (i == 0 && shown && account.numberLabel == "IBAN") withStyle(SpanStyle(color = accent)) { append(group) } else append(group)
+                                }
+                            },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontFamily = MonospaceFamily,
+                            letterSpacing = 0.5.sp,
+                        )
+                    }
+                    if (account.items.isNotEmpty()) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            for (item in account.items) {
+                                FaceItem(item.label, rows[item.rowId], actions) {
+                                    Text(item.value, style = MaterialTheme.typography.bodyLarge, fontFamily = if (item.monospace) MonospaceFamily else null)
+                                }
                             }
                         }
                     }
-                }
-                HorizontalDivider(color = colors.stickerEdge)
-                Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tap a line to copy it · numbers without spaces", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = colors.stickerLabel)
-                    if (concealed) ShowButton(shown) { actions.onToggle(account.numberRowId) }
-                }
-            }
-            account.problem?.let {
-                Note(Icons.Rounded.ErrorOutline, it, MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (number != null && !number.isEmpty) {
-                    Button(onClick = { actions.onCopy(number) }, Modifier.weight(1f).heightIn(min = 52.dp)) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
-                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text(if (account.numberLabel == "IBAN") "Copy IBAN" else "Copy account", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    HorizontalDivider(color = colors.stickerEdge)
+                    Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tap a line to copy it · numbers without spaces", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = colors.stickerLabel)
+                        if (concealed) ShowButton(shown) { actions.onToggle(account.numberRowId) }
                     }
                 }
-                if (account.shareText() != null) {
-                    FilledTonalButton(onClick = actions.onShareBank, Modifier.heightIn(min = 52.dp)) {
-                        Icon(Icons.Rounded.Share, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
-                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text("Share", maxLines = 1)
+                account.problem?.let {
+                    Note(Icons.Rounded.ErrorOutline, it, MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (number != null && !number.isEmpty) {
+                        Button(onClick = { actions.onCopy(number) }, Modifier.weight(1f).heightIn(min = 52.dp)) {
+                            Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                            Text(if (account.numberLabel == "IBAN") "Copy IBAN" else "Copy account", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (account.shareText() != null) {
+                        FilledTonalButton(onClick = actions.onShareBank, Modifier.heightIn(min = 52.dp)) {
+                            Icon(Icons.Rounded.Share, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                            Text("Share", maxLines = 1)
+                        }
                     }
                 }
             }
@@ -177,72 +179,74 @@ internal fun DocumentSection(section: CardSection, document: IdentityDocument, r
     val locale = Locale.getDefault()
     Titled(section.title) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                val width = minOf(maxWidth, FACE_MAX_WIDTH)
-                val shape = RoundedCornerShape(18.dp)
-                Box(
-                    Modifier
-                        .width(width)
-                        // ID-1 at least; taller when large text needs it.
-                        .heightIn(min = width / 1.586f)
-                        .shadow(8.dp, shape)
-                        .clip(shape)
-                        .background(colors.paper)
-                        .border(1.dp, colors.paperEdge, shape),
-                ) {
-                    Guilloche(colors.paperWave, Modifier.matchParentSize())
-                    Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(document.heading(locale), Modifier.weight(1f), color = ink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            document.country?.let { country ->
+            FaceWidth {
+                BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    val width = minOf(maxWidth, FACE_MAX_WIDTH)
+                    val shape = RoundedCornerShape(18.dp)
+                    Box(
+                        Modifier
+                            .width(width)
+                            // ID-1 at least; taller when large text needs it.
+                            .heightIn(min = width / 1.586f)
+                            .shadow(8.dp, shape)
+                            .clip(shape)
+                            .background(colors.paper)
+                            .border(1.dp, colors.paperEdge, shape),
+                    ) {
+                        Guilloche(colors.paperWave, Modifier.matchParentSize())
+                        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(document.heading(locale), Modifier.weight(1f), color = ink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                document.country?.let { country ->
+                                    Text(
+                                        listOf(document.countryCode?.let(Countries::flag) ?: Countries.UNKNOWN_FLAG, country.uppercase(locale)).joinToString(" "),
+                                        Modifier.widthIn(max = width * 0.5f),
+                                        color = ink,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            document.nameRowId?.let { id ->
+                                PaperLine("NAME", rows[id], actions) { Text(document.name.orEmpty(), color = ink, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                            }
+                            PaperLine("NUMBER", number, actions) {
                                 Text(
-                                    listOf(document.countryCode?.let(Countries::flag) ?: Countries.UNKNOWN_FLAG, country.uppercase(locale)).joinToString(" "),
-                                    Modifier.widthIn(max = width * 0.5f),
+                                    if (shown) number?.revealedText().orEmpty() else RevealState.MASK,
                                     color = ink,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = MonospaceFamily,
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     letterSpacing = 1.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                        }
-                        document.nameRowId?.let { id ->
-                            PaperLine("NAME", rows[id], actions) { Text(document.name.orEmpty(), color = ink, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                        }
-                        PaperLine("NUMBER", number, actions) {
-                            Text(
-                                if (shown) number?.revealedText().orEmpty() else RevealState.MASK,
-                                color = ink,
-                                fontFamily = MonospaceFamily,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                letterSpacing = 1.sp,
-                            )
-                        }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            DateLine("BORN", document.birth, document.birthRowId, rows, actions, ink, locale)
-                            DateLine("ISSUED", document.issued, document.issuedRowId, rows, actions, ink, locale)
-                            val expired = document.expiryHint?.status == ExpiryHint.Status.EXPIRED
-                            DateLine("EXPIRES", document.expiry, document.expiryRowId, rows, actions, if (expired) MaterialTheme.colorScheme.error else ink, locale)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                DateLine("BORN", document.birth, document.birthRowId, rows, actions, ink, locale)
+                                DateLine("ISSUED", document.issued, document.issuedRowId, rows, actions, ink, locale)
+                                val expired = document.expiryHint?.status == ExpiryHint.Status.EXPIRED
+                                DateLine("EXPIRES", document.expiry, document.expiryRowId, rows, actions, if (expired) MaterialTheme.colorScheme.error else ink, locale)
+                            }
                         }
                     }
                 }
-            }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (concealed) {
-                    FilledTonalButton(onClick = { actions.onToggle(document.numberRowId) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
-                        Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
-                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text(if (shown) "Hide" else "Show")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (concealed) {
+                        FilledTonalButton(onClick = { actions.onToggle(document.numberRowId) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+                            Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                            Text(if (shown) "Hide" else "Show")
+                        }
                     }
+                    document.expiryHint?.takeIf { it.status != ExpiryHint.Status.VALID }?.let { ExpiryChip(it) }
+                    Text("Tap a line to copy it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                document.expiryHint?.takeIf { it.status != ExpiryHint.Status.VALID }?.let { ExpiryChip(it) }
-                Text("Tap a line to copy it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             val others = section.rows.filter { it.id !in document.faceRowIds }
             if (others.isNotEmpty()) RowGroup(others) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
@@ -304,91 +308,93 @@ internal fun SshSection(section: CardSection, login: SshLogin, key: SshKeyView?,
     val command = login.command(location)
     Titled(section.title) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(22.dp))
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Terminal.background)
-                    // Its edge, seen against the dark theme's background.
-                    .border(1.dp, Terminal.rule, RoundedCornerShape(22.dp))
-                    .padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { repeat(3) { Box(Modifier.size(10.dp).clip(CircleShape).background(Terminal.dot)) } }
-                    Text("SSH", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = Terminal.label)
-                    val auth = when {
-                        location != null -> "key"
-                        hasPassword -> "password"
-                        else -> null
-                    }
-                    Text(
-                        listOfNotNull(auth, "port ${login.port ?: 22}").joinToString(" · "),
-                        Modifier.clip(RoundedCornerShape(9.dp)).background(Terminal.chip).padding(horizontal = 10.dp, vertical = 4.dp),
-                        color = Terminal.ink,
-                        fontFamily = MonospaceFamily,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                    )
-                }
-                Text(
-                    buildAnnotatedString {
-                        withStyle(SpanStyle(color = Terminal.prompt)) { append("$ ") }
-                        append(command)
-                    },
+            FaceWidth {
+                Column(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClickLabel = "Copy the ssh command") { actions.onCopyText("ssh command", command) }
-                        .padding(8.dp),
-                    color = Terminal.ink,
-                    fontFamily = MonospaceFamily,
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp,
-                )
-                HorizontalDivider(color = Terminal.rule)
-                Column {
-                    TerminalLine("host", login.host) { actions.onCopyText("Host", login.host) }
-                    login.user?.let { user ->
-                        TerminalLine("user", user, note = if (login.userRowId == RowIds.USERNAME) "the username" else null) { actions.onCopyText("User", user) }
+                        .shadow(8.dp, RoundedCornerShape(22.dp))
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Terminal.background)
+                        // Its edge, seen against the dark theme's background.
+                        .border(1.dp, Terminal.rule, RoundedCornerShape(22.dp))
+                        .padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { repeat(3) { Box(Modifier.size(10.dp).clip(CircleShape).background(Terminal.dot)) } }
+                        Text("SSH", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = Terminal.label)
+                        val auth = when {
+                            location != null -> "key"
+                            hasPassword -> "password"
+                            else -> null
+                        }
+                        Text(
+                            listOfNotNull(auth, "port ${login.port ?: 22}").joinToString(" · "),
+                            Modifier.clip(RoundedCornerShape(9.dp)).background(Terminal.chip).padding(horizontal = 10.dp, vertical = 4.dp),
+                            color = Terminal.ink,
+                            fontFamily = MonospaceFamily,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                        )
                     }
-                    TerminalLine("port", (login.port ?: 22).toString()) { actions.onCopyText("Port", (login.port ?: 22).toString()) }
-                }
-                key?.let { KeyLine(it, actions) }
-                HorizontalDivider(color = Terminal.rule)
-                val config = login.config(location)
-                Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("~/.ssh/config", Modifier.weight(1f), color = Terminal.label, fontFamily = MonospaceFamily, fontSize = 12.sp)
-                    TextButton(onClick = { actions.onCopyText("Host block", config) }) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(16.dp), tint = Terminal.ink)
-                        Spacer(Modifier.size(6.dp))
-                        Text("Copy", color = Terminal.ink)
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = Terminal.prompt)) { append("$ ") }
+                            append(command)
+                        },
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClickLabel = "Copy the ssh command") { actions.onCopyText("ssh command", command) }
+                            .padding(8.dp),
+                        color = Terminal.ink,
+                        fontFamily = MonospaceFamily,
+                        fontSize = 16.sp,
+                        lineHeight = 24.sp,
+                    )
+                    HorizontalDivider(color = Terminal.rule)
+                    Column {
+                        TerminalLine("host", login.host) { actions.onCopyText("Host", login.host) }
+                        login.user?.let { user ->
+                            TerminalLine("user", user, note = if (login.userRowId == RowIds.USERNAME) "the username" else null) { actions.onCopyText("User", user) }
+                        }
+                        TerminalLine("port", (login.port ?: 22).toString()) { actions.onCopyText("Port", (login.port ?: 22).toString()) }
+                    }
+                    key?.let { KeyLine(it, actions) }
+                    HorizontalDivider(color = Terminal.rule)
+                    val config = login.config(location)
+                    Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("~/.ssh/config", Modifier.weight(1f), color = Terminal.label, fontFamily = MonospaceFamily, fontSize = 12.sp)
+                        TextButton(onClick = { actions.onCopyText("Host block", config) }) {
+                            Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(16.dp), tint = Terminal.ink)
+                            Spacer(Modifier.size(6.dp))
+                            Text("Copy", color = Terminal.ink)
+                        }
+                    }
+                    Text(
+                        config,
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Terminal.code).padding(horizontal = 10.dp, vertical = 8.dp),
+                        color = Terminal.ink,
+                        fontFamily = MonospaceFamily,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                    )
+                    Row(Modifier.heightIn(min = 40.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tap a line to copy it", style = MaterialTheme.typography.bodySmall, color = Terminal.label)
                     }
                 }
-                Text(
-                    config,
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Terminal.code).padding(horizontal = 10.dp, vertical = 8.dp),
-                    color = Terminal.ink,
-                    fontFamily = MonospaceFamily,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                )
-                Row(Modifier.heightIn(min = 40.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tap a line to copy it", style = MaterialTheme.typography.bodySmall, color = Terminal.label)
-                }
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { actions.onCopyText("ssh command", command) }, Modifier.heightIn(min = 52.dp)) {
-                    Icon(Icons.Rounded.Terminal, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Copy ssh command", maxLines = 1)
-                }
-                sshApp?.let { app ->
-                    FilledTonalButton(onClick = app.open, Modifier.heightIn(min = 52.dp)) {
-                        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { actions.onCopyText("ssh command", command) }, Modifier.heightIn(min = 52.dp)) {
+                        Icon(Icons.Rounded.Terminal, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text("Open in ${app.label}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Copy ssh command", maxLines = 1)
+                    }
+                    sshApp?.let { app ->
+                        FilledTonalButton(onClick = app.open, Modifier.heightIn(min = 52.dp)) {
+                            Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                            Text("Open in ${app.label}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
             }

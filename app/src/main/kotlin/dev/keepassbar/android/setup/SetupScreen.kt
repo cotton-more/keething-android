@@ -49,6 +49,7 @@ import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.storage.AllFilesAccess
 import dev.keepassbar.android.storage.FolderPaths
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.ui.segmentShape
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -117,7 +118,7 @@ internal fun SetupScreen(container: AppContainer, onChosen: () -> Unit, onBack: 
     }
 
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = readableInset()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(Modifier.height(56.dp), verticalAlignment = Alignment.CenterVertically) {

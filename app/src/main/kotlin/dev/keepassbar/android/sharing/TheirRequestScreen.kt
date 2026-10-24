@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.sharing.pictures.Picture
 import dev.keepassbar.sharing.pictures.Pictures
@@ -119,7 +120,7 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -60,6 +60,7 @@ import dev.keepassbar.android.ui.BarTitle
 import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.NoLearningKeyboard
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.ui.segmentShape
 import dev.keepassbar.card.EntryAvatar
 import dev.keepassbar.domain.vault.Entry
@@ -248,7 +249,7 @@ internal fun ReviewScreen(
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             NoLearningKeyboard {

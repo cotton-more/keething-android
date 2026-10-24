@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,7 +30,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -70,6 +73,7 @@ import dev.keepassbar.android.R
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
@@ -119,6 +123,7 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
     // vault's own unlock starts.
     val unlocking = session is SessionState.Unlocking || biometric.opening
 
+    val short = LocalConfiguration.current.screenHeightDp < 480
     // A wrong typed password shakes the field; a stored one the database rejected is not the user's typo.
     val shake = remember { Animatable(0f) }
     LaunchedEffect(reason) {
@@ -127,19 +132,16 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
         }
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.weight(1f))
-        AppLogo(Modifier.size(104.dp))
-        Spacer(Modifier.height(24.dp))
-        Text("Keething", style = MaterialTheme.typography.displaySmall)
-        Spacer(Modifier.height(8.dp))
+    // The database's identity, then the way in: one above the other; side by side on a screen less than 480 dp high
+    // (a phone in landscape), where the keyboard leaves room for the field only. At most 480 dp wide on a tablet.
+    val identity = @Composable {
+        // With the keyboard up on a low screen one row is left: the database's, beside the field.
+        if (!(short && WindowInsets.isImeVisible)) {
+            AppLogo(Modifier.size(if (short) 72.dp else 104.dp))
+            Spacer(Modifier.height(if (short) 12.dp else 24.dp))
+            Text("Keething", style = MaterialTheme.typography.displaySmall)
+            Spacer(Modifier.height(8.dp))
+        }
         DatabaseLine(database, fileInfo, onChooseDatabase)
         (fingerprintNotice ?: reason?.notice(timeout, database.file))?.let { notice ->
             Spacer(Modifier.height(12.dp))
@@ -152,7 +154,8 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
                 Text("Allow all-files access")
             }
         }
-        Spacer(Modifier.weight(1f))
+    }
+    val wayIn = @Composable {
         AnimatedContent(
             targetState = unlocking,
             transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -186,6 +189,25 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
                     }
                 }
             }
+        }
+    }
+    val edges = Modifier
+        .fillMaxSize()
+        .statusBarsPadding()
+        .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+        .displayCutoutPadding()
+        .padding(horizontal = 24.dp, vertical = if (short) 8.dp else 16.dp)
+    if (short) {
+        Row(edges, horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { identity() }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { wayIn() }
+        }
+    } else {
+        Column(edges.wrapContentWidth().widthIn(max = 480.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.weight(1f))
+            identity()
+            Spacer(Modifier.weight(1f))
+            wayIn()
         }
     }
 }

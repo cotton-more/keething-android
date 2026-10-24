@@ -72,6 +72,8 @@ internal class EntryListViewModel(
     private val query: TextFieldState,
     /** The "Codes" shortcut's list (SPEC §6.2); read in a snapshot, so a change lists again. */
     private val codesOnly: () -> Boolean,
+    /** A card open beside the list (two panes); read in a snapshot. */
+    private val besideCard: () -> Boolean = { false },
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
@@ -94,8 +96,18 @@ internal class EntryListViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /**
+     * Recent as listed: beside a card its order holds, so that the row just tapped does not jump to the top under the
+     * finger (opening a card makes it recent); an entry taken off Recent still leaves. It catches up when the card closes.
+     */
+    private var recentShown = recents.ids.value
+    private val recentIds: Flow<List<String>> =
+        combine(recents.ids, snapshotFlow { besideCard() }) { ids, holding ->
+            if (holding && recentShown.isNotEmpty()) recentShown.filter { it in ids } else ids
+        }.onEach { recentShown = it }
+
     private val sections: StateFlow<List<ListSection>> =
-        combine(prepared, snapshotFlow { query.text.toString() to codesOnly() }, recents.ids) { prepared, (text, codes), recentIds ->
+        combine(prepared, snapshotFlow { query.text.toString() to codesOnly() }, recentIds) { prepared, (text, codes), recentIds ->
             Listed(prepared, text, codes, recentIds)
         }
             .mapLatest { (prepared, text, codes, recentIds) ->

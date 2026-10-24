@@ -97,6 +97,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -116,6 +117,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.generator.GeneratorUse
 import dev.keepassbar.android.generator.PasswordGeneratorSheet
+import dev.keepassbar.android.navigation.inTwoPanes
 import dev.keepassbar.android.navigation.sharedIcon
 import dev.keepassbar.android.navigation.sharedTitle
 import dev.keepassbar.android.session.DatabaseSession
@@ -157,6 +159,7 @@ internal fun EntryListScreen(
     database: DatabaseSession,
     query: TextFieldState,
     codesOnly: Boolean,
+    selectedId: String?,
     onOpen: (id: String, origin: String) -> Unit,
     onEdit: (id: String) -> Unit,
     onSettings: () -> Unit,
@@ -166,8 +169,11 @@ internal fun EntryListScreen(
     onSharing: () -> Unit,
 ) {
     val codes by rememberUpdatedState(codesOnly)
+    // Beside the card (two panes), the open entry's rows are marked.
+    val selected = selectedId?.takeIf { inTwoPanes() }
+    val holdRecent by rememberUpdatedState(selected != null)
     val requests by container.shareRequests.book.collectAsStateWithLifecycle()
-    val model = viewModel { EntryListViewModel(database, container.recents, container.recycleBin, container.clipboard, query, codesOnly = { codes }) }
+    val model = viewModel { EntryListViewModel(database, container.recents, container.recycleBin, container.clipboard, query, codesOnly = { codes }, besideCard = { holdRecent }) }
     val state by model.state.collectAsStateWithLifecycle()
     val chips by model.chips.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -308,6 +314,7 @@ internal fun EntryListScreen(
                                 icons = state.icons,
                                 now = now,
                                 onOpen = { onOpen(row.id, section.kind.name) },
+                                selected = row.id == selected,
                                 onLongPress = { model.quickActions(row)?.let { quick = it to section.kind } },
                                 onCopyCode = { model.copyCode(row.id) },
                                 codeUnder = codeUnder,
@@ -400,7 +407,7 @@ private fun Header(
     toAnswer: Int,
 ) {
     val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
-    val title = @Composable { Text(if (codesOnly) "Codes" else "Keething") }
+    val title = @Composable { Text(if (codesOnly) "Codes" else "Keething", maxLines = 1, overflow = TextOverflow.Ellipsis) }
     val subtitle = @Composable { FitText(state.databaseName + count) }
     val navigationIcon = @Composable {
         if (codesOnly) {
@@ -424,7 +431,16 @@ private fun Header(
         containerColor = MaterialTheme.colorScheme.surface,
         scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
     )
-    if (compact) {
+    if (compact && inTwoPanes()) {
+        // A phone in landscape, the list beside the card: the pane leaves room for the title only.
+        TopAppBar(
+            title = title,
+            navigationIcon = navigationIcon,
+            actions = { actions() },
+            colors = colors,
+            scrollBehavior = scroll,
+        )
+    } else if (compact) {
         TopAppBar(
             title = title,
             subtitle = subtitle,
@@ -515,13 +531,15 @@ internal fun EntryRowView(
     modifier: Modifier = Modifier,
     onOpenLabel: String? = null,
     codeUnder: Boolean = false,
+    selected: Boolean = false,
 ) {
     Row(
         modifier
             .fillMaxWidth()
             .heightIn(min = 72.dp)
             .clip(shape)
-            .background(MaterialTheme.extraColors.row)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.extraColors.row)
+            .semantics { this.selected = selected }
             .combinedClickable(
                 onClick = onOpen,
                 onClickLabel = onOpenLabel,

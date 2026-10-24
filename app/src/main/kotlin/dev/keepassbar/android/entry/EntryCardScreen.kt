@@ -87,6 +87,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.attachment.SaveAttachment
+import dev.keepassbar.android.navigation.inTwoPanes
 import dev.keepassbar.android.navigation.sharedIcon
 import dev.keepassbar.android.navigation.sharedTitle
 import dev.keepassbar.android.session.DatabaseSession
@@ -96,6 +97,7 @@ import dev.keepassbar.android.ui.EntryMark
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.dotsAtLineEnd
+import dev.keepassbar.android.ui.readableWidth
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.card.CardSection
 import dev.keepassbar.card.Deadline
@@ -256,9 +258,12 @@ internal fun EntryCardScreen(
     var barBottom by remember { mutableFloatStateOf(0f) }
     var titleBottom by remember { mutableFloatStateOf(Float.MAX_VALUE) }
     val titleInBar by remember { derivedStateOf { titleBottom <= barBottom } }
+    // Beside the list (two panes): no way back to it, and the pane's own shade.
+    val besideList = inTwoPanes()
+    val background = if (besideList) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = background,
         topBar = {
             TopAppBar(
                 title = {
@@ -270,7 +275,9 @@ internal fun EntryCardScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") }
+                    if (!besideList) {
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") }
+                    }
                 },
                 actions = {
                     if (content.inRecycleBin) {
@@ -288,7 +295,7 @@ internal fun EntryCardScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = background,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                 ),
                 scrollBehavior = scroll,
@@ -315,18 +322,21 @@ internal fun EntryCardScreen(
                 .navigationBarsPadding()
                 // Room under the last row for the Edit button.
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Header(content, sharedKey = "$origin/$entryId", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
-            Banners(content)
-            content.suggestion?.takeIf { !model.suggestionDismissed }?.let { suggestion ->
-                SuggestionBanner(suggestion, saving = model.suggesting, onAccept = model::acceptSuggestion, onDismiss = model::dismissSuggestion)
+            // On a wide screen the rows keep a width the eye follows; a face is narrower still (FACE_MAX_WIDTH).
+            Column(Modifier.readableWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Header(content, sharedKey = "$origin/$entryId", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
+                Banners(content)
+                content.suggestion?.takeIf { !model.suggestionDismissed }?.let { suggestion ->
+                    SuggestionBanner(suggestion, saving = model.suggesting, onAccept = model::acceptSuggestion, onDismiss = model::dismissSuggestion)
+                }
+                val wifiQrPayload = content.card.wifiQrPayload(state.reveal)
+                for (section in content.card.sections) {
+                    CardSectionView(section, content.card.avatar, state.reveal, now, actions, wifiQrPayload, extras)
+                }
+                Footer(content.card)
             }
-            val wifiQrPayload = content.card.wifiQrPayload(state.reveal)
-            for (section in content.card.sections) {
-                CardSectionView(section, content.card.avatar, state.reveal, now, actions, wifiQrPayload, extras)
-            }
-            Footer(content.card)
         }
     }
 }

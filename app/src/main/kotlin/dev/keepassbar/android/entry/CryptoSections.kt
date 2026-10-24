@@ -87,16 +87,18 @@ internal fun CryptoSection(section: CardSection, wallet: CryptoWallet, reveal: R
     val rows = remember(section) { section.rows.associateBy { it.id } }
     Titled(section.title) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            wallet.seedRowId?.let { id -> rows[id]?.let { SeedPlate(it, wallet.passphraseRowId?.let(rows::get), reveal, actions) } }
-            wallet.privateKeyRowId?.let { id ->
-                Note(
-                    Icons.Rounded.WarningAmber,
-                    "“${rows[id]?.label.orEmpty()}” holds a private key: whoever has it has the wallet. It is shown, never copied.",
-                    MaterialTheme.extraColors.warnContainer,
-                    MaterialTheme.extraColors.onWarnContainer,
-                )
+            FaceWidth {
+                wallet.seedRowId?.let { id -> rows[id]?.let { SeedPlate(it, wallet.passphraseRowId?.let(rows::get), reveal, actions) } }
+                wallet.privateKeyRowId?.let { id ->
+                    Note(
+                        Icons.Rounded.WarningAmber,
+                        "“${rows[id]?.label.orEmpty()}” holds a private key: whoever has it has the wallet. It is shown, never copied.",
+                        MaterialTheme.extraColors.warnContainer,
+                        MaterialTheme.extraColors.onWarnContainer,
+                    )
+                }
+                wallet.addresses.firstOrNull()?.let { first -> ReceiveCard(first, rows[first.rowId], actions) }
             }
-            wallet.addresses.firstOrNull()?.let { first -> ReceiveCard(first, rows[first.rowId], actions) }
             val details = buildList<@Composable (Shape) -> Unit> {
                 for (address in wallet.addresses.drop(1)) {
                     add { shape -> AddressRow(address, rows[address.rowId], shape, actions) }

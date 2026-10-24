@@ -68,6 +68,7 @@ import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.colouredSecret
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.android.ui.segmentShape
 import dev.keepassbar.card.EntryAvatar
@@ -213,7 +214,7 @@ internal fun ReceivedScreen(
 private fun Opened(database: DatabaseSession, model: ReceivedModel, opened: ReceivedModel.Opening.Opened) {
     val payload = opened.payload
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         val count = payload.entries.size
@@ -244,7 +245,7 @@ private fun Opened(database: DatabaseSession, model: ReceivedModel, opened: Rece
 private fun EnvelopePictures(model: ReceivedModel, sealed: ReceivedModel.Opening.Sealed) {
     val now by rememberSecondsNow()
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         TitleBlock(

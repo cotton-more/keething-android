@@ -50,6 +50,7 @@ import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.BarTitle
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.unlock.describe
 import dev.keepassbar.card.history.HistoryVersion
 import dev.keepassbar.card.history.HistoryVersions
@@ -158,8 +159,8 @@ internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBa
     ) { padding ->
         LazyColumn(
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
+                start = readableInset(),
+                end = readableInset(),
                 top = padding.calculateTopPadding() + 4.dp,
                 bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp,
             ),

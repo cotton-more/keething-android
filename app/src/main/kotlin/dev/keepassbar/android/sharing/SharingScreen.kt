@@ -51,6 +51,7 @@ import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.android.ui.FitText
 import dev.keepassbar.android.ui.SegmentGap
 import dev.keepassbar.android.ui.dotsAtLineEnd
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.android.ui.segmentShape
 
@@ -111,7 +112,7 @@ internal fun SharingScreen(
         },
     ) { padding ->
         LazyColumn(
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
+            contentPadding = PaddingValues(start = readableInset(), end = readableInset(), top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
         ) {
             if (theirs.isNotEmpty()) {
                 item(key = "theirs") { SectionTitle("To answer") }

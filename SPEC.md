@@ -437,6 +437,19 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - Material 3 Expressive (Android 16+): spring motion, large expressive type, shapes; dynamic colour from
   the wallpaper; light and dark; edge-to-edge; predictive back.
 - One-handed: the search field at the **bottom** above the keyboard.
+- Wide screens (agreed on the canvas, rows "Wide screens"): from 840 dp of window width (a tablet in landscape, an
+  unfolded foldable, a phone in landscape too) the list and the card are side by side: the list a 360 dp pane (400 dp
+  from 1000 dp), the card a rounded pane a shade darker beside it, without a Back arrow; the list marks the open
+  entry's row, and nothing grows from row to card. Before an entry is chosen the card's pane says "Choose an entry:
+  its card opens here." (no card opens by itself, so no password shows without a tap). A tap on another row takes
+  the card's place; Back closes the card, then leaves the app. Recent keeps its order while a card is open beside
+  it, so that the row tapped does not jump to the top under the finger; it catches up when the card closes.
+  Everything else (the editor, a new entry, History, Show as QR, Large type, Groups & tags, Settings, Sharing) covers
+  the whole window: the editor so that a tap in the list cannot leave unsaved changes behind, and in landscape the
+  keyboard wants the height. A card opened from Sharing covers the whole window too (the list is not under it). On
+  a wide window a screen's content is at most 640 dp wide and centred (the card's rows too, the bars stay full width);
+  a face at most 440 dp, its buttons under it; the lock screen at most 480 dp. A narrower window keeps one pane
+  (AndroidX `material3-adaptive-navigation3`, its list-detail scene).
 - Entry icons: the database's custom icons (KeePassXC stores downloaded favicons) when present, otherwise a
   monogram with a colour derived from the title, the same as on the Mac. Nothing is fetched (no network).
 - Motion: the list row grows into the card (shared element transition); the one-time code ring runs down
@@ -465,7 +478,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
   field then does not open the keyboard by itself, and typing hides the button. While it is off, a "Use
   fingerprint next time" switch under the field turns it on, so the password typed then sets it up. A wrong password shakes the
-  field. The first list after an unlock says how long the key derivation took.
+  field. The first list after an unlock says how long the key derivation took. On a screen less than 480 dp high
+  (a phone in landscape) the logo, name and database are on the left and the field on the right; with the keyboard
+  up only the database's line stays beside the field.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group, the
   path inside the bin for an entry in it, as the Mac's rows). The header (large "Keething", the database and its
@@ -474,7 +489,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top; it collapses
   too as the search field takes the focus (the keyboard takes half the screen), and comes back when the field
   lets it go with the list at its top. On a screen less than 480 dp high (a phone in landscape) it is the compact
-  bar from the start. Recently used: the last 8 entries whose card was opened or from which something was copied,
+  bar from the start; beside the card (§6.1) that bar has the title only. Recently used: the last 8 entries whose card was opened or from which something was copied,
   kept as ids only (they survive a lock and say nothing without the database).
   **Search field**: a magnifier and "Search"; while it has the focus, chips over the keyboard: `@ group`, `# tag`,
   `+ file`, `− bin` (the bin's toggles the recycle bin search; none in the Codes list). A tap on one adds its sign
@@ -526,7 +541,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   `WiFiNetwork`), the faces are the phone's. The bank, document, SSH and crypto types are the phone's (§6.3) until
   the Mac takes them over (`~/Projects/keepass-bar/HANDOVER-more-faces.md`, `HANDOVER-crypto.md`); the Mac keeps
   them and shows those fields as rows meanwhile.
-  - **Payment card**: a card 1.586:1 (at most 440 dp wide), in its network's colours (Mac `PaymentCardView`;
+  - **Payment card**: a card 1.586:1 (at most 440 dp wide, as every face, §6.1), in its network's colours (Mac `PaymentCardView`;
     Visa, Mastercard, American Express, Mir; another network in the entry's colour), with a chip, the contactless
     mark and the network's mark drawn simply. Its front: the number masked to its last four digits, the holder,
     "VALID THRU" and the month (red when past); a tap on any of them copies its field as stored. Its back: the

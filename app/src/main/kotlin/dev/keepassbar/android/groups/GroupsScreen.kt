@@ -54,6 +54,7 @@ import dev.keepassbar.android.list.SectionTitle
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.SegmentGap
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.ui.segmentShape
 import dev.keepassbar.vault.session.SessionState
 import java.text.NumberFormat
@@ -106,8 +107,8 @@ internal fun GroupsScreen(database: DatabaseSession, onBack: () -> Unit, onSearc
         val current = overview
         LazyColumn(
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
+                start = readableInset(),
+                end = readableInset(),
                 top = padding.calculateTopPadding() + 4.dp,
                 bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 16.dp,
             ),

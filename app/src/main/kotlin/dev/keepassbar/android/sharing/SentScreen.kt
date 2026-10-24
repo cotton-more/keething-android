@@ -75,6 +75,7 @@ import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.QrCodeImage
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.sharing.message.ShareCode
 import dev.keepassbar.sharing.pictures.Pictures
@@ -211,7 +212,7 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
         snackbarHost = { NoticeHost(snackbar) },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

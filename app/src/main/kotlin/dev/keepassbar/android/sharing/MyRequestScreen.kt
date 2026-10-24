@@ -56,6 +56,7 @@ import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.QrCodeImage
 import dev.keepassbar.android.ui.dotsAtLineEnd
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.sharing.message.ShareCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -158,7 +159,7 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
         snackbarHost = { NoticeHost(snackbar) },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {

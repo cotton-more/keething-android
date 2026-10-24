@@ -54,6 +54,7 @@ import dev.keepassbar.android.list.seconds
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.FitText
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.domain.biometric.BiometricAvailability
 import dev.keepassbar.vault.biometric.BiometricState
 import dev.keepassbar.vault.session.SessionState
@@ -80,7 +81,7 @@ internal fun SettingsScreen(
     }
 
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = readableInset()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(Modifier.height(56.dp), verticalAlignment = Alignment.CenterVertically) {

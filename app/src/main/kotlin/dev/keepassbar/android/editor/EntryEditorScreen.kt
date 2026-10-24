@@ -142,6 +142,7 @@ import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.SecretTextMenu
 import dev.keepassbar.android.ui.NoLearningKeyboard
 import dev.keepassbar.android.ui.colouredSecret
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.card.GroupPathFormatter
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.editing.CodeList
@@ -242,7 +243,7 @@ internal fun EntryEditorScreen(
                         .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                         .verticalScroll(rememberScrollState())
                         .padding(top = padding.calculateTopPadding())
-                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
+                        .padding(start = readableInset(), end = readableInset(), top = 8.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     banner?.invoke()

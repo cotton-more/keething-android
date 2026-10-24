@@ -9,11 +9,12 @@ import androidx.navigation3.ui.LocalNavAnimatedContentScope
 
 /**
  * The list row grows into the card (SPEC §6.1): the entry's icon and title are the same element on both
- * screens. [key] names the entry and the list section it was opened from.
+ * screens. [key] names the entry and the list section it was opened from. Not beside the list (two panes): the row
+ * and the card are both on the screen, nothing grows.
  */
 @Composable
 internal fun Modifier.sharedIcon(key: String): Modifier {
-    val shared = LocalSharedTransitionScope.current ?: return this
+    val shared = LocalSharedTransitionScope.current?.takeUnless { inTwoPanes() } ?: return this
     val animation = LocalNavAnimatedContentScope.current
     return with(shared) { this@sharedIcon.sharedElement(rememberSharedContentState("icon/$key"), animation) }
 }
@@ -21,7 +22,7 @@ internal fun Modifier.sharedIcon(key: String): Modifier {
 /** The title: scaled between the list's and the card's text size. */
 @Composable
 internal fun Modifier.sharedTitle(key: String): Modifier {
-    val shared = LocalSharedTransitionScope.current ?: return this
+    val shared = LocalSharedTransitionScope.current?.takeUnless { inTwoPanes() } ?: return this
     val animation = LocalNavAnimatedContentScope.current
     return with(shared) {
         this@sharedTitle.sharedBounds(

@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -93,6 +94,14 @@ import kotlin.math.abs
 /** A face is at most this wide: a payment card stays card-sized on a wide screen. */
 internal val FACE_MAX_WIDTH = 440.dp
 
+/** A face's drawn part and its buttons: at most [FACE_MAX_WIDTH], centred; the rows under it take the card's width. */
+@Composable
+internal fun FaceWidth(content: @Composable ColumnScope.() -> Unit) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.widthIn(max = FACE_MAX_WIDTH).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    }
+}
+
 /**
  * A payment card as a card (SPEC §6.2): the number, holder and expiry on its front copy with a tap, the CVC on its
  * back; "Turn over" or a sideways swipe flips it. Under it only what the card does not show (the PIN, other fields).
@@ -113,31 +122,33 @@ internal fun PaymentCardSection(
     val canFlip = card.cvcRowId != null
     Titled(section.title) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            CardFace(card, rows, cardArt(card.network, avatar), reveal, actions, back = back && canFlip, onFlip = if (canFlip) ({ back = !back }) else null)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (secrets.isNotEmpty()) {
-                    FilledTonalButton(onClick = { actions.onToggleRows(secrets) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
-                        Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
-                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text(if (shown) "Hide" else "Show")
+            FaceWidth {
+                CardFace(card, rows, cardArt(card.network, avatar), reveal, actions, back = back && canFlip, onFlip = if (canFlip) ({ back = !back }) else null)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (secrets.isNotEmpty()) {
+                        FilledTonalButton(onClick = { actions.onToggleRows(secrets) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+                            Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                            Text(if (shown) "Hide" else "Show")
+                        }
                     }
-                }
-                if (canFlip) {
-                    FilledTonalButton(onClick = { back = !back }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
-                        Icon(Icons.AutoMirrored.Rounded._360, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
-                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        // The same both ways: a label that changed would move what follows it while the card turns.
-                        Text("Turn over")
+                    if (canFlip) {
+                        FilledTonalButton(onClick = { back = !back }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+                            Icon(Icons.AutoMirrored.Rounded._360, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                            // The same both ways: a label that changed would move what follows it while the card turns.
+                            Text("Turn over")
+                        }
                     }
+                    card.expiryHint?.takeIf { it.status != ExpiryHint.Status.VALID }?.let { ExpiryChip(it) }
                 }
-                card.expiryHint?.takeIf { it.status != ExpiryHint.Status.VALID }?.let { ExpiryChip(it) }
-            }
-            if (card.checkDigitOk == false) {
-                Note(Icons.Rounded.ErrorOutline, "The number fails its check digit (a typo?)", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+                if (card.checkDigitOk == false) {
+                    Note(Icons.Rounded.ErrorOutline, "The number fails its check digit (a typo?)", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+                }
             }
             val others = section.rows.filter { it.id !in card.faceRowIds }
             if (others.isNotEmpty()) RowGroup(others) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
@@ -368,88 +379,90 @@ internal fun WiFiSection(
     val keyShown = key != null && reveal.isRevealed(key.id)
     Titled(section.title) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(colors.sticker)
-                    .border(1.dp, colors.stickerEdge, RoundedCornerShape(22.dp))
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Box(
-                        Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Rounded.Wifi, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-                    Text("WI-FI NETWORK", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = colors.stickerLabel, maxLines = 1)
-                    SecurityChip(network)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        StickerLine("NETWORK NAME", ssid, actions) {
-                            Text(network.ssid, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            FaceWidth {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(colors.sticker)
+                        .border(1.dp, colors.stickerEdge, RoundedCornerShape(22.dp))
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Rounded.Wifi, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
-                        if (key != null) {
-                            StickerLine("NETWORK KEY", key, actions) {
-                                if (keyShown) {
-                                    Text(colouredSecret(key.revealedText()), style = MaterialTheme.typography.bodyLarge, fontFamily = MonospaceFamily)
-                                } else {
-                                    Text(RevealState.MASK, style = MaterialTheme.typography.bodyLarge, letterSpacing = 2.sp, maxLines = 1)
+                        Text("WI-FI NETWORK", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = colors.stickerLabel, maxLines = 1)
+                        SecurityChip(network)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            StickerLine("NETWORK NAME", ssid, actions) {
+                                Text(network.ssid, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                            }
+                            if (key != null) {
+                                StickerLine("NETWORK KEY", key, actions) {
+                                    if (keyShown) {
+                                        Text(colouredSecret(key.revealedText()), style = MaterialTheme.typography.bodyLarge, fontFamily = MonospaceFamily)
+                                    } else {
+                                        Text(RevealState.MASK, style = MaterialTheme.typography.bodyLarge, letterSpacing = 2.sp, maxLines = 1)
+                                    }
+                                }
+                            }
+                        }
+                        val qr = Modifier.size(112.dp).clip(RoundedCornerShape(14.dp)).background(Color.White)
+                        if (payload != null) {
+                            Box(qr.clickable(onClickLabel = "Show the QR code full screen", onClick = actions.onWiFiFullScreen).padding(6.dp)) {
+                                QrCodeImage(payload, description = "QR code to join ${network.ssid}", modifier = Modifier.fillMaxSize())
+                            }
+                        } else if (key != null) {
+                            // The code holds the key: blurred, and an empty one under the blur, until the key is shown.
+                            Box(qr.clickable(onClickLabel = "Show the key and the QR code") { actions.onToggle(key.id) }, contentAlignment = Alignment.Center) {
+                                QrCodeImage(network.qrPayload(""), description = "", modifier = Modifier.fillMaxSize().padding(6.dp).blur(6.dp))
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(22.dp), tint = Color(0xFF1B1B22))
+                                    Text("Show", color = Color(0xFF1B1B22), style = MaterialTheme.typography.labelLarge)
                                 }
                             }
                         }
                     }
-                    val qr = Modifier.size(112.dp).clip(RoundedCornerShape(14.dp)).background(Color.White)
-                    if (payload != null) {
-                        Box(qr.clickable(onClickLabel = "Show the QR code full screen", onClick = actions.onWiFiFullScreen).padding(6.dp)) {
-                            QrCodeImage(payload, description = "QR code to join ${network.ssid}", modifier = Modifier.fillMaxSize())
-                        }
-                    } else if (key != null) {
-                        // The code holds the key: blurred, and an empty one under the blur, until the key is shown.
-                        Box(qr.clickable(onClickLabel = "Show the key and the QR code") { actions.onToggle(key.id) }, contentAlignment = Alignment.Center) {
-                            QrCodeImage(network.qrPayload(""), description = "", modifier = Modifier.fillMaxSize().padding(6.dp).blur(6.dp))
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(22.dp), tint = Color(0xFF1B1B22))
-                                Text("Show", color = Color(0xFF1B1B22), style = MaterialTheme.typography.labelLarge)
+                    HorizontalDivider(color = colors.stickerEdge)
+                    Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            when {
+                                key == null -> "Tap a line to copy it"
+                                keyShown -> "Tap the code for full screen"
+                                else -> "The code holds the key"
+                            },
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.stickerLabel,
+                        )
+                        if (key != null) {
+                            TextButton(onClick = { actions.onToggle(key.id) }) {
+                                Icon(if (keyShown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                                Text(if (keyShown) "Hide" else "Show")
                             }
                         }
                     }
                 }
-                HorizontalDivider(color = colors.stickerEdge)
-                Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        when {
-                            key == null -> "Tap a line to copy it"
-                            keyShown -> "Tap the code for full screen"
-                            else -> "The code holds the key"
-                        },
-                        Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.stickerLabel,
-                    )
-                    if (key != null) {
-                        TextButton(onClick = { actions.onToggle(key.id) }) {
-                            Icon(if (keyShown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                // The code also opens from the label itself: here a square button, so that "Add to this phone" keeps the row.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    actions.onAddNetwork?.let { add ->
+                        Button(onClick = add, Modifier.weight(1f).heightIn(min = 52.dp)) {
+                            Icon(Icons.Rounded.PhoneAndroid, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text(if (keyShown) "Hide" else "Show")
+                            Text("Add to this phone", maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
-                }
-            }
-            // The code also opens from the label itself: here a square button, so that "Add to this phone" keeps the row.
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                actions.onAddNetwork?.let { add ->
-                    Button(onClick = add, Modifier.weight(1f).heightIn(min = 52.dp)) {
-                        Icon(Icons.Rounded.PhoneAndroid, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
-                        Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text("Add to this phone", maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    FilledTonalIconButton(onClick = actions.onWiFiFullScreen, Modifier.size(52.dp)) {
+                        Icon(Icons.Rounded.QrCode2, contentDescription = "QR code full screen")
                     }
-                }
-                FilledTonalIconButton(onClick = actions.onWiFiFullScreen, Modifier.size(52.dp)) {
-                    Icon(Icons.Rounded.QrCode2, contentDescription = "QR code full screen")
                 }
             }
             val others = section.rows.filter { it.id !in network.faceRowIds }

@@ -64,6 +64,7 @@ import dev.keepassbar.android.ui.BarTitle
 import dev.keepassbar.android.ui.CustomIconImages
 import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.SegmentGap
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.android.ui.segmentShape
 import dev.keepassbar.sharing.payload.AnswerPayload
 import dev.keepassbar.vault.session.SessionState
@@ -159,7 +160,7 @@ internal fun ChooseEntriesScreen(
             }
         },
     ) { padding ->
-        LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)) {
+        LazyColumn(contentPadding = PaddingValues(start = readableInset(), end = readableInset(), top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)) {
             if (state.preparing) {
                 item(key = "preparing") { Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) { LoadingIndicator() } }
             }

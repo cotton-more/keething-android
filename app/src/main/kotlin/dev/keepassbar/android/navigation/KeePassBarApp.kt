@@ -14,6 +14,12 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
+import androidx.compose.material3.adaptive.navigation.BackNavigationBehavior
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +29,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -131,6 +139,19 @@ internal class NavigationState : ViewModel() {
         backStack += screen
     }
 
+    /**
+     * A card from the list: it takes the place of the card open beside the list (two panes), so that Back closes
+     * it rather than going through every card looked at.
+     */
+    fun openCard(entryId: String, origin: String) {
+        backStack.retainAll { it == Screen.Entries }
+        backStack += Screen.Card(entryId, origin)
+    }
+
+    /** The card open beside the list, whose row the list marks. */
+    val cardBesideList: String?
+        get() = (backStack.getOrNull(1) as? Screen.Card)?.takeIf { backStack.size == 2 }?.entryId
+
     fun back() {
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
     }
@@ -204,6 +225,7 @@ internal fun KeePassBarApp(container: AppContainer) {
     }
 }
 
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 private fun VaultScreens(container: AppContainer, database: DatabaseSession, navigation: NavigationState) {
     // Codes another app handed over (SPEC §10) are read once the vault is open.
@@ -215,6 +237,13 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
             if (navigation.backStack.last() is Screen.ShareRead) navigation.replace(Screen.ShareRead(codes)) else navigation.open(Screen.ShareRead(codes))
         }
     }
+    // Two panes from 840 dp (a phone in landscape too): the list beside the card; everything else over the whole window.
+    // Back closes the card first, then leaves the list.
+    val panes = rememberListDetailSceneStrategy<Screen>(
+        backNavigationBehavior = BackNavigationBehavior.PopLatest,
+        directive = calculatePaneScaffoldDirective(currentWindowAdaptiveInfoV2()).copy(horizontalPartitionSpacerSize = 8.dp),
+    )
+    val listWidth = if (LocalConfiguration.current.screenWidthDp >= 1000) 400.dp else 360.dp
     SharedTransitionLayout {
         CompositionLocalProvider(LocalSharedTransitionScope provides this) {
             val enter = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
@@ -227,45 +256,55 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                     rememberSaveableStateHolderNavEntryDecorator(),
                     rememberViewModelStoreNavEntryDecorator(),
                 ),
+                sceneStrategies = listOf(panes),
                 sharedTransitionScope = this,
                 transitionSpec = { fade() },
                 popTransitionSpec = { fade() },
                 predictivePopTransitionSpec = { fadeIn(enter) togetherWith (fadeOut(enter) + scaleOut(targetScale = 0.9f)) },
                 entryProvider = entryProvider {
-                    entry<Screen.Entries> {
-                        EntryListScreen(
-                            container = container,
-                            database = database,
-                            query = navigation.query,
-                            codesOnly = navigation.codesOnly,
-                            onOpen = { id, origin -> navigation.open(Screen.Card(id, origin)) },
-                            onEdit = { id -> navigation.open(Screen.Editor(id)) },
-                            onSettings = { navigation.open(Screen.Settings) },
-                            onGroups = { navigation.open(Screen.Groups) },
-                            onLeaveCodes = { navigation.codesOnly = false },
-                            onNewEntry = { navigation.open(Screen.Editor(entryId = null)) },
-                            onSharing = { navigation.open(Screen.Sharing) },
-                        )
+                    entry<Screen.Entries>(
+                        metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { NoEntryChosen() }) +
+                            ListDetailSceneStrategy.preferredPaneSize(width = listWidth),
+                    ) {
+                        ListPane {
+                            EntryListScreen(
+                                container = container,
+                                database = database,
+                                query = navigation.query,
+                                codesOnly = navigation.codesOnly,
+                                selectedId = navigation.cardBesideList,
+                                onOpen = navigation::openCard,
+                                onEdit = { id -> navigation.open(Screen.Editor(id)) },
+                                onSettings = { navigation.open(Screen.Settings) },
+                                onGroups = { navigation.open(Screen.Groups) },
+                                onLeaveCodes = { navigation.codesOnly = false },
+                                onNewEntry = { navigation.open(Screen.Editor(entryId = null)) },
+                                onSharing = { navigation.open(Screen.Sharing) },
+                            )
+                        }
                     }
-                    entry<Screen.Card> { key ->
-                        EntryCardScreen(
-                            container = container,
-                            database = database,
-                            entryId = key.entryId,
-                            origin = key.origin,
-                            onBack = navigation::back,
-                            onSearch = navigation::search,
-                            onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
-                            onShowAddress = { rowId -> navigation.open(Screen.Password(key.entryId, PasswordView.ADDRESS_QR, rowId)) },
-                            onEdit = { navigation.open(Screen.Editor(key.entryId)) },
-                            onHistory = { navigation.open(Screen.History(key.entryId)) },
-                            onSendTo = { their ->
-                                val chosen = listOf(key.entryId)
-                                navigation.open(if (their.checked) Screen.ShareReview(their.request.id, chosen) else Screen.ShareTheirs(their.request.id, chosen))
-                            },
-                            onReadRequest = { navigation.open(Screen.ShareRead()) },
-                            onSendWithout = { navigation.open(Screen.ShareReview(null, listOf(key.entryId))) },
-                        )
+                    // A card from Sharing ("received") is not beside the list: the list is not under it.
+                    entry<Screen.Card>(metadata = { key -> if (key.origin == "received") emptyMap() else ListDetailSceneStrategy.detailPane() }) { key ->
+                        CardPane {
+                            EntryCardScreen(
+                                container = container,
+                                database = database,
+                                entryId = key.entryId,
+                                origin = key.origin,
+                                onBack = navigation::back,
+                                onSearch = navigation::search,
+                                onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
+                                onShowAddress = { rowId -> navigation.open(Screen.Password(key.entryId, PasswordView.ADDRESS_QR, rowId)) },
+                                onEdit = { navigation.open(Screen.Editor(key.entryId)) },
+                                onHistory = { navigation.open(Screen.History(key.entryId)) },
+                                onSendTo = { their ->
+                                    val chosen = listOf(key.entryId)
+                                    navigation.open(if (their.checked) Screen.ShareReview(their.request.id, chosen) else Screen.ShareTheirs(their.request.id, chosen))
+                                },
+                                onReadRequest = { navigation.open(Screen.ShareRead()) },
+                                onSendWithout = { navigation.open(Screen.ShareReview(null, listOf(key.entryId))) },
+                            )
+                        }
                     }
                     entry<Screen.History> { key ->
                         EntryHistoryScreen(database, key.entryId, onBack = navigation::back)

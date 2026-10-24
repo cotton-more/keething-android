@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.ui.NoLearningKeyboard
+import dev.keepassbar.android.ui.readableInset
 import dev.keepassbar.sharing.message.ShareRequest
 import java.time.Duration
 import kotlin.time.TimeSource
@@ -97,7 +98,7 @@ internal fun AskScreen(container: AppContainer, onClose: () -> Unit, onCreated: 
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             TitleBlock("Ask for an entry", "The one you ask answers with a code that only this phone can open.")
