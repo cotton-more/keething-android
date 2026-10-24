@@ -97,7 +97,7 @@ import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.CodeRing
 import dev.keepassbar.android.ui.CustomIconImages
-import dev.keepassbar.android.ui.EntryIcon
+import dev.keepassbar.android.ui.EntryMark
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoLearningKeyboard
 import dev.keepassbar.android.ui.NoticeHost
@@ -371,7 +371,7 @@ internal fun EntryRowView(
             .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        EntryIcon(row.avatar, icons?.get(row.customIconId), 44.dp, Modifier.sharedIcon(sharedKey))
+        EntryMark(row.avatar, icons?.get(row.customIconId), row.face, 44.dp, Modifier.sharedIcon(sharedKey))
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

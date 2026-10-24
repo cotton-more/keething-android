@@ -4,6 +4,13 @@ import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.FieldValue
 import java.time.Instant
 
+/** Nothing in it; a protected value is asked without being revealed. */
+internal val CustomField.isEmpty: Boolean
+    get() = when (val v = value) {
+        is FieldValue.Plain -> v.text.isEmpty()
+        is FieldValue.Protected -> v.secret.isEmpty()
+    }
+
 /**
  * A view of a kind of entry, made from its typed fields. It claims its fields, which then do not appear again
  * among the custom fields; null when the entry is not of its kind.
@@ -20,10 +27,22 @@ internal object PaymentCardSection : TypedSection {
     override fun make(context: CardContext): Pair<CardSection, Set<Int>>? {
         val number = context.typed(FieldType.CARD_NUMBER).firstOrNull() ?: return null
         val parts = context.parts { it.isCardPart }
-        val expiry = context.typed(FieldType.CARD_EXPIRY).firstOrNull()?.let { context.interpreter.date(it.value)?.first }
+        val expiryField = context.typed(FieldType.CARD_EXPIRY).firstOrNull()
+        val expiry = expiryField?.let { context.interpreter.date(it.value)?.first }
+        val holder = context.typed(FieldType.CARD_HOLDER).firstOrNull()
+        val type = context.typed(FieldType.CARD_TYPE).firstOrNull()
+        val cvc = context.typed(FieldType.CARD_CVC).firstOrNull()?.takeIf { !it.value.isEmpty }
         val card = PaymentCard.make(
-            number.value, RowIds.custom(number.index), context.typed(FieldType.CARD_HOLDER).firstOrNull()?.value,
-            expiry, context.typed(FieldType.CARD_TYPE).firstOrNull()?.value, context.now,
+            number.value, RowIds.custom(number.index), holder?.value, expiry, type?.value, context.now,
+        ).copy(
+            // On the face only what it can show: an unprotected holder, a date, a type it names the card by.
+            holderRowId = holder?.takeIf { !it.value.plainText.isNullOrEmpty() }?.let { RowIds.custom(it.index) },
+            expiryRowId = expiryField?.takeIf { expiry != null }?.let { RowIds.custom(it.index) },
+            cvcRowId = cvc?.let { RowIds.custom(it.index) },
+            typeRowId = type?.takeIf { field ->
+                val text = field.value.plainText?.trim().orEmpty()
+                text.isNotEmpty() && CardBrand.detectIn(number.value.value) == null || CardBrand.known(text) != null
+            }?.let { RowIds.custom(it.index) },
         )
         val (title, labels) = context.sectionLabels(parts)
         val rows = parts.zip(labels).map { (part, label) ->
@@ -44,9 +63,13 @@ internal object WiFiSection : TypedSection {
     override fun make(context: CardContext): Pair<CardSection, Set<Int>>? {
         val ssid = context.typed(FieldType.WIFI_SSID).firstOrNull() ?: return null
         val password = context.typed(FieldType.WIFI_PASSWORD).firstOrNull()
-        val network = WiFiNetwork.make(
-            ssid.value, password?.let { it.value to RowIds.custom(it.index) }, context.typed(FieldType.WIFI_SECURITY).firstOrNull()?.value,
-        ) ?: return null
+        val security = context.typed(FieldType.WIFI_SECURITY).firstOrNull()
+        val network = WiFiNetwork.make(ssid.value, password?.let { it.value to RowIds.custom(it.index) }, security?.value)
+            ?.copy(
+                ssidRowId = RowIds.custom(ssid.index),
+                securityRowId = security?.takeIf { !it.value.plainText.isNullOrBlank() }?.let { RowIds.custom(it.index) },
+            )
+            ?: return null
         val parts = context.parts { it.isWiFiPart }
         val (title, labels) = context.sectionLabels(parts)
         val rows = parts.zip(labels).map { (part, label) ->
@@ -76,7 +99,17 @@ public data class PaymentCard(
     val holder: String?,
     val expiry: FieldDate?,
     val expiryHint: ExpiryHint?,
+    /** The rows the face shows (SPEC §6.2), besides the number: the card shows the other rows under it. */
+    val holderRowId: String? = null,
+    val expiryRowId: String? = null,
+    /** On the face's back. */
+    val cvcRowId: String? = null,
+    /** The card type field, when the face names the card by it. */
+    val typeRowId: String? = null,
 ) {
+    /** The rows drawn on the face, front and back; the others are rows under it. */
+    val faceRowIds: Set<String> get() = setOfNotNull(numberRowId, holderRowId, expiryRowId, cvcRowId, typeRowId)
+
     internal companion object {
         fun make(number: CustomField, numberRowId: String, holder: CustomField?, expiry: FieldDate?, type: CustomField?, now: Instant): PaymentCard {
             val typeText = type?.plainText?.takeIf { it.isNotEmpty() }
@@ -140,6 +173,9 @@ public enum class CardBrand(public val displayName: String) {
             }
         }
 
+        /** The network of a number as stored; null when it is protected (never read) or names none. */
+        internal fun detectIn(value: FieldValue): CardBrand? = (value as? FieldValue.Plain)?.text?.filter { it in '0'..'9' }?.let(::detect)
+
         /** 1Password's card type field (`visa`, `mc`, `amex`, `mir`…) as a brand name; else the text itself. */
         public fun name(typeText: String): String = known(typeText)?.displayName ?: typeText.trim()
 
@@ -200,7 +236,18 @@ public data class WiFiNetwork(
     val passwordRowId: String?,
     /** `WPA` (also WPA2/WPA3), `WEP`, or `nopass`. */
     val security: String,
+    /** How the security field says it ("WPA2"); "Open" for a network without a password, else [security]. */
+    val securityLabel: String = security,
+    /** The rows the face shows (SPEC §6.2), besides the password: the card shows the other rows under it. */
+    val ssidRowId: String? = null,
+    val securityRowId: String? = null,
 ) {
+    /** The rows drawn on the face; the others are rows under it. */
+    val faceRowIds: Set<String> get() = setOfNotNull(ssidRowId, passwordRowId, securityRowId)
+
+    /** Without a password: anyone may join. */
+    val isOpen: Boolean get() = security == "nopass"
+
     /** The `WIFI:` text of the QR code; `\ ; , : "` are escaped. */
     public fun qrPayload(password: String): String {
         fun esc(s: String) = buildString { for (c in s) { if (c in "\\;,:\"") append('\\'); append(c) } }
@@ -224,7 +271,11 @@ public data class WiFiNetwork(
                 "wep" in text -> "WEP"
                 else -> "WPA"
             }
-            return WiFiNetwork(name, if (hasPassword) password?.second else null, kind)
+            val label = when {
+                kind == "nopass" -> "Open"
+                else -> security?.plainText?.trim()?.takeIf { it.isNotEmpty() && it.length <= 24 } ?: kind
+            }
+            return WiFiNetwork(name, if (hasPassword) password?.second else null, kind, label)
         }
     }
 }

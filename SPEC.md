@@ -86,8 +86,8 @@ core/vault    application layer: open, edit, save with the checks, the lock / un
 core/autofill autofill's rules: what a field asks for, the target, the matching entries (§7)
                                                                              → domain, search, totp
 core/card     how an entry card is laid out and edited (the Mac app's Presentation rules: sections,
-              dates, links, lists of codes, payment card, Wi-Fi, deadlines, avatars; the editor's
-              rules, `card/editing`)                                     → domain, totp, search
+              dates, links, lists of codes, payment card, Wi-Fi, their faces and the offer to type
+              them, deadlines, avatars; the editor's rules, `card/editing`) → domain, totp, search
 core/generator the password generator: kinds, options, exact entropy, the EFF word list (a
               resource)                                                  → nothing
 core/sharing  sharing entries (§10): HPKE, the request and answer formats, the pictures, the requests
@@ -466,12 +466,17 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   a recent row swiped either way leaves the list ("Removed from Recent" with Undo, which puts it back in its
   place), the entry itself untouched.
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
+  payment card's or a Wi-Fi network's row (its fields typed, §6.3) shows the small face instead of the icon (a card
+  in its network's colours, the label of a router) and says which it is instead of the username and site
+  (`Visa •• 4242 · 12/26`, `WPA2 · FRITZ!Box 7590`; a protected number gives no digits); the card's header shows it
+  too (`EntryFace`). A
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
   open the browser, attachments open in another app / save to a folder, §4). Its bar's paper plane sends the
   entry to a request someone sent (§10). Custom fields are read by their
-  types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. Its bar (Back) is clear at the
+  types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. The header
+  is compact: the icon (56 dp) beside the title, the group and tag chips under the title. Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
   title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
   brightness, black on white, for another phone to scan; nothing leaves the device; "Show the password"
@@ -482,10 +487,31 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   full-screen views read the password from the vault by the entry's id, close on a lock, and are left with
   Back or ✕. The share sheet shows the text and has its own Copy, which the app cannot mark sensitive or
   clear: the warning comes first for that reason.
-- **Wi-Fi network** on the card (Mac SPEC §3.13; `EntryCard.wifiQrPayload`): above the network's fields,
-  "Join <network> with a phone · The code contains the password" with **Show QR code**, which reveals the
-  password row and draws the `WIFI:` code beside "Point the other phone's camera at the code" and Hide.
-  Masking the password, leaving the card or a lock removes it; an open network's code is always shown.
+- **Entry faces** (agreed on the canvas, row "Entry faces"): a payment card and a Wi-Fi network are drawn as what
+  they are, and the face is the interface; the rows under it are only what the face does not show. The Mac draws
+  the same fields as a card and rows (Mac SPEC §3.13): the data rules are the Mac's (`PaymentCard`, `WiFiNetwork`),
+  the face is the phone's.
+  - **Payment card**: a card 1.586:1 (at most 440 dp wide), in its network's colours (Mac `PaymentCardView`;
+    Visa, Mastercard, American Express, Mir; another network in the entry's colour), with a chip, the contactless
+    mark and the network's mark drawn simply. Its front: the number masked to its last four digits, the holder,
+    "VALID THRU" and the month (red when past); a tap on any of them copies its field as stored. Its back: the
+    magnetic stripe, the signature strip and the CVC, a tap copies it. **Show** reveals the number and the CVC
+    together; **Turn over** or a sideways swipe on the card turns it, animated around its vertical axis. A
+    chip under it says "Expires in 2 months" / "Expired 3 days ago" when the expiry is within 90 days or past,
+    the only place the card says it (no banner for that field, no row). A number failing its check digit says
+    so ("a typo?"). On the face (`PaymentCard.faceRowIds`): the number, an unprotected holder, an expiry that is
+    a date, the CVC, and the type when the face names the card by it (a known network, or a protected number);
+    the rest (the PIN, other `card.*` fields) are rows under it, with copy buttons.
+  - **Wi-Fi network**: the label under a router: "WI-FI NETWORK" with the security as a chip ("WPA2", or "Open ·
+    no password" in the warning colours), the network's name large, the key masked (coloured when shown), and the
+    `WIFI:` QR code beside them (Mac SPEC §3.13; `EntryCard.wifiQrPayload`). The code holds the key, so it is
+    blurred (drawn without the key) until the key is shown: a tap on it, or **Show**, reveals the key and the
+    code; a tap on the code opens it full screen. A tap on the name or the key copies it. **Add to this phone**
+    hands the network to the system's "Save this network?" (`ACTION_WIFI_ADD_NETWORKS`, a `WifiNetworkSuggestion`,
+    WPA2 or WPA3 by the label, no permission; not for WEP, which Android no longer adds); a key Android refuses
+    says so. The square **QR code** button opens it full screen too: a view like Show as QR, at full brightness,
+    "Join <network>", reading the entry from the vault by its id and closing on a lock (`PasswordView.WIFI_QR`).
+    Masking the key, leaving the card or a lock blurs the code again; an open network's code is always shown.
 - **Editor** (the card's pencil; a new entry from the button next to the search field): title, username,
   password (masked, an eye shows it coloured), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
   name above value, the type (§6.3), a Protected switch, remove. **Tags** (Mac SPEC §3.24) are chips with ✕
@@ -586,6 +612,15 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
 - **A field without a type** is read by its value (unmistakable dates, http(s) links, numbered codes). The
   rules the settings entry held before (`<field name> = <type>` lines) are no longer read: the Mac's field
   report moves them into the entries. Protected fields are never read, typed or not.
+- **The offer to type a card or a network** (the phone's own; `TypeSuggestion`): fields without a type named as a
+  payment card's parts (a number — 12 to 19 digits when unprotected, a protected one by its name — and at least an
+  expiry, a CVC or a holder; 1Password's names, English, German and Russian ones, a 1Password section left out) or a
+  Wi-Fi network's (a name, and a password field, or a security field saying it is open: a network whose password is
+  elsewhere is not offered, its face would call it open) make the card offer "Looks like a payment card · Show as
+  card" / "Looks like a Wi-Fi network · Show as network". The tap saves the types (an edit of the field types only,
+  §3.3), so the face appears here and the Mac draws its view too; nothing is typed without it, so the phone never
+  shows a face the Mac does not. "Not now" is remembered per entry (its id in the app's settings, as Recent keeps
+  ids); not offered in the recycle bin, nor for fields typed otherwise.
 - **The editor**: the type button beside a field's name shows the type it has, or, dimmed, what its value
   is read as; its menu: *Automatic (…)* (no type; what it is read as in brackets), Text, Date, Date until
   (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, and a type not known here, kept, shown disabled. A type

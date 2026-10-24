@@ -3,6 +3,7 @@ package dev.keepassbar.android.list
 import dev.keepassbar.card.Deadline
 import dev.keepassbar.card.DeadlineList
 import dev.keepassbar.card.EntryAvatar
+import dev.keepassbar.card.EntryFace
 import dev.keepassbar.card.ExpiryHint
 import dev.keepassbar.domain.totp.TotpConfig
 import dev.keepassbar.domain.vault.Entry
@@ -24,6 +25,8 @@ internal data class EntryRow(
     val hasAttachments: Boolean,
     val totp: TotpConfig?,
     val deadline: RowDeadline?,
+    /** A payment card's or a Wi-Fi network's small face, drawn instead of the icon (SPEC §6.2). */
+    val face: EntryFace? = null,
 )
 
 /** The most pressing date an entry says something ends on, when it ended or ends within 90 days. */
@@ -64,6 +67,12 @@ internal class VaultListing(val vault: Vault, now: Instant, collator: Collator =
         .groupBy { it.entryId }
         .mapValues { (_, list) -> rowDeadline(list.minWith(compareBy<Deadline> { it.hint.status }.thenBy { it.date })) }
 
+    /** Only the entries with typed fields can have one: few, and found without reading the others' fields. */
+    private val faces: Map<String, EntryFace> = (vault.entries + vault.recycleBin)
+        .filter { it.fieldTypes.isNotEmpty() }
+        .mapNotNull { entry -> EntryFace.of(entry)?.let { entry.id to it } }
+        .toMap()
+
     val ids: Set<String> get() = byId.keys
 
     /**
@@ -96,13 +105,15 @@ internal class VaultListing(val vault: Vault, now: Instant, collator: Collator =
     private fun row(entry: Entry) = EntryRow(
         id = entry.id,
         title = entry.displayTitle,
-        subtitle = listOf(entry.username, entry.urlHost.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
+        // A card or a network says which it is ("Visa •• 4242 · 12/26"); other entries their username and site.
+        subtitle = faces[entry.id]?.subtitle ?: listOf(entry.username, entry.urlHost.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
         group = (if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1)).joinToString(" › "),
         avatar = EntryAvatar.of(entry.displayTitle),
         customIconId = entry.customIconId?.takeIf { it in vault.customIcons },
         hasAttachments = entry.attachments.isNotEmpty(),
         totp = entry.totp,
         deadline = deadlines[entry.id],
+        face = faces[entry.id],
     )
 
     private fun rowDeadline(deadline: Deadline): RowDeadline {

@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.keepassbar.card.EntryCardBuilder
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
@@ -50,9 +51,10 @@ import dev.keepassbar.android.ui.colouredSecret
 import dev.keepassbar.android.ui.qrCodeOf
 import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.vault.session.SessionState
+import java.time.Instant
 
-/** The full-screen views of a password (SPEC §6.2). */
-internal enum class PasswordView { QR_CODE, LARGE_TYPE }
+/** The full-screen views of a password (SPEC §6.2), and the QR code to join an entry's Wi-Fi network. */
+internal enum class PasswordView { QR_CODE, LARGE_TYPE, WIFI_QR }
 
 /**
  * A password shown full screen, read from the vault by the entry's id (the back stack never holds it): as a
@@ -64,7 +66,15 @@ internal fun PasswordScreen(database: DatabaseSession, entryId: String, view: Pa
     val state by database.session.state.collectAsStateWithLifecycle()
     val vault = (state as? SessionState.Unlocked)?.vault
     val entry: Entry? = remember(vault, entryId) { vault?.let { it.entries.firstOrNull { e -> e.id == entryId } ?: it.recycleBin.firstOrNull { e -> e.id == entryId } } }
-    val password = remember(entry) { entry?.password?.takeIf { !it.isEmpty() }?.reveal() }
+    // A network's code holds its key, read as the card reads it; else the entry's password.
+    val network = remember(entry, view) { entry?.takeIf { view == PasswordView.WIFI_QR }?.let { EntryCardBuilder.build(it, Instant.now()) } }
+    val password = remember(entry, network) {
+        if (view == PasswordView.WIFI_QR) {
+            network?.wifi?.let { wifi -> wifi.qrPayload(wifi.passwordRowId?.let { id -> network.rows.firstOrNull { it.id == id } }?.storedText().orEmpty()) }
+        } else {
+            entry?.password?.takeIf { !it.isEmpty() }?.reveal()
+        }
+    }
     LaunchedEffect(password == null) { if (password == null) onBack() }
     if (entry == null || password == null) return
 
@@ -91,6 +101,7 @@ internal fun PasswordScreen(database: DatabaseSession, entryId: String, view: Pa
             when (view) {
                 PasswordView.QR_CODE -> QrCodeView(password)
                 PasswordView.LARGE_TYPE -> LargeType(password)
+                PasswordView.WIFI_QR -> NetworkQrCode(password, network?.wifi?.ssid.orEmpty())
             }
         }
     }
@@ -118,6 +129,20 @@ private fun QrCodeView(password: String) {
     if (shown) {
         Text(colouredSecret(password), style = MaterialTheme.typography.titleLarge, fontFamily = MonospaceFamily, textAlign = TextAlign.Center)
     }
+}
+
+/** The code another phone reads to join the network (SPEC §6.2): at full brightness, nothing else on it. */
+@Composable
+private fun NetworkQrCode(payload: String, ssid: String) {
+    FullBrightness()
+    QrCodeImage(payload, description = "QR code to join $ssid", modifier = Modifier.fillMaxWidth().widthIn(max = 360.dp))
+    Text("Join $ssid", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+    Text(
+        "Point the other phone's camera at the code.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+    )
 }
 
 /** Each character in its own cell, numbered, so a long password is typed without losing the place. */

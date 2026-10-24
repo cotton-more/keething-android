@@ -153,7 +153,7 @@ class SpecialFieldsTest {
             customFields = listOf(field("network name", "ExampleNet"), field("wireless network password", "pw", protected = true), field("security", "WEP"), field("router", "Fritz")),
         )
         val card = build(e, wifiTypes)
-        val network = WiFiNetwork("ExampleNet", "custom-1", "WEP")
+        val network = WiFiNetwork("ExampleNet", "custom-1", "WEP", "WEP", ssidRowId = "custom-0", securityRowId = "custom-2")
 
         assertEquals(listOf(CardSection.Kind.WiFi(network), CardSection.Kind.Custom), card.sections.map { it.kind })
         assertEquals(network, card.wifi)

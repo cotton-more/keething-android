@@ -51,6 +51,10 @@ internal data class ExtraColors(
     /** A shown password's digits and symbols (letters keep the text colour), as 1Password does. */
     val digit: Color,
     val symbol: Color,
+    /** A Wi-Fi network's face: the label under a router (SPEC §6.2), its edge and its small print. */
+    val sticker: Color,
+    val stickerEdge: Color,
+    val stickerLabel: Color,
 )
 
 private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
@@ -61,6 +65,9 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
         onWarnContainer = Color(0xFFFFE3BC),
         digit = Color(0xFF9EC2FF),
         symbol = Color(0xFFFFAA88),
+        sticker = scheme.surfaceContainerHigh,
+        stickerEdge = scheme.outlineVariant,
+        stickerLabel = scheme.onSurfaceVariant,
     )
 } else {
     ExtraColors(
@@ -70,6 +77,9 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
         onWarnContainer = Color(0xFF5C3A0E),
         digit = Color(0xFF2659C0),
         symbol = Color(0xFFB8461F),
+        sticker = Color(0xFFF7F6F1),
+        stickerEdge = Color(0xFFDAD8CF),
+        stickerLabel = Color(0xFF5E5D57),
     )
 }
 

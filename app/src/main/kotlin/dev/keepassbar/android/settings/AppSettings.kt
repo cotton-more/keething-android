@@ -63,6 +63,19 @@ internal class AppSettings(private val store: SettingsStore) {
         get() = store.string(REQUEST_NAME).orEmpty()
         set(value) = store.setString(REQUEST_NAME, value.trim().ifEmpty { null })
 
+    /**
+     * Entries whose card was told "Not now" to its offer to type their fields (SPEC §6.3), by id: the offer is not
+     * made again. Ids only, as Recent keeps them: they say nothing without the database.
+     */
+    private val dismissedSuggestions: MutableSet<String> =
+        store.string(DISMISSED_SUGGESTIONS)?.split(' ')?.filter { it.isNotEmpty() }?.toMutableSet() ?: mutableSetOf()
+
+    fun isSuggestionDismissed(entryId: String): Boolean = entryId in dismissedSuggestions
+
+    fun dismissSuggestion(entryId: String) {
+        if (dismissedSuggestions.add(entryId)) store.setString(DISMISSED_SUGGESTIONS, dismissedSuggestions.joinToString(" "))
+    }
+
     companion object {
         val DEFAULT_LOCK_TIMEOUT = 5.minutes
         val LOCK_TIMEOUTS = listOf(1.minutes, 5.minutes, 15.minutes, 60.minutes)
@@ -73,5 +86,6 @@ internal class AppSettings(private val store: SettingsStore) {
         private const val LOCK_TIMEOUT_MINUTES = "lockTimeoutMinutes"
         private const val REQUEST_VALIDITY_DAYS = "requestValidityDays"
         private const val REQUEST_NAME = "requestName"
+        private const val DISMISSED_SUGGESTIONS = "dismissedTypeSuggestions"
     }
 }

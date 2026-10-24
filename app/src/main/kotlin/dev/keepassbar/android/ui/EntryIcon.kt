@@ -67,7 +67,7 @@ internal class CustomIconImages(private val icons: Map<String, CustomIcon>) {
 }
 
 /** The Mac app's avatar gradients, in the same order (Mac `Theme.avatarPalette`). */
-private val AVATAR_PALETTE = listOf(
+internal val AVATAR_PALETTE = listOf(
     Color(0xFF5B8DEF) to Color(0xFF3A63D8),
     Color(0xFF3FB6C4) to Color(0xFF2A8FA6),
     Color(0xFF4CBF7A) to Color(0xFF2F9A5C),

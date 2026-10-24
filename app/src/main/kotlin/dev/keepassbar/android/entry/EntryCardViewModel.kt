@@ -3,6 +3,8 @@ package dev.keepassbar.android.entry
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.net.wifi.WifiNetworkSuggestion
+import android.provider.Settings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -21,15 +23,18 @@ import dev.keepassbar.android.editor.problem
 import dev.keepassbar.android.list.RecentEntries
 import dev.keepassbar.android.recyclebin.RecycleBinMoves
 import dev.keepassbar.android.session.DatabaseSession
+import dev.keepassbar.android.settings.AppSettings
 import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.card.CardSection
 import dev.keepassbar.card.EntryCard
 import dev.keepassbar.card.EntryCardBuilder
+import dev.keepassbar.card.EntryFace
 import dev.keepassbar.card.FieldRow
 import dev.keepassbar.card.GroupPathFormatter
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.RowIds
 import dev.keepassbar.card.TotpDisplay
+import dev.keepassbar.card.TypeSuggestion
 import dev.keepassbar.card.UsedCode
 import dev.keepassbar.domain.vault.Vault
 import dev.keepassbar.domain.vault.VaultEdit
@@ -55,6 +60,10 @@ internal data class CardContent(
     val card: EntryCard,
     val inRecycleBin: Boolean,
     val icon: ImageBitmap?,
+    /** The face the list shows for it (a small card, a network), also on the card's header. */
+    val face: EntryFace? = null,
+    /** Fields named as a card's or a network's, without types: the card offers to type them (SPEC §6.3). */
+    val suggestion: TypeSuggestion? = null,
 )
 
 internal data class CardUiState(
@@ -77,6 +86,7 @@ internal class EntryCardViewModel(
     private val files: AttachmentFiles,
     private val android: AndroidAttachments,
     private val recycleBin: RecycleBinMoves,
+    private val settings: AppSettings,
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
@@ -106,6 +116,64 @@ internal class EntryCardViewModel(
 
     fun toggleReveal(rowId: String) {
         reveal.value = reveal.value.toggle(rowId)
+    }
+
+    /** A payment card's eye: its number and CVC shown together, or masked together. */
+    fun toggleRows(rows: List<FieldRow>) {
+        reveal.value = reveal.value.toggleAll(rows)
+    }
+
+    /** The card's offer to type the fields (SPEC §6.3) was turned down for this entry: it is not made again. */
+    var suggestionDismissed: Boolean by mutableStateOf(settings.isSuggestionDismissed(entryId))
+        private set
+
+    /** The offer's types being saved. */
+    var suggesting: Boolean by mutableStateOf(false)
+        private set
+
+    fun dismissSuggestion() {
+        settings.dismissSuggestion(entryId)
+        suggestionDismissed = true
+    }
+
+    /** Gives the fields the types offered, saved as any edit (SPEC §3.3): the card then draws the face. */
+    fun acceptSuggestion() {
+        if (suggesting) return
+        val entry = unlockedVault()?.entries?.firstOrNull { it.id == entryId } ?: return
+        val suggestion = TypeSuggestion.of(entry) ?: return
+        val pending = database.session.save(VaultEdit.Update(entry.id, entry.lastModified, suggestion.changes(entry))) ?: return problem(SAVE_BUSY)
+        suggesting = true
+        viewModelScope.launch {
+            val failure = pending.await().problem(database.file)
+            suggesting = false
+            mutableNotices.trySend(
+                failure?.let { Notice(it, isProblem = true) }
+                    ?: Notice(if (suggestion.kind == TypeSuggestion.Kind.PAYMENT_CARD) "Saved · the Mac shows it as a card too" else "Saved · the Mac shows the network too"),
+            )
+        }
+    }
+
+    /**
+     * The system's "Save network?" for the entry's Wi-Fi network (Android 11+, no permission): the network goes to the
+     * phone's saved ones only when the user agrees there. Null, with a notice, when the system would refuse it.
+     */
+    fun addNetworkIntent(): Intent? {
+        val card = content.value?.card ?: return null
+        val network = card.wifi ?: return null
+        val password = network.passwordRowId?.let { id -> card.rows.firstOrNull { it.id == id } }?.storedText()
+        val suggestion = try {
+            WifiNetworkSuggestion.Builder().setSsid(network.ssid).apply {
+                when {
+                    network.isOpen || password == null -> Unit
+                    network.securityLabel.contains("WPA3", ignoreCase = true) -> setWpa3Passphrase(password)
+                    else -> setWpa2Passphrase(password)
+                }
+            }.build()
+        } catch (_: IllegalArgumentException) {
+            problem("This phone cannot add the network: its name or key is not one Android accepts")
+            return null
+        }
+        return Intent(Settings.ACTION_WIFI_ADD_NETWORKS).putParcelableArrayListExtra(Settings.EXTRA_WIFI_NETWORK_LIST, arrayListOf(suggestion))
     }
 
     /** The eye of a list of codes: all of them shown, or all masked. */
@@ -256,6 +324,9 @@ internal class EntryCardViewModel(
         val card = EntryCardBuilder.build(entry, Instant.now())
         val icon = entry.customIconId?.let(vault.customIcons::get)?.image
             ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.asImageBitmap()
-        return CardContent(card, inRecycleBin = inBin != null, icon = icon)
+        return CardContent(
+            card, inRecycleBin = inBin != null, icon = icon, face = EntryFace.of(entry),
+            suggestion = if (inBin == null) TypeSuggestion.of(entry) else null,
+        )
     }
 }

@@ -2,13 +2,11 @@ package dev.keepassbar.android.entry
 
 import android.text.format.Formatter
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -31,15 +29,11 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -50,7 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,18 +56,17 @@ import androidx.compose.ui.unit.sp
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.CodeRing
-import dev.keepassbar.android.ui.QrCodeImage
 import dev.keepassbar.android.ui.SegmentGap
 import dev.keepassbar.android.ui.colouredSecret
 import dev.keepassbar.android.ui.segmentShape
 import dev.keepassbar.card.CardSection
+import dev.keepassbar.card.EntryAvatar
 import dev.keepassbar.card.ExpiryHint
 import dev.keepassbar.card.FieldRow
 import dev.keepassbar.card.FieldType
 import dev.keepassbar.card.PaymentCard
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.TotpDisplay
-import dev.keepassbar.card.WiFiNetwork
 import java.time.Instant
 import java.time.format.FormatStyle
 import java.time.format.DateTimeFormatter
@@ -86,7 +78,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 private val OUTER = 22.dp
 
 @Composable
-internal fun CardSectionView(section: CardSection, reveal: RevealState, now: State<Instant>, actions: CardActions, wifiQrPayload: String?) {
+internal fun CardSectionView(section: CardSection, avatar: EntryAvatar, reveal: RevealState, now: State<Instant>, actions: CardActions, wifiQrPayload: String?) {
     when (val kind = section.kind) {
         CardSection.Kind.Credentials -> RowGroup(section.rows) { row, shape ->
             FieldRowView(row, reveal, now, actions, shape, tile = credentialTile(row), copyButton = true)
@@ -96,22 +88,14 @@ internal fun CardSectionView(section: CardSection, reveal: RevealState, now: Sta
             RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape, tile = customTile(row)) }
         }
         CardSection.Kind.Codes -> CodesView(section, reveal, actions)
-        is CardSection.Kind.PaymentCard -> Titled(section.title ?: "Payment card") {
-            PaymentCardView(kind.card, section.rows.firstOrNull { it.id == kind.card.numberRowId }, reveal, actions)
-            Spacer(Modifier.size(8.dp))
-            RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
-        }
-        is CardSection.Kind.WiFi -> Titled(section.title ?: "Wi-Fi") {
-            WiFiQrView(kind.network, wifiQrPayload, actions)
-            Spacer(Modifier.size(8.dp))
-            RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape) }
-        }
+        is CardSection.Kind.PaymentCard -> PaymentCardSection(section, kind.card, avatar, reveal, now, actions)
+        is CardSection.Kind.WiFi -> WiFiSection(section, kind.network, wifiQrPayload, reveal, now, actions)
         CardSection.Kind.Attachments -> RowGroup(section.rows) { row, shape -> AttachmentRowView(row, actions, shape) }
     }
 }
 
 @Composable
-private fun Titled(title: String?, content: @Composable () -> Unit) {
+internal fun Titled(title: String?, content: @Composable () -> Unit) {
     Column {
         if (title != null) {
             Text(
@@ -126,14 +110,14 @@ private fun Titled(title: String?, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun RowGroup(rows: List<FieldRow>, row: @Composable (FieldRow, Shape) -> Unit) {
+internal fun RowGroup(rows: List<FieldRow>, row: @Composable (FieldRow, Shape) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(SegmentGap)) {
         rows.forEachIndexed { index, field -> row(field, segmentShape(index, rows.size, outer = OUTER)) }
     }
 }
 
 /** The tinted tile in front of a credential (SPEC §6: a tile per field kind). */
-private class Tile(val icon: ImageVector, val container: Color, val content: Color)
+internal class Tile(val icon: ImageVector, val container: Color, val content: Color)
 
 @Composable
 private fun credentialTile(row: FieldRow): Tile? {
@@ -165,7 +149,7 @@ private fun TileView(tile: Tile) {
 }
 
 @Composable
-private fun FieldRowView(
+internal fun FieldRowView(
     row: FieldRow,
     reveal: RevealState,
     now: State<Instant>,
@@ -255,39 +239,6 @@ private fun PasswordMenu(actions: CardActions) {
             item("Show as QR", Icons.Rounded.QrCode2, PasswordAction.QR_CODE)
             item("Large type", Icons.Rounded.TextFields, PasswordAction.LARGE_TYPE)
             item("Share…", Icons.Rounded.Share, PasswordAction.SHARE)
-        }
-    }
-}
-
-/**
- * A Wi-Fi network's QR code for a phone to join (SPEC §3.13; Mac `WiFiSectionView`). It holds the password,
- * so it is drawn only while the password row is revealed: "Show QR code" reveals it, "Hide" masks it again.
- */
-@Composable
-private fun WiFiQrView(network: WiFiNetwork, payload: String?, actions: CardActions) {
-    val rowId = network.passwordRowId
-    if (payload == null && rowId == null) return
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(OUTER)).background(MaterialTheme.extraColors.row).padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        if (payload != null) {
-            QrCodeImage(payload, description = "QR code to join ${network.ssid}", modifier = Modifier.size(148.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Join ${network.ssid}", style = MaterialTheme.typography.titleSmall)
-                Text("Point the other phone's camera at the code.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (rowId != null) {
-                    TextButton(onClick = { actions.onToggle(rowId) }, contentPadding = ButtonDefaults.TextButtonWithIconContentPadding) { Text("Hide") }
-                }
-            }
-        } else if (rowId != null) {
-            TileView(Tile(Icons.Rounded.QrCode2, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer))
-            Column(Modifier.weight(1f)) {
-                Text("Join ${network.ssid} with a phone", style = MaterialTheme.typography.titleSmall)
-                Text("The code contains the password.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            FilledTonalButton(onClick = { actions.onToggle(rowId) }) { Text("Show QR code") }
         }
     }
 }
@@ -449,57 +400,6 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
 }
 
 private val USED_DAY: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-
-/** The payment card drawn as a card: brand, number (masked down to its last four digits), holder, expiry. */
-@Composable
-private fun PaymentCardView(card: PaymentCard, numberRow: FieldRow?, reveal: RevealState, actions: CardActions) {
-    val colors = MaterialTheme.colorScheme
-    val revealed = reveal.isRevealed(card.numberRowId)
-    // A card reads as a dark object in both themes: the strong tones in light, the container tones in dark.
-    val dark = isSystemInDarkTheme()
-    val (from, to) = if (dark) colors.primaryContainer to colors.tertiaryContainer else colors.primary to colors.tertiary
-    val onCard = if (dark) colors.onPrimaryContainer else colors.onPrimary
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio(1.586f)
-            .clip(RoundedCornerShape(OUTER))
-            .background(Brush.linearGradient(listOf(from, to)))
-            .then(if (numberRow != null) Modifier.copyOnTap(numberRow, actions) else Modifier)
-            .padding(20.dp),
-    ) {
-        Text(card.brand.orEmpty(), Modifier.align(Alignment.TopEnd), color = onCard, style = MaterialTheme.typography.titleMedium)
-        Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (revealed) card.groupedNumber ?: numberRow?.revealedText().orEmpty() else card.maskedNumber,
-                color = onCard,
-                fontFamily = MonospaceFamily,
-                fontSize = 21.sp,
-                letterSpacing = 1.sp,
-            )
-            if (numberRow != null) {
-                IconButton(onClick = { actions.onToggle(card.numberRowId) }) {
-                    Icon(
-                        if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                        contentDescription = if (revealed) "Hide the card number" else "Show the card number",
-                        tint = onCard,
-                    )
-                }
-            }
-        }
-        Row(Modifier.align(Alignment.BottomStart).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Text(card.holder.orEmpty(), Modifier.weight(1f), color = onCard, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            card.expiry?.let { expiry ->
-                Text(
-                    "%02d/%02d".format(expiry.date.month, expiry.date.year % 100),
-                    color = if (card.expiryHint?.status == ExpiryHint.Status.EXPIRED) colors.errorContainer else onCard,
-                    fontFamily = MonospaceFamily,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-        }
-    }
-}
 
 /**
  * An attachment: its name and size, opened in another app or saved where the user says. One whose content

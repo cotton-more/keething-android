@@ -12,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -34,10 +35,13 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
@@ -79,15 +83,18 @@ import dev.keepassbar.android.navigation.sharedTitle
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.sharing.SendToRequestSheet
 import dev.keepassbar.android.theme.extraColors
-import dev.keepassbar.android.ui.EntryIcon
+import dev.keepassbar.android.ui.EntryMark
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.card.CardSection
+import dev.keepassbar.card.Deadline
 import dev.keepassbar.card.EntryCard
 import dev.keepassbar.card.EntryExpiry
 import dev.keepassbar.card.ExpiryHint
 import dev.keepassbar.card.FieldRow
+import dev.keepassbar.card.RowIds
+import dev.keepassbar.card.TypeSuggestion
 import dev.keepassbar.search.FilterCompletion
 import dev.keepassbar.search.FilterKind
 import dev.keepassbar.sharing.requests.TheirRequest
@@ -121,7 +128,7 @@ internal fun EntryCardScreen(
     val model = viewModel {
         EntryCardViewModel(
             entryId, database, container.recents, container.clipboard, container.attachmentFiles, container.androidAttachments,
-            container.recycleBin,
+            container.recycleBin, container.settings,
         )
     }
     val state by model.state.collectAsStateWithLifecycle()
@@ -188,6 +195,19 @@ internal fun EntryCardScreen(
         },
         onSetUsed = if (state.content?.inRecycleBin == false) model::setUsed else null,
         marking = model.marking,
+        onToggleRows = model::toggleRows,
+        onWiFiFullScreen = { onShowPassword(PasswordView.WIFI_QR) },
+        onAddNetwork = content.card.wifi?.takeIf { it.security != "WEP" }?.let {
+            {
+                model.addNetworkIntent()?.let { intent ->
+                    try {
+                        context.startActivity(intent)
+                    } catch (_: ActivityNotFoundException) {
+                        model.problem("This phone offers no way to add the network")
+                    }
+                }
+            }
+        },
     )
     if (sharing) {
         ShareWarning(
@@ -220,7 +240,7 @@ internal fun EntryCardScreen(
                 title = {
                     AnimatedVisibility(titleInBar, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            EntryIcon(content.card.avatar, content.icon, 32.dp)
+                            EntryMark(content.card.avatar, content.icon, content.face, 32.dp)
                             Text(content.card.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
@@ -271,9 +291,12 @@ internal fun EntryCardScreen(
         ) {
             Header(content, sharedKey = "$origin/$entryId", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
             Banners(content)
+            content.suggestion?.takeIf { !model.suggestionDismissed }?.let { suggestion ->
+                SuggestionBanner(suggestion, saving = model.suggesting, onAccept = model::acceptSuggestion, onDismiss = model::dismissSuggestion)
+            }
             val wifiQrPayload = content.card.wifiQrPayload(state.reveal)
             for (section in content.card.sections) {
-                CardSectionView(section, state.reveal, now, actions, wifiQrPayload)
+                CardSectionView(section, content.card.avatar, state.reveal, now, actions, wifiQrPayload)
             }
             Footer(content.card)
         }
@@ -283,27 +306,81 @@ internal fun EntryCardScreen(
 @Composable
 private fun Header(content: CardContent, sharedKey: String, onSearch: (String) -> Unit, onTitlePlaced: (bottom: Float) -> Unit) {
     val card = content.card
-    Column(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        EntryIcon(card.avatar, content.icon, 72.dp, Modifier.sharedIcon(sharedKey))
-        Text(
-            card.title,
-            Modifier.sharedTitle(sharedKey).onGloballyPositioned { onTitlePlaced(it.boundsInRoot().bottom) },
-            style = MaterialTheme.typography.displaySmall,
-        )
-        if (card.groupPath.isNotEmpty() || card.tags.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (card.groupPath.isNotEmpty()) {
-                    Chip(
-                        text = card.groupPath,
-                        filled = true,
-                        leading = { Icon(Icons.Rounded.Folder, contentDescription = null, Modifier.size(16.dp)) },
-                        onClick = { onSearch(FilterCompletion.token(FilterKind.GROUP, card.groupName) + " ") },
-                    )
-                }
-                for (tag in card.tags) {
-                    Chip(text = "#$tag", filled = false, onClick = { onSearch(FilterCompletion.token(FilterKind.TAG, tag) + " ") })
+    // Compact: the icon beside the title leaves the face and the fields in sight (SPEC §6.2).
+    Row(
+        Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        EntryMark(card.avatar, content.icon, content.face, 56.dp, Modifier.sharedIcon(sharedKey))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                card.title,
+                Modifier.sharedTitle(sharedKey).onGloballyPositioned { onTitlePlaced(it.boundsInRoot().bottom) },
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            if (card.groupPath.isNotEmpty() || card.tags.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (card.groupPath.isNotEmpty()) {
+                        Chip(
+                            text = card.groupPath,
+                            filled = true,
+                            leading = { Icon(Icons.Rounded.Folder, contentDescription = null, Modifier.size(16.dp)) },
+                            onClick = { onSearch(FilterCompletion.token(FilterKind.GROUP, card.groupName) + " ") },
+                        )
+                    }
+                    for (tag in card.tags) {
+                        Chip(text = "#$tag", filled = false, onClick = { onSearch(FilterCompletion.token(FilterKind.TAG, tag) + " ") })
+                    }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Fields named as a payment card's or a Wi-Fi network's parts, without types (SPEC §6.3): one tap gives them their
+ * types, saved in the entry, so that this card and the Mac's draw its face.
+ */
+@Composable
+private fun SuggestionBanner(suggestion: TypeSuggestion, saving: Boolean, onAccept: () -> Unit, onDismiss: () -> Unit) {
+    val card = suggestion.kind == TypeSuggestion.Kind.PAYMENT_CARD
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(
+                Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (card) Icons.Rounded.CreditCard else Icons.Rounded.Wifi,
+                    contentDescription = null,
+                    Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    if (card) "Looks like a payment card" else "Looks like a Wi-Fi network",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(
+                    if (card) {
+                        "Show these fields as a card. Their types are saved in the entry, so the Mac shows the card too."
+                    } else {
+                        "Show these fields as a network, with its QR code. Their types are saved in the entry, so the Mac shows the network too."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+        Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onDismiss, enabled = !saving) { Text("Not now") }
+            Button(onClick = onAccept, enabled = !saving) { Text(if (card) "Show as card" else "Show as network") }
         }
     }
 }
@@ -341,7 +418,8 @@ private fun Banners(content: CardContent) {
         is EntryExpiry.Expires -> Banner(Icons.Rounded.Schedule, "Expires on ${dates.format(expiry.at)}", problem = false)
         null -> {}
     }
-    card.deadline?.let { deadline ->
+    // A payment card's own expiry is a chip under its face.
+    card.deadline?.takeUnless { (it.source as? Deadline.Source.Field)?.let { field -> RowIds.custom(field.index) } == card.paymentCard?.expiryRowId }?.let { deadline ->
         val expired = deadline.hint.status == ExpiryHint.Status.EXPIRED
         Banner(Icons.Rounded.Schedule, "${deadline.label} · ${deadline.hint.text}", problem = expired, warning = !expired)
     }
@@ -411,6 +489,8 @@ internal class CardActions(
     val onCopy: (FieldRow) -> Unit,
     val onToggle: (String) -> Unit,
     val onToggleSection: (CardSection) -> Unit,
+    /** Shows these concealed rows if any is masked, else masks them (a payment card's number and CVC). */
+    val onToggleRows: (List<FieldRow>) -> Unit,
     val onOpenLink: (String) -> Unit,
     val onOpenAttachment: (FieldRow) -> Unit,
     val onSaveAttachment: (FieldRow) -> Unit,
@@ -419,6 +499,10 @@ internal class CardActions(
     val onSetUsed: ((FieldRow, Boolean) -> Unit)? = null,
     /** The code row whose mark is being saved. */
     val marking: String? = null,
+    /** The Wi-Fi network's QR code full screen. */
+    val onWiFiFullScreen: () -> Unit = {},
+    /** The network to this phone's saved ones; null when it cannot be (a WEP network). */
+    val onAddNetwork: (() -> Unit)? = null,
 )
 
 /** Tapping anywhere on a row copies it (SPEC §6.2). */
