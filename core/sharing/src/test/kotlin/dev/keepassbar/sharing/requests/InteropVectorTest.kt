@@ -6,10 +6,12 @@ import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.sharing.crypto.hex
 import dev.keepassbar.sharing.message.ShareAnswer
 import dev.keepassbar.sharing.message.ShareCode
+import dev.keepassbar.sharing.message.ShareEnvelope
 import dev.keepassbar.sharing.message.ShareRequest
 import dev.keepassbar.sharing.payload.AnswerPayload
 import dev.keepassbar.sharing.payload.SharedEntry
 import dev.keepassbar.sharing.pictures.Pictures
+import java.time.Duration
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -20,6 +22,12 @@ import kotlin.test.assertEquals
  * `~/Projects/keepass-bar/HANDOVER-sharing.md`). The keys are RFC 9180 A.2's (skRm the asker's, skEm the
  * ephemeral one). [CRYPTOKIT_ANSWER] was sealed by Apple's CryptoKit (`HPKE.Sender`, Curve25519 / HKDF-SHA256 /
  * AES-GCM-256) for the same request and content: both implementations open each other's answers.
+ *
+ * And one envelope of the same content: pictures 30 29 40 43 7 13 0 63 47 54, salt 00 01 … 0f, made at the request's
+ * time, valid 3 days. [ENVELOPE] was computed outside this code: the stretch by OpenSSL 4 (`openssl kdf -keylen 32
+ * -kdfopt hexpass:1e1d282b070d003f2f36 -kdfopt hexsalt:000102030405060708090a0b0c0d0e0f -kdfopt iter:3 -kdfopt
+ * memcost:65536 -kdfopt lanes:2 ARGON2ID` = dc07efdc0a…), HKDF by OpenSSL and CryptoKit (`HKDF<SHA256>`, the same
+ * 44 bytes), the sealing by CryptoKit's `AES.GCM.seal`.
  */
 class InteropVectorTest {
     private val askerKey = hex("497b4502664cfea5d5af0b39934dac72242a74f8480451e1aee7d6a53320333d")
@@ -73,6 +81,21 @@ class InteropVectorTest {
         }
     }
 
+    private val envelopePictures = listOf(30, 29, 40, 43, 7, 13, 0, 63, 47, 54)
+
+    @Test
+    fun theEnvelopeIsTheseBytesAndOpensToTheSameContent() {
+        val created = Instant.parse("2026-10-23T16:00:00Z")
+        val sealed = Envelopes.seal(payload(), envelopePictures, created, Duration.ofDays(3), hex("000102030405060708090a0b0c0d0e0f"))
+
+        assertContentEquals(hex(ENVELOPE), sealed.encoded())
+        assertEquals(created.plus(Duration.ofDays(3)), sealed.expires)
+        val opened = Envelopes.open(ShareEnvelope.decode(hex(ENVELOPE)), envelopePictures)
+        assertEquals("Anna", opened.from)
+        assertEquals(Secret.of("geheim!42"), opened.entries.single().password)
+        assertEquals(TotpConfig(Secret.of("12345678901234567890")), opened.entries.single().totp)
+    }
+
     private companion object {
         const val REQUEST =
             "0101000000006adb8480000000006adf7900430f4b9859665145a6b1ba274024487bd66f03a2dd577d7753c68d7d7d00" +
@@ -104,5 +127,15 @@ class InteropVectorTest {
             "57edd1abb307d1d63c0fa41cd39919edc1bc2d41c4b2fa6fc8bf3b908859a3b55b46c5e42db6a536ea3876497d369fac" +
             "36b55e96d785be58c7bea6c9005baa53f6f023b085b5668a9e857c49e1553b54e79beb8c90f6d1424f5739d32aa8f684" +
             "ad9a900ef7dcb93ee167186d0574fa50bf957f63e6b708d1f70372ca01b1e186f612"
+
+        /** Version 1, kind 4, created, expires, the salt; then the content sealed, with its tag. */
+        const val ENVELOPE =
+            "0104000000006adb8480000000006adf7900000102030405060708090a0b0c0d0e0f1b560eed50987f61b5dd21512f58" +
+            "41c4ff35b9507f3d8b61da1e0e758e3ff0cca77d99c8dc0f55e01b0d0ea736ea42b63c2e084d0ed794b5987e5c1e61a2" +
+            "ed71d69189d95db13a8667ab94929009638207e7f4112a3983346b0e3139124295f4a7ebc062d80c83c5ddc2ec515ab3" +
+            "b879881a2e7f8bc817f8d6e2a93c794ea87d3cb288ebf854629308f605ac90479583cb692169b484ae5d595fd8a61c12" +
+            "b0e833c59d03cb951b987984ef44dc099210cbc533a61510c015b2a40c9bf4b30e6635838794967e8872728a0b445a0f" +
+            "1f823ab335bc7d71a35a9bc6f8dd249284a3d445366ef2e56e58bddb06dad2dcdc7f298e0c7bc4a6ca78af44913e1eab" +
+            "7d460e4afe96e434838758c27c98c0b429ea"
     }
 }

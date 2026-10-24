@@ -116,6 +116,7 @@ internal fun EntryCardScreen(
     /** A request someone sent, picked to answer with this entry (SPEC §10). */
     onSendTo: (TheirRequest) -> Unit,
     onReadRequest: () -> Unit,
+    onSendWithout: () -> Unit,
 ) {
     val model = viewModel {
         EntryCardViewModel(
@@ -163,6 +164,10 @@ internal fun EntryCardScreen(
             onRead = {
                 sending = false
                 onReadRequest()
+            },
+            onSendWithout = {
+                sending = false
+                onSendWithout()
             },
             onDismiss = { sending = false },
         )

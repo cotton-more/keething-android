@@ -75,8 +75,8 @@ private val ButtonDark = Color(0xFF2A2D31)
 
 /**
  * Reading a code (SPEC §10): the back camera, or a picture from the gallery, or text pasted. [incoming]: codes another
- * app handed over, read at once. A request leads to its pictures ([onTheirs]), an answer to its entries ([onAnswer]),
- * both in place of this screen.
+ * app handed over, read at once. A request leads to its pictures ([onTheirs]), an answer to its entries and an envelope
+ * to its pictures ([onSealed]), both in place of this screen.
  */
 @Composable
 internal fun ReadCodeScreen(
@@ -84,7 +84,7 @@ internal fun ReadCodeScreen(
     incoming: List<String>,
     onClose: () -> Unit,
     onTheirs: (id: String) -> Unit,
-    onAnswer: (text: String) -> Unit,
+    onSealed: (text: String) -> Unit,
 ) {
     val model = viewModel { ReadCodeModel(container.shareRequests, container.answerParts) }
     val context = LocalContext.current
@@ -93,7 +93,7 @@ internal fun ReadCodeScreen(
         model.outcomesFlow.collect { outcome ->
             when (outcome) {
                 is ReadCodeModel.Outcome.Theirs -> onTheirs(outcome.id)
-                is ReadCodeModel.Outcome.Answer -> onAnswer(outcome.text)
+                is ReadCodeModel.Outcome.Sealed -> onSealed(outcome.text)
             }
         }
     }

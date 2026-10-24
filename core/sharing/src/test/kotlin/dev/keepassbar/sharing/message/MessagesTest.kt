@@ -172,4 +172,21 @@ class MessagesTest {
         w.byte(1); w.byte(3); w.bytes(part.messageId); w.byte(part.index); w.byte(part.count); w.bytes(part.piece)
         return w.toByteArray()
     }
+
+    @Test
+    fun anEnvelopeOutOfRangeIsRefused() {
+        fun bytes(validDays: Long = 3, salt: Int = 16, ciphertext: Int = 16): ByteArray {
+            val w = WireWriter()
+            w.byte(1); w.byte(4); w.long(created.epochSecond); w.long(created.epochSecond + validDays * 86400)
+            w.bytes(ByteArray(salt)); w.bytes(ByteArray(ciphertext))
+            return w.toByteArray()
+        }
+        val envelope = assertIs<ShareCode.Read.Envelope>(ShareCode.read(bytes())).envelope
+        assertEquals(created, envelope.created)
+        assertEquals(created.plus(Duration.ofDays(3)), envelope.expires)
+        ShareEnvelope.decode(bytes(validDays = 7))
+        for (bad in listOf(bytes(validDays = 8), bytes(validDays = 0), bytes(ciphertext = 15), bytes(salt = 8, ciphertext = 0))) {
+            assertFailsWith<MalformedShareException> { ShareCode.read(bad) }
+        }
+    }
 }

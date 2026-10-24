@@ -5,11 +5,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,11 +38,19 @@ import dev.keepassbar.sharing.requests.TheirRequest
 
 /**
  * The card's "Send to a request" (SPEC §10): the requests others sent, to answer with this entry ([onPick]); one not
- * yet checked goes to its pictures first. Or reading a new request ([onRead]).
+ * yet checked goes to its pictures first. Or reading a new request ([onRead]), or sending it without one, in an envelope
+ * opened by ten pictures ([onSendWithout]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SendToRequestSheet(container: AppContainer, title: String, onPick: (TheirRequest) -> Unit, onRead: () -> Unit, onDismiss: () -> Unit) {
+internal fun SendToRequestSheet(
+    container: AppContainer,
+    title: String,
+    onPick: (TheirRequest) -> Unit,
+    onRead: () -> Unit,
+    onSendWithout: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
     val theirs = book?.theirs.orEmpty()
     val now by rememberSecondsNow()
@@ -48,8 +59,12 @@ internal fun SendToRequestSheet(container: AppContainer, title: String, onPick: 
             Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Send “$title” to", style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (theirs.isEmpty()) "No one has asked yet. Ask them for a request: Keething › Sharing › Ask for an entry."
-                    else "A request someone sent you. Only their phone can open what you send.",
+                    if (theirs.isEmpty()) {
+                        "No one has asked yet. Ask them for a request (Keething › Sharing › Ask for an entry), or send it " +
+                            "without one: it opens with ten pictures you give another way."
+                    } else {
+                        "A request someone sent you: only their phone can open what you send. Or send it without one."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -81,9 +96,13 @@ internal fun SendToRequestSheet(container: AppContainer, title: String, onPick: 
                     }
                 }
             }
-            TextButton(onClick = onRead, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Rounded.QrCodeScanner, contentDescription = null)
-                Text("  Read a new request")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onRead, modifier = Modifier.weight(1f)) {
+                    ButtonLabel("Read a request", Icons.Rounded.QrCodeScanner, gap = 8.dp)
+                }
+                TextButton(onClick = onSendWithout, modifier = Modifier.weight(1f)) {
+                    ButtonLabel("Without one", Icons.AutoMirrored.Rounded.Send, gap = 8.dp)
+                }
             }
         }
     }

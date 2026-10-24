@@ -22,8 +22,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * Reading codes (SPEC §10), from the camera, a picture, a paste or another app: a request is kept to be answered, an
- * answer for a request of this phone is opened, parts of a large answer are collected in any order. What cannot be
- * used is said in a banner, and the camera goes on looking.
+ * answer for a request of this phone is opened, an envelope goes to its pictures, parts of a large answer or envelope
+ * are collected in any order. What cannot be used is said in a banner, and the camera goes on looking.
  */
 internal class ReadCodeModel(private val requests: ShareRequests, private val parts: PartCollector) : ViewModel() {
     data class Banner(val title: String, val text: String, val isProblem: Boolean)
@@ -32,8 +32,8 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
         /** A request to answer: its screen, to check the pictures. */
         data class Theirs(val id: String) : Outcome
 
-        /** An answer for a request of this phone, as text: its screen opens it. */
-        data class Answer(val text: String) : Outcome
+        /** An answer for a request of this phone, or an envelope, as text: its screen opens it. */
+        data class Sealed(val text: String) : Outcome
     }
 
     var banner by mutableStateOf<Banner?>(null)
@@ -65,7 +65,7 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
             banner = if (found.any { it.broken > 0 }) {
                 Banner("The code is cut short", "Part of it is missing or was changed. Read it again, or ask for it once more.", isProblem = true)
             } else {
-                Banner("Not a Keething code", "This one is something else. Read the code of a request or an answer.", isProblem = true)
+                Banner("Not a Keething code", "This one is something else. Read the code of a request, an answer or entries sent to you.", isProblem = true)
             }
             return
         }
@@ -92,7 +92,7 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
                 val progress = try {
                     parts.add(read.part)
                 } catch (_: MalformedShareException) {
-                    banner = Banner("These codes do not belong together", "Read all the codes of one answer.", isProblem = true)
+                    banner = Banner("These codes do not belong together", "Read all the codes of one answer, or of the same entries.", isProblem = true)
                     return false
                 }
                 when (progress) {
@@ -119,8 +119,31 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
                     )
                     return false
                 }
-                outcomes.send(Outcome.Answer(ShareCode.text(message)))
+                outcomes.send(Outcome.Sealed(ShareCode.text(message)))
                 return true
+            }
+            is ShareCode.Read.Envelope -> {
+                val envelope = read.envelope
+                when (requests.arrived(envelope)) {
+                    ShareRequests.Arrival.ToOpen -> {
+                        outcomes.send(Outcome.Sealed(ShareCode.text(message)))
+                        return true
+                    }
+                    ShareRequests.Arrival.Own -> banner = Banner("These are your own", "This phone sent these entries. Send the code to the one they are for.", isProblem = false)
+                    ShareRequests.Arrival.Expired -> banner = Banner(
+                        "These entries have expired",
+                        "They ran out on ${SharingTexts.dateTime(envelope.expires)}. Ask the sender to send them again.",
+                        isProblem = true,
+                    )
+                    ShareRequests.Arrival.BadDates -> banner = Banner(
+                        "The dates are wrong",
+                        "It says it was made later than now, or lasts longer than a week. Check both phones' clocks, or ask for it again.",
+                        isProblem = true,
+                    )
+                    ShareRequests.Arrival.Saved -> banner = Banner("Saved already", "These entries were saved on this phone.", isProblem = false)
+                    ShareRequests.Arrival.Closed -> {}
+                }
+                return false
             }
         }
     }

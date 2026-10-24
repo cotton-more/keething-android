@@ -96,6 +96,7 @@ internal object Format {
     const val KIND_REQUEST = 1
     const val KIND_ANSWER = 2
     const val KIND_PART = 3
+    const val KIND_ENVELOPE = 4
 
     fun header(reader: WireReader, kind: Int) {
         if (reader.byte() != VERSION) throw MalformedShareException("a version this app does not know")

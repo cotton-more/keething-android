@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.QrCodeScanner
@@ -58,14 +59,17 @@ internal fun SharingScreen(
     onBack: () -> Unit,
     onTheirs: (id: String) -> Unit,
     onMine: (id: String) -> Unit,
+    onSent: (id: String) -> Unit,
     onRead: () -> Unit,
     onAsk: () -> Unit,
+    onSend: () -> Unit,
 ) {
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
     val validity by container.settings.requestValidity.collectAsStateWithLifecycle()
     val now by rememberSecondsNow()
     val theirs = book?.theirs.orEmpty()
     val mine = book?.mine.orEmpty()
+    val sent = book?.sent.orEmpty()
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
@@ -87,16 +91,15 @@ internal fun SharingScreen(
         },
         bottomBar = {
             BottomActions {
+                FilledTonalButton(onClick = onSend, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    ButtonLabel("Send entries without a request", Icons.AutoMirrored.Rounded.Send, iconSize = 20.dp, gap = 8.dp)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     FilledTonalButton(onClick = onRead, modifier = Modifier.weight(1f).height(56.dp)) {
-                        Icon(Icons.Rounded.QrCodeScanner, contentDescription = null)
-                        Spacer(Modifier.size(10.dp))
-                        Text("Read a code")
+                        ButtonLabel("Read a code", Icons.Rounded.QrCodeScanner)
                     }
                     Button(onClick = onAsk, modifier = Modifier.weight(1f).height(56.dp)) {
-                        Icon(Icons.Rounded.Add, contentDescription = null)
-                        Spacer(Modifier.size(10.dp))
-                        Text("Ask for an entry")
+                        ButtonLabel("Ask for an entry", Icons.Rounded.Add, short = "Ask")
                     }
                 }
             }
@@ -138,13 +141,38 @@ internal fun SharingScreen(
                         modifier = Modifier.animateItem().padding(bottom = SegmentGap),
                     )
                 }
+                item(key = "gap/mine") { Spacer(Modifier.height(18.dp)) }
             }
-            if (theirs.isEmpty() && mine.isEmpty()) {
+            if (sent.isNotEmpty()) {
+                item(key = "sent") { SectionTitle("Sent, pictures kept") }
+                itemsIndexed(sent, key = { _, it -> "sent/${it.envelope.id}" }) { index, one ->
+                    RequestRow(
+                        shape = segmentShape(index, sent.size),
+                        leading = {
+                            Box(
+                                Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.tertiaryContainer),
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer) }
+                        },
+                        title = SharingTexts.titles(one.titles),
+                        subtitle = listOfNotNull(
+                            one.recipient.takeIf { it.isNotEmpty() }?.let { "For $it" },
+                            "sent ${SharingTexts.moment(one.envelope.created, now)}",
+                            SharingTexts.expires(one.envelope.expires, now),
+                        ).joinToString(" · ").replaceFirstChar { it.uppercase() },
+                        trailing = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        onClick = { onSent(one.envelope.id) },
+                        modifier = Modifier.animateItem().padding(bottom = SegmentGap),
+                    )
+                }
+            }
+            if (theirs.isEmpty() && mine.isEmpty() && sent.isEmpty()) {
                 item(key = "empty") {
                     Explanation(
                         "Nothing to answer, nothing waiting",
                         "To get an entry, ask for it: the answer comes back as a code only this phone can open. " +
-                            "To give one, read the code of someone's request.",
+                            "To give one, read the code of someone's request, or send it without one: it opens with ten " +
+                            "pictures you give another way.",
                     )
                 }
             }

@@ -1,5 +1,6 @@
 package dev.keepassbar.android.sharing
 
+import android.content.ClipboardManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,9 +17,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
@@ -28,6 +31,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -48,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,27 +67,32 @@ import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.colouredSecret
+import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.android.ui.segmentShape
 import dev.keepassbar.card.EntryAvatar
 import dev.keepassbar.domain.vault.FieldValue
 import dev.keepassbar.sharing.payload.Receiving
 import dev.keepassbar.sharing.payload.SharedEntry
+import dev.keepassbar.sharing.pictures.Pictures
+import dev.keepassbar.sharing.requests.ShareRequests
 import dev.keepassbar.vault.session.SessionState
 
 /**
- * An answer to a request of mine (SPEC §10): the entries it brings, to look at and copy, and to save as new entries
- * into a group; saving them closes the request. Anyone who saw the request could have made the answer, and the
- * sender's name is theirs to choose: the screen says so. [onOpenEntry]: the first saved entry's card.
+ * An answer to a request of mine, or an envelope (SPEC §10): the entries it brings, to look at and copy, and to save as
+ * new entries into a group; saving them closes the request. Anyone who saw the request could have made the answer, and
+ * the sender's name is theirs to choose: the screen says so. An envelope first asks for its ten pictures, tapped on the
+ * grid of 64 or pasted from a message. [onOpenEntry]: the first saved entry's card.
  */
 @Composable
 internal fun ReceivedScreen(
     container: AppContainer,
     database: DatabaseSession,
-    answerText: String,
+    codeText: String,
     onClose: () -> Unit,
     onOpenEntry: (id: String) -> Unit,
 ) {
-    val model = viewModel { ReceivedModel(database, container.shareRequests, container.clipboard, answerText) }
+    val model = viewModel { ReceivedModel(database, container.shareRequests, container.clipboard, codeText) }
+    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
     var closing by rememberSaveable { mutableStateOf(false) }
@@ -97,6 +107,26 @@ internal fun ReceivedScreen(
             )
         },
         bottomBar = {
+            if (model.opening is ReceivedModel.Opening.Sealed) {
+                BottomActions {
+                    if (model.wrongPictures) {
+                        Button(onClick = model::tapAgain, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("Tap them again") }
+                    } else {
+                        FilledTonalButton(
+                            onClick = {
+                                val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip
+                                model.paste(clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString())
+                            },
+                            enabled = !model.unsealing,
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                        ) {
+                            Icon(Icons.Rounded.ContentPaste, contentDescription = null)
+                            Spacer(Modifier.size(10.dp))
+                            Text("Paste the pictures")
+                        }
+                    }
+                }
+            }
             val opened = model.opening as? ReceivedModel.Opening.Opened ?: return@Scaffold
             BottomActions {
                 when (val saving = model.saving) {
@@ -127,8 +157,15 @@ internal fun ReceivedScreen(
                                 Text(if (count == 1) "Save to the database" else "Save the $count entries")
                             }
                         }
-                        TextButton(onClick = { closing = true }, enabled = busy == null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                            Text("Close the request without saving")
+                        if (opened.request != null) {
+                            TextButton(onClick = { closing = true }, enabled = busy == null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                                Text("Close the request without saving")
+                            }
+                        } else {
+                            // Nothing to close: until it expires, the envelope opens again with its pictures.
+                            TextButton(onClick = onClose, enabled = busy == null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                                Text("Not now")
+                            }
                         }
                     }
                 }
@@ -143,11 +180,13 @@ internal fun ReceivedScreen(
                     "It answers a request that was closed, expired, or made on another phone. Ask again.",
                 )
                 ReceivedModel.Opening.Broken -> Explanation(
-                    "This answer does not open",
+                    "This code does not open",
                     "It was changed on the way, or it is not really for your request. Ask for it again, and check the pictures by a call.",
                 )
+                is ReceivedModel.Opening.Unavailable -> Unavailable(opening.arrival)
+                is ReceivedModel.Opening.Sealed -> EnvelopePictures(model, opening)
                 is ReceivedModel.Opening.Opened -> when (val saving = model.saving) {
-                    is ReceivedModel.Saving.Saved -> Saved(saving)
+                    is ReceivedModel.Saving.Saved -> Saved(saving, fromRequest = opening.request != null)
                     else -> Opened(database, model, opening)
                 }
             }
@@ -179,14 +218,81 @@ private fun Opened(database: DatabaseSession, model: ReceivedModel, opened: Rece
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         val count = payload.entries.size
-        TitleBlock("From ${payload.from}", "Answer to “${opened.request.request.reason}” · ${if (count == 1) "1 entry" else "$count entries"}")
-        InfoBox(
-            Icons.Rounded.Info,
-            "Only this phone could open it, but anyone who saw your request could have made it, and the name is theirs to " +
-                "choose. Save it if it is what you expected: saved entries are tagged #${Receiving.TAG}.",
-        )
+        val entries = if (count == 1) "1 entry" else "$count entries"
+        val request = opened.request
+        if (request != null) {
+            TitleBlock("From ${payload.from}", "Answer to “${request.request.reason}” · $entries")
+            InfoBox(
+                Icons.Rounded.Info,
+                "Only this phone could open it, but anyone who saw your request could have made it, and the name is theirs to " +
+                    "choose. Save it if it is what you expected: saved entries are tagged #${Receiving.TAG}.",
+            )
+        } else {
+            TitleBlock("From ${payload.from}", "Sent without a request · $entries")
+            InfoBox(
+                Icons.Rounded.Info,
+                "Only these pictures open it, so it comes from whoever gave you them. Anyone who had both the code and the " +
+                    "pictures could open it too. Save it if it is what you expected: saved entries are tagged #${Receiving.TAG}.",
+            )
+        }
         payload.entries.forEachIndexed { index, entry -> EntryView(index, entry, model) }
         GroupChoice(database, model)
+    }
+}
+
+/** An envelope's ten places over the grid of 64: the pictures the sender gives, in order. */
+@Composable
+private fun EnvelopePictures(model: ReceivedModel, sealed: ReceivedModel.Opening.Sealed) {
+    val now by rememberSecondsNow()
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        TitleBlock(
+            "Entries sent to you",
+            "Made ${SharingTexts.moment(sealed.envelope.created, now)} · ${SharingTexts.expires(sealed.envelope.expires, now)}",
+        )
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("The ten pictures", Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Rounded.Call, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "The sender gives them to you another way than the code: by a call, or in another app. Tap them below in " +
+                        "their order, or copy their message and paste it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            HeardPictures(model.heard, Pictures.ENVELOPE_COUNT, model.wrongPictures, onUndo = model::undo)
+            when {
+                model.unsealing -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+                model.wrongPictures -> Text(
+                    "These pictures do not open it. A picture misheard? Take the last ones back, or tap them again. Check " +
+                        "with the sender that these pictures belong to this code.",
+                    Modifier.padding(horizontal = 4.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                else -> PictureKeyboard(enabled = model.heard.size < Pictures.ENVELOPE_COUNT, onTap = model::tap)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Unavailable(arrival: ShareRequests.Arrival) {
+    when (arrival) {
+        ShareRequests.Arrival.Own -> Explanation("These are your own", "This phone sent these entries. Send the code to the one they are for.")
+        ShareRequests.Arrival.Expired -> Explanation("These entries have expired", "Ask the sender to send them again.")
+        ShareRequests.Arrival.BadDates -> Explanation(
+            "The dates are wrong",
+            "It says it was made later than now, or lasts longer than a week. Check both phones' clocks, or ask for it again.",
+        )
+        ShareRequests.Arrival.Saved -> Explanation("Saved already", "These entries were saved on this phone: look for #${Receiving.TAG}.")
+        ShareRequests.Arrival.Closed, ShareRequests.Arrival.ToOpen -> Explanation("Not now", "Unlock the database and read the code again.")
     }
 }
 
@@ -289,7 +395,7 @@ private fun GroupChoice(database: DatabaseSession, model: ReceivedModel) {
 }
 
 @Composable
-private fun Saved(saved: ReceivedModel.Saving.Saved) {
+private fun Saved(saved: ReceivedModel.Saving.Saved, fromRequest: Boolean) {
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(Modifier.size(88.dp).clip(RoundedCornerShape(30.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Check, contentDescription = null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -299,7 +405,11 @@ private fun Saved(saved: ReceivedModel.Saving.Saved) {
         Spacer(Modifier.height(8.dp))
         Text(
             (if (saved.entryIds.size == 1) "The entry is" else "The ${saved.entryIds.size} entries are") + " in ${saved.group}, tagged " +
-                "#${Receiving.TAG}. The request is closed: this phone has forgotten its key, so the code can't be opened again.",
+                "#${Receiving.TAG}. " + if (fromRequest) {
+                    "The request is closed: this phone has forgotten its key, so the code can't be opened again."
+                } else {
+                    "This phone will not save ${if (saved.entryIds.size == 1) "it" else "them"} again from the same code."
+                },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

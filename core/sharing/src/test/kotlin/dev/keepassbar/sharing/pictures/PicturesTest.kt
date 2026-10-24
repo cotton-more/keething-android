@@ -4,6 +4,8 @@ import dev.keepassbar.sharing.crypto.hex
 import dev.keepassbar.sharing.message.ShareRequest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PicturesTest {
     @Test
@@ -36,5 +38,52 @@ class PicturesTest {
 
         assertEquals(listOf(30, 29, 40, 43, 7, 13), pictures)
         assertEquals(listOf("Smiley", "Heart", "Gift", "Pencil", "Rabbit", "Octopus"), Pictures.named(pictures).map { it.name })
+    }
+
+    private val ten = listOf(0, 1, 36, 41, 63, 21, 29, 10, 54, 47)
+
+    @Test
+    fun pastedPicturesAreFoundByEmojiOrNameInOrder() {
+        val names = Pictures.named(ten)
+        val asSent = "The ten pictures that open the Keething entries I sent you:\n" +
+            names.take(5).joinToString(" · ") { "${it.emoji} ${it.name}" } + "\n" +
+            names.drop(5).joinToString(" · ") { "${it.emoji} ${it.name}" } + "\nIn Keething, after reading the code: Paste the pictures."
+
+        assertEquals(ten, Pictures.find(asSent, 10).pictures)
+        assertEquals(ten, Pictures.find(names.joinToString(" ") { it.name.lowercase() }, 10).pictures)
+        assertEquals(ten, Pictures.find(names.joinToString("") { it.emoji }, 10).pictures)
+        assertEquals(ten, Pictures.find(names.mapIndexed { i, p -> "${i + 1}. ${p.name}" }.joinToString("\n"), 10).pictures)
+        assertEquals(ten, Pictures.find(names.joinToString(", ") { "${it.name} ${it.emoji}" }, 10).pictures)
+    }
+
+    @Test
+    fun emojiWithoutTheirVariationSelectorAndTwoWordNamesAreFound() {
+        // Cloud, Heart, Umbrella and Thumbs Up, Light Bulb: a messenger may drop U+FE0F.
+        val pictures = listOf(21, 29, 37, 36, 41, 21, 29, 37, 36, 41)
+        val text = Pictures.named(pictures).joinToString(" ") { it.emoji.replace("\uFE0F", "") }
+
+        assertEquals(pictures, Pictures.find(text, 10).pictures)
+        assertEquals(pictures, Pictures.find("Cloud heart UMBRELLA thumbs up light bulb cloud heart umbrella thumbs up light bulb", 10).pictures)
+    }
+
+    @Test
+    fun namesAmongOtherWordsDoNotCount() {
+        val names = Pictures.named(ten).joinToString(" ") { it.name }
+
+        // "key", "book", "lock" here are words; "Keyboard" holds a name inside it.
+        assertEquals(ten, Pictures.find("Here is the key to the book lock, Keyboard: $names. Thanks!", 10).pictures)
+        val short = Pictures.find(Pictures.named(ten.take(7)).joinToString(" ") { it.name }, 10)
+        assertNull(short.pictures)
+        assertEquals(7, short.longest)
+        assertNull(Pictures.find("$names Dog", 10).pictures, "eleven in a row are not ten")
+        assertEquals(0, Pictures.find("nothing here", 10).longest)
+    }
+
+    @Test
+    fun randomPicturesAreAllOfThe64() {
+        val drawn = Pictures.random(10_000, java.security.SecureRandom())
+
+        assertEquals(64, drawn.toSet().size)
+        assertTrue(drawn.all { it in 0..63 })
     }
 }

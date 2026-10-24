@@ -112,29 +112,30 @@ internal class ChooseEntriesModel(database: DatabaseSession, recents: RecentEntr
 }
 
 /**
- * Choosing what to send for their request [id] (SPEC §10): the list with a box on each row, searched as the list is;
- * Next goes on to what of them to send ([onNext]). The recycle bin is not offered.
+ * Choosing what to send for their request [id], or without a request when it is null (SPEC §10): the list with a box on
+ * each row, searched as the list is; Next goes on to what of them to send ([onNext]). The recycle bin is not offered.
  */
 @Composable
 internal fun ChooseEntriesScreen(
     container: AppContainer,
     database: DatabaseSession,
-    id: String,
+    id: String?,
     preselected: List<String>,
     onClose: () -> Unit,
     onNext: (entryIds: List<String>) -> Unit,
 ) {
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
-    val their = book?.theirs?.firstOrNull { it.request.id == id }
-    LaunchedEffect(their == null) { if (their == null) onClose() }
-    if (their == null) return
+    val their = id?.let { id -> book?.theirs?.firstOrNull { it.request.id == id } }
+    val gone = book == null || (id != null && their == null)
+    LaunchedEffect(gone) { if (gone) onClose() }
+    if (gone) return
     val model = viewModel { ChooseEntriesModel(database, container.recents, preselected) }
     val state by model.state.collectAsStateWithLifecycle()
     var full by remember { mutableStateOf(false) }
     if (full) {
         AlertDialog(
             onDismissRequest = { full = false },
-            text = { Text("One answer holds at most ${AnswerPayload.MAX_ENTRIES} entries. Send the rest in another answer.") },
+            text = { Text("One code holds at most ${AnswerPayload.MAX_ENTRIES} entries. Send the rest in another one.") },
             confirmButton = { TextButton(onClick = { full = false }) { Text("OK") } },
         )
     }
@@ -146,7 +147,7 @@ internal fun ChooseEntriesScreen(
                     Column {
                         Text("Choose entries")
                         Text(
-                            "for ${their.request.name} · ${their.request.reason}",
+                            if (their != null) "for ${their.request.name} · ${their.request.reason}" else "to send without a request",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

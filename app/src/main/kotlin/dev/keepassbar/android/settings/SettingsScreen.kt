@@ -115,7 +115,7 @@ internal fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Group("Sharing: a request lasts") {
+        Group("Sharing: requests and pictures last") {
             val validity by container.settings.requestValidity.collectAsStateWithLifecycle()
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 AppSettings.REQUEST_VALIDITIES.forEachIndexed { index, option ->
@@ -129,7 +129,8 @@ internal fun SettingsScreen(
                 }
             }
             Text(
-                "Then the phone that asked forgets its key, and an answer can no longer be opened. New requests only.",
+                "Then the phone that asked forgets its key, and an answer can no longer be opened; the phone that sent " +
+                    "entries without a request forgets their pictures. New ones only.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

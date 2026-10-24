@@ -15,34 +15,47 @@ import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.domain.vault.VaultEdit
 import dev.keepassbar.sharing.message.MalformedShareException
-import dev.keepassbar.sharing.message.ShareAnswer
 import dev.keepassbar.sharing.message.ShareCode
+import dev.keepassbar.sharing.message.ShareEnvelope
 import dev.keepassbar.sharing.payload.AnswerPayload
 import dev.keepassbar.sharing.payload.Receiving
+import dev.keepassbar.sharing.pictures.Pictures
 import dev.keepassbar.sharing.requests.MyRequest
 import dev.keepassbar.sharing.requests.ShareRequests
 import dev.keepassbar.vault.session.SaveOutcome
 import dev.keepassbar.vault.session.SessionState
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * An answer to a request of mine, opened (SPEC §10): its entries to look at, copy or save as new entries into a group.
- * Saving them all closes the request (its key goes). The entries' secrets are wiped when the screen goes.
+ * An answer to a request of mine, or an envelope, opened (SPEC §10): its entries to look at, copy or save as new entries
+ * into a group. Saving them all closes the request (its key goes), or marks the envelope saved. An envelope opens with
+ * its ten pictures, tapped or pasted; they stay in this model only, never in saved state. The entries' secrets are
+ * wiped when the screen goes.
  */
 internal class ReceivedModel(
     private val database: DatabaseSession,
     private val requests: ShareRequests,
     private val clipboard: SensitiveClipboard,
-    answerText: String,
+    codeText: String,
 ) : ViewModel() {
     sealed interface Opening {
-        class Opened(val request: MyRequest, val payload: AnswerPayload) : Opening
+        /** [request] null: from an envelope. */
+        class Opened(val request: MyRequest?, val payload: AnswerPayload) : Opening
+
+        /** An envelope, waiting for its pictures. */
+        class Sealed(val envelope: ShareEnvelope) : Opening
+
+        /** An envelope that cannot be opened now: expired, saved already, own, its dates wrong. */
+        class Unavailable(val arrival: ShareRequests.Arrival) : Opening
 
         /** For no request of this phone (closed, expired, another phone's). */
         data object NotHere : Opening
@@ -63,7 +76,22 @@ internal class ReceivedModel(
         data class Failed(val saved: Int, val problem: String) : Saving
     }
 
-    val opening: Opening = open(answerText)
+    var opening by mutableStateOf(open(codeText))
+        private set
+
+    /** An envelope's, once opened: what saving marks. */
+    private var envelope: ShareEnvelope? = null
+
+    /** The envelope's pictures tapped or pasted so far, in order. */
+    val heard = mutableStateListOf<Int>()
+
+    /** Opening the envelope with them, about a third of a second. */
+    var unsealing by mutableStateOf(false)
+        private set
+
+    /** The ten tapped do not open it. */
+    var wrongPictures by mutableStateOf(false)
+        private set
 
     var groupId by mutableStateOf(rootGroupId())
 
@@ -78,11 +106,18 @@ internal class ReceivedModel(
 
     private fun open(text: String): Opening {
         val bytes = ShareCode.find(text).messages.singleOrNull() ?: return Opening.Broken
-        val answer = try {
-            ShareAnswer.decode(bytes)
+        val read = try {
+            ShareCode.read(bytes)
         } catch (_: MalformedShareException) {
             return Opening.Broken
         }
+        if (read is ShareCode.Read.Envelope) {
+            return when (val arrival = requests.arrived(read.envelope)) {
+                ShareRequests.Arrival.ToOpen -> Opening.Sealed(read.envelope)
+                else -> Opening.Unavailable(arrival)
+            }
+        }
+        val answer = (read as? ShareCode.Read.Answer)?.answer ?: return Opening.Broken
         val opened = try {
             requests.open(answer)
         } catch (_: RuntimeException) {
@@ -97,6 +132,68 @@ internal class ReceivedModel(
 
     private fun rootGroupId(): String? =
         (database.session.state.value as? SessionState.Unlocked)?.vault?.groups?.firstOrNull { it.isRoot }?.id
+
+    fun tap(picture: Int) {
+        if (unsealing || wrongPictures || heard.size >= Pictures.ENVELOPE_COUNT) return
+        heard += picture
+        if (heard.size == Pictures.ENVELOPE_COUNT) unseal()
+    }
+
+    fun undo() {
+        if (unsealing || heard.isEmpty()) return
+        heard.removeAt(heard.lastIndex)
+        wrongPictures = false
+    }
+
+    fun tapAgain() {
+        heard.clear()
+        wrongPictures = false
+    }
+
+    /** The pictures in a pasted message, if it holds ten in a row; else a notice says what it held. */
+    fun paste(text: String?) {
+        if (unsealing) return
+        val found = Pictures.find(text.orEmpty(), Pictures.ENVELOPE_COUNT)
+        val pictures = found.pictures
+        if (pictures == null) {
+            mutableNotices.trySend(
+                Notice(
+                    when (found.longest) {
+                        0 -> "No pictures in what was copied"
+                        else -> "Ten pictures in a row are needed; that has ${found.longest}"
+                    },
+                    isProblem = true,
+                ),
+            )
+            return
+        }
+        heard.clear()
+        heard.addAll(pictures)
+        wrongPictures = false
+        unseal()
+    }
+
+    private fun unseal() {
+        val waiting = opening as? Opening.Sealed ?: return
+        val pictures = heard.toList()
+        unsealing = true
+        viewModelScope.launch {
+            val started = TimeSource.Monotonic.markNow()
+            val unsealed = withContext(Dispatchers.Default) { runCatching { requests.open(waiting.envelope, pictures) } }
+            Log.i(TAG, "envelope tried in ${started.elapsedNow()}")
+            unsealing = false
+            when (val result = unsealed.getOrElse { ShareRequests.Unsealed.Broken }) {
+                is ShareRequests.Unsealed.Entries -> {
+                    envelope = waiting.envelope
+                    heard.clear()
+                    opening = Opening.Opened(null, result.payload)
+                }
+                ShareRequests.Unsealed.WrongPictures -> wrongPictures = true
+                ShareRequests.Unsealed.Broken -> opening = Opening.Broken
+                is ShareRequests.Unsealed.NotNow -> opening = Opening.Unavailable(result.arrival)
+            }
+        }
+    }
 
     fun copy(what: String, text: String, sensitive: Boolean) {
         clipboard.copy(text, sensitive)
@@ -139,7 +236,7 @@ internal class ReceivedModel(
                 }
                 savedIds += id
             }
-            requests.delete(opened.request.request.id)
+            opened.request?.let { requests.delete(it.request.id) } ?: envelope?.let(requests::saved)
             saving = Saving.Saved(savedIds.toList(), groupName(group))
         }
     }
@@ -159,7 +256,7 @@ internal class ReceivedModel(
     /** Closes the request without saving: the key goes, the answer can no longer be opened. */
     fun close() {
         val opened = opening as? Opening.Opened ?: return
-        requests.delete(opened.request.request.id)
+        opened.request?.let { requests.delete(it.request.id) }
     }
 
     private fun groupName(id: String): String {
@@ -173,6 +270,7 @@ internal class ReceivedModel(
 
     override fun onCleared() {
         (opening as? Opening.Opened)?.payload?.wipe()
+        heard.clear()
     }
 
     private companion object {

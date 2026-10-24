@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.rememberSecondsNow
+import dev.keepassbar.sharing.pictures.Picture
 import dev.keepassbar.sharing.pictures.Pictures
 import dev.keepassbar.sharing.requests.ShareRequests
 
@@ -155,7 +157,7 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    HeardPictures(heard, mismatched, onUndo = undo)
+                    HeardPictures(heard.toList(), Pictures.COUNT, mismatched, onUndo = undo)
                     if (mismatched) {
                         Text(
                             "These are not this request's pictures. A picture misheard? Tap them again. If they really " +
@@ -173,31 +175,18 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
     }
 }
 
-/** The six places the pictures heard go into, in order, with a way back for a mistap. */
+/**
+ * The [count] places the pictures heard go into, in order, six in a row or ten in two rows of five, with a way back for
+ * a mistap.
+ */
 @Composable
-private fun HeardPictures(heard: IntArray, mismatched: Boolean, onUndo: () -> Unit) {
+internal fun HeardPictures(heard: List<Int>, count: Int, mismatched: Boolean, onUndo: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (place in 0 until Pictures.COUNT) {
-            val picture = heard.getOrNull(place)?.let(Pictures.ALL::get)
-            Column(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        when {
-                            mismatched -> MaterialTheme.colorScheme.errorContainer
-                            picture != null -> MaterialTheme.colorScheme.secondaryContainer
-                            else -> MaterialTheme.colorScheme.surfaceContainer
-                        },
-                    )
-                    .padding(vertical = 6.dp)
-                    .semantics { contentDescription = picture?.name ?: "Picture ${place + 1}, not tapped yet" },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(picture?.emoji ?: "${place + 1}", fontSize = if (picture != null) 24.sp else 16.sp, lineHeight = 30.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(picture?.name.orEmpty(), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            (0 until count).chunked(if (count > 6) 5 else count).forEach { places ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (place in places) HeardPlace(heard.getOrNull(place)?.let(Pictures.ALL::get), place, mismatched)
+                }
             }
         }
         IconButton(onClick = onUndo, enabled = heard.isNotEmpty()) {
@@ -206,9 +195,33 @@ private fun HeardPictures(heard: IntArray, mismatched: Boolean, onUndo: () -> Un
     }
 }
 
+@Composable
+private fun RowScope.HeardPlace(picture: Picture?, place: Int, mismatched: Boolean) {
+    Column(
+        Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                when {
+                    mismatched -> MaterialTheme.colorScheme.errorContainer
+                    picture != null -> MaterialTheme.colorScheme.secondaryContainer
+                    else -> MaterialTheme.colorScheme.surfaceContainer
+                },
+            )
+            .padding(vertical = 6.dp)
+            .semantics { contentDescription = picture?.name ?: "Picture ${place + 1}, not tapped yet" },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(picture?.emoji ?: "${place + 1}", fontSize = if (picture != null) 24.sp else 16.sp, lineHeight = 30.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(picture?.name.orEmpty(), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 /** All 64 pictures, eight a row, in Matrix's order (animals, plants, food, things, travel); a tap adds one. */
 @Composable
-private fun PictureKeyboard(enabled: Boolean, onTap: (Int) -> Unit) {
+internal fun PictureKeyboard(enabled: Boolean, onTap: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Pictures.ALL.indices.chunked(8).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

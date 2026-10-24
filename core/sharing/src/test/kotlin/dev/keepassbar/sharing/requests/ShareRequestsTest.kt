@@ -5,6 +5,7 @@ import dev.keepassbar.domain.sharing.SharingStore
 import dev.keepassbar.domain.time.Clock
 import dev.keepassbar.sharing.message.ShareAnswer
 import dev.keepassbar.sharing.message.ShareCode
+import dev.keepassbar.sharing.message.ShareEnvelope
 import dev.keepassbar.sharing.message.ShareRequest
 import dev.keepassbar.sharing.payload.AnswerPayload
 import dev.keepassbar.sharing.payload.SharedEntry
@@ -220,5 +221,106 @@ class ShareRequestsTest {
 
         assertEquals(Pictures.of(ShareRequest.decode(one.request.encoded())), one.pictures)
         assertTrue(one.pictures != two.pictures, "another key, other pictures (a 2^-36 chance otherwise)")
+    }
+
+    private fun send(validFor: Duration = Duration.ofDays(3)) =
+        assertNotNull(anna.send(payload(), "Alex", listOf("Sparkasse"), validFor))
+
+    @Test
+    fun anEnvelopeTravelsAndOpensWithItsTenPicturesOnly() {
+        val sent = send()
+        assertEquals(Pictures.ENVELOPE_COUNT, sent.pictures.size)
+        val read = assertIs<ShareCode.Read.Envelope>(ShareCode.read(ShareCode.find(ShareCode.text(sent.envelope.encoded())).messages.single())).envelope
+
+        assertEquals(ShareRequests.Arrival.ToOpen, alex.arrived(read))
+        val wrong = sent.pictures.dropLast(1) + (sent.pictures.last() + 1) % 64
+        assertEquals(ShareRequests.Unsealed.WrongPictures, alex.open(read, wrong))
+        assertEquals(ShareRequests.Unsealed.WrongPictures, alex.open(read, sent.pictures.take(9)))
+        assertEquals(ShareRequests.Unsealed.WrongPictures, alex.open(read, sent.pictures.reversed()))
+        val opened = assertIs<ShareRequests.Unsealed.Entries>(alex.open(read, sent.pictures))
+        assertEquals("Anna", opened.payload.from)
+        assertEquals(Secret.of("geheim"), opened.payload.entries.single().password)
+
+        alex.saved(read)
+        assertEquals(ShareRequests.Arrival.Saved, alex.arrived(read))
+        assertIs<ShareRequests.Unsealed.NotNow>(alex.open(read, sent.pictures))
+        alex.close()
+        alex.open(Secret.copyOf(key))
+        assertEquals(ShareRequests.Arrival.Saved, alex.arrived(read), "kept in the file")
+    }
+
+    @Test
+    fun aChangedEnvelopeDoesNotOpen() {
+        val sent = send()
+        val bytes = sent.envelope.encoded()
+        // A later expiry, and a changed ciphertext: the header is the associated data.
+        val later = bytes.copyOf().also { it[17] = (it[17] + 1).toByte() }
+        val changed = bytes.copyOf().also { it[it.size - 1] = (it[it.size - 1] + 1).toByte() }
+
+        for (bad in listOf(later, changed)) assertEquals(ShareRequests.Unsealed.WrongPictures, alex.open(ShareEnvelope.decode(bad), sent.pictures))
+    }
+
+    @Test
+    fun theSenderKeepsItsEnvelopesUntilTheyExpireOrAreForgotten() {
+        val first = send(Duration.ofDays(1))
+        val second = send()
+        assertTrue(first.pictures != second.pictures, "drawn anew (a 2^-60 chance otherwise)")
+
+        assertEquals(ShareRequests.Arrival.Own, anna.arrived(first.envelope))
+        anna.close()
+        anna.open(Secret.copyOf(ByteArray(32) { 7 }))
+        val kept = anna.book.value!!.sent
+        assertEquals(listOf(second.envelope, first.envelope), kept.map { it.envelope })
+        assertEquals(second.pictures, kept.first().pictures)
+        assertEquals("Alex", kept.first().recipient)
+        assertEquals(listOf("Sparkasse"), kept.first().titles)
+        assertEquals("Anna", kept.first().from)
+        anna.sentVia(second.envelope.id, pictures = false, component = "org.telegram/.Share")
+        anna.sentVia(second.envelope.id, pictures = true, component = "com.slack/.Share")
+        anna.close()
+        anna.open(Secret.copyOf(ByteArray(32) { 7 }))
+        assertEquals("org.telegram/.Share" to "com.slack/.Share", anna.book.value!!.sent.first().let { it.codeVia to it.picturesVia })
+
+        clock.time = clock.time.plus(Duration.ofDays(1))
+        anna.arrived(second.envelope)
+        assertEquals(listOf(second.envelope), anna.book.value!!.sent.map { it.envelope }, "the expired one went")
+        assertEquals(ShareRequests.Arrival.Expired, alex.arrived(first.envelope))
+        assertIs<ShareRequests.Unsealed.NotNow>(alex.open(first.envelope, first.pictures))
+
+        anna.delete(second.envelope.id)
+        assertTrue(anna.book.value!!.sent.isEmpty())
+        assertEquals(ShareRequests.Arrival.ToOpen, anna.arrived(second.envelope), "forgotten: no longer known as its own")
+    }
+
+    @Test
+    fun anEnvelopeFromTheFutureIsRefused() {
+        val later = ShareRequests(MemoryStore(), FixedClock(clock.time.plus(Duration.ofDays(3)))).also { it.open(Secret.copyOf(ByteArray(32) { 3 })) }
+        val fromTheFuture = later.send(payload(), "", listOf("Wi-Fi"), Duration.ofDays(1))!!
+
+        assertEquals(ShareRequests.Arrival.BadDates, alex.arrived(fromTheFuture.envelope))
+    }
+
+    @Test
+    fun aFileOfVersionOneIsStillRead() {
+        val mine = alex.ask("Alex", "Netflix", Duration.ofDays(3))!!
+        val book = RequestBook(listOf(mine), emptyList(), mapOf("0f" to clock.time.plusSeconds(60)))
+        // Version 1: the same book without the envelopes' two counts at its end, under the same key and AAD.
+        val v2 = RequestBook.seal(book, Secret.copyOf(key), java.security.SecureRandom())
+        val plain = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").run {
+            init(javax.crypto.Cipher.DECRYPT_MODE, javax.crypto.spec.SecretKeySpec(key, "AES"), javax.crypto.spec.GCMParameterSpec(128, v2.copyOfRange(1, 13)))
+            updateAAD("Keething requests".encodeToByteArray())
+            doFinal(v2, 13, v2.size - 13)
+        }
+        val v1Plain = plain.copyOf(plain.size - 2)
+        val v1 = byteArrayOf(1) + v2.copyOfRange(1, 13) + javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").run {
+            init(javax.crypto.Cipher.ENCRYPT_MODE, javax.crypto.spec.SecretKeySpec(key, "AES"), javax.crypto.spec.GCMParameterSpec(128, v2.copyOfRange(1, 13)))
+            updateAAD("Keething requests".encodeToByteArray())
+            doFinal(v1Plain)
+        }
+
+        val read = assertNotNull(RequestBook.open(v1, Secret.copyOf(key)))
+        assertEquals(mine.request, read.mine.single().request)
+        assertTrue(read.sent.isEmpty())
+        assertEquals(2, v2[0].toInt(), "written as version 2")
     }
 }

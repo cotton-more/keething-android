@@ -8,7 +8,7 @@ import java.util.Base64
  * a `.` that ends it. The same text is what a QR code holds and what is sent or pasted as text; the end mark lets
  * a code broken over lines (an e-mail's wrapping) be read whole, words around it left out.
  *
- * A message too large for one QR code is split into parts: version 1, kind 3, the first 8 bytes of the whole
+ * A message too large for one QR code (an answer or an envelope of many entries) is split into parts: version 1, kind 3, the first 8 bytes of the whole
  * message's SHA-256, the part's index and the number of parts (a byte each), then its piece of the message.
  */
 public object ShareCode {
@@ -36,6 +36,8 @@ public object ShareCode {
         public class Answer(public val answer: ShareAnswer) : Read
 
         public class Part(public val part: CodePart) : Read
+
+        public class Envelope(public val envelope: ShareEnvelope) : Read
     }
 
     public fun read(message: ByteArray): Read {
@@ -46,6 +48,7 @@ public object ShareCode {
                 Format.KIND_REQUEST -> Read.Request(ShareRequest.decode(message))
                 Format.KIND_ANSWER -> Read.Answer(ShareAnswer.decode(message))
                 Format.KIND_PART -> Read.Part(CodePart.decode(message))
+                Format.KIND_ENVELOPE -> Read.Envelope(ShareEnvelope.decode(message))
                 else -> throw MalformedShareException("another kind of code")
             }
         } catch (failure: RuntimeException) {

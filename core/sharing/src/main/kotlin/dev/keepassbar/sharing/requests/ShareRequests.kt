@@ -3,14 +3,17 @@ package dev.keepassbar.sharing.requests
 import dev.keepassbar.domain.secret.Secret
 import dev.keepassbar.domain.sharing.SharingStore
 import dev.keepassbar.domain.time.Clock
+import dev.keepassbar.sharing.crypto.SealFailure
 import dev.keepassbar.sharing.crypto.X25519
 import dev.keepassbar.sharing.message.MalformedShareException
 import dev.keepassbar.sharing.message.ShareAnswer
+import dev.keepassbar.sharing.message.ShareEnvelope
 import dev.keepassbar.sharing.message.ShareRequest
 import dev.keepassbar.sharing.payload.AnswerPayload
 import dev.keepassbar.sharing.pictures.Pictures
 import java.security.SecureRandom
 import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,10 +24,14 @@ import kotlinx.coroutines.flow.asStateFlow
  * with its key when its answer was saved, when it is closed, or when it expires. Expired requests go whenever
  * the book is touched.
  *
- * The book is one file, sealed with a key from the database's ([open]): readable only with the database unlocked,
- * as hard to guess as the database itself. It is held in memory while the vault is unlocked and wiped by [close].
+ * The book is one file, sealed with the local key [open] is given (kept in the Android Keystore, SPEC §10.3),
+ * 32 random bytes. It is read at the unlock, held in memory while the vault is unlocked and wiped by [close].
  *
- * Thread-safe; [ask] and [receive] work out the pictures (Argon2, about 0.3 s): call them off the main thread.
+ * The envelopes go through it too: those sealed here are kept with their pictures until they expire or are forgotten,
+ * and the ids of those saved here until they expire.
+ *
+ * Thread-safe; [ask], [receive], [send] and [open] with pictures run Argon2 (about 0.3 s): call them off the main
+ * thread.
  */
 public class ShareRequests(
     private val store: SharingStore,
@@ -75,7 +82,7 @@ public class ShareRequests(
                 mine.privateKey.wipe()
                 return null
             }
-            change(RequestBook(listOf(mine) + book.mine, book.theirs, book.answered))
+            change(book.with(mine = listOf(mine) + book.mine))
             return mine
         }
     }
@@ -107,7 +114,7 @@ public class ShareRequests(
             known(request)?.let { return it }
             val book = mutableBook.value ?: return Received.Closed
             val their = TheirRequest(request, clock.now(), checked = false, pictures = pictures)
-            change(RequestBook(book.mine, listOf(their) + book.theirs, book.answered))
+            change(book.with(theirs = listOf(their) + book.theirs))
             return Received.Added(their)
         }
     }
@@ -118,7 +125,7 @@ public class ShareRequests(
         val now = clock.now()
         when {
             request.isExpired(now) -> Received.Expired
-            request.created > now + CLOCK_SKEW || request.expires > now + ShareRequest.MAX_VALIDITY + CLOCK_SKEW -> Received.BadDates
+            badDates(request.created, request.expires, now) -> Received.BadDates
             request.id in book.answered -> Received.Answered
             book.mine.any { it.request.id == request.id } -> Received.Own
             else -> book.theirs.firstOrNull { it.request.id == request.id }?.let { Received.AlreadyHere(it) }
@@ -135,15 +142,21 @@ public class ShareRequests(
         val book = mutableBook.value ?: return Checked.Gone
         val their = book.theirs.firstOrNull { it.request.id == id } ?: return Checked.Gone
         if (heard != their.pictures) return Checked.Mismatched
-        change(RequestBook(book.mine, book.theirs.map { if (it === their) TheirRequest(it.request, it.received, true, it.pictures) else it }, book.answered))
+        change(book.with(theirs = book.theirs.map { if (it === their) TheirRequest(it.request, it.received, true, it.pictures) else it }))
         Checked.Matched
     }
 
-    /** Deletes a request either way; one of mine goes with its key. */
+    /** Deletes a request either way, one of mine with its key; or forgets the pictures of an envelope sent from here. */
     public fun delete(id: String): Unit = synchronized(this) {
         val book = mutableBook.value ?: return
         book.mine.filter { it.request.id == id }.forEach { it.privateKey.wipe() }
-        change(RequestBook(book.mine.filterNot { it.request.id == id }, book.theirs.filterNot { it.request.id == id }, book.answered))
+        change(
+            book.with(
+                mine = book.mine.filterNot { it.request.id == id },
+                theirs = book.theirs.filterNot { it.request.id == id },
+                sent = book.sent.filterNot { it.envelope.id == id },
+            ),
+        )
     }
 
     /**
@@ -155,7 +168,7 @@ public class ShareRequests(
         val book = mutableBook.value ?: return null
         val their = book.theirs.firstOrNull { it.request.id == id && it.checked } ?: return null
         val answer = Answers.seal(their.request, payload, random)
-        change(RequestBook(book.mine, book.theirs.filterNot { it.request.id == id }, book.answered + (id to their.request.expires)))
+        change(book.with(theirs = book.theirs.filterNot { it.request.id == id }, answered = book.answered + (id to their.request.expires)))
         answer
     }
 
@@ -180,22 +193,139 @@ public class ShareRequests(
         }
     }
 
+    /**
+     * Seals [payload] in a new envelope under ten pictures drawn here, and keeps it with them, [recipient] (only on this
+     * phone, may be empty) and the [titles] of its entries. Null while closed.
+     */
+    public fun send(payload: AnswerPayload, recipient: String, titles: List<String>, validFor: Duration): SentEnvelope? {
+        require(recipient.isEmpty() || ShareRequest.isLine(recipient, ShareRequest.MAX_NAME_LENGTH))
+        if (mutableBook.value == null) return null
+        val pictures = Pictures.random(Pictures.ENVELOPE_COUNT, random)
+        val sent = SentEnvelope(Envelopes.seal(payload, pictures, clock.now(), validFor, random), pictures, recipient, payload.from, titles)
+        synchronized(this) {
+            val book = mutableBook.value ?: return null
+            change(book.with(sent = listOf(sent) + book.sent))
+            return sent
+        }
+    }
+
+    /** The share sheet sent envelope [id]'s code, or its pictures, through [component]: the other is offered elsewhere. */
+    public fun sentVia(id: String, pictures: Boolean, component: String): Unit = synchronized(this) {
+        val book = mutableBook.value ?: return
+        change(
+            book.with(
+                sent = book.sent.map {
+                    when {
+                        it.envelope.id != id -> it
+                        pictures -> SentEnvelope(it.envelope, it.pictures, it.recipient, it.from, it.titles, it.codeVia, component)
+                        else -> SentEnvelope(it.envelope, it.pictures, it.recipient, it.from, it.titles, component, it.picturesVia)
+                    }
+                },
+            ),
+        )
+    }
+
+    public sealed interface Arrival {
+        /** To open with its pictures. */
+        public data object ToOpen : Arrival
+
+        /** Sealed on this phone: it is for the one it was sent to. */
+        public data object Own : Arrival
+
+        public data object Expired : Arrival
+
+        /** Made in the future, or valid longer than allowed from now. */
+        public data object BadDates : Arrival
+
+        /** Its entries were saved here already. */
+        public data object Saved : Arrival
+
+        public data object Closed : Arrival
+    }
+
+    /** What reading [envelope] here leads to, before its pictures are asked for. */
+    public fun arrived(envelope: ShareEnvelope): Arrival = synchronized(this) {
+        purgeExpired()
+        val book = mutableBook.value ?: return Arrival.Closed
+        val now = clock.now()
+        when {
+            book.sent.any { it.envelope.id == envelope.id } -> Arrival.Own
+            envelope.isExpired(now) -> Arrival.Expired
+            badDates(envelope.created, envelope.expires, now) -> Arrival.BadDates
+            envelope.id in book.saved -> Arrival.Saved
+            else -> Arrival.ToOpen
+        }
+    }
+
+    public sealed interface Unsealed {
+        /** The entries, the caller's to wipe. */
+        public class Entries(public val payload: AnswerPayload) : Unsealed
+
+        /** Not its pictures, or it was changed on the way: the two cannot be told apart. */
+        public data object WrongPictures : Unsealed
+
+        /** Its pictures, but what it holds cannot be read. */
+        public data object Broken : Unsealed
+
+        /** Expired, saved already, or the book closed: what [arrived] says. */
+        public class NotNow(public val arrival: Arrival) : Unsealed
+    }
+
+    /** Opens [envelope] with the [pictures] the user tapped or pasted, in order. */
+    public fun open(envelope: ShareEnvelope, pictures: List<Int>): Unsealed {
+        if (pictures.size != Pictures.ENVELOPE_COUNT) return Unsealed.WrongPictures
+        arrived(envelope).let { if (it != Arrival.ToOpen) return Unsealed.NotNow(it) }
+        return try {
+            Unsealed.Entries(Envelopes.open(envelope, pictures))
+        } catch (_: SealFailure) {
+            Unsealed.WrongPictures
+        } catch (_: MalformedShareException) {
+            Unsealed.Broken
+        }
+    }
+
+    /** [envelope]'s entries were saved here: read again, it is not opened, until it expires. */
+    public fun saved(envelope: ShareEnvelope): Unit = synchronized(this) {
+        val book = mutableBook.value ?: return
+        change(book.with(saved = book.saved + (envelope.id to envelope.expires)))
+    }
+
+    private fun badDates(created: Instant, expires: Instant, now: Instant): Boolean =
+        created > now + CLOCK_SKEW || expires > now + ShareRequest.MAX_VALIDITY + CLOCK_SKEW
+
     private fun purgeExpired() {
         val book = mutableBook.value ?: return
         val now = clock.now()
         val (expired, mine) = book.mine.partition { it.request.isExpired(now) }
-        val theirs = book.theirs.filterNot { it.request.isExpired(now) }
-        val answered = book.answered.filterValues { it > now }
-        if (expired.isEmpty() && theirs.size == book.theirs.size && answered.size == book.answered.size) return
+        val next = book.with(
+            mine = mine,
+            theirs = book.theirs.filterNot { it.request.isExpired(now) },
+            answered = book.answered.filterValues { it > now },
+            sent = book.sent.filterNot { it.envelope.isExpired(now) },
+            saved = book.saved.filterValues { it > now },
+        )
+        if (expired.isEmpty() && next.theirs.size == book.theirs.size && next.answered.size == book.answered.size &&
+            next.sent.size == book.sent.size && next.saved.size == book.saved.size
+        ) {
+            return
+        }
         expired.forEach { it.privateKey.wipe() }
-        change(RequestBook(mine, theirs, answered))
+        change(next)
     }
+
+    private fun RequestBook.with(
+        mine: List<MyRequest> = this.mine,
+        theirs: List<TheirRequest> = this.theirs,
+        answered: Map<String, Instant> = this.answered,
+        sent: List<SentEnvelope> = this.sent,
+        saved: Map<String, Instant> = this.saved,
+    ): RequestBook = RequestBook(mine, theirs, answered, sent, saved)
 
     /** The book becomes [next] and is written; a request that went is already wiped by the caller. */
     private fun change(next: RequestBook) {
         val key = key ?: return
         mutableBook.value = next
-        if (next.mine.isEmpty() && next.theirs.isEmpty() && next.answered.isEmpty()) {
+        if (next.isEmpty) {
             runCatching { store.delete() }
         } else {
             store.write(RequestBook.seal(next, key, random))

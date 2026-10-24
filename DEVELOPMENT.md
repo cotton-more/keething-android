@@ -114,9 +114,22 @@ database. A request or an answer goes from one to the other as its picture: Save
 
     adb -s <from> pull /sdcard/Pictures/Keething/keething-request.png .
     adb -s <to> push keething-request.png /sdcard/Download/
+    adb -s <to> shell content query --uri content://media/external/images/media \
+        --projection _id --where "_display_name=\'keething-request.png\'"     # its media id
     adb -s <to> shell am start -a android.intent.action.SEND -t image/png \
-        --eu android.intent.extra.STREAM file:///sdcard/Download/keething-request.png \
+        --eu android.intent.extra.STREAM content://media/external/images/media/<id> \
         -n dev.keepassbar.android/.sharing.ReceiveCodeActivity
+
+"Read with Keething" reads only pictures another app serves (`content:`), as a messenger does; a `file:` path
+gets "No code in what was shared".
+
+A code as text (an envelope's from Send as text, say) goes the same way, without a file:
+
+    adb -s <to> shell am start -a android.intent.action.SEND -t text/plain \
+        --es android.intent.extra.TEXT "'keething:…'" -n dev.keepassbar.android/.sharing.ReceiveCodeActivity
+
+An envelope's ten pictures are read from the sender's screen (`uiautomator dump`: the pictures' description lists
+their names) and tapped on the other one.
 
 An answer of several codes is saved as `keething-answer-1-of-2.png` and so on: hand them over one after the other.
 `keepassxc-cli show -s --all` on the receiving database (pulled to the Mac) shows what was saved. The camera

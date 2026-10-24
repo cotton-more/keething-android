@@ -56,6 +56,9 @@
         <receiver
             android:name=".clipboard.ClipboardClearReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".sharing.ChosenAppReceiver"
+            android:exported="false" />
 
         <!-- Autofill (SPEC §7): the service, and the screen it opens over the app being filled. -->
         <service

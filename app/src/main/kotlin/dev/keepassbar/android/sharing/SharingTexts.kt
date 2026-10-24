@@ -2,13 +2,14 @@ package dev.keepassbar.android.sharing
 
 import dev.keepassbar.sharing.message.ShareCode
 import dev.keepassbar.sharing.message.ShareRequest
+import dev.keepassbar.sharing.pictures.Pictures
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** What the sharing screens and messages say about requests and answers (SPEC §10). */
+/** What the sharing screens and messages say about requests, answers and envelopes (SPEC §10). */
 internal object SharingTexts {
     /** A request as text: a few words for the person, then the code. */
     fun requestMessage(request: ShareRequest): String =
@@ -28,6 +29,35 @@ internal object SharingTexts {
             if (several) "keething-answer-${index + 1}-of-${qrTexts.size}.png" else "keething-answer.png",
             listOf("Keething · answer to “$reason”", if (several) "Code ${index + 1} of ${qrTexts.size}: all are needed" else "Only the asking phone opens it"),
         )
+    }
+
+    /** An envelope as text: a few words for the person, then the code. Never its pictures: they go another way. */
+    fun envelopeMessage(from: String, envelope: ByteArray): String =
+        "$from sent you entries with Keething. To open them: Keething › Sharing › Read a code › Paste, then tap the ten " +
+            "pictures $from gives you another way.\n\n" + ShareCode.text(envelope)
+
+    fun envelopePictures(from: String, qrTexts: List<String>): List<CodePicture> = qrTexts.mapIndexed { index, text ->
+        val several = qrTexts.size > 1
+        CodePicture(
+            text,
+            if (several) "keething-entries-${index + 1}-of-${qrTexts.size}.png" else "keething-entries.png",
+            listOf("Keething · entries from $from", if (several) "Code ${index + 1} of ${qrTexts.size}: all are needed" else "Opens with the ten pictures $from gives you"),
+        )
+    }
+
+    /** An envelope's pictures on one line, "🐶 Dog · 🚀 Rocket · …": what Copy puts on the clipboard. */
+    fun picturesLine(pictures: List<Int>): String = Pictures.named(pictures).joinToString(" · ") { "${it.emoji} ${it.name}" }
+
+    /** An envelope's pictures to send: none of the words around them is a picture's name (`Pictures.find`). */
+    fun picturesMessage(pictures: List<Int>): String =
+        "The ten pictures that open the Keething entries I sent you:\n" + picturesLine(pictures.take(5)) + "\n" +
+            picturesLine(pictures.drop(5)) + "\nIn Keething, after reading the code: Paste the pictures."
+
+    /** "Sparkasse", "Sparkasse and 2 more". */
+    fun titles(titles: List<String>): String = when (titles.size) {
+        0 -> "Entries"
+        1 -> titles.single()
+        else -> "${titles.first()} and ${titles.size - 1} more"
     }
 
     /** "expires in 2 days", "expires in 5 h", "expired". */

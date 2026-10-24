@@ -39,7 +39,8 @@ Goals (v1)
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
   warning.
 - Share entries encrypted for one phone (§10): the other side asks with a request, the answer opens only there;
-  both ways as a QR code, a picture or text, through any messenger or mail.
+  or sent without a request, opened by ten pictures given another way than the code. As a QR code, a picture or
+  text, through any messenger or mail.
 - Autofill (§7): fill logins in apps and browsers, fill one-time codes.
 - Quick access to one-time codes: a "Codes" launcher shortcut, and the code on the clipboard after
   autofill filled a login (§7).
@@ -363,7 +364,7 @@ decrypted content, the tree, the new file and its reading back at once.
     Files by Google's text preview takes the intent and closes at once, also for a `.txt` (it does not open
     other apps' `content://` text); the other apps open it.
 - Network: none (no `INTERNET` permission at all in v1).
-- Camera: only to read the code of a sharing request or answer (§10); the permission is asked when Read a code
+- Camera: only to read the code of a sharing request, answer or envelope (§10); the permission is asked when Read a code
   first opens, and reading a picture or pasting works without it.
 
 ## 5. Biometric unlock
@@ -557,7 +558,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
 - **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE),
-  lock timeout, how long a sharing request lasts (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
+  lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.
 - **Launcher shortcut** "Codes" (long press on the icon; static, `res/xml/shortcuts.xml`): unlock, then
   the list titled "Codes" with only the entries with a one-time code, by title, each row's live code a
@@ -743,7 +744,8 @@ inner header). Never use the real database in tests.
 
 Entries encrypted for one phone, carried any way: a messenger, mail, a picture, a phone's screen scanned in
 person. Both sides run Keething. Agreed with the owner on 2026-10-23 (the mock-ups are the canvas's "Sharing"
-rows); contacts, a person's key kept so that no request is needed each time, come later (ROADMAP).
+rows); sending without a request agreed on 2026-10-24 (§10.4); contacts, a person's key kept so that no request is
+needed each time, come later (ROADMAP).
 
 ### 10.1 How it works
 
@@ -818,7 +820,8 @@ rows); contacts, a person's key kept so that no request is needed each time, com
 
 ### 10.3 On the phone
 
-- **Kept**: the requests both ways and the ids answered are one file, `noBackupFilesDir/sharing/requests`,
+- **Kept**: the requests both ways and the ids answered, and the envelopes sent and the ids of those saved
+  (§10.4), are one file, `noBackupFilesDir/sharing/requests` (version 2; version 1, without envelopes, is read),
   sealed with AES-256-GCM under 32 random bytes kept in `sharing/key`, wrapped by an AES key in the Android
   Keystore (`SharingKey`; no user authentication, never leaves the Keystore). Read at the unlock, in memory while
   unlocked, wiped on lock. A file that cannot be read is left as it is and nothing replaces it. Not keyed to the
@@ -841,7 +844,9 @@ rows); contacts, a person's key kept so that no request is needed each time, com
   rights, which the sender must not borrow.
   The parts read so far are kept for the whole app (a lock clears them).
 - **Screens**: Sharing from the list's header: "To answer" (the asker, the reason, when it expires, Checked or
-  Check first) and "Waiting for an answer", Read a code and Ask for an entry at the foot. Ask for an entry; Your
+  Check first), "Waiting for an answer" and "Sent, pictures kept" (§10.4), Send entries without a request, Read
+  a code and Ask for an entry at the foot (a button's label never takes two lines: it gets smaller, drops its icon,
+  and "Ask for an entry" becomes "Ask" on a very large display size). Ask for an entry; Your
   request (the code, the pictures, Send the picture, Send as text, Save picture, delete after a question); Read a
   code (a banner says what a code could not do: cut short, not a Keething code, nothing in what was shared, own
   request, expired, dates wrong, answered already, not for a request on this phone, code 1 of 2 read); a request
@@ -868,3 +873,57 @@ rows); contacts, a person's key kept so that no request is needed each time, com
   answering ("Answered already"). The pictures tapped (the emulator answering the phone's request): a wrong sixth
   said so, the last one taken back and the right one tapped, then Checked and Choose entries. Not checked: the
   camera reading a code.
+
+### 10.4 Without a request
+
+The one who has the entries starts (a new colleague's database account, a new mail account): one message, an
+"envelope", opened by ten pictures the sender gives another way than the code. Agreed with the owner on 2026-10-24.
+
+- **Sending.** Sharing › Send entries without a request, or "Without one" in a card's Send to a request; Choose
+  entries and What to send as for a request, with an optional **For** (a name kept on this phone only: the list and
+  the warnings say it) besides From. "Seal with ten pictures": ten drawn at random from the 64 (60 bits).
+- **Sealing** (`Envelopes`): Argon2id of the ten indices (a byte each) with a 16-byte random salt, the pictures'
+  parameters (64 MiB, 3 passes, 2 lanes); then HKDF-SHA256 (no salt, `info` "Keething envelope v1") gives the
+  AES-256-GCM key and the 12-byte nonce, the salt making both new each time. The content is an answer's (§10.2).
+  About 0.3 s to seal or to try pictures (0.22 to 0.24 s on the Pixel 6).
+- **Format**: version 1, kind 4, created and expires (seconds), the salt, then the ciphertext with its tag; all
+  before the ciphertext is the associated data. Its id: the first 16 bytes of its SHA-256. Parts, text and QR codes
+  as for an answer. `InteropVectorTest` holds one, every byte fixed, made outside this code (OpenSSL's Argon2id and
+  HKDF, CryptoKit's HKDF and AES-GCM), for the Mac.
+- **The sender's screen**: the code or the ten pictures, never both at once (one photo of the screen would hold
+  both), switched by "The code" / "The pictures" above them; the code first. The code as an answer's (Send the
+  code, Send as text, Save picture; "In person: let them scan this screen"; the screen at full brightness). The
+  pictures numbered 1 to 10 with their names, Send the pictures and Copy (the clipboard marked sensitive, cleared
+  after 30 s), with "They open the code: give them another way than the code. Read them out by a call, or send them
+  through another app. Whoever has both opens the entries." The code's text never holds the pictures, nor the pictures' text the code. The share
+  sheet tells the app which app took the code or the pictures (`EXTRA_CHOSEN_COMPONENT`, `ChosenAppReceiver`, not
+  exported), and the other one's share sheet leaves that app out ("Drive is left out of the share sheet: the code
+  went that way"); Copy can still put both in one chat, the sender's choice. Kept, with the code, the pictures, For,
+  From and the titles, until it expires or "Forget the pictures" (after a question: "Until they are given, nobody can
+  open the code then").
+- **The recipient**: Read a code as always; then "Entries sent to you": ten places over the grid of 64, and Paste the
+  pictures, which finds ten in a row in what was copied, by emoji (with or without U+FE0F) or name, in any case, an
+  emoji with its own name beside it counting once, numbers and punctuation between them allowed, other words
+  breaking a run. Wrong ones: "These pictures do not open it" (a wrong picture and a changed code cannot be told
+  apart), Take the last back or Tap them again; tries are not limited, as anyone with the code can try it
+  elsewhere. Opened: the Received screen with "Only these pictures open it, so it comes from whoever gave you them.
+  Anyone who had both the code and the pictures could open it too."; saved as an answer's entries (new entries,
+  tagged `received`), then its id is kept until it expires ("Saved already"); Not now leaves it to open again. The
+  pictures typed stay in the screen's model, never in saved state. Read on the phone that sent it: "These are your
+  own"; expired, or dates wrong: said as for a request.
+- Logs: "envelope made in 467 ms", "envelope tried in 222 ms", "code handed to an app".
+- Not done, and why: the expiry is real only until the pictures are given (the sender's phone forgets them);
+  afterwards Keething refuses an expired envelope, but the code and the pictures open it for good in any program
+  that ignores the date. No key can be thrown away as with a request: for an account, a password changed at the first
+  sign-in is the remedy. Whoever sees both channels opens it; the app keeps them apart but cannot stop a copy. The
+  attack on the code alone: 2^59 tries on average, each 64 MiB of Argon2id; by the review's figure for the request's
+  pictures (400 to 800 GPU-days for 2^36), 3 to 7 billion GPU-days.
+- Checked on 2026-10-24: the JVM tests (the vector, wrong and changed envelopes, dates, own, saved, the file's
+  versions, pasted pictures). The Android 17 emulator (debug build, `demo.kdbx`) sending to the Pixel 6 (release
+  build, `autofill.kdbx`), fictitious databases only: an envelope of 2 entries handed over as its picture through
+  "Read with Keething", a wrong tenth picture refused, the right one opened it, saved and read by keepassxc-cli with
+  every field and the tag; read again, "Saved already"; one of 1 entry handed over as text. On the emulator: the code
+  sent to Drive, then Drive missing from the pictures' share sheet with the line saying so; own envelope; Copy, Forget
+  the pictures, then the same code opened there with Paste the pictures; Without one from a card; the Sharing screen
+  at font scale 1.3 and density 500. Not checked: the camera reading an envelope, a call, an envelope of several
+  codes on a phone.

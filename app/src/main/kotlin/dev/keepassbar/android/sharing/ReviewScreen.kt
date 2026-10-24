@@ -1,5 +1,6 @@
 package dev.keepassbar.android.sharing
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -68,6 +69,8 @@ import dev.keepassbar.sharing.payload.EntryPart
 import dev.keepassbar.sharing.payload.Sending
 import dev.keepassbar.sharing.requests.ShareRequests
 import dev.keepassbar.vault.session.SessionState
+import java.time.Duration
+import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -79,8 +82,17 @@ internal data class MadeAnswer(val name: String, val reason: String, val entries
     override fun hashCode(): Int = encoded.contentHashCode()
 }
 
-/** What of each chosen entry goes (ids and part names only, never a value), and sealing it for the request. */
-internal class ReviewModel(private val database: DatabaseSession, private val requests: ShareRequests, private val id: String, entryIds: List<String>) : ViewModel() {
+/**
+ * What of each chosen entry goes (ids and part names only, never a value), and sealing it: for their request [id], or in
+ * an envelope when [id] is null.
+ */
+internal class ReviewModel(
+    private val database: DatabaseSession,
+    private val requests: ShareRequests,
+    private val id: String?,
+    entryIds: List<String>,
+    private val validity: Duration,
+) : ViewModel() {
     val entryIds = entryIds
 
     /** Per entry, the parts left out: the one-time code to start with (SPEC §10). */
@@ -92,7 +104,7 @@ internal class ReviewModel(private val database: DatabaseSession, private val re
     var sealing by mutableStateOf(false)
         private set
 
-    /** The answer was made: the request is gone because of it, not under this screen's feet. */
+    /** The answer or envelope was made: a request is gone because of it, not under this screen's feet. */
     var made by mutableStateOf(false)
         private set
 
@@ -104,10 +116,13 @@ internal class ReviewModel(private val database: DatabaseSession, private val re
         leftOut[entryId] = if (part in parts) parts - part else parts + part
     }
 
-    /** Seals the entries as they are in the vault now; [onMade] gets the answer, the request is then gone. */
-    fun seal(from: String, onMade: (MadeAnswer) -> Unit) {
+    /**
+     * Seals the entries as they are in the vault now. For a request [onMade] gets the answer, the request is then gone;
+     * else [onSent] gets the new envelope's id, for [recipient] (kept on this phone only).
+     */
+    fun seal(from: String, recipient: String, onMade: (MadeAnswer) -> Unit, onSent: (envelopeId: String) -> Unit) {
         val vault = (database.session.state.value as? SessionState.Unlocked)?.vault ?: return
-        val their = requests.book.value?.theirs?.firstOrNull { it.request.id == id } ?: return
+        val their = id?.let { id -> requests.book.value?.theirs?.firstOrNull { it.request.id == id } ?: return }
         val entries = entryIds.mapNotNull { entryId -> vault.entries.firstOrNull { it.id == entryId } }
         if (entries.isEmpty()) {
             problem = "The entries are no longer in the database."
@@ -116,10 +131,14 @@ internal class ReviewModel(private val database: DatabaseSession, private val re
         sealing = true
         problem = null
         viewModelScope.launch {
+            if (their == null) {
+                sendEnvelope(from, recipient, entries, onSent)
+                return@launch
+            }
             val answer = withContext(Dispatchers.Default) {
                 val payload = AnswerPayload(from.trim(), entries.map { Sending.shared(it, leftOut[it.id].orEmpty()) })
                 try {
-                    runCatching { requests.answer(id, payload) }
+                    runCatching { requests.answer(their.request.id, payload) }
                 } finally {
                     payload.wipe()
                 }
@@ -135,32 +154,61 @@ internal class ReviewModel(private val database: DatabaseSession, private val re
             }.onFailure { problem = "The answer could not be made: ${it.message}." }
         }
     }
+
+    private suspend fun sendEnvelope(from: String, recipient: String, entries: List<Entry>, onSent: (String) -> Unit) {
+        val started = TimeSource.Monotonic.markNow()
+        val sent = withContext(Dispatchers.Default) {
+            val payload = AnswerPayload(from.trim(), entries.map { Sending.shared(it, leftOut[it.id].orEmpty()) })
+            try {
+                runCatching { requests.send(payload, recipient.trim(), entries.map { it.displayTitle }, validity) }
+            } finally {
+                payload.wipe()
+            }
+        }
+        sealing = false
+        sent.onSuccess { envelope ->
+            if (envelope == null) {
+                problem = "The phone was locked. Unlock it and try again."
+            } else {
+                Log.i("Sharing", "envelope made in ${started.elapsedNow()}")
+                made = true
+                onSent(envelope.envelope.id)
+            }
+        }.onFailure { problem = "The entries could not be sealed: ${it.message}." }
+    }
 }
 
 /**
  * What to send of the chosen entries (SPEC §10): each part with a switch, the one-time code off to start with and a
- * warning when on; the title, tags and expiry always go, attachments and history never. Encrypt seals them for the
- * request ([onMade]), which closes it.
+ * warning when on; the title, tags and expiry always go, attachments and history never. Encrypt seals them for their
+ * request [id] ([onMade]), which closes it; with no [id], in an envelope opened by ten pictures ([onSent]).
  */
 @Composable
 internal fun ReviewScreen(
     container: AppContainer,
     database: DatabaseSession,
-    id: String,
+    id: String?,
     entryIds: List<String>,
     onBack: () -> Unit,
     onMade: (MadeAnswer) -> Unit,
+    onSent: (envelopeId: String) -> Unit,
 ) {
-    val model = viewModel { ReviewModel(database, container.shareRequests, id, entryIds) }
+    val validity = Duration.ofDays(container.settings.requestValidity.value.inWholeDays)
+    val model = viewModel { ReviewModel(database, container.shareRequests, id, entryIds, validity) }
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
     val session by database.session.state.collectAsStateWithLifecycle()
-    val their = book?.theirs?.firstOrNull { it.request.id == id }
+    val their = id?.let { id -> book?.theirs?.firstOrNull { it.request.id == id } }
     val vault = (session as? SessionState.Unlocked)?.vault
-    LaunchedEffect(their == null || vault == null) { if ((their == null || vault == null) && !model.sealing && !model.made) onBack() }
-    if (their == null || vault == null) return
+    val gone = book == null || (id != null && their == null) || vault == null
+    LaunchedEffect(gone) { if (gone && !model.sealing && !model.made) onBack() }
+    if (gone || vault == null) return
     var from by rememberSaveable { mutableStateOf(container.settings.requestName) }
+    var recipient by rememberSaveable { mutableStateOf("") }
     val entries = model.entryIds.mapNotNull { entryId -> vault.entries.firstOrNull { it.id == entryId } }
-    val ready = ShareRequest.isLine(from.trim(), ShareRequest.MAX_NAME_LENGTH) && entries.isNotEmpty()
+    val ready = ShareRequest.isLine(from.trim(), ShareRequest.MAX_NAME_LENGTH) && entries.isNotEmpty() &&
+        (recipient.isBlank() || ShareRequest.isLine(recipient.trim(), ShareRequest.MAX_NAME_LENGTH))
+    // Who the warnings name: the asker, or whom the envelope is for.
+    val name = their?.request?.name ?: recipient.trim().ifEmpty { "whoever opens it" }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -168,8 +216,14 @@ internal fun ReviewScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Send to ${their.request.name}")
-                        Text(their.request.reason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if (their != null) "Send to ${their.request.name}" else "Send without a request")
+                        Text(
+                            their?.request?.reason ?: "It opens with ten pictures you give another way",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") } },
@@ -183,7 +237,7 @@ internal fun ReviewScreen(
                     Button(
                         onClick = {
                             container.settings.requestName = from
-                            model.seal(from, onMade)
+                            model.seal(from, recipient, onMade, onSent)
                         },
                         enabled = ready && !model.sealing,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -193,7 +247,7 @@ internal fun ReviewScreen(
                         } else {
                             Icon(Icons.Rounded.Lock, contentDescription = null)
                             Spacer(Modifier.size(10.dp))
-                            Text("Encrypt for ${their.request.name}")
+                            Text(if (their != null) "Encrypt for ${their.request.name}" else "Seal with ten pictures")
                         }
                     }
                 }
@@ -205,28 +259,36 @@ internal fun ReviewScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             NoLearningKeyboard {
-                val fill = MaterialTheme.colorScheme.surfaceContainerHigh
-                TextField(
-                    value = from,
-                    onValueChange = { from = it.replace('\n', ' ').take(ShareRequest.MAX_NAME_LENGTH) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("From") },
-                    placeholder = { Text("Your name, as ${their.request.name} knows you") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = fill,
-                        unfocusedContainerColor = fill,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                )
+                if (their == null) {
+                    NameField(recipient, { recipient = it }, "For", "Whom it is for: only this phone keeps it")
+                }
+                NameField(from, { from = it }, "From", if (their != null) "Your name, as ${their.request.name} knows you" else "Your name, as they know you")
             }
-            for (entry in entries) EntryParts(entry, model.leftOut[entry.id].orEmpty(), their.request.name) { model.toggle(entry.id, it) }
+            for (entry in entries) EntryParts(entry, model.leftOut[entry.id].orEmpty(), name) { model.toggle(entry.id, it) }
             InfoBox(Icons.Rounded.Info, "Tags and the expiry date go along. Attachments and earlier versions never do.")
         }
     }
+}
+
+@Composable
+private fun NameField(value: String, onChange: (String) -> Unit, label: String, placeholder: String) {
+    val fill = MaterialTheme.colorScheme.surfaceContainerHigh
+    TextField(
+        value = value,
+        onValueChange = { onChange(it.replace('\n', ' ').take(ShareRequest.MAX_NAME_LENGTH)) },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        placeholder = { Text(placeholder) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+        shape = RoundedCornerShape(18.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = fill,
+            unfocusedContainerColor = fill,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+        ),
+    )
 }
 
 @Composable
