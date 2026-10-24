@@ -87,6 +87,7 @@ import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.storage.AllFilesAccess
 import dev.keepassbar.android.theme.MonospaceFamily
+import dev.keepassbar.android.ui.dotsAtLineEnd
 import dev.keepassbar.domain.biometric.BiometricAvailability
 import dev.keepassbar.vault.opening.OpenFailure
 import dev.keepassbar.vault.session.LockReason
@@ -238,7 +239,8 @@ private fun FingerprintButton(enabled: Boolean, onClick: () -> Unit) {
 private fun DatabaseLine(database: DatabaseSession, fileInfo: FileInfo?, onChooseDatabase: () -> Unit) {
     Surface(onClick = onChooseDatabase, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Weighted, so that with a large font the folder icon keeps its place beside the lines.
+            Column(Modifier.weight(1f, fill = false), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(database.file.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val folder = database.file.parentFile?.name.orEmpty()
                 val detail = when {
@@ -246,7 +248,7 @@ private fun DatabaseLine(database: DatabaseSession, fileInfo: FileInfo?, onChoos
                     !fileInfo.exists -> "$folder · not there"
                     else -> "$folder · changed " + changedAgo(fileInfo.modified!!.toEpochMilli())
                 }
-                Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(detail.dotsAtLineEnd(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }
             Spacer(Modifier.size(8.dp))
             Icon(

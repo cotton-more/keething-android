@@ -34,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,6 +43,7 @@ import dev.keepassbar.android.list.SearchField
 import dev.keepassbar.android.list.SectionTitle
 import dev.keepassbar.android.list.title
 import dev.keepassbar.android.session.DatabaseSession
+import dev.keepassbar.android.ui.BarTitle
 import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
@@ -123,18 +123,7 @@ private fun EntryPicker(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("Choose an entry")
-                        Text(
-                            "to fill $target",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                },
+                title = { BarTitle("Choose an entry", "to fill $target") },
                 navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close without filling") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )

@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,7 +46,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.list.SectionTitle
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.BesideOrUnder
+import dev.keepassbar.android.ui.ButtonLabel
+import dev.keepassbar.android.ui.FitText
 import dev.keepassbar.android.ui.SegmentGap
+import dev.keepassbar.android.ui.dotsAtLineEnd
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.android.ui.segmentShape
 
@@ -79,7 +84,7 @@ internal fun SharingScreen(
                 title = { Text("Sharing") },
                 subtitle = {
                     val days = validity.inWholeDays
-                    Text("Encrypted for one phone · requests last ${if (days == 1L) "1 day" else "$days days"}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    FitText("Encrypted for one phone · requests last ${if (days == 1L) "1 day" else "$days days"}")
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") } },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -202,10 +207,20 @@ private fun RequestRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         leading()
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-        }
-        trailing()
+        // The chip goes under the text where beside it the title would keep fewer than about seven characters.
+        val titleStyle = MaterialTheme.typography.bodyLarge
+        val minRoom = with(LocalDensity.current) { titleStyle.fontSize.toDp() * 7.5f }
+        BesideOrUnder(minRoom, Modifier.weight(1f), gap = 16.dp, main = {
+            Column {
+                Text(title, style = titleStyle, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    subtitle.dotsAtLineEnd(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }, trailing = trailing)
     }
 }

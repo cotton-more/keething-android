@@ -33,6 +33,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.card.FieldType
 import java.time.LocalDate
 import kotlinx.coroutines.delay
@@ -43,8 +44,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -689,9 +690,11 @@ private fun FieldEditor(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FieldTypeChip(field, guessed, onType)
-            ProtectedChip(field.isProtected) { onChange(field.copy(isProtected = it)) }
-            Spacer(Modifier.weight(1f))
+            // With a large font the chips go one under the other; the remove button keeps its place at the end.
+            FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FieldTypeChip(field, guessed, onType)
+                ProtectedChip(field.isProtected) { onChange(field.copy(isProtected = it)) }
+            }
             IconButton(onClick = onRemove) {
                 Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove field ${field.name}".trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -787,9 +790,7 @@ private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box(Modifier.padding(top = 4.dp)) {
         FilledTonalButton(onClick = { open = true }) {
-            Icon(Icons.Rounded.Add, contentDescription = null, Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Add field")
+            ButtonLabel("Add field", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
         }
         FieldTypeMenu(
             open,

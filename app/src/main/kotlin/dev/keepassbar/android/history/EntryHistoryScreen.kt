@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.BarTitle
 import dev.keepassbar.android.unlock.describe
 import dev.keepassbar.card.history.HistoryVersion
 import dev.keepassbar.card.history.HistoryVersions
@@ -143,20 +144,7 @@ internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBa
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("History")
-                        if (state is HistoryState.Loaded) {
-                            Text(
-                                state.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                },
+                title = { BarTitle("History", (state as? HistoryState.Loaded)?.title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the entry") }
                 },

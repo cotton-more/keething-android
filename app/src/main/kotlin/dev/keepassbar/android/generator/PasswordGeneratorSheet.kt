@@ -2,7 +2,9 @@ package dev.keepassbar.android.generator
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,12 +43,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.ButtonLabel
+import dev.keepassbar.android.ui.FitText
 import dev.keepassbar.android.ui.colouredSecret
 import dev.keepassbar.generator.CharacterClass
 import dev.keepassbar.generator.GeneratorOptions
@@ -94,21 +105,49 @@ internal fun PasswordGeneratorSheet(state: PasswordGeneratorState, use: Generato
             )
             StrengthLine(state)
             Options(state)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = state::regenerate) {
-                    Icon(Icons.Rounded.Refresh, contentDescription = null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("New password")
+            Buttons(state, use)
+        }
+    }
+}
+
+/** New password and the main button: side by side while both labels fit whole, else one above the other. */
+@Composable
+private fun Buttons(state: PasswordGeneratorState, use: GeneratorUse) {
+    val main = if (use is GeneratorUse.Copy) "Copy" else "Use this password"
+    val style = MaterialTheme.typography.labelLarge
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // Half the row, less the gap, the button's padding (24 dp a side) and an icon with its gap where there is one.
+        val half = (maxWidth - 12.dp) / 2 - 48.dp
+        val density = LocalDensity.current
+        val besideEachOther = listOf("New password" to true, main to (use is GeneratorUse.Copy)).all { (label, withIcon) ->
+            val room = with(density) { (if (withIcon) half - 26.dp else half).toPx() }
+            measurer.measure(label, style, maxLines = 1, softWrap = false).size.width <= room
+        }
+        val newButton = @Composable { modifier: Modifier ->
+            OutlinedButton(onClick = state::regenerate, modifier) {
+                ButtonLabel("New password", Icons.Rounded.Refresh, iconSize = 18.dp, gap = 8.dp)
+            }
+        }
+        val mainButton = @Composable { modifier: Modifier ->
+            when (use) {
+                is GeneratorUse.IntoEntry -> Button(onClick = { use.use(state.password) }, modifier) {
+                    ButtonLabel(main, short = "Use it")
                 }
-                Spacer(Modifier.weight(1f))
-                when (use) {
-                    is GeneratorUse.IntoEntry -> Button(onClick = { use.use(state.password) }) { Text("Use this password") }
-                    is GeneratorUse.Copy -> Button(onClick = { use.copy(state.password) }) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Copy")
-                    }
+                is GeneratorUse.Copy -> Button(onClick = { use.copy(state.password) }, modifier) {
+                    ButtonLabel(main, Icons.Rounded.ContentCopy, iconSize = 18.dp, gap = 8.dp)
                 }
+            }
+        }
+        if (besideEachOther) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                newButton(Modifier.weight(1f))
+                mainButton(Modifier.weight(1f))
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                mainButton(Modifier.fillMaxWidth())
+                newButton(Modifier.fillMaxWidth())
             }
         }
     }
@@ -124,7 +163,7 @@ private fun KindChoice(kind: PasswordKind, onChoose: (PasswordKind) -> Unit) {
                 onClick = { onChoose(each) },
                 shape = SegmentedButtonDefaults.itemShape(i, kinds.size),
                 icon = {},
-                label = { Text(each.title, maxLines = 1) },
+                label = { FitText(each.title) },
             )
         }
     }
@@ -145,16 +184,23 @@ private fun StrengthLine(state: PasswordGeneratorState) {
         Strength.FAIR -> "fair" to MaterialTheme.extraColors.warn
         Strength.STRONG -> "strong" to MaterialTheme.colorScheme.primary
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    // With a large font the length goes to a line of its own rather than being broken up.
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
         LinearProgressIndicator(
             progress = { (state.bits / 128).toFloat().coerceIn(0f, 1f) },
             modifier = Modifier.width(96.dp),
             color = color,
             drawStopIndicator = {},
         )
-        Text("${state.bits.roundToInt()} bits · $label", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val style = MaterialTheme.typography.bodySmall
+        val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        Text("${state.bits.roundToInt()} bits · $label", style = style, color = muted, maxLines = 1)
         Spacer(Modifier.weight(1f))
-        Text("${state.password.length} characters", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${state.password.length} characters", style = style, color = muted, maxLines = 1)
     }
 }
 
@@ -170,7 +216,7 @@ private fun Options(state: PasswordGeneratorState) {
             }
             PasswordKind.STRONG -> {
                 LengthSlider("Length", o.strongLength, GeneratorOptions.STRONG_LENGTHS) { change(o.copy(strongLength = it)) }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (cls in CharacterClass.entries) {
                         FilterChip(
                             selected = cls in o.classes,
@@ -187,8 +233,14 @@ private fun Options(state: PasswordGeneratorState) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(checked = o.excludeLookAlikes, onCheckedChange = null, modifier = Modifier.padding(12.dp))
-                    Text("Leave out look-alikes ", style = MaterialTheme.typography.bodyMedium)
-                    Text("0 O o 1 l I |", style = MaterialTheme.typography.bodyMedium, fontFamily = MonospaceFamily)
+                    // One paragraph, so a large font wraps it as words; the look-alikes stay together on one line.
+                    Text(
+                        buildAnnotatedString {
+                            append("Leave out look-alikes ")
+                            withStyle(SpanStyle(fontFamily = MonospaceFamily)) { append("0 O o 1 l I |".replace(' ', '\u00A0')) }
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
             PasswordKind.MEMORABLE -> {
@@ -199,16 +251,17 @@ private fun Options(state: PasswordGeneratorState) {
             }
             PasswordKind.PASSPHRASE -> {
                 Stepper("Words", o.passphraseWords, GeneratorOptions.PASSPHRASE_WORDS) { change(o.copy(passphraseWords = it)) }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // The label above the choice, so that "space" has room with a large font.
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Between words", style = MaterialTheme.typography.bodyLarge)
-                    SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                         GeneratorOptions.SEPARATORS.forEachIndexed { i, separator ->
                             SegmentedButton(
                                 selected = separator == o.separator,
                                 onClick = { change(o.copy(separator = separator)) },
                                 shape = SegmentedButtonDefaults.itemShape(i, GeneratorOptions.SEPARATORS.size),
                                 icon = {},
-                                label = { Text(if (separator == " ") "space" else separator, maxLines = 1) },
+                                label = { FitText(if (separator == " ") "space" else separator) },
                             )
                         }
                     }
@@ -238,7 +291,7 @@ private fun LengthSlider(label: String, value: Int, range: IntRange, onChange: (
             steps = range.last - range.first - 1,
             modifier = Modifier.weight(1f),
         )
-        Text("$value", Modifier.width(28.dp), style = MaterialTheme.typography.bodyLarge, fontFamily = MonospaceFamily)
+        Text("$value", Modifier.widthIn(min = 28.dp), style = MaterialTheme.typography.bodyLarge, fontFamily = MonospaceFamily)
     }
 }
 
@@ -249,7 +302,7 @@ private fun Stepper(label: String, value: Int, range: IntRange, onChange: (Int) 
         IconButton(onClick = { onChange(value - 1) }, enabled = value > range.first) {
             Icon(Icons.Rounded.Remove, contentDescription = "Fewer")
         }
-        Text("$value", Modifier.width(28.dp), style = MaterialTheme.typography.titleMedium, fontFamily = MonospaceFamily)
+        Text("$value", Modifier.widthIn(min = 28.dp), style = MaterialTheme.typography.titleMedium, fontFamily = MonospaceFamily, textAlign = TextAlign.Center)
         IconButton(onClick = { onChange(value + 1) }, enabled = value < range.last) {
             Icon(Icons.Rounded.Add, contentDescription = "More")
         }

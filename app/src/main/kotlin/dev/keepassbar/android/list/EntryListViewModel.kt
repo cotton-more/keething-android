@@ -215,6 +215,6 @@ internal class EntryListViewModel(
     }
 }
 
-/** `1.4 s`, `850 ms`. */
+/** `1.4 s`, `850 ms`, the unit kept with its number on a line. */
 internal fun Duration.seconds(): String =
-    if (inWholeMilliseconds < 1_000) "$inWholeMilliseconds ms" else "%.1f s".format(inWholeMilliseconds / 1_000.0)
+    if (inWholeMilliseconds < 1_000) "$inWholeMilliseconds\u00A0ms" else "%.1f\u00A0s".format(inWholeMilliseconds / 1_000.0)

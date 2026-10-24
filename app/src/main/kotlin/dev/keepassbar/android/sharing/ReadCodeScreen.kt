@@ -63,6 +63,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keepassbar.android.AppContainer
+import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.sharing.message.ShareCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -198,9 +199,7 @@ private fun DarkButton(label: String, icon: ImageVector, modifier: Modifier, onC
         modifier = modifier.height(56.dp),
         colors = ButtonDefaults.buttonColors(containerColor = ButtonDark, contentColor = OnDark),
     ) {
-        Icon(icon, contentDescription = null)
-        Spacer(Modifier.size(10.dp))
-        Text(label)
+        ButtonLabel(label, icon)
     }
 }
 

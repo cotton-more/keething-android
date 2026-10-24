@@ -67,6 +67,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.BarTitle
+import dev.keepassbar.android.ui.ButtonLabel
+import dev.keepassbar.android.ui.FitText
 import dev.keepassbar.android.ui.FullBrightness
 import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.android.ui.NoticeEffect
@@ -142,16 +145,10 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(if (sent.recipient.isNotEmpty()) "For ${sent.recipient}" else "Sent without a request")
-                        Text(
-                            "${SharingTexts.titles(sent.titles)} · ${SharingTexts.expires(sent.envelope.expires, now)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    BarTitle(
+                        if (sent.recipient.isNotEmpty()) "For ${sent.recipient}" else "Sent without a request",
+                        "${SharingTexts.titles(sent.titles)} · ${SharingTexts.expires(sent.envelope.expires, now)}",
+                    )
                 },
                 navigationIcon = { IconButton(onClick = onDone) { Icon(Icons.Rounded.Close, contentDescription = "Done") } },
                 actions = {
@@ -169,9 +166,7 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                         onClick = { send { container.codePictures.sendTextIntent(SharingTexts.picturesMessage(sent.pictures), picturesRoute) } },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null)
-                        Spacer(Modifier.size(10.dp))
-                        Text("Send the pictures")
+                        ButtonLabel("Send the pictures", Icons.AutoMirrored.Rounded.Send)
                     }
                     FilledTonalButton(
                         onClick = {
@@ -180,17 +175,13 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                     ) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(20.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text("Copy")
+                        ButtonLabel("Copy", Icons.Rounded.ContentCopy, iconSize = 20.dp, gap = 8.dp)
                     }
                     return@BottomActions
                 }
                 if (pictures != null) {
                     Button(onClick = { send { container.codePictures.sendIntent(pictures, codeRoute) } }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                        Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null)
-                        Spacer(Modifier.size(10.dp))
-                        Text(if (pictures.size == 1) "Send the code" else "Send the ${pictures.size} codes")
+                        ButtonLabel(if (pictures.size == 1) "Send the code" else "Send the ${pictures.size} codes", Icons.AutoMirrored.Rounded.Send)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -198,9 +189,7 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                         onClick = { send { container.codePictures.sendTextIntent(SharingTexts.envelopeMessage(sent.from, encoded), codeRoute) } },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.TextSnippet, contentDescription = null, Modifier.size(20.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text("Send as text")
+                        ButtonLabel("Send as text", Icons.AutoMirrored.Rounded.TextSnippet, short = "As text", iconSize = 20.dp, gap = 8.dp)
                     }
                     if (pictures != null) {
                         FilledTonalButton(
@@ -213,9 +202,7 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                         ) {
-                            Icon(Icons.Rounded.Download, contentDescription = null, Modifier.size(20.dp))
-                            Spacer(Modifier.size(8.dp))
-                            Text(if (pictures.size == 1) "Save picture" else "Save pictures")
+                            ButtonLabel(if (pictures.size == 1) "Save picture" else "Save pictures", Icons.Rounded.Download, short = "Save", iconSize = 20.dp, gap = 8.dp)
                         }
                     }
                 }
@@ -235,7 +222,7 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                         onClick = { showPictures = index == 1 },
                         shape = SegmentedButtonDefaults.itemShape(index, 2),
                     ) {
-                        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        FitText(label)
                     }
                 }
             }

@@ -124,6 +124,7 @@ import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.CodeRing
 import dev.keepassbar.android.ui.CustomIconImages
 import dev.keepassbar.android.ui.EntryMark
+import dev.keepassbar.android.ui.FitText
 import dev.keepassbar.android.ui.NoLearningKeyboard
 import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.android.ui.NoticeEffect
@@ -400,7 +401,7 @@ private fun Header(
 ) {
     val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
     val title = @Composable { Text(if (codesOnly) "Codes" else "Keething") }
-    val subtitle = @Composable { Text(state.databaseName + count, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    val subtitle = @Composable { FitText(state.databaseName + count) }
     val navigationIcon = @Composable {
         if (codesOnly) {
             IconButton(onClick = onLeaveCodes) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "All entries") }

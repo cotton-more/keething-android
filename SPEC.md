@@ -442,6 +442,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   smoothly; copying gives a light haptic tick and a short confirmation.
 - Passwords in a monospaced font with digits and symbols coloured, as in 1Password. The font is Google
   Sans Code, bundled (SIL Open Font License, `assets/licenses`): every character must be clear.
+- Large text and display sizes (checked at font scale 1.3 and density 500): a button's label never takes two
+  lines (it gets smaller, then drops its icon, then takes a short label: "Ask for an entry" becomes "Ask"); two
+  buttons side by side go one above the other when their labels do not fit whole; a segment's or a small bar's
+  title and subtitle keep one line, smaller before they end in "…"; chips that do not fit go to a next line; a
+  chip beside a row's text goes under it where it would leave the title less than about seven and a half
+  characters (as a list row's code, §6.2). A " · " never starts a line, a date or "722 ms" is not broken, and a
+  shown password wraps at the line's end, not after a `/` or a `-` as if it were two words.
 - The generator's words are the EFF large word list (CC BY 3.0 US, `assets/licenses`).
 - QR codes are made by Nayuki's `qrcodegen` (MIT, `assets/licenses`; 38 KB, no dependencies, medium error
   correction as on the Mac). The sharing's codes (§10) are read by ZXing (Apache 2.0, `assets/licenses`) from
@@ -901,8 +908,7 @@ needed each time, come later (ROADMAP).
   The parts read so far are kept for the whole app (a lock clears them).
 - **Screens**: Sharing from the list's header: "To answer" (the asker, the reason, when it expires, Checked or
   Check first), "Waiting for an answer" and "Sent, pictures kept" (§10.4), Send entries without a request, Read
-  a code and Ask for an entry at the foot (a button's label never takes two lines: it gets smaller, drops its icon,
-  and "Ask for an entry" becomes "Ask" on a very large display size). Ask for an entry; Your
+  a code and Ask for an entry at the foot (on a very large display size "Ask", §6.1). Ask for an entry; Your
   request (the code, the pictures, Send the picture, Send as text, Save picture, delete after a question); Read a
   code (a banner says what a code could not do: cut short, not a Keething code, nothing in what was shared, own
   request, expired, dates wrong, answered already, not for a request on this phone, code 1 of 2 read); a request

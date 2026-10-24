@@ -91,7 +91,7 @@ internal fun NoticeHost(host: SnackbarHostState, modifier: Modifier = Modifier) 
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(Modifier.width(12.dp))
-                Text(data.visuals.message)
+                Text(data.visuals.message.dotsAtLineEnd())
             }
         }
     }

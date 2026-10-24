@@ -63,6 +63,7 @@ import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
@@ -120,9 +121,7 @@ internal fun ReceivedScreen(
                             enabled = !model.unsealing,
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                         ) {
-                            Icon(Icons.Rounded.ContentPaste, contentDescription = null)
-                            Spacer(Modifier.size(10.dp))
-                            Text("Paste the pictures")
+                            ButtonLabel("Paste the pictures", Icons.Rounded.ContentPaste)
                         }
                     }
                 }

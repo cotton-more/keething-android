@@ -53,6 +53,7 @@ import dev.keepassbar.android.biometric.KeystorePasswordStore.KeyLocation
 import dev.keepassbar.android.list.seconds
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.FitText
 import dev.keepassbar.domain.biometric.BiometricAvailability
 import dev.keepassbar.vault.biometric.BiometricState
 import dev.keepassbar.vault.session.SessionState
@@ -105,7 +106,7 @@ internal fun SettingsScreen(
                         onClick = { container.settings.chooseLockTimeout(option) },
                         shape = SegmentedButtonDefaults.itemShape(index, AppSettings.LOCK_TIMEOUTS.size),
                     ) {
-                        Text(if (option.inWholeMinutes < 60) "${option.inWholeMinutes} min" else "1 h")
+                        FitText(if (option.inWholeMinutes < 60) "${option.inWholeMinutes} min" else "1 h")
                     }
                 }
             }
@@ -124,7 +125,7 @@ internal fun SettingsScreen(
                         onClick = { container.settings.chooseRequestValidity(option) },
                         shape = SegmentedButtonDefaults.itemShape(index, AppSettings.REQUEST_VALIDITIES.size),
                     ) {
-                        Text(if (option.inWholeDays == 1L) "1 day" else "${option.inWholeDays} days")
+                        FitText(if (option.inWholeDays == 1L) "1 day" else "${option.inWholeDays} days")
                     }
                 }
             }
@@ -144,7 +145,7 @@ internal fun SettingsScreen(
             )
             val runtime = Runtime.getRuntime()
             Text(
-                "Memory: ${usedMemory.longValue / MIB} MiB used of ${runtime.maxMemory() / MIB} MiB.",
+                "Memory: ${usedMemory.longValue / MIB}\u00A0MiB used of ${runtime.maxMemory() / MIB}\u00A0MiB.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }

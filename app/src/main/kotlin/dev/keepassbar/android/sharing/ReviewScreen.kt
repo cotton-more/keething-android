@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -57,6 +56,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.BarTitle
+import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.NoLearningKeyboard
 import dev.keepassbar.android.ui.segmentShape
@@ -215,16 +216,10 @@ internal fun ReviewScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(if (their != null) "Send to ${their.request.name}" else "Send without a request")
-                        Text(
-                            their?.request?.reason ?: "It opens with ten pictures you give another way",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    BarTitle(
+                        if (their != null) "Send to ${their.request.name}" else "Send without a request",
+                        their?.request?.reason ?: "It opens with ten pictures you give another way",
+                    )
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -245,9 +240,7 @@ internal fun ReviewScreen(
                         if (model.sealing) {
                             LoadingIndicator(Modifier.size(28.dp))
                         } else {
-                            Icon(Icons.Rounded.Lock, contentDescription = null)
-                            Spacer(Modifier.size(10.dp))
-                            Text(if (their != null) "Encrypt for ${their.request.name}" else "Seal with ten pictures")
+                            ButtonLabel(if (their != null) "Encrypt for ${their.request.name}" else "Seal with ten pictures", Icons.Rounded.Lock)
                         }
                     }
                 }

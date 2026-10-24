@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.android.ui.SegmentGap
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.android.ui.segmentShape

@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,9 +44,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.keepassbar.android.AppContainer
+import dev.keepassbar.android.ui.BarTitle
+import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.android.ui.FullBrightness
 import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.android.ui.NoticeEffect
@@ -95,18 +95,7 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("For ${answer.name}")
-                        Text(
-                            "${answer.reason} · ${if (answer.entries == 1) "1 entry" else "${answer.entries} entries"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                },
+                title = { BarTitle("For ${answer.name}", "${answer.reason} · ${if (answer.entries == 1) "1 entry" else "${answer.entries} entries"}") },
                 navigationIcon = { IconButton(onClick = onDone) { Icon(Icons.Rounded.Close, contentDescription = "Done") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
@@ -115,9 +104,7 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
             BottomActions {
                 if (pictures != null) {
                     Button(onClick = { send { container.codePictures.sendIntent(pictures) } }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                        Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null)
-                        Spacer(Modifier.size(10.dp))
-                        Text(if (pictures.size == 1) "Send the picture" else "Send the ${pictures.size} pictures")
+                        ButtonLabel(if (pictures.size == 1) "Send the picture" else "Send the ${pictures.size} pictures", Icons.AutoMirrored.Rounded.Send)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -125,9 +112,7 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
                         onClick = { send { container.codePictures.sendTextIntent(SharingTexts.answerMessage(answer.reason, answer.encoded)) } },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.TextSnippet, contentDescription = null, Modifier.size(20.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text("Send as text")
+                        ButtonLabel("Send as text", Icons.AutoMirrored.Rounded.TextSnippet, short = "As text", iconSize = 20.dp, gap = 8.dp)
                     }
                     if (pictures != null) {
                         FilledTonalButton(
@@ -140,9 +125,7 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                         ) {
-                            Icon(Icons.Rounded.Download, contentDescription = null, Modifier.size(20.dp))
-                            Spacer(Modifier.size(8.dp))
-                            Text(if (pictures.size == 1) "Save picture" else "Save pictures")
+                            ButtonLabel(if (pictures.size == 1) "Save picture" else "Save pictures", Icons.Rounded.Download, short = "Save", iconSize = 20.dp, gap = 8.dp)
                         }
                     }
                 }

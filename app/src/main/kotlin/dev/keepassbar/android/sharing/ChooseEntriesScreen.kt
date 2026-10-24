@@ -60,6 +60,7 @@ import dev.keepassbar.android.list.VaultListing
 import dev.keepassbar.android.list.title
 import dev.keepassbar.android.session.DatabaseSession
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.BarTitle
 import dev.keepassbar.android.ui.CustomIconImages
 import dev.keepassbar.android.ui.EntryIcon
 import dev.keepassbar.android.ui.SegmentGap
@@ -144,16 +145,7 @@ internal fun ChooseEntriesScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Choose entries")
-                        Text(
-                            if (their != null) "for ${their.request.name} · ${their.request.reason}" else "to send without a request",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    BarTitle("Choose entries", if (their != null) "for ${their.request.name} · ${their.request.reason}" else "to send without a request")
                 },
                 navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),

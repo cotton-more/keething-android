@@ -9,16 +9,21 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import dev.keepassbar.android.theme.extraColors
 
-/** A shown secret with its digits and symbols coloured, so `0`/`O` and `l`/`1` are told apart (SPEC §6.1). */
+/**
+ * A shown secret with its digits and symbols coloured, so `0`/`O` and `l`/`1` are told apart (SPEC §6.1). A long
+ * one wraps at the line's end, not after a `/` or a `-` as if it were two words (for display only: it holds
+ * invisible word joiners).
+ */
 @Composable
 internal fun colouredSecret(text: String): AnnotatedString {
     val digit = MaterialTheme.extraColors.digit
     val symbol = MaterialTheme.extraColors.symbol
-    return colouredSecret(text, digit, symbol)
+    return colouredSecret(text, digit, symbol, joined = true)
 }
 
-internal fun colouredSecret(text: String, digit: Color, symbol: Color): AnnotatedString = buildAnnotatedString {
-    for (char in text) {
+internal fun colouredSecret(text: String, digit: Color, symbol: Color, joined: Boolean = false): AnnotatedString = buildAnnotatedString {
+    for ((i, char) in text.withIndex()) {
+        if (joined && i > 0 && !char.isLowSurrogate() && !char.isWhitespace() && !text[i - 1].isWhitespace()) append(WORD_JOINER)
         when {
             char.isDigit() -> withStyle(SpanStyle(color = digit)) { append(char) }
             char.isLetter() || char.isWhitespace() -> append(char)
@@ -26,3 +31,5 @@ internal fun colouredSecret(text: String, digit: Color, symbol: Color): Annotate
         }
     }
 }
+
+private const val WORD_JOINER = '\u2060'

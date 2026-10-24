@@ -91,6 +91,7 @@ import dev.keepassbar.android.theme.extraColors
 import dev.keepassbar.android.ui.EntryMark
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
+import dev.keepassbar.android.ui.dotsAtLineEnd
 import dev.keepassbar.android.ui.rememberSecondsNow
 import dev.keepassbar.card.CardSection
 import dev.keepassbar.card.Deadline
@@ -478,7 +479,7 @@ private fun Banner(icon: ImageVector, text: String, problem: Boolean, warning: B
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(icon, contentDescription = null, tint = onContainer)
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = onContainer)
+        Text(text.dotsAtLineEnd(), style = MaterialTheme.typography.bodyMedium, color = onContainer)
     }
 }
 
@@ -486,12 +487,13 @@ private fun Banner(icon: ImageVector, text: String, problem: Boolean, warning: B
 private fun Footer(card: EntryCard) {
     val dates = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault())
     val parts = listOfNotNull(
-        card.lastModified?.let { "Changed ${dates.format(it)}" },
-        card.created?.let { "created ${dates.format(it)}" },
+        // A date is not broken over two lines ("Mar 18, / 2024").
+        card.lastModified?.let { "Changed ${dates.format(it).replace(' ', '\u00A0')}" },
+        card.created?.let { "created ${dates.format(it).replace(' ', '\u00A0')}" },
     )
     if (parts.isEmpty()) return
     Text(
-        parts.joinToString(" · ").replaceFirstChar(Char::uppercase),
+        parts.joinToString(" · ").replaceFirstChar(Char::uppercase).dotsAtLineEnd(),
         Modifier.padding(horizontal = 8.dp),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,

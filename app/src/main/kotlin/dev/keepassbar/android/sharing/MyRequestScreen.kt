@@ -5,12 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,16 +44,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keepassbar.android.AppContainer
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.android.ui.BarTitle
+import dev.keepassbar.android.ui.ButtonLabel
 import dev.keepassbar.android.ui.FullBrightness
 import dev.keepassbar.android.ui.Notice
 import dev.keepassbar.android.ui.NoticeEffect
 import dev.keepassbar.android.ui.NoticeHost
 import dev.keepassbar.android.ui.QrCodeImage
+import dev.keepassbar.android.ui.dotsAtLineEnd
 import dev.keepassbar.sharing.message.ShareCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -115,12 +115,7 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("Your request")
-                        Text(request.reason, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                },
+                title = { BarTitle("Your request", request.reason) },
                 navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close") } },
                 actions = {
                     IconButton(onClick = { deleting = true }) {
@@ -136,18 +131,14 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
                     onClick = { send { container.codePictures.sendIntent(listOf(SharingTexts.requestPicture(request))) } },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null)
-                    Spacer(Modifier.size(10.dp))
-                    Text("Send the picture")
+                    ButtonLabel("Send the picture", Icons.AutoMirrored.Rounded.Send)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     FilledTonalButton(
                         onClick = { send { container.codePictures.sendTextIntent(SharingTexts.requestMessage(request)) } },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.TextSnippet, contentDescription = null, Modifier.size(20.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text("Send as text")
+                        ButtonLabel("Send as text", Icons.AutoMirrored.Rounded.TextSnippet, short = "As text", iconSize = 20.dp, gap = 8.dp)
                     }
                     FilledTonalButton(
                         onClick = {
@@ -159,9 +150,7 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
-                        Icon(Icons.Rounded.Download, contentDescription = null, Modifier.size(20.dp))
-                        Spacer(Modifier.size(8.dp))
-                        Text("Save picture")
+                        ButtonLabel("Save picture", Icons.Rounded.Download, short = "Save", iconSize = 20.dp, gap = 8.dp)
                     }
                 }
             }
@@ -175,7 +164,7 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
         ) {
             QrCodeImage(ShareCode.text(request.encoded()), "QR code of the request", Modifier.widthIn(max = 280.dp).fillMaxWidth())
             Text(
-                "In person: let them scan this screen · expires ${SharingTexts.dateTime(request.expires)}",
+                "In person: let them scan this screen · expires ${SharingTexts.dateTime(request.expires)}".dotsAtLineEnd(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
