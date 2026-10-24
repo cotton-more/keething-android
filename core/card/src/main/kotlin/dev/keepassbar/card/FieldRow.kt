@@ -60,6 +60,8 @@ public data class FieldRow(
     val size: Int? = null,
     /** A code of a list marked used ([UsedCode]): the day; the row's text and copy are the code alone. */
     val usedOn: LocalDate? = null,
+    /** An account number (an IBAN): copied without its spaces, which bank forms often refuse or cut off. */
+    val copiesCompact: Boolean = false,
 ) {
     public enum class Kind { USERNAME, PASSWORD, URL, TOTP, NOTES, CUSTOM, ATTACHMENT }
 
@@ -96,6 +98,9 @@ public data class FieldRow(
         }
         return if (usedOn != null) UsedCode.unmark(text) else text
     }
+
+    /** What copying puts on the clipboard: the value as stored, an account number without its spaces. */
+    public fun clipboardText(): String = storedText().let { text -> if (copiesCompact) text.filterNot(Char::isWhitespace) else text }
 
     /** The same row, masked until revealed although the database does not protect it. */
     internal fun concealed(shownText: String? = null, maskedText: String? = null): FieldRow =

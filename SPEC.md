@@ -86,8 +86,9 @@ core/vault    application layer: open, edit, save with the checks, the lock / un
 core/autofill autofill's rules: what a field asks for, the target, the matching entries (§7)
                                                                              → domain, search, totp
 core/card     how an entry card is laid out and edited (the Mac app's Presentation rules: sections,
-              dates, links, lists of codes, payment card, Wi-Fi, their faces and the offer to type
-              them, deadlines, avatars; the editor's rules, `card/editing`) → domain, totp, search
+              dates, links, lists of codes, payment card, Wi-Fi, bank account, identity document,
+              SSH, their faces and the offer to type them, IBAN / БИК checks, an SSH key's public half,
+              deadlines, avatars; the editor's rules, `card/editing`) → domain, totp, search
 core/generator the password generator: kinds, options, exact entropy, the EFF word list (a
               resource)                                                  → nothing
 core/sharing  sharing entries (§10): HPKE, the request and answer formats, the pictures, the requests
@@ -490,10 +491,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   only the copies and the site. A row's code is a pill beside the title, or under it where the pill would leave
   the title less than about seven and a half characters (large text on a narrow phone).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
-  payment card's or a Wi-Fi network's row (its fields typed, §6.3) shows the small face instead of the icon (a card
-  in its network's colours, the label of a router) and says which it is instead of the username and site
-  (`Visa •• 4242 · 12/26`, `WPA2 · FRITZ!Box 7590`; a protected number gives no digits); the card's header shows it
-  too (`EntryFace`). A
+  payment card's, a Wi-Fi network's, a bank account's, an identity document's or an SSH login's row (its fields
+  typed, §6.3) shows the small face instead of the icon (a card in its network's colours, the label of a router, a
+  bank with the country's flag at its corner, a small paper document, a terminal's `>_`) and says which it is instead
+  of the username and site (`Visa •• 4242 · 12/26`, `WPA2 · FRITZ!Box 7590`, `DE89 •• 3000 · Commerzbank`,
+  `Passport · Germany · until 03/2029`, `alex@db.example.com:2222`; a protected number gives no digits); the card's
+  header shows it too (`EntryFace`). A
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
@@ -513,10 +516,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   full-screen views read the password from the vault by the entry's id, close on a lock, and are left with
   Back or ✕. The share sheet shows the text and has its own Copy, which the app cannot mark sensitive or
   clear: the warning comes first for that reason.
-- **Entry faces** (agreed on the canvas, row "Entry faces"): a payment card and a Wi-Fi network are drawn as what
-  they are, and the face is the interface; the rows under it are only what the face does not show. The Mac draws
-  the same fields as a card and rows (Mac SPEC §3.13): the data rules are the Mac's (`PaymentCard`, `WiFiNetwork`),
-  the face is the phone's.
+- **Entry faces** (agreed on the canvas, rows "Entry faces" and "More faces"): a payment card, a Wi-Fi network, a
+  bank account, an identity document and an SSH login are drawn as what they are, and the face is the interface;
+  the rows under it are only what the face does not show. The Mac draws a card's and a network's fields as a card
+  and rows (Mac SPEC §3.13): their data rules are the Mac's (`PaymentCard`, `WiFiNetwork`), the faces are the
+  phone's. The bank, document and SSH types are the phone's (§6.3) until the Mac takes them over
+  (`~/Projects/keepass-bar/HANDOVER-more-faces.md`); the Mac keeps them and shows those fields as rows meanwhile.
   - **Payment card**: a card 1.586:1 (at most 440 dp wide), in its network's colours (Mac `PaymentCardView`;
     Visa, Mastercard, American Express, Mir; another network in the entry's colour), with a chip, the contactless
     mark and the network's mark drawn simply. Its front: the number masked to its last four digits, the holder,
@@ -538,6 +543,44 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     says so. The square **QR code** button opens it full screen too: a view like Show as QR, at full brightness,
     "Join <network>", reading the entry from the vault by its id and closing on a lock (`PasswordView.WIFI_QR`).
     Masking the key, leaving the card or a lock blurs the code again; an open network's code is always shown.
+  - **Bank account** (`BankAccount`, an entry with a field typed `bank.iban` or `bank.account`): a label like the
+    router's, "BANK ACCOUNT" with the country as a chip (its flag and English name: from the IBAN's first two
+    letters, else the BIC's fifth and sixth, else a Russian БИК, each of which says it for sure; a US routing number or a
+    Chinese bank code alone does not, and then the chip is Antarctica's flag and "Country unknown", as the list's
+    small face; never a guess), the holder large, the number in the accent's monospace (an IBAN in groups of four, its country
+    and check digits in the accent; a Russian 20-digit account as printed, `40817 810 5 0000 1234567`), then the
+    BIC, the bank code ("BIK" for a Russian БИК, else "BANK CODE"), the correspondent account and the bank as
+    small lines. A tap copies a line; the number and the correspondent account copy **without spaces** (bank forms
+    often refuse them or cut them off), and say so in the notice. **Copy IBAN** / **Copy account** copies the
+    number; **Share** sends the holder, number, codes and bank as text to the share sheet (for someone who sends
+    money; nothing secret, so no warning; Russian details with their Russian names: Счёт, БИК, К/с). An IBAN
+    failing its mod-97 check (ISO 7064), or of the wrong length for its country, says so ("a typo?"); a Russian
+    account checks against its БИК (the Bank of Russia's key: the БИК's last three digits and the account,
+    weights 7-1-3), the correspondent account against `0` and the БИК's fifth and sixth digits. A protected number
+    is masked on the face with Show; other protected parts, and the recipient's ИНН / КПП, are rows under it.
+  - **Identity document** (`IdentityDocument`, an entry with a `doc.number`): a card of paper (ID-1, 1.586:1 at
+    least, taller with large text; a guilloche drawn behind; paper in either theme), its type as the heading
+    ("PASSPORT", else "IDENTITY DOCUMENT"), the issuing country with its flag (a code is named: `D`, `DE` or `DEU`
+    → Germany; a name in English, German, Russian, French, Spanish or the phone's language gives the flag; a
+    country it cannot name gets Antarctica's flag), the
+    name, the number in monospace (masked with Show when protected), born / issued / expires. A tap copies a line.
+    No photo: what such entries keep is a scan of the whole document (a PDF or a picture), not the portrait; it
+    stays an attachment. The expiry is a chip under it when within 90 days or past (no banner for that field), and
+    it is a deadline like any `until`.
+  - **SSH** (`SshLogin`, an entry with an unprotected `ssh.host`): a terminal, dark in either theme: "SSH" with a
+    chip (`key · port 2222`, or `password`), the command (`$ ssh -p 2222 alex@db.example.com`; `-p` left out for
+    port 22; `-i <file>` for a key in a file; words the shell would split quoted), host / user / port (the user is
+    the `ssh.user` field, else the one written in the host, else the entry's username, marked "the username"), the
+    key when the entry has KeePassXC's SSH agent settings (Mac SPEC §3.15: the `KeeAgent.settings` attachment names
+    an attachment of the entry or a file on the computer; unreadable, the only key-like attachment): its name, type
+    and `SHA256:` fingerprint as `ssh-keygen -l` prints it, read only up to the public key, which the OpenSSH format
+    keeps in the clear even under a passphrase (`SshPublicKey`, the Mac's `OpenSSHPrivateKey.publicKey`); a tap
+    copies the `authorized_keys` line. Then a `~/.ssh/config` block with its own Copy (`Host` from the entry's title,
+    `HostName`, `User`, `Port`; a key in a file as `IdentityFile` with `IdentitiesOnly yes`; an attachment's key as a
+    comment, the agent gives it to ssh). The phone runs no agent. A tap copies a line; **Copy ssh command**; **Open
+    in <app>** when an app on the phone opens `ssh://` links (ConnectBot, JuiceSSH; `ssh://user@host:port`), "an SSH
+    app" when several do. The `ssh.host` field takes `host`, `user@host`, `host:port`, `[v6]:port` or an `ssh://`
+    link.
 - **Editor** (the card's Edit; a new entry from the button next to the search field): title, username,
   password (masked, an eye shows it coloured; masked, it shows the card's fixed dots, not its length, and a dot a
   character only while typed in), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
@@ -548,10 +591,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the last chip off; typing offers the vault's tags that start with it (most used first), then those it
   matches fuzzily as the search does ("trvl" → Travel), those on the entry left out, as chips under the
   field, a tap adds one. What is still typed when saving is saved too. **Add field** is a menu: Text, Date, Date
-  until (expiry), URL, Password, *Card ›* and *Wi-Fi ›* parts (the menu shows the parts in its place, with a
-  way back) add a field of that type named after it (Text, Date, Valid until, Website, "Password 2" as KeePass
-  keeps "Password" for itself, Card number, Cardholder, Expiry date, CVC, PIN, Card type, Network name, Wi-Fi
-  password, Security; "CVC 2" when the name is taken); the cursor goes into its value and the form scrolls
+  until (expiry), URL, Password, *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›* and *SSH ›* parts (the
+  menu shows the parts in its place, with a way back) add a field of that type named after it (Text, Date, Valid
+  until, Website, "Password 2" as KeePass keeps "Password" for itself, Card number, Cardholder, Expiry date, CVC,
+  PIN, Card type, Network name, Wi-Fi password, Security, IBAN, BIC, Bank, Account holder, Account number, Bank
+  code, Correspondent account, Document type, Document number, Full name, Issuing country, Date of birth, Date of
+  issue, Host, Port, SSH user; "CVC 2" when the name is taken); the cursor goes into its value and the form scrolls
   to it above the keyboard. **Codes…** takes a block of codes pasted or typed (numbering and bullets dropped,
   at most 50) and adds them as protected fields `<list>_1`, `_2`, … typed `code`, which the card shows as a
   numbered list; such a list is folded into one row in the editor ("Recovery codes · 10 codes · protected")
@@ -598,7 +643,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   so; another field with such a text stays text. On the card a used code is "used Oct 22, 2026" alone while the
   codes are hidden, and struck through above that line when they are shown; the list's title says "3 of 4
   left" (in the error colour when none are); copying a used
-  code copies the code alone. The editor shows the value as it is stored. The Mac app's side:
+  code copies the code alone. Under the title a bar of one segment per code, on one line however many (thinner for
+  more, in the error colour when two or fewer are left), says how many are left; the next unused code is outlined
+  and **Copy next unused · 4** copies it (its notice offers Mark as used, as any code's does). The editor shows
+  the value as it is stored. The Mac app's side:
   `~/Projects/keepass-bar/HANDOVER-used-recovery-codes.md`.
 - **History** (the clock in the card's bar, for an entry in the bin too; Mac SPEC §3.22 without restoring):
   "Reading the file…", then the versions newest first, each dated by its modification time, the current one
@@ -634,30 +682,43 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   them is a numbered list at any size), `password` (masked on the card, protected or not; the editor masks
   it too and offers the generator, as for `wifi.password`), and the parts of a payment card (`card.number`,
   `card.holder`, `card.expiry`, `card.cvc`, `card.pin`, `card.type`) and a Wi-Fi network (`wifi.ssid`,
-  `wifi.password`, `wifi.security`), which make the card's payment card and Wi-Fi views. Type names ignore
+  `wifi.password`, `wifi.security`), which make the card's payment card and Wi-Fi views. The phone's own, until
+  the Mac takes them over (`~/Projects/keepass-bar/HANDOVER-more-faces.md`): a bank account's (`bank.iban`,
+  `bank.bic`, `bank.name`, `bank.holder`, `bank.account` where there is no IBAN, `bank.code` for a national bank
+  code such as a БИК or a routing number, `bank.corr` for a correspondent account), an identity document's
+  (`doc.type`, `doc.number`, `doc.name`, `doc.country`, `doc.birth`, `doc.issued` dates, `doc.expiry` a date
+  something ends on like `until`) and an SSH login's (`ssh.host`, `ssh.port`, `ssh.user`). Type names ignore
   case and outer spaces; field names match exactly. A type this version does not know is kept (the editor
   too) and counts as none.
-- **A field without a type** is read by its value (unmistakable dates, http(s) links, numbered codes). The
+- **A field without a type** is read by its value (unmistakable dates, http(s) links, numbered codes, and an IBAN:
+  the right country, length and mod-97 check, shown in groups of four with its country's flag and copied without
+  spaces; the editor names it "IBAN · auto"; it makes no face without the types). The
   rules the settings entry held before (`<field name> = <type>` lines) are no longer read: the Mac's field
   report moves them into the entries. Protected fields are never read, typed or not.
-- **The offer to type a card or a network** (the phone's own; `TypeSuggestion`): fields without a type named as a
-  payment card's parts (a number — 12 to 19 digits when unprotected, a protected one by its name — and at least an
+- **The offer to type a card, a network, an account, a document or an SSH login** (the phone's own;
+  `TypeSuggestion`): fields without a type named as a payment card's parts (a number — 12 to 19 digits when unprotected, a protected one by its name — and at least an
   expiry, a CVC or a holder; 1Password's names, English, German and Russian ones, a 1Password section left out) or a
   Wi-Fi network's (a name, and a password field, or a security field saying it is open: a network whose password is
   elsewhere is not offered, its face would call it open) make the card offer "Looks like a payment card · Show as
-  card" / "Looks like a Wi-Fi network · Show as network". The tap saves the types (an edit of the field types only,
-  §3.3), so the face appears here and the Mac draws its view too; nothing is typed without it, so the phone never
-  shows a face the Mac does not. "Not now" is remembered per entry (its id in the app's settings, as Recent keeps
+  card" / "Looks like a Wi-Fi network · Show as network". Likewise a bank account (an IBAN by its value, or a field
+  named IBAN when protected; else a 20-digit account named as one with a Russian БИК; the BIC / SWIFT, holder, bank
+  and correspondent account by their names, 1Password's among them), an identity document (a document number by
+  its name — a bare "Number" only with two parts only a document has, as a short card's number and expiry would
+  otherwise pass — and at least a date or a country) and an SSH login (a host by its name whose value is a host, and
+  a port, a user, KeePassXC's SSH agent settings or "SSH" in the names or title: a host alone could be a
+  website's). The tap saves the types (an edit of the field types only, §3.3), so the face appears here (and the
+  Mac draws a card's and a network's view too); nothing is typed without it. "Not now" is remembered per entry (its id in the app's settings, as Recent keeps
   ids); not offered in the recycle bin, nor for fields typed otherwise.
 - **The editor**: the type chip under a field's value names the type it has ("Card expiry ▾"), or what its
   value is read as ("Text · auto ▾"), or a type not known here ("“x.y” ▾"); its menu: *Automatic (…)* (no type; what it is read as in brackets), Text, Date, Date until
-  (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, and a type not known here, kept, shown disabled. A type
+  (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›*, *SSH ›*, and a type not known
+  here, kept, shown disabled. A type
   given to a field without a name names it. A field typed `date`, `until` or `card.expiry` and not protected
   has a calendar (the day written `2027-10-31`, a card's expiry as its month `2027-10`); a value that is no
   date says so under it ("Not a date, shown as text…") and is saved all the same. The types saved are every
   field's that has one, but `text` only where the value would be read as something else; a rename carries
   the type along; types of fields the entry no longer has go with the next save, which they do not cause.
-  A card number, CVC or PIN gets the number keyboard.
+  A card number, CVC or PIN gets the number keyboard, an SSH port the digits.
 
 ## 7. Autofill
 

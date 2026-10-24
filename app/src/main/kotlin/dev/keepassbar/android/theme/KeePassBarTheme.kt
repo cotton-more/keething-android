@@ -55,6 +55,12 @@ internal data class ExtraColors(
     val sticker: Color,
     val stickerEdge: Color,
     val stickerLabel: Color,
+    /** An identity document's face: paper in either theme (a shade darker at night), its guilloche and small print. */
+    val paper: Color,
+    val paperEdge: Color,
+    val paperWave: Color,
+    val paperLabel: Color,
+    val paperPhoto: Color,
 )
 
 private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
@@ -68,6 +74,11 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
         sticker = scheme.surfaceContainerHigh,
         stickerEdge = scheme.outlineVariant,
         stickerLabel = scheme.onSurfaceVariant,
+        paper = Color(0xFFC9DADC),
+        paperEdge = Color(0xFF8FA5A8),
+        paperWave = Color(0x66789FA4),
+        paperLabel = Color(0xFF3D5A66),
+        paperPhoto = Color(0xFFADBAC2),
     )
 } else {
     ExtraColors(
@@ -80,6 +91,11 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
         sticker = Color(0xFFF7F6F1),
         stickerEdge = Color(0xFFDAD8CF),
         stickerLabel = Color(0xFF5E5D57),
+        paper = Color(0xFFE9F3F4),
+        paperEdge = Color(0xFFC3D3D5),
+        paperWave = Color(0x6696C4CA),
+        paperLabel = Color(0xFF45616C),
+        paperPhoto = Color(0xFFCBD3D9),
     )
 }
 

@@ -74,11 +74,25 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 private val OUTER = 22.dp
 
 @Composable
-internal fun CardSectionView(section: CardSection, avatar: EntryAvatar, reveal: RevealState, now: State<Instant>, actions: CardActions, wifiQrPayload: String?) {
+internal fun CardSectionView(
+    section: CardSection,
+    avatar: EntryAvatar,
+    reveal: RevealState,
+    now: State<Instant>,
+    actions: CardActions,
+    wifiQrPayload: String?,
+    extras: FaceExtras = FaceExtras(),
+) {
     when (val kind = section.kind) {
         CardSection.Kind.Credentials -> RowGroup(section.rows) { row, shape ->
             FieldRowView(row, reveal, now, actions, shape, tile = credentialTile(row))
@@ -90,9 +104,19 @@ internal fun CardSectionView(section: CardSection, avatar: EntryAvatar, reveal: 
         CardSection.Kind.Codes -> CodesView(section, reveal, actions)
         is CardSection.Kind.PaymentCard -> PaymentCardSection(section, kind.card, avatar, reveal, now, actions)
         is CardSection.Kind.WiFi -> WiFiSection(section, kind.network, wifiQrPayload, reveal, now, actions)
+        is CardSection.Kind.BankAccount -> BankAccountSection(section, kind.account, reveal, now, actions)
+        is CardSection.Kind.Document -> DocumentSection(section, kind.document, reveal, now, actions)
+        is CardSection.Kind.Ssh -> SshSection(section, kind.login, extras.sshKey, extras.sshApp, extras.hasPassword, reveal, now, actions)
         CardSection.Kind.Attachments -> RowGroup(section.rows) { row, shape -> AttachmentRowView(row, actions, shape) }
     }
 }
+
+/** What the faces show besides the entry's fields: read from attachments, or asked of the phone. */
+internal data class FaceExtras(
+    val sshKey: SshKeyView? = null,
+    val sshApp: SshApp? = null,
+    val hasPassword: Boolean = false,
+)
 
 @Composable
 internal fun Titled(title: String?, content: @Composable () -> Unit) {
@@ -294,7 +318,8 @@ private fun NotesView(row: FieldRow, actions: CardActions) {
 
 /**
  * A list of codes (recovery codes): a numbered grid with one eye for all of them (SPEC §6). A code marked used is
- * struck through with its day, and the title says how many are left; a long press marks a code used or not.
+ * struck through with its day; the title and a bar say how many are left, the next unused code is outlined and one
+ * button copies it (its notice offers Mark as used); a long press marks a code used or not.
  */
 @Composable
 private fun CodesView(section: CardSection, reveal: RevealState, actions: CardActions) {
@@ -308,13 +333,11 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
                 Text(section.title.orEmpty(), style = MaterialTheme.typography.titleSmall)
-                if (used > 0) {
-                    Text(
-                        "${section.rows.size - used} of ${section.rows.size} left",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (used == section.rows.size) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    "${section.rows.size - used} of ${section.rows.size} left",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (used == section.rows.size) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (concealed.isNotEmpty()) {
                 IconButton(onClick = { actions.onToggleSection(section) }) {
@@ -326,18 +349,45 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
                 }
             }
         }
+        LeftBar(section.rows, Modifier.padding(end = 12.dp, bottom = 4.dp))
+        val next = section.rows.firstOrNull { it.usedOn == null && it.isCopyable }
         for (pair in section.rows.chunked(2)) {
             Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (row in pair) CodeCell(row, reveal, actions, Modifier.weight(1f))
+                for (row in pair) CodeCell(row, reveal, actions, Modifier.weight(1f), isNext = row.id == next?.id)
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
+        FilledTonalButton(
+            onClick = { next?.let(actions.onCopy) },
+            enabled = next != null,
+            modifier = Modifier.fillMaxWidth().padding(end = 12.dp, top = 6.dp).heightIn(min = 48.dp),
+        ) {
+            Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(18.dp))
+            Spacer(Modifier.size(8.dp))
+            Text(if (next == null) "No unused codes left" else "Copy next unused · ${next.label}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** How many codes are left: one segment per code, on one line however many (thinner for more), used ones empty. */
+@Composable
+private fun LeftBar(rows: List<FieldRow>, modifier: Modifier) {
+    val left = rows.count { it.usedOn == null }
+    val filled = if (left <= 2) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val empty = MaterialTheme.colorScheme.outlineVariant
+    val gap = if (rows.size > 16) 2.dp else 3.dp
+    Row(
+        modifier.fillMaxWidth().height(6.dp).semantics { contentDescription = "$left of ${rows.size} left" },
+        horizontalArrangement = Arrangement.spacedBy(gap),
+    ) {
+        val shape = RoundedCornerShape(if (rows.size > 30) 1.dp else 3.dp)
+        for (row in rows) Box(Modifier.weight(1f).fillMaxHeight().clip(shape).background(if (row.usedOn == null) filled else empty))
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, modifier: Modifier) {
+private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, modifier: Modifier, isNext: Boolean = false) {
     var menu by remember { mutableStateOf(false) }
     val setUsed = actions.onSetUsed
     val saving = actions.marking == row.id
@@ -348,6 +398,7 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .then(if (isNext) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
                 .combinedClickable(
                     enabled = row.isCopyable,
                     onClickLabel = "Copy ${row.noticeLabel.lowercase()}",

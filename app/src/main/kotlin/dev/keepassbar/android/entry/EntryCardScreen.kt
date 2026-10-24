@@ -36,7 +36,10 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.Schedule
@@ -216,6 +219,14 @@ internal fun EntryCardScreen(
                 }
             }
         },
+        onCopyText = model::copyText,
+        onShareBank = { model.bankShareIntent()?.let(context::startActivity) },
+    )
+    val sshApp = remember(content.card.ssh?.uri) { content.card.ssh?.let { sshApp(context, it.uri, model::problem) } }
+    val extras = FaceExtras(
+        sshKey = model.sshKey,
+        sshApp = sshApp,
+        hasPassword = content.card.rows.any { it.kind == FieldRow.Kind.PASSWORD },
     )
     if (sharing) {
         ShareWarning(
@@ -308,7 +319,7 @@ internal fun EntryCardScreen(
             }
             val wifiQrPayload = content.card.wifiQrPayload(state.reveal)
             for (section in content.card.sections) {
-                CardSectionView(section, content.card.avatar, state.reveal, now, actions, wifiQrPayload)
+                CardSectionView(section, content.card.avatar, state.reveal, now, actions, wifiQrPayload, extras)
             }
             Footer(content.card)
         }
@@ -380,12 +391,12 @@ private fun Header(content: CardContent, sharedKey: String, onSearch: (String) -
 }
 
 /**
- * Fields named as a payment card's or a Wi-Fi network's parts, without types (SPEC §6.3): one tap gives them their
- * types, saved in the entry, so that this card and the Mac's draw its face.
+ * Fields named as a kind of entry's parts, without types (SPEC §6.3): one tap gives them their types, saved in the
+ * entry, so that this card draws its face (and the Mac's its view of a card or a network).
  */
 @Composable
 private fun SuggestionBanner(suggestion: TypeSuggestion, saving: Boolean, onAccept: () -> Unit, onDismiss: () -> Unit) {
-    val card = suggestion.kind == TypeSuggestion.Kind.PAYMENT_CARD
+    val offer = Offer.of(suggestion.kind)
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -395,33 +406,64 @@ private fun SuggestionBanner(suggestion: TypeSuggestion, saving: Boolean, onAcce
                 Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    if (card) Icons.Rounded.CreditCard else Icons.Rounded.Wifi,
-                    contentDescription = null,
-                    Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
+                Icon(offer.icon, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    if (card) "Looks like a payment card" else "Looks like a Wi-Fi network",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                Text(
-                    if (card) {
-                        "Show these fields as a card. Their types are saved in the entry, so the Mac shows the card too."
-                    } else {
-                        "Show these fields as a network, with its QR code. Their types are saved in the entry, so the Mac shows the network too."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
+                Text("Looks like ${suggestion.kind.noun}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(offer.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
         Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onDismiss, enabled = !saving) { Text("Not now") }
-            Button(onClick = onAccept, enabled = !saving) { Text(if (card) "Show as card" else "Show as network") }
+            Button(onClick = onAccept, enabled = !saving) { Text(offer.button) }
+        }
+    }
+}
+
+/** What the offer to type the fields says, per kind. */
+private class Offer(val icon: ImageVector, val text: String, val button: String) {
+    companion object {
+        fun of(kind: TypeSuggestion.Kind): Offer = when (kind) {
+            TypeSuggestion.Kind.PAYMENT_CARD -> Offer(
+                Icons.Rounded.CreditCard,
+                "Show these fields as a card. Their types are saved in the entry, so the Mac shows the card too.",
+                "Show as card",
+            )
+            TypeSuggestion.Kind.WIFI -> Offer(
+                Icons.Rounded.Wifi,
+                "Show these fields as a network, with its QR code. Their types are saved in the entry, so the Mac shows the network too.",
+                "Show as network",
+            )
+            TypeSuggestion.Kind.BANK_ACCOUNT -> Offer(
+                Icons.Rounded.AccountBalance,
+                "Show these fields as an account: the number grouped and checked, the country's flag. Their types are saved in the entry.",
+                "Show as account",
+            )
+            TypeSuggestion.Kind.DOCUMENT -> Offer(
+                Icons.Rounded.Badge,
+                "Show these fields as a document: its number, its dates and the country's flag. Their types are saved in the entry.",
+                "Show as document",
+            )
+            TypeSuggestion.Kind.SSH -> Offer(
+                Icons.Rounded.Terminal,
+                "Show these fields with the ssh command and a ~/.ssh/config block. Their types are saved in the entry.",
+                "Show as SSH",
+            )
+        }
+    }
+}
+
+/** The app that opens `ssh://` links on this phone, by its name ("an SSH app" when several do); null when none does. */
+private fun sshApp(context: android.content.Context, uri: String, problem: (String) -> Unit): SshApp? {
+    val intent = Intent(Intent.ACTION_VIEW, uri.toUri())
+    val apps = context.packageManager.queryIntentActivities(intent, 0)
+    if (apps.isEmpty()) return null
+    val label = apps.singleOrNull()?.loadLabel(context.packageManager)?.toString() ?: "an SSH app"
+    return SshApp(label) {
+        try {
+            context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            problem("No app opens SSH links")
         }
     }
 }
@@ -460,7 +502,9 @@ private fun Banners(content: CardContent) {
         null -> {}
     }
     // A payment card's own expiry is a chip under its face.
-    card.deadline?.takeUnless { (it.source as? Deadline.Source.Field)?.let { field -> RowIds.custom(field.index) } == card.paymentCard?.expiryRowId }?.let { deadline ->
+    // A face's expiry is its chip, not a banner too.
+    val faceExpiries = setOfNotNull(card.paymentCard?.expiryRowId, card.document?.expiryRowId)
+    card.deadline?.takeUnless { (it.source as? Deadline.Source.Field)?.let { field -> RowIds.custom(field.index) } in faceExpiries }?.let { deadline ->
         val expired = deadline.hint.status == ExpiryHint.Status.EXPIRED
         Banner(Icons.Rounded.Schedule, "${deadline.label} · ${deadline.hint.text}", problem = expired, warning = !expired)
     }
@@ -545,6 +589,10 @@ internal class CardActions(
     val onWiFiFullScreen: () -> Unit = {},
     /** The network to this phone's saved ones; null when it cannot be (a WEP network). */
     val onAddNetwork: (() -> Unit)? = null,
+    /** Text a face makes (an ssh command, a config block, a public key) to the clipboard, with what it is. */
+    val onCopyText: (what: String, text: String) -> Unit = { _, _ -> },
+    /** The bank account's details to the share sheet. */
+    val onShareBank: () -> Unit = {},
 )
 
 /** Tapping anywhere on a row copies it (SPEC §6.2). */

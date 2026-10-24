@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +35,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.keepassbar.android.theme.MonospaceFamily
 import dev.keepassbar.android.theme.extraColors
+import dev.keepassbar.card.Countries
 import dev.keepassbar.card.CardBrand
 import dev.keepassbar.card.EntryAvatar
 import dev.keepassbar.card.EntryFace
@@ -111,14 +114,17 @@ internal fun ContactlessMark(modifier: Modifier = Modifier) {
 }
 
 /**
- * An entry's picture in the list and on its card's header: the small face of a payment card or a Wi-Fi network
- * (SPEC §6.2), else its icon or monogram.
+ * An entry's picture in the list and on its card's header: the small face of a payment card, a Wi-Fi network, a bank
+ * account, an identity document or an SSH login (SPEC §6.2), else its icon or monogram.
  */
 @Composable
 internal fun EntryMark(avatar: EntryAvatar, image: ImageBitmap?, face: EntryFace?, size: Dp, modifier: Modifier = Modifier) {
     when (face) {
         is EntryFace.Card -> MiniCard(face, avatar, size, modifier)
         is EntryFace.WiFi -> MiniWiFi(size, modifier)
+        is EntryFace.Bank -> MiniBank(face, size, modifier)
+        is EntryFace.Document -> MiniDocument(size, modifier)
+        is EntryFace.Ssh -> MiniTerminal(size, modifier)
         null -> EntryIcon(avatar, image, size, modifier)
     }
 }
@@ -152,5 +158,71 @@ private fun MiniWiFi(size: Dp, modifier: Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Rounded.Wifi, contentDescription = null, Modifier.size(size * 0.5f), tint = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/** A bank account: the bank on the label, the country's flag at its corner. */
+@Composable
+private fun MiniBank(face: EntryFace.Bank, size: Dp, modifier: Modifier) {
+    val colors = MaterialTheme.extraColors
+    Box(modifier.size(size)) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .clip(RoundedCornerShape(size * 0.36f))
+                .background(colors.sticker)
+                .border(1.dp, colors.stickerEdge, RoundedCornerShape(size * 0.36f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Rounded.AccountBalance, contentDescription = null, Modifier.size(size * 0.5f), tint = MaterialTheme.colorScheme.primary)
+        }
+        (face.country?.let(Countries::flag) ?: Countries.UNKNOWN_FLAG).let { flag ->
+            Text(flag, Modifier.align(Alignment.BottomEnd).offset(x = size * 0.08f, y = size * 0.06f), fontSize = (size.value * 0.32f).sp)
+        }
+    }
+}
+
+/** An identity document: a small paper card with a photo and lines. */
+@Composable
+private fun MiniDocument(size: Dp, modifier: Modifier) {
+    val colors = MaterialTheme.extraColors
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        val shape = RoundedCornerShape(size * 0.12f)
+        Box(
+            Modifier
+                .size(size, size * 0.66f)
+                .shadow(2.dp, shape)
+                .clip(shape)
+                .background(colors.paper)
+                .border(1.dp, colors.paperEdge, shape),
+        ) {
+            Box(
+                Modifier
+                    .padding(start = size * 0.09f, top = size * 0.13f)
+                    .size(size * 0.25f, size * 0.34f)
+                    .clip(RoundedCornerShape(size * 0.04f))
+                    .background(colors.paperPhoto),
+            )
+            for ((i, width) in listOf(0.43f, 0.32f, 0.38f).withIndex()) {
+                Box(
+                    Modifier
+                        .padding(start = size * 0.41f, top = size * (0.16f + i * 0.13f))
+                        .size(size * width, size * 0.05f)
+                        .clip(RoundedCornerShape(size * 0.025f))
+                        .background(colors.paperLabel.copy(alpha = 0.7f)),
+                )
+            }
+        }
+    }
+}
+
+/** An SSH login: a terminal's prompt. */
+@Composable
+private fun MiniTerminal(size: Dp, modifier: Modifier) {
+    Box(
+        modifier.size(size).clip(RoundedCornerShape(size * 0.36f)).background(Color(0xFF15171C)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(">_", color = Color(0xFF7EE2A8), fontFamily = MonospaceFamily, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.36f).sp)
     }
 }

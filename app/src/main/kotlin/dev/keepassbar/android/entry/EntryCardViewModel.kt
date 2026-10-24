@@ -33,6 +33,8 @@ import dev.keepassbar.card.FieldRow
 import dev.keepassbar.card.GroupPathFormatter
 import dev.keepassbar.card.RevealState
 import dev.keepassbar.card.RowIds
+import dev.keepassbar.card.SshKeyLocation
+import dev.keepassbar.card.SshPublicKey
 import dev.keepassbar.card.TotpDisplay
 import dev.keepassbar.card.TypeSuggestion
 import dev.keepassbar.card.UsedCode
@@ -54,6 +56,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** What the SSH face says of the entry's key (SPEC §6.2): where it is, and its public half when it can be read. */
+internal data class SshKeyView(val location: SshKeyLocation, val publicKey: SshPublicKey?, val problem: String?)
 
 /** The open card: built from the entry in the vault shown now. */
 internal data class CardContent(
@@ -148,7 +153,13 @@ internal class EntryCardViewModel(
             suggesting = false
             mutableNotices.trySend(
                 failure?.let { Notice(it, isProblem = true) }
-                    ?: Notice(if (suggestion.kind == TypeSuggestion.Kind.PAYMENT_CARD) "Saved · the Mac shows it as a card too" else "Saved · the Mac shows the network too"),
+                    ?: Notice(
+                        when (suggestion.kind) {
+                            TypeSuggestion.Kind.PAYMENT_CARD -> "Saved · the Mac shows it as a card too"
+                            TypeSuggestion.Kind.WIFI -> "Saved · the Mac shows the network too"
+                            else -> "Saved"
+                        },
+                    ),
             )
         }
     }
@@ -185,13 +196,69 @@ internal class EntryCardViewModel(
         if (!row.isCopyable) return
         val text = when {
             row.kind == FieldRow.Kind.TOTP -> row.totp?.let { TotpDisplay.of(it, Instant.now()).code } ?: return
-            else -> row.storedText()
+            else -> row.clipboardText()
         }
         clipboard.copy(text, sensitive = row.isConcealed || row.kind == FieldRow.Kind.TOTP)
         if (content.value?.inRecycleBin == false) recents.note(entryId)
         // A code of a list is copied to be used: the notice offers to mark it so.
-        val copied = Notice.copied(row.noticeLabel)
+        val copied = if (row.copiesCompact) Notice("${row.noticeLabel} copied without spaces · clears in 30 s") else Notice.copied(row.noticeLabel)
         mutableNotices.trySend(if (canMarkUsed(row) && row.usedOn == null) copied.copy(undo = { setUsed(row, true) }, actionLabel = "Mark as used") else copied)
+    }
+
+    /** Text the card makes rather than a row holds (an ssh command, a config block, a public key): nothing secret. */
+    fun copyText(what: String, text: String) {
+        clipboard.copy(text, sensitive = false)
+        mutableNotices.trySend(Notice.copied(what))
+    }
+
+    /** The SSH face's key: read from the entry's KeeAgent settings and key attachment when the card opens or the vault is read again. */
+    var sshKey: SshKeyView? by mutableStateOf(null)
+        private set
+
+    /** What [sshKey] was read from, so that a vault read again reads it again only when that changed. */
+    private var extrasKey: Any? = null
+
+    init {
+        viewModelScope.launch { content.collect(::loadSshKey) }
+    }
+
+    private fun loadSshKey(content: CardContent?) {
+        val card = content?.card
+        val entry = unlockedVault()?.let { vault -> (vault.entries + vault.recycleBin).firstOrNull { it.id == entryId } }
+        val sshWanted = card?.ssh != null && entry != null && SshKeyLocation.hasSettings(entry.attachments)
+        val key = listOf(sshWanted, entry?.attachments)
+        if (key == extrasKey) return
+        extrasKey = key
+        if (!sshWanted) {
+            sshKey = null
+            return
+        }
+        val attachments = entry!!.attachments
+        viewModelScope.launch { sshKey = withContext(Dispatchers.Default) { readSshKey(attachments) } }
+    }
+
+    private fun readSshKey(attachments: List<dev.keepassbar.domain.vault.Attachment>): SshKeyView? {
+        val settings = database.session.attachment(entryId, SshKeyLocation.SETTINGS_ATTACHMENT)
+        val location = try {
+            settings?.useBytes { SshKeyLocation.of(it, attachments) } ?: SshKeyLocation.of(null, attachments)
+        } finally {
+            settings?.wipe()
+        }
+        location ?: return null
+        if (location !is SshKeyLocation.InAttachment) return SshKeyView(location, null, null)
+        val bytes = database.session.attachment(entryId, location.name) ?: return SshKeyView(location, null, "${location.name} is not in the database")
+        return try {
+            val key = bytes.useBytes(SshPublicKey::ofPrivateKey)
+            SshKeyView(location, key, if (key == null) "Only keys in the OpenSSH format can be read" else null)
+        } finally {
+            bytes.wipe()
+        }
+    }
+
+    /** The account's details as text for the share sheet (holder, number, codes, bank: nothing secret). */
+    fun bankShareIntent(): Intent? {
+        val text = content.value?.card?.bankAccount?.shareText() ?: return null
+        return Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), null)
     }
 
     /** The code row being marked used (or not); one at a time, while its save runs. */

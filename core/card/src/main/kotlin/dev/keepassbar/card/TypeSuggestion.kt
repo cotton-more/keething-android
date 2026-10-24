@@ -6,20 +6,27 @@ import dev.keepassbar.domain.vault.EntryChanges
 import dev.keepassbar.search.SearchNormalizer
 
 /**
- * An entry whose fields without a type are named as a payment card's or a Wi-Fi network's parts (SPEC §6.3), as
- * 1Password's import and hand-made entries name them: the card offers to give them those types, which makes the
- * entry's face here and its view on the Mac. Nothing is typed without the user's tap, so the phone never shows a
- * face the Mac does not. Read by the names alone, except an unprotected card number, which must look like one.
+ * An entry whose fields without a type are named as a payment card's, a Wi-Fi network's, a bank account's, an identity
+ * document's or an SSH login's parts (SPEC §6.3), as 1Password's import and hand-made entries name them: the card offers
+ * to give them those types, which makes the entry's face here (and the Mac's view of cards and networks). Nothing is
+ * typed without the user's tap. Read by the names, and by the values where a value says what it is: a card number must
+ * look like one, an IBAN is one by its check, a host must be a host.
  */
 public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldType>) {
-    public enum class Kind { PAYMENT_CARD, WIFI }
+    public enum class Kind(public val noun: String) {
+        PAYMENT_CARD("a payment card"),
+        WIFI("a Wi-Fi network"),
+        BANK_ACCOUNT("a bank account"),
+        DOCUMENT("an identity document"),
+        SSH("an SSH login"),
+    }
 
     /** The entry's types with these added (Mac SPEC §3.12): saved as any edit. */
     public fun changes(entry: Entry): EntryChanges =
         EntryChanges(fieldTypes = entry.fieldTypes + types.mapValues { it.value.typeName })
 
     public companion object {
-        public fun of(entry: Entry): TypeSuggestion? = card(entry) ?: wifi(entry)
+        public fun of(entry: Entry): TypeSuggestion? = card(entry) ?: wifi(entry) ?: bank(entry) ?: document(entry) ?: ssh(entry)
 
         private fun card(entry: Entry): TypeSuggestion? {
             val interpreter = FieldInterpreter(entry)
@@ -49,6 +56,57 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
             password?.let { types[it.name] = FieldType.WIFI_PASSWORD }
             security?.let { types[it.name] = FieldType.WIFI_SECURITY }
             return TypeSuggestion(Kind.WIFI, types)
+        }
+
+        private fun bank(entry: Entry): TypeSuggestion? {
+            val interpreter = FieldInterpreter(entry)
+            if (entry.customFields.any { interpreter.type(it) == FieldType.BANK_IBAN || interpreter.type(it) == FieldType.BANK_ACCOUNT }) return null
+            val free = entry.customFields.filter { interpreter.type(it) == null }
+            // An IBAN by its value (unprotected) or its name (protected); else a Russian account with its БИК.
+            val iban = free.firstOrNull { field -> field.plainText?.let(Iban::of) != null } ?: free.firstOrNull { it.plainText == null && name(it) in IBAN }
+            val code = free.firstOrNull { name(it) in BANK_CODE && it.plainText?.let(RussianAccount::isBik) == true }
+            val account = if (iban == null && code != null) free.firstOrNull { name(it) in ACCOUNT && it.plainText?.let(RussianAccount::digits) != null } else null
+            val number = iban ?: account ?: return null
+            val types = linkedMapOf(number.name to if (iban != null) FieldType.BANK_IBAN else FieldType.BANK_ACCOUNT)
+            code?.let { types[it.name] = FieldType.BANK_CODE }
+            for ((type, names) in BANK_PARTS) {
+                free.firstOrNull { it.name !in types && name(it) in names && !it.plainText.isNullOrBlank() }?.let { types[it.name] = type }
+            }
+            return TypeSuggestion(Kind.BANK_ACCOUNT, types)
+        }
+
+        private fun document(entry: Entry): TypeSuggestion? {
+            val interpreter = FieldInterpreter(entry)
+            if (entry.customFields.any { interpreter.type(it) == FieldType.DOC_NUMBER }) return null
+            val free = entry.customFields.filter { interpreter.type(it) == null }
+            val number = free.firstOrNull { name(it) in DOC_NUMBER && !it.isEmpty } ?: return null
+            val types = linkedMapOf(number.name to FieldType.DOC_NUMBER)
+            for ((type, names) in DOC_PARTS) {
+                free.firstOrNull { it.name !in types && name(it) in names && !it.isEmpty }?.let { types[it.name] = type }
+            }
+            // A number alone could be anything's: a document has dates or a country. A bare "Number" (a short card's
+            // too, with its expiry) needs two parts only a document has.
+            val dated = types.values.count { it == FieldType.DOC_EXPIRY || it == FieldType.DOC_ISSUED || it == FieldType.DOC_BIRTH || it == FieldType.DOC_COUNTRY }
+            val documentOnly = types.values.count { it == FieldType.DOC_ISSUED || it == FieldType.DOC_BIRTH || it == FieldType.DOC_COUNTRY || it == FieldType.DOC_TYPE }
+            val enough = if (name(number) in GENERIC_NUMBER) documentOnly >= 2 else dated >= 1
+            return if (enough) TypeSuggestion(Kind.DOCUMENT, types) else null
+        }
+
+        private fun ssh(entry: Entry): TypeSuggestion? {
+            val interpreter = FieldInterpreter(entry)
+            if (entry.customFields.any { interpreter.type(it) == FieldType.SSH_HOST }) return null
+            val free = entry.customFields.filter { interpreter.type(it) == null }
+            val host = free.firstOrNull { name(it) in SSH_HOST && it.plainText?.let(SshTarget::parse) != null } ?: return null
+            val port = free.firstOrNull { name(it) in SSH_PORT && it.plainText?.trim()?.toIntOrNull() in 1..65535 }
+            val user = free.firstOrNull { name(it) in SSH_USER && !it.plainText.isNullOrBlank() }
+            // A host alone could be a website's: an SSH login says so, by a port, a user, a key or "SSH" in its names.
+            val says = port != null || user != null || SshKeyLocation.hasSettings(entry.attachments) ||
+                "ssh" in name(host) || SearchNormalizer.normalize(entry.displayTitle).contains("ssh")
+            if (!says) return null
+            val types = linkedMapOf(host.name to FieldType.SSH_HOST)
+            port?.let { types[it.name] = FieldType.SSH_PORT }
+            user?.let { types[it.name] = FieldType.SSH_USER }
+            return TypeSuggestion(Kind.SSH, types)
         }
 
         /** A field's name as compared: without its 1Password section, folded, words split on anything else. */
@@ -101,6 +159,47 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
             "security", "security type", "wireless security", "encryption", "verschlusselung", "sicherheit",
             "безопасность", "тип безопасности", "шифрование",
         )
+
+        private val IBAN = setOf("iban", "iban number", "international bank account number")
+        private val ACCOUNT = setOf(
+            "account", "account number", "account no", "accountno", "kontonummer", "расчетный счет", "р с", "счет",
+            "номер счета", "лицевой счет", "счет получателя",
+        )
+        private val BANK_CODE = setOf("bik", "бик", "бик банка", "bank code", "routing number", "routing", "sort code", "blz", "bankleitzahl")
+        private val BANK_PARTS: List<Pair<FieldType, Set<String>>> = listOf(
+            FieldType.BANK_BIC to setOf("bic", "swift", "swift code", "swift bic", "bic swift", "bic code", "swift bic code"),
+            FieldType.BANK_HOLDER to setOf(
+                "account holder", "holder", "owner", "name on account", "account name", "beneficiary", "kontoinhaber", "inhaber",
+                "empfanger", "получатель", "владелец", "владелец счета",
+            ),
+            FieldType.BANK_NAME to setOf("bank", "bank name", "bankname", "name of bank", "kreditinstitut", "банк", "банк получателя", "наименование банка"),
+            FieldType.BANK_CORR to setOf("корр счет", "к с", "корреспондентский счет", "correspondent account", "corr account"),
+        )
+
+        private val DOC_NUMBER = setOf(
+            "passport number", "passport no", "document number", "document no", "id number", "id card number", "license number",
+            "licence number", "driver license number", "number", "reisepassnummer", "passnummer", "ausweisnummer",
+            "dokumentennummer", "fuhrerscheinnummer", "номер паспорта", "номер документа", "серия и номер", "номер",
+        )
+        private val GENERIC_NUMBER = setOf("number", "номер")
+        private val DOC_PARTS: List<Pair<FieldType, Set<String>>> = listOf(
+            FieldType.DOC_TYPE to setOf("type", "document type", "dokumententyp", "тип", "тип документа", "вид документа"),
+            FieldType.DOC_NAME to setOf("full name", "fullname", "name", "name on document", "vollstandiger name", "фио", "имя"),
+            FieldType.DOC_COUNTRY to setOf("issuing country", "country", "country of issue", "ausstellungsland", "land", "страна", "страна выдачи"),
+            FieldType.DOC_BIRTH to setOf("date of birth", "birthdate", "birth date", "dob", "born", "geburtsdatum", "дата рождения"),
+            FieldType.DOC_ISSUED to setOf("issued on", "issue date", "date of issue", "issued", "ausstellungsdatum", "ausgestellt am", "дата выдачи"),
+            FieldType.DOC_EXPIRY to setOf(
+                "expiry date", "expiration date", "expires", "expiry", "date of expiry", "valid until", "gultig bis", "ablaufdatum",
+                "срок действия", "действителен до",
+            ),
+        )
+
+        private val SSH_HOST = setOf(
+            "host", "hostname", "host name", "server", "server address", "ssh host", "ssh server", "ip", "ip address", "хост",
+            "сервер", "адрес сервера",
+        )
+        private val SSH_PORT = setOf("port", "ssh port", "порт")
+        private val SSH_USER = setOf("user", "ssh user", "login", "benutzer", "пользователь", "логин")
 
         /** What the face reads as an open network (as [WiFiNetwork] does). */
         private val OPEN = setOf("none", "open", "offen", "нет", "открытая")

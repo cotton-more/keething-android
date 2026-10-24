@@ -1,6 +1,7 @@
 package dev.keepassbar.card
 
 import dev.keepassbar.domain.totp.TotpConfig
+import dev.keepassbar.domain.vault.Attachment
 import dev.keepassbar.domain.vault.CustomField
 import dev.keepassbar.domain.vault.Entry
 import dev.keepassbar.domain.vault.FieldValue
@@ -28,6 +29,15 @@ public data class CardSection(val id: String, val kind: Kind, val title: String?
 
         /** The `wifi.*` fields, with a QR code to join the network. */
         public data class WiFi(val network: WiFiNetwork) : Kind
+
+        /** The `bank.*` fields, drawn as an account. */
+        public data class BankAccount(val account: dev.keepassbar.card.BankAccount) : Kind
+
+        /** The `doc.*` fields, drawn as an identity document. */
+        public data class Document(val document: IdentityDocument) : Kind
+
+        /** The `ssh.*` fields, drawn as a terminal with the command. */
+        public data class Ssh(val login: SshLogin) : Kind
 
         public data object Attachments : Kind
     }
@@ -60,6 +70,9 @@ public data class EntryCard(
 ) {
     val paymentCard: PaymentCard? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.PaymentCard)?.card }
     val wifi: WiFiNetwork? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.WiFi)?.network }
+    val bankAccount: BankAccount? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.BankAccount)?.account }
+    val document: IdentityDocument? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.Document)?.document }
+    val ssh: SshLogin? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.Ssh)?.login }
 
     /**
      * The text of the Wi-Fi network's QR code (SPEC §3.13; Mac `EntryCardModel.wifiQRPayload`): it holds the
@@ -81,11 +94,14 @@ public data class EntryCard(
  */
 public object EntryCardBuilder {
     /** The views of kinds of entries, in card order. */
-    private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection)
+    private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection, BankAccountSection, DocumentSection, SshSection)
 
     public fun build(entry: Entry, now: Instant, locale: Locale = Locale.getDefault()): EntryCard {
         fun row(id: String, kind: FieldRow.Kind, label: String, value: FieldValue) = FieldRow(id, kind, label, value)
-        val context = CardContext(entry.customFields.withIndex().toList(), FieldInterpreter(entry), now, locale)
+        val context = CardContext(
+            entry.customFields.withIndex().toList(), FieldInterpreter(entry), now, locale,
+            title = entry.displayTitle, username = entry.username, attachments = entry.attachments,
+        )
 
         val credentials = mutableListOf<FieldRow>()
         if (entry.username.isNotEmpty()) credentials += row(RowIds.USERNAME, FieldRow.Kind.USERNAME, "Username", FieldValue.Plain(entry.username))
@@ -148,7 +164,7 @@ public object EntryCardBuilder {
 
     /**
      * What each field without a type is read as (Mac SPEC §3.6.2), for the editor's type menu: a date (`until` when
-     * the name says something ends), a link, one of a list of codes; text otherwise. By index.
+     * the name says something ends), a link, an IBAN, one of a list of codes; text otherwise. By index.
      */
     public fun guessedTypes(fields: List<CustomField>): List<FieldType> {
         val interpreter = FieldInterpreter(FieldTypes.NONE)
@@ -157,6 +173,7 @@ public object EntryCardBuilder {
             when {
                 date != null -> if (date.second) FieldType.UNTIL else FieldType.DATE
                 interpreter.link(field) != null -> FieldType.URL
+                field.plainText?.let(Iban::of) != null -> FieldType.BANK_IBAN
                 else -> FieldType.TEXT
             }
         }.toMutableList()
@@ -223,6 +240,9 @@ internal class CardContext(
     val interpreter: FieldInterpreter,
     val now: Instant,
     val locale: Locale,
+    val title: String = "",
+    val username: String = "",
+    val attachments: List<Attachment> = emptyList(),
 ) {
     /** The fields typed [type] in the entry. */
     fun typed(type: FieldType): List<IndexedValue<CustomField>> = fields.filter { interpreter.type(it.value) == type }
@@ -273,6 +293,13 @@ internal class CardContext(
         }
         interpreter.link(field)?.let { url ->
             return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, style = ValueStyle.Link(url), noticeLabel = notice, type = type)
+        }
+        // An IBAN without a type is unmistakable: grouped, its country's flag in front, copied without spaces.
+        if (type == null) {
+            Iban.of(text)?.let { iban ->
+                val shown = listOfNotNull(Countries.flag(Iban.country(iban)), Iban.grouped(iban)).joinToString("  ")
+                return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, shownText = shown, noticeLabel = notice, copiesCompact = true)
+            }
         }
         return FieldRow(
             id, FieldRow.Kind.CUSTOM, label, field.value, noticeLabel = notice, type = type,

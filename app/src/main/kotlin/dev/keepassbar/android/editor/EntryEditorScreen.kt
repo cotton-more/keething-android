@@ -14,7 +14,10 @@ import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.Key
@@ -654,6 +657,7 @@ private fun FieldEditor(
             // Digits never learnt by the keyboard for a card's number, CVC and PIN.
             keyboardType = when {
                 type == FieldType.CARD_NUMBER || type == FieldType.CARD_CVC || type == FieldType.CARD_PIN -> KeyboardType.NumberPassword
+                type == FieldType.SSH_PORT -> KeyboardType.Number
                 masked -> KeyboardType.Password
                 type == FieldType.URL -> KeyboardType.Uri
                 else -> KeyboardType.Text
@@ -817,8 +821,8 @@ private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit) {
 }
 
 /**
- * The types in a menu: [basic] ones, then *Card ›* and *Wi-Fi ›*, which show their parts in its place (with a way
- * back). [top] and [bottom] add items around them; they get a way to close the menu.
+ * The types in a menu: [basic] ones, then *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›* and *SSH ›*, which show
+ * their parts in its place (with a way back). [top] and [bottom] add items around them; they get a way to close the menu.
  */
 @Composable
 private fun FieldTypeMenu(
@@ -839,7 +843,7 @@ private fun FieldTypeMenu(
         val parts = group
         if (parts != null) {
             DropdownMenuItem(
-                text = { Text(if (parts == FieldType.CARD) "Card" else "Wi-Fi", style = MaterialTheme.typography.titleSmall) },
+                text = { Text(FieldType.KINDS.first { it.second == parts }.first, style = MaterialTheme.typography.titleSmall) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") },
                 onClick = { group = null },
             )
@@ -856,7 +860,7 @@ private fun FieldTypeMenu(
                 TypeItem(type.title, chosen = type == chosen, icon = type.icon()) { onChoose(type) }
             }
             HorizontalDivider()
-            for ((title, parts) in listOf("Card" to FieldType.CARD, "Wi-Fi" to FieldType.WIFI)) {
+            for ((title, parts) in FieldType.KINDS) {
                 DropdownMenuItem(
                     text = { Text(title) },
                     leadingIcon = { Icon(parts.first().icon(), contentDescription = null) },
@@ -883,6 +887,9 @@ private fun TypeItem(title: String, chosen: Boolean, icon: ImageVector? = null, 
 private fun FieldType.icon(): ImageVector = when {
     isCardPart -> Icons.Rounded.CreditCard
     isWiFiPart -> Icons.Rounded.Wifi
+    isBankPart -> Icons.Rounded.AccountBalance
+    isDocumentPart -> Icons.Rounded.Badge
+    isSshPart -> Icons.Rounded.Terminal
     else -> when (this) {
         FieldType.DATE -> Icons.Rounded.Event
         FieldType.UNTIL -> Icons.Rounded.EventBusy

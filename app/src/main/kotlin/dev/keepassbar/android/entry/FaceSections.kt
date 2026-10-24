@@ -91,7 +91,7 @@ import java.util.Locale
 import kotlin.math.abs
 
 /** A face is at most this wide: a payment card stays card-sized on a wide screen. */
-private val FACE_MAX_WIDTH = 440.dp
+internal val FACE_MAX_WIDTH = 440.dp
 
 /**
  * A payment card as a card (SPEC §6.2): the number, holder and expiry on its front copy with a tap, the CVC on its
@@ -318,7 +318,7 @@ private fun CardBack(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Rev
 
 /** When the card ends, if soon or past: the one place the card says it (no banner, no row). */
 @Composable
-private fun ExpiryChip(hint: ExpiryHint) {
+internal fun ExpiryChip(hint: ExpiryHint) {
     val expired = hint.status == ExpiryHint.Status.EXPIRED
     val (container, content) = if (expired) {
         MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
@@ -336,7 +336,7 @@ private fun ExpiryChip(hint: ExpiryHint) {
 }
 
 @Composable
-private fun Note(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, container: Color, content: Color) {
+internal fun Note(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, container: Color, content: Color) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(container).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -460,7 +460,7 @@ internal fun WiFiSection(
 
 /** A labelled line of the label; a tap copies its row. */
 @Composable
-private fun StickerLine(label: String, row: FieldRow?, actions: CardActions, value: @Composable () -> Unit) {
+internal fun StickerLine(label: String, row: FieldRow?, actions: CardActions, value: @Composable () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()

@@ -4,8 +4,9 @@ import dev.keepassbar.domain.vault.Entry
 import java.util.Locale
 
 /**
- * What the list shows of an entry its typed fields make a payment card or a Wi-Fi network (SPEC §6.2): a small face
- * instead of the monogram, and a line saying which card or network it is instead of the username and site.
+ * What the list shows of an entry its typed fields make a payment card, a Wi-Fi network, a bank account, an identity
+ * document or an SSH login (SPEC §6.2): a small face instead of the monogram, and a line saying which it is instead of
+ * the username and site.
  */
 public sealed interface EntryFace {
     /** The line under the title. */
@@ -23,6 +24,26 @@ public sealed interface EntryFace {
     /** A Wi-Fi network: its name and how it is secured ("WPA2", "Open"). */
     public data class WiFi(val ssid: String, val securityLabel: String) : EntryFace {
         override val subtitle: String get() = "$securityLabel · $ssid"
+    }
+
+    /** A bank account: the number's start and end (`DE89 •• 3000`), the bank; the country for the flag. */
+    public data class Bank(val country: String?, val number: String?, val bank: String?) : EntryFace {
+        override val subtitle: String get() = listOfNotNull(number ?: "Bank account", bank).joinToString(" · ")
+    }
+
+    /** An identity document: its type, the country, the month it ends. */
+    public data class Document(val kind: String?, val country: String?, val expiry: CalendarDate?) : EntryFace {
+        override val subtitle: String
+            get() = listOfNotNull(
+                kind ?: "Document",
+                country,
+                expiry?.let { "until %02d/%04d".format(Locale.ROOT, it.month, it.year) },
+            ).joinToString(" · ")
+    }
+
+    /** An SSH login: `user@host:port`. */
+    public data class Ssh(val target: String) : EntryFace {
+        override val subtitle: String get() = target
     }
 
     public companion object {
@@ -47,6 +68,33 @@ public sealed interface EntryFace {
                 val password = typed(FieldType.WIFI_PASSWORD)
                 val network = WiFiNetwork.make(ssid, password?.let { it to "" }, typed(FieldType.WIFI_SECURITY)) ?: return null
                 return WiFi(network.ssid, network.securityLabel)
+            }
+            fun text(type: FieldType) = typed(type)?.plainText?.trim()?.takeIf { it.isNotEmpty() }
+            (typed(FieldType.BANK_IBAN) ?: typed(FieldType.BANK_ACCOUNT))?.let { number ->
+                val iban = number.plainText?.let(Iban::compact)?.takeIf { interpreter.type(number) == FieldType.BANK_IBAN && Iban.isShaped(it) }
+                val digits = number.plainText?.filter(Char::isLetterOrDigit)
+                val shown = when {
+                    iban != null -> iban.take(4) + " •• " + iban.takeLast(4)
+                    digits != null && digits.length > 8 -> digits.take(5) + " •• " + digits.takeLast(4)
+                    else -> null
+                }
+                val country = iban?.let(Iban::country) ?: text(FieldType.BANK_BIC)?.let(Bic::country)
+                    ?: if (text(FieldType.BANK_CODE)?.let(RussianAccount::isBik) == true) "RU" else null
+                return Bank(country, shown, text(FieldType.BANK_NAME))
+            }
+            typed(FieldType.DOC_NUMBER)?.let {
+                val country = text(FieldType.DOC_COUNTRY)
+                return Document(
+                    kind = text(FieldType.DOC_TYPE),
+                    country = country?.let { c -> Countries.parse(c)?.takeIf { c.length <= 3 }?.let(Countries::name) ?: c },
+                    expiry = typed(FieldType.DOC_EXPIRY)?.let { interpreter.date(it)?.first?.date },
+                )
+            }
+            typed(FieldType.SSH_HOST)?.let { host ->
+                val target = host.plainText?.let(SshTarget::parse) ?: return null
+                val user = text(FieldType.SSH_USER) ?: target.user ?: entry.username.takeIf { it.isNotEmpty() }
+                val port = text(FieldType.SSH_PORT)?.toIntOrNull()?.takeIf { it in 1..65535 } ?: target.port
+                return Ssh(SshLogin(target.host, port, user, "", null, null, "", null).target)
             }
             return null
         }

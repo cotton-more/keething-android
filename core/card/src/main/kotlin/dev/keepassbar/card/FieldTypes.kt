@@ -35,15 +35,47 @@ public enum class FieldType(public val typeName: String) {
     WIFI_SSID("wifi.ssid"),
     WIFI_PASSWORD("wifi.password"),
     WIFI_SECURITY("wifi.security"),
+
+    /** Parts of a bank account: an entry with a `bank.iban` or a `bank.account` is drawn as an account (the phone's own, SPEC §6.3). */
+    BANK_IBAN("bank.iban"),
+    BANK_BIC("bank.bic"),
+    BANK_NAME("bank.name"),
+    BANK_HOLDER("bank.holder"),
+
+    /** An account number where there is no IBAN (a Russian расчётный счёт, a US account number). */
+    BANK_ACCOUNT("bank.account"),
+
+    /** The bank's national code (a Russian БИК, a routing number, a sort code, a BLZ). */
+    BANK_CODE("bank.code"),
+
+    /** A correspondent account (корр. счёт). */
+    BANK_CORR("bank.corr"),
+
+    /** Parts of an identity document (passport, ID card, driving licence): an entry with a `doc.number` is drawn as one. */
+    DOC_TYPE("doc.type"),
+    DOC_NUMBER("doc.number"),
+    DOC_NAME("doc.name"),
+    DOC_COUNTRY("doc.country"),
+    DOC_BIRTH("doc.birth"),
+    DOC_ISSUED("doc.issued"),
+    DOC_EXPIRY("doc.expiry"),
+
+    /** Parts of an SSH login: an entry with a `ssh.host` is drawn as a terminal with its command. */
+    SSH_HOST("ssh.host"),
+    SSH_PORT("ssh.port"),
+    SSH_USER("ssh.user"),
     ;
 
     /** Read as a date. */
-    public val isDate: Boolean get() = this == DATE || this == UNTIL || this == CARD_EXPIRY
+    public val isDate: Boolean get() = this == DATE || this == UNTIL || this == CARD_EXPIRY || this == DOC_BIRTH || this == DOC_ISSUED || this == DOC_EXPIRY
 
     /** A date something ends on: gets the expiry hint and counts as a deadline. */
-    public val endsSomething: Boolean get() = this == UNTIL || this == CARD_EXPIRY
+    public val endsSomething: Boolean get() = this == UNTIL || this == CARD_EXPIRY || this == DOC_EXPIRY
     public val isCardPart: Boolean get() = typeName.startsWith("card.")
     public val isWiFiPart: Boolean get() = typeName.startsWith("wifi.")
+    public val isBankPart: Boolean get() = typeName.startsWith("bank.")
+    public val isDocumentPart: Boolean get() = typeName.startsWith("doc.")
+    public val isSshPart: Boolean get() = typeName.startsWith("ssh.")
 
     /** A password: the editor offers the generator for it. */
     public val isPassword: Boolean get() = this == PASSWORD || this == WIFI_PASSWORD
@@ -66,6 +98,23 @@ public enum class FieldType(public val typeName: String) {
             WIFI_SSID -> "Network name"
             WIFI_PASSWORD -> "Password"
             WIFI_SECURITY -> "Security"
+            BANK_IBAN -> "IBAN"
+            BANK_BIC -> "BIC / SWIFT"
+            BANK_NAME -> "Bank"
+            BANK_HOLDER -> "Account holder"
+            BANK_ACCOUNT -> "Account number"
+            BANK_CODE -> "Bank code (BIK, routing…)"
+            BANK_CORR -> "Correspondent account"
+            DOC_TYPE -> "Type"
+            DOC_NUMBER -> "Number"
+            DOC_NAME -> "Name"
+            DOC_COUNTRY -> "Country"
+            DOC_BIRTH -> "Date of birth"
+            DOC_ISSUED -> "Issued"
+            DOC_EXPIRY -> "Expiry"
+            SSH_HOST -> "Host"
+            SSH_PORT -> "Port"
+            SSH_USER -> "User"
         }
 
     /** The name where it stands alone ("Card expiry"). */
@@ -73,6 +122,11 @@ public enum class FieldType(public val typeName: String) {
         get() = when {
             isCardPart -> "Card " + title.lowercase()
             isWiFiPart -> "Wi-Fi " + title.lowercase()
+            this == BANK_NAME -> "Bank name"
+            this == BANK_CODE -> "Bank code"
+            this == DOC_BIRTH -> "Date of birth"
+            isDocumentPart -> "Document " + title.lowercase()
+            isSshPart -> "SSH " + title.lowercase()
             else -> title
         }
 
@@ -97,13 +151,37 @@ public enum class FieldType(public val typeName: String) {
             WIFI_SSID -> "Network name"
             WIFI_PASSWORD -> "Wi-Fi password"
             WIFI_SECURITY -> "Security"
+            BANK_IBAN -> "IBAN"
+            BANK_BIC -> "BIC"
+            BANK_NAME -> "Bank"
+            BANK_HOLDER -> "Account holder"
+            BANK_ACCOUNT -> "Account number"
+            BANK_CODE -> "Bank code"
+            BANK_CORR -> "Correspondent account"
+            DOC_TYPE -> "Document type"
+            DOC_NUMBER -> "Document number"
+            DOC_NAME -> "Full name"
+            DOC_COUNTRY -> "Issuing country"
+            DOC_BIRTH -> "Date of birth"
+            DOC_ISSUED -> "Date of issue"
+            DOC_EXPIRY -> "Valid until"
+            SSH_HOST -> "Host"
+            SSH_PORT -> "Port"
+            SSH_USER -> "SSH user"
         }
 
     public companion object {
-        /** The types of their own, then a payment card's parts, then a Wi-Fi network's (the editor's menus). */
+        /** The types of their own, then the parts of each kind of entry (the editor's menus). */
         public val BASIC: List<FieldType> = listOf(TEXT, DATE, UNTIL, URL, CODE, PASSWORD)
         public val CARD: List<FieldType> = entries.filter { it.isCardPart }
         public val WIFI: List<FieldType> = entries.filter { it.isWiFiPart }
+        public val BANK: List<FieldType> = entries.filter { it.isBankPart }
+        public val DOCUMENT: List<FieldType> = entries.filter { it.isDocumentPart }
+        public val SSH: List<FieldType> = entries.filter { it.isSshPart }
+
+        /** The kinds of entries whose parts the editor's menus offer, by their menu title. */
+        public val KINDS: List<Pair<String, List<FieldType>>> =
+            listOf("Card" to CARD, "Wi-Fi" to WIFI, "Bank account" to BANK, "Document" to DOCUMENT, "SSH" to SSH)
 
         /** A stored type name (case and outer spaces ignored); null when it is none this version knows. */
         public fun of(typeName: String): FieldType? {
