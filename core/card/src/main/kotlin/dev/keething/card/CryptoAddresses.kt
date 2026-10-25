@@ -147,6 +147,19 @@ public data class ExtendedKey(val text: String, val prefix: String, val isPrivat
     }
 }
 
+/** A private key in Wallet Import Format (`5…`, `K…`, `L…`; `9…`, `c…` on testnet): one address's coins. */
+public object WifKey {
+    /** Base58Check of version 0x80 (0xEF on testnet), 32 bytes of key and maybe the 0x01 of a compressed one. */
+    public fun isKey(text: String): Boolean {
+        val t = text.trim()
+        if (t.length !in 51..52) return false
+        val bytes = Base58.decode(t) ?: return false
+        val version = bytes.firstOrNull()?.toInt()?.and(0xFF)
+        val shaped = bytes.size == 37 || (bytes.size == 38 && bytes[33] == 1.toByte())
+        return shaped && (version == 0x80 || version == 0xEF) && Base58.checks(bytes)
+    }
+}
+
 /** A BIP-32 derivation path (`m/84'/0'/0'`) and what its purpose, coin and account say. */
 public object DerivationPath {
     private val PATH = Regex("^[mM](/\\d+['hH]?)+$")

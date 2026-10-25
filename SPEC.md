@@ -966,14 +966,32 @@ needed each time, come later (ROADMAP).
   second step is no longer yours alone"); so are custom fields KeePass keeps a code's secret in (`TimeOtp-…`,
   `HmacOtp-…`, not read as a code here), with the same warning. The title, tags, expiry and the custom fields' types always go; attachments
   ("1 attachment stays on this phone"), history and the icon never do. The sender names themselves ("From",
-  remembered). Sealed with HPKE (RFC 9180, base mode: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM),
+  remembered).
+- **What of a wallet never goes** (`WalletSecrets`, `Sending.neverSent`). A recovery phrase (`crypto.seed`), its
+  passphrase (`crypto.passphrase`) and a private key typed `crypto.xpub` (`xprv…`) are no part to switch on: What
+  to send shows them as locked rows, "Recovery phrase · stays on this phone: whoever has these words has the
+  wallet, on every network. To give someone coins, send them to their address." ("Passphrase …: with the recovery
+  phrase it opens the wallet"; "Private key …: whoever has it can spend the wallet's coins"). Coins are given by
+  sending them to an address; "send me your recovery phrase" is the commonest crypto theft, and a warning clicked
+  through once loses the wallet. Untyped, failing closed, by the value, protected ones too: what the offer to type
+  calls a phrase (a value whose BIP-39 or Electrum check passes, or a phrase's name with words of a list or a
+  protected value; then also the field it would type as the passphrase) in a custom field, the password or the
+  notes as a whole; an extended private key by its checksum; a WIF private key (Base58Check, version 0x80 or
+  0xEF). Not caught: a phrase inside longer notes; an Ethereum private key (64 hex digits look like any other
+  secret). An extended public key (`crypto.xpub`) is off to start with: "With it, <name> sees every address and
+  balance of the wallet, past and future, and one leaked key of any of its addresses opens them all" (BIP-32: an
+  xpub and any one child private key give every key of the account). Addresses and the derivation path go as any
+  field. No format change: an older phone could still send a phrase; received, a field typed `crypto.seed` or
+  `crypto.passphrase` has no copy button, as on the card. Sealed with HPKE (RFC 9180, base mode: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM),
   `info` "Keething answer v1" followed by the request's whole SHA-256: it opens only for the very request it
   answers, its name, reason and validity included. Making it removes the request on the sender's phone and keeps
   its id until it expires: one answer per request, the same request read again is "Answered already". The answer
   stays on its screen until Done.
 - **Receiving.** The asking phone opens it with the request's private key: "From <name>", the entries with their
   fields (protected ones masked with an eye, each copied as the card copies), and "Only this phone could open it,
-  but anyone who saw your request could have made it, and the name is theirs to choose". Save makes each entry a
+  but anyone who saw your request could have made it, and the name is theirs to choose". Under a wallet's address
+  (typed `crypto.address`, or read as one): "Check it with <name> another way before paying to it"; an envelope's
+  come from whoever gave its pictures, without the note. Save makes each entry a
   new one in the group chosen (the top level to start with), each its own checked save (§3.3), a one-time code as
   KeePassXC's `otp` link (`TotpSetup`, the Mac's `TOTPSetup`), tagged `received` besides the sender's tags (once,
   in any case): what came from outside is found with `#received`, and taking the tag off says it was looked at.

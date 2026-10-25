@@ -235,7 +235,9 @@ private fun Opened(database: DatabaseSession, model: ReceivedModel, opened: Rece
                     "pictures could open it too. Save it if it is what you expected: saved entries are tagged #${Receiving.TAG}.",
             )
         }
-        payload.entries.forEachIndexed { index, entry -> EntryView(index, entry, model) }
+        // An address in an answer may be anyone's who saw the request; an envelope's comes from whoever gave its pictures.
+        val sender = payload.from.takeIf { request != null }
+        payload.entries.forEachIndexed { index, entry -> EntryView(index, entry, model, sender) }
         GroupChoice(database, model)
     }
 }
@@ -296,17 +298,25 @@ private fun Unavailable(arrival: ShareRequests.Arrival) {
     }
 }
 
+/** A row of a received entry; [note] warns under the value, a value [copyable] false is only shown. */
+private data class ReceivedRow(val label: String, val value: String, val secret: Boolean, val copyable: Boolean = true, val note: String? = null)
+
+/** [sender]: set for an answer, whose addresses are to be checked with them (SPEC §10.1). */
 @Composable
-private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel) {
+private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, sender: String?) {
     val rows = buildList {
-        if (entry.username.isNotEmpty()) add(Triple("Username", entry.username, false))
-        if (!entry.password.isEmpty()) add(Triple("Password", entry.password.reveal(), true))
-        if (entry.url.isNotEmpty()) add(Triple("Website", entry.url, false))
-        if (entry.notes.isNotEmpty()) add(Triple("Notes", entry.notes, false))
+        if (entry.username.isNotEmpty()) add(ReceivedRow("Username", entry.username, false))
+        if (!entry.password.isEmpty()) add(ReceivedRow("Password", entry.password.reveal(), true))
+        if (entry.url.isNotEmpty()) add(ReceivedRow("Website", entry.url, false))
+        if (entry.notes.isNotEmpty()) add(ReceivedRow("Notes", entry.notes, false))
         entry.customFields.forEach { field ->
+            val copyable = !Receiving.isNeverCopied(entry, field)
             when (val value = field.value) {
-                is FieldValue.Plain -> add(Triple(field.name, value.text, false))
-                is FieldValue.Protected -> add(Triple(field.name, value.secret.reveal(), true))
+                is FieldValue.Plain -> {
+                    val note = if (sender != null && Receiving.isAddress(entry, field)) "Check it with $sender another way before paying to it." else null
+                    add(ReceivedRow(field.name, value.text, false, copyable, note))
+                }
+                is FieldValue.Protected -> add(ReceivedRow(field.name, value.secret.reveal(), true, copyable))
             }
         }
     }
@@ -328,7 +338,7 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel) {
                 Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        rows.forEachIndexed { row, (label, value, secret) ->
+        rows.forEachIndexed { row, (label, value, secret, copyable, note) ->
             val key = "$index/$row"
             val empty = value.isEmpty()
             val shown = !secret || empty || key in model.revealed
@@ -344,6 +354,15 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel) {
                         secret -> Text(colouredSecret(value), fontFamily = MonospaceFamily, style = MaterialTheme.typography.bodyLarge)
                         else -> Text(value, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
                     }
+                    note?.let {
+                        Text(
+                            it,
+                            Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.extraColors.warn,
+                        )
+                    }
                 }
                 if (secret && !empty) {
                     IconButton(onClick = { model.toggle(key) }) {
@@ -354,8 +373,10 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel) {
                         )
                     }
                 }
-                IconButton(onClick = { model.copy(label, value, sensitive = secret) }, enabled = !empty) {
-                    Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy $label", tint = MaterialTheme.colorScheme.primary)
+                if (copyable) {
+                    IconButton(onClick = { model.copy(label, value, sensitive = secret) }, enabled = !empty) {
+                        Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy $label", tint = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }

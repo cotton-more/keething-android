@@ -8,5 +8,7 @@ dependencies {
     implementation(project(":core:kdbx"))
     // The one-time code of a received entry, written as KeePassXC's otp link.
     implementation(project(":core:totp"))
+    // What of a wallet never goes (SPEC §10.1): read as the card reads it.
+    api(project(":core:card"))
     api(libs.kotlinx.coroutines.core)
 }

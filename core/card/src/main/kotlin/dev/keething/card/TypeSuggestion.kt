@@ -225,13 +225,13 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         private val SSH_PORT = setOf("port", "ssh port", "порт")
         private val SSH_USER = setOf("user", "ssh user", "login", "benutzer", "пользователь", "логин")
 
-        private val SEED = setOf(
+        internal val SEED = setOf(
             "seed", "seed phrase", "seedphrase", "seed words", "wallet seed", "recovery seed", "recovery phrase", "secret recovery phrase",
             "recovery words", "backup phrase", "mnemonic", "mnemonic phrase", "mnemonic words", "bip39", "bip 39", "secret phrase",
             "wiederherstellungsphrase", "seed satz", "сид", "сид фраза", "seed фраза", "мнемоническая фраза", "мнемоника",
             "фраза восстановления", "секретная фраза", "кодовые слова",
         )
-        private val PASSPHRASE = setOf(
+        internal val PASSPHRASE = setOf(
             "passphrase", "seed passphrase", "bip39 passphrase", "bip 39 passphrase", "25th word", "13th word", "extra word",
             "парольная фраза", "кодовая фраза", "25 е слово", "25 слово",
         )

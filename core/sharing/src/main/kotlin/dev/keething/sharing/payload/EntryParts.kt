@@ -1,5 +1,9 @@
 package dev.keething.sharing.payload
 
+import dev.keething.card.CryptoAddress
+import dev.keething.card.FieldType
+import dev.keething.card.FieldTypes
+import dev.keething.card.WalletSecrets
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
@@ -27,11 +31,12 @@ public sealed interface EntryPart {
 /** What of an entry goes into an answer. */
 public object Sending {
     /**
-     * Left out unless the sender turns them on: the one-time code, and custom fields KeePass keeps a code's secret in
-     * (`TimeOtp-…`, `HmacOtp-…`, which the app does not read as a code): they hand over the sign-in's second step too.
+     * Left out unless the sender turns them on: the one-time code, custom fields KeePass keeps a code's secret in
+     * (`TimeOtp-…`, `HmacOtp-…`, which the app does not read as a code): they hand over the sign-in's second step too;
+     * and a wallet's extended public key, which shows all of the wallet (SPEC §10.1).
      */
     public fun leftOutByDefault(entry: Entry): Set<EntryPart> =
-        parts(entry).filter(::isSecondStep).toSet()
+        parts(entry).filter { isSecondStep(it) || isWalletKey(entry, it) }.toSet()
 
     /** The one-time code, or a field that holds a code's secret: sending it shares the second step of the sign-in. */
     public fun isSecondStep(part: EntryPart): Boolean = when (part) {
@@ -40,21 +45,39 @@ public object Sending {
         else -> false
     }
 
+    /** A field typed as an extended public key: with it, whoever gets it sees every address and balance of the wallet. */
+    public fun isWalletKey(entry: Entry, part: EntryPart): Boolean =
+        part is EntryPart.Field && FieldTypes(entry).type(part.name) == FieldType.CRYPTO_XPUB
+
     private val CODE_FIELD_PREFIXES = listOf("TimeOtp-", "HmacOtp-")
 
-    /** The parts [entry] has, those with a value, in this order: the standard fields, the custom ones, the code. */
-    public fun parts(entry: Entry): List<EntryPart> = buildList {
-        if (entry.username.isNotEmpty()) add(EntryPart.Username)
-        if (!entry.password.isEmpty()) add(EntryPart.Password)
-        if (entry.url.isNotEmpty()) add(EntryPart.Website)
-        if (entry.notes.isNotEmpty()) add(EntryPart.Notes)
-        entry.customFields.forEach { add(EntryPart.Field(it.name)) }
-        if (entry.totp != null) add(EntryPart.OneTimeCode)
+    /**
+     * The parts of [entry] that never go, whatever the sender turns on (SPEC §10.1): a wallet's recovery phrase, its
+     * passphrase, a private key. Shown as locked rows with what they are; never among [parts].
+     */
+    public fun neverSent(entry: Entry): Map<EntryPart, WalletSecrets.Kind> = buildMap {
+        WalletSecrets.password(entry)?.let { put(EntryPart.Password, it) }
+        WalletSecrets.notes(entry)?.let { put(EntryPart.Notes, it) }
+        WalletSecrets.fields(entry).forEach { (name, kind) -> put(EntryPart.Field(name), kind) }
     }
 
-    /** [entry] as an answer carries it, without [leftOut]; its secrets are copies, the caller's to wipe. */
+    /** The parts [entry] has that may go, those with a value, in this order: the standard fields, the custom ones, the code. */
+    public fun parts(entry: Entry): List<EntryPart> {
+        val never = neverSent(entry).keys
+        return buildList {
+            if (entry.username.isNotEmpty()) add(EntryPart.Username)
+            if (!entry.password.isEmpty()) add(EntryPart.Password)
+            if (entry.url.isNotEmpty()) add(EntryPart.Website)
+            if (entry.notes.isNotEmpty()) add(EntryPart.Notes)
+            entry.customFields.forEach { add(EntryPart.Field(it.name)) }
+            if (entry.totp != null) add(EntryPart.OneTimeCode)
+        }.filter { it !in never }
+    }
+
+    /** [entry] as an answer carries it, without [leftOut] nor what is [neverSent]; its secrets are copies, the caller's to wipe. */
     public fun shared(entry: Entry, leftOut: Set<EntryPart>): SharedEntry {
-        fun keeps(part: EntryPart) = part !in leftOut
+        val never = neverSent(entry).keys
+        fun keeps(part: EntryPart) = part !in leftOut && part !in never
         val fields = entry.customFields.filter { keeps(EntryPart.Field(it.name)) }.map { it.copy(value = it.value.copied()) }
         return SharedEntry(
             title = entry.title,
@@ -80,6 +103,17 @@ public object Receiving {
      * came from outside is easy to find (`#received`) and to look at again; taking the tag off says it was.
      */
     public const val TAG: String = "received"
+
+    /**
+     * A received field that is a wallet's receiving address, typed or by its format (SPEC §10.1): in an answer, to be
+     * checked with the sender another way before paying to it, since anyone who saw the request could have made it.
+     */
+    public fun isAddress(entry: SharedEntry, field: CustomField): Boolean =
+        FieldTypes(entry.fieldTypes).type(field.name) == FieldType.CRYPTO_ADDRESS || field.plainText?.let(CryptoAddress::read) != null
+
+    /** A received field that is never copied, as on the card: a recovery phrase or its passphrase (an older phone may send one). */
+    public fun isNeverCopied(entry: SharedEntry, field: CustomField): Boolean =
+        FieldTypes(entry.fieldTypes).type(field.name)?.isNeverCopied == true
 
     /**
      * A new entry's fields for [entry] (SPEC §10): everything it carries, [TAG] added, its one-time code written as

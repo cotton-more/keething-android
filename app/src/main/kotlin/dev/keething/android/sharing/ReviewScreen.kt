@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,6 +64,7 @@ import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.EntryAvatar
+import dev.keething.card.WalletSecrets
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.FieldValue
 import dev.keething.sharing.message.ShareRequest
@@ -97,7 +99,7 @@ internal class ReviewModel(
 ) : ViewModel() {
     val entryIds = entryIds
 
-    /** Per entry, the parts left out: the one-time code to start with (SPEC §10). */
+    /** Per entry, the parts left out: the one-time code and an extended public key to start with (SPEC §10). */
     val leftOut = mutableStateMapOf<String, Set<EntryPart>>().apply {
         val vault = (database.session.state.value as? SessionState.Unlocked)?.vault
         entryIds.forEach { id -> put(id, vault?.entries?.firstOrNull { it.id == id }?.let(Sending::leftOutByDefault).orEmpty()) }
@@ -181,8 +183,9 @@ internal class ReviewModel(
 }
 
 /**
- * What to send of the chosen entries (SPEC §10): each part with a switch, the one-time code off to start with and a
- * warning when on; the title, tags and expiry always go, attachments and history never. Encrypt seals them for their
+ * What to send of the chosen entries (SPEC §10): each part with a switch, the one-time code and a wallet's extended
+ * public key off to start with and a warning when on; the title, tags and expiry always go, attachments, history and
+ * a wallet's phrase or private key never (locked rows, SPEC §10.1). Encrypt seals them for their
  * request [id] ([onMade]), which closes it; with no [id], in an envelope opened by ten pictures ([onSent]).
  */
 @Composable
@@ -287,8 +290,9 @@ private fun NameField(value: String, onChange: (String) -> Unit, label: String, 
 
 @Composable
 private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onToggle: (EntryPart) -> Unit) {
-    val parts = Sending.parts(entry)
-    val rows = parts.size + 1 + if (entry.attachments.isNotEmpty()) 1 else 0
+    val parts = remember(entry) { Sending.parts(entry) }
+    val never = remember(entry) { Sending.neverSent(entry) }
+    val rows = parts.size + never.size + 1 + if (entry.attachments.isNotEmpty()) 1 else 0
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 72.dp).clip(segmentShape(0, rows)).background(MaterialTheme.extraColors.row).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -329,9 +333,17 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (on && Sending.isSecondStep(part)) {
+                    val warning = when {
+                        !on -> null
+                        Sending.isSecondStep(part) -> "With it, $name can sign in without you: the second step is no longer yours alone."
+                        Sending.isWalletKey(entry, part) ->
+                            "With it, $name sees every address and balance of the wallet, past and future, and one leaked key of any " +
+                                "of its addresses opens them all."
+                        else -> null
+                    }
+                    warning?.let {
                         Text(
-                            "With it, $name can sign in without you: the second step is no longer yours alone.",
+                            it,
                             Modifier.padding(top = 4.dp),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Medium,
@@ -340,6 +352,26 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
                     }
                 }
                 Switch(checked = on, onCheckedChange = null)
+            }
+        }
+        never.entries.forEachIndexed { index, (part, kind) ->
+            val (what, why) = kind.words()
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 64.dp)
+                    .clip(segmentShape(parts.size + index + 1, rows))
+                    .background(MaterialTheme.extraColors.row)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(part.label(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("$what · stays on this phone", style = MaterialTheme.typography.bodyLarge)
+                    Text(why, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Rounded.Lock, contentDescription = "Never sent", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (entry.attachments.isNotEmpty()) {
@@ -352,6 +384,15 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
             )
         }
     }
+}
+
+/** What a part that never goes is, and why (SPEC §10.1). */
+private fun WalletSecrets.Kind.words(): Pair<String, String> = when (this) {
+    WalletSecrets.Kind.PHRASE ->
+        "Recovery phrase" to "Whoever has these words has the wallet, on every network. To give someone coins, send them to their address."
+    WalletSecrets.Kind.PASSPHRASE -> "Passphrase" to "With the recovery phrase it opens the wallet."
+    WalletSecrets.Kind.PRIVATE_KEY ->
+        "Private key" to "Whoever has it can spend the wallet's coins. To give someone coins, send them to their address."
 }
 
 private fun EntryPart.label(): String = when (this) {
