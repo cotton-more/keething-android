@@ -3,6 +3,7 @@ package dev.keething.vault.session
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseBackups
+import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
@@ -10,6 +11,7 @@ import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.opening.HistoryResult
 import dev.keething.vault.opening.OpenFailure
+import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.saving.SaveFailure
 import java.time.Instant
@@ -244,6 +246,39 @@ class VaultSessionTest {
         runCurrent()
 
         assertEquals(OpenFailure.Missing, f.unlockedState.reloadFailure)
+    }
+
+    /** Keeps every vault it read, a reload's copy too. */
+    private class KeepingOpener : VaultOpener() {
+        val read = mutableListOf<Vault>()
+
+        override fun open(store: DatabaseStore, key: DatabaseKey): OpenResult =
+            super.open(store, key).also { result -> (result as? OpenResult.Opened)?.let { read += it.opened.vault } }
+    }
+
+    @Test
+    fun aReloadThatReadsTheSameVaultAgainWipesTheCopyItReadAndKeepsTheOneShown() = runTest {
+        // The state keeps an equal one before (a StateFlow), so the copy just read would be nobody's, never wiped.
+        val opener = KeepingOpener()
+        val store = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        val session = VaultSession(store, opener, { _, _, _ -> }, FakeClock(testScheduler), backgroundScope, StandardTestDispatcher(testScheduler))
+        assertNotNull(session.unlock(Secret.of("pw")))
+        runCurrent()
+
+        repeat(2) {
+            store.change(fixtureBytes("kdbx4-aes-aeskdf")) // a new version of the same contents (touched, rewritten)
+            advanceTimeBy(2.seconds)
+            runCurrent()
+        }
+
+        val shown = assertIs<SessionState.Unlocked>(session.state.value).vault
+        assertEquals(3, opener.read.size, "the unlock and two reloads")
+        val again = opener.read.last()
+        assertNotSame(shown, again, "the state kept the equal vault before")
+        assertTrue(again.entries.all { it.password.isWiped }, "the copy nobody holds is wiped at once")
+        assertFalse(shown.entries.all { it.password.isWiped }, "the one shown works until the lock")
+        session.lock()
+        assertTrue(shown.entries.all { it.password.isWiped })
     }
 
     @Test

@@ -467,7 +467,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
 ## 4. Session and security
 
 - Unlocked state holds the vault, the attachments and the **database key** in memory, as byte arrays that
-  are wiped on lock. The database key is the composite key of the password, a key file's key or both (below: the
+  are wiped on lock; a reload that reads the same contents again wipes the copy it read at once (the vault shown
+  stays). The database key is the composite key of the password, a key file's key or both (below: the
   parts themselves are not kept) and the key derived from it. Using the derived key for reloads and saves avoids running
   Argon2 again (the Mac ROADMAP's "faster saving"); it is derived again when the file's KDF parameters or
   seed changed. The app's own saves keep the KDF salt; KeePassXC gives the file a new one on every save (checked

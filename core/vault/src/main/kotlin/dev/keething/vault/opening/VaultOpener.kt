@@ -68,9 +68,9 @@ internal sealed interface OpenResult {
     class Failed(val failure: OpenFailure) : OpenResult
 }
 
-/** Reads the database file and opens it with a key. Blocks: call it off the main thread. */
-public class VaultOpener {
-    internal fun open(store: DatabaseStore, key: DatabaseKey): OpenResult {
+/** Reads the database file and opens it with a key. Blocks: call it off the main thread. Open for the tests' openers. */
+public open class VaultOpener {
+    internal open fun open(store: DatabaseStore, key: DatabaseKey): OpenResult {
         val found = when (val read = store.read()) {
             is DatabaseRead.Found -> read
             DatabaseRead.Missing -> return OpenResult.Failed(OpenFailure.Missing)

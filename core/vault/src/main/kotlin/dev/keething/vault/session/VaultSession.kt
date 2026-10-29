@@ -449,7 +449,10 @@ public class VaultSession(
         (mutableState.value as? SessionState.Unlocked)?.vault?.let(retiredVaults::add)
         loadedVersion = opened.version
         triedVersion = opened.version
-        set(SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation))
+        val unlocked = SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation)
+        set(unlocked)
+        // The same contents read again: the state keeps the equal one before, so this copy is nobody's.
+        if (mutableState.value !== unlocked) opened.vault.wipe()
     }
 
     private suspend fun open(key: DatabaseKey): OpenResult = withContext(io) { opener.open(store, key) }
@@ -467,7 +470,7 @@ public class VaultSession(
 
     private val OpenResult.failure: OpenFailure? get() = (this as? OpenResult.Failed)?.failure
 
-    /** The new state, told at once to [onStateChange] (as [state] keeps it: an equal one leaves the one before). */
+    /** The new state, told at once to [onStateChange] as [state] keeps it (an equal one leaves the one before). */
     private fun set(new: SessionState) {
         mutableState.value = new
         onStateChange?.invoke(mutableState.value)
