@@ -55,7 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.ButtonLabel

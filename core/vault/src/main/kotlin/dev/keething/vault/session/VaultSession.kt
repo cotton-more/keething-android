@@ -99,6 +99,7 @@ public class VaultSession(
     private var settleJob: Job? = null
     private var timeoutJob: Job? = null
     private var backgroundSince: Duration? = null
+    private var closed = false
 
     /**
      * Opens the vault with [password] and the database's key file, when it has one (keething-spec kdbx.key-files):
@@ -108,7 +109,7 @@ public class VaultSession(
      * returns. The result tells how this unlock ended once it has; null when the vault was not locked.
      */
     public fun unlock(password: Secret): Deferred<UnlockOutcome>? {
-        if (mutableState.value !is SessionState.Locked) return null
+        if (closed || mutableState.value !is SessionState.Locked) return null
         val token = generation
         val typed = password.copy()
         val source = keyFile()
@@ -213,6 +214,15 @@ public class VaultSession(
             }
         }
         return failure
+    }
+
+    /**
+     * Its database is no longer the one shown (another became current, its file moved, it left the list): locked, and
+     * nothing opens it again, so a fingerprint prompt still up, or a screen of before, cannot open it behind the next.
+     */
+    public fun close() {
+        closed = true
+        lock(LockReason.Initial)
     }
 
     public fun lock(reason: LockReason = LockReason.Manual) {

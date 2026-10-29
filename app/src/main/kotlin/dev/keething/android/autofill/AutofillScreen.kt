@@ -42,7 +42,7 @@ import dev.keething.android.list.EntryRowView
 import dev.keething.android.list.SearchField
 import dev.keething.android.list.SectionTitle
 import dev.keething.android.list.title
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.Notice
 import dev.keething.android.ui.NoticeEffect
@@ -76,7 +76,7 @@ internal fun AutofillScreen(
         var picking by rememberSaveable { mutableStateOf(request.mode == AutofillMode.PICK) }
         LaunchedEffect(vault) { if (vault != null && !picking && !answerAtOnce(vault)) picking = true }
         when {
-            vault == null -> LockScreen(container, current, onChooseDatabase = {})
+            vault == null -> LockScreen(container, current, onBack = null, onChose = {})
             picking -> EntryPicker(container, current, request, target, onFill, onClose)
             else -> Box(Modifier.fillMaxSize())
         }

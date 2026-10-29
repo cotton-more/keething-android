@@ -67,8 +67,9 @@ Either way, an install over an older version signed with the same key keeps its 
 - **With adb**: over a USB cable, or over Wi-Fi with Developer options › Wireless debugging (see below):
   `tools/build-apk.sh --install`, or `adb install -r <apk>`.
 
-First start of a new install: allow "All files access", choose the Syncthing folder and the `.kdbx` file,
-unlock with the password. Optional: the fingerprint (Settings in the app, or the switch under the password
+First start of a new install (and the first start after the list of databases came in, plan AD4: the single path
+of before is not carried over): the welcome's Open a database…, the `.kdbx` file in the system picker (from the
+phone's storage, so that it has a path), "Allow all-files access" when the lock screen asks, then the password. Optional: the fingerprint (Settings in the app, or the switch under the password
 field), and Keething as the autofill service (Settings › Passwords & autofill; in Chrome also Settings ›
 Autofill services › "Autofill using another service").
 

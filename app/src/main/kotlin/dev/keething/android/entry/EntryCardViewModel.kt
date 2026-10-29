@@ -22,7 +22,7 @@ import dev.keething.android.editor.SAVE_BUSY
 import dev.keething.android.editor.problem
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.recyclebin.RecycleBinMoves
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.settings.AppSettings
 import dev.keething.android.ui.Notice
 import dev.keething.card.CardSection

@@ -13,6 +13,7 @@ import dev.keething.vault.session.FakeKeyFile
 import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
+import dev.keething.vault.session.UnlockOutcome
 import dev.keething.vault.session.VaultSession
 import dev.keething.vault.session.fixtureBytes
 import dev.keething.vault.session.keyFileBytes
@@ -81,7 +82,7 @@ class BiometricUnlockTest {
         val typed = Secret.of(text)
         val started = biometric.unlock(typed)
         typed.wipe() // as the lock screen does at once: the rules keep their own copy
-        return started
+        return started != null
     }
 
     // The switch
@@ -118,6 +119,31 @@ class BiometricUnlockTest {
         assertEquals("disk on fire", f.biometric.setEnabled(false))
 
         assertFalse(f.biometric.state.value.enabled)
+    }
+
+    @Test
+    fun aPasswordLeftStoredByAFailedDeleteGoesBeforeTheSwitchGoesOnAndNeverOpensAnything() = runTest {
+        val f = fixture(enabled = false)
+        f.store.stored = Secret.of("another database's")
+
+        assertNull(f.biometric.setEnabled(true))
+
+        assertNull(f.store.stored)
+        assertTrue(f.biometric.state.value.enabled)
+        f.biometric.refresh()
+        assertFalse(f.biometric.state.value.canUnlock)
+    }
+
+    @Test
+    fun aLeftoverThatCannotBeDeletedKeepsTheSwitchOff() = runTest {
+        val f = fixture(enabled = false)
+        f.store.stored = Secret.of("another database's")
+        f.store.deleteError = IOException("Keystore busy")
+
+        assertEquals("Keystore busy", f.biometric.setEnabled(true))
+
+        assertFalse(f.biometric.state.value.enabled)
+        assertNull(f.settings.string("biometricUnlock"))
     }
 
     @Test
@@ -356,6 +382,65 @@ class BiometricUnlockTest {
 
         keyFile.content = keyFileBytes("keyx.keyx")
         assertEquals(FingerprintOutcome.Unlocked, f.biometric.unlockWithFingerprint())
+    }
+
+    @Test
+    fun aStoredPasswordRejectedAfterTheKeyFileChangedIsKeptUntilSomethingOpensTheDatabase() = runTest {
+        // The database needs keyx.keyx and its key file was just forgotten in Settings: the stored password is still right.
+        val f = Fixture(this, keyFileBytes("keyfile-keyx.kdbx"), MapSettings(), StandardTestDispatcher(testScheduler), keyFile = null)
+        f.biometric.setEnabled(true)
+        f.store.stored = Secret.of("pw")
+        f.biometric.refresh()
+        f.biometric.keyFileChanged()
+
+        assertEquals(FingerprintOutcome.UnlockFailed(OpenFailure.WrongPassword), f.biometric.unlockWithFingerprint())
+        assertEquals("pw", f.store.stored?.reveal(), "its key file changed since: that may be what is wrong")
+        assertEquals(FingerprintOutcome.UnlockFailed(OpenFailure.WrongPassword), f.biometric.unlockWithFingerprint())
+        assertEquals("pw", f.store.stored?.reveal(), "until something opens it")
+    }
+
+    @Test
+    fun aFingerprintUnlockConfirmsAKeyFileChange() = runTest {
+        val f = storedPassword("pw")
+        f.biometric.keyFileChanged()
+        assertEquals(FingerprintOutcome.Unlocked, f.biometric.unlockWithFingerprint())
+        f.session.lock()
+        f.store.stored = Secret.of("old")
+
+        assertEquals(FingerprintOutcome.StoredPasswordRejected, f.biometric.unlockWithFingerprint())
+        assertNull(f.store.stored)
+    }
+
+    @Test
+    fun aTypedUnlockConfirmsAKeyFileChangeAndTurningItOffForgetsOne() = runTest {
+        val f = storedPassword("old")
+        f.biometric.keyFileChanged()
+        assertTrue(f.typed("pw"))
+        runCurrent()
+        f.session.lock()
+        f.store.stored = Secret.of("old")
+        assertEquals(FingerprintOutcome.StoredPasswordRejected, f.biometric.unlockWithFingerprint(), "the typed unlock confirmed it")
+
+        f.biometric.keyFileChanged()
+        f.biometric.setEnabled(false)
+        assertNull(f.settings.string("biometricKeyFileChanged"))
+    }
+
+    @Test
+    fun nothingTypedWithAKeyFileOpensAndStoresNothing() = runTest {
+        val f = Fixture(this, keyFileBytes("keyfile-only.kdbx"), MapSettings(), StandardTestDispatcher(testScheduler), FakeKeyFile(keyFileBytes("keyx.keyx")))
+        f.biometric.setEnabled(true)
+        f.biometric.refresh()
+
+        val outcome = f.biometric.unlock(Secret.empty())
+        runCurrent()
+
+        assertEquals(UnlockOutcome.Opened, outcome?.await())
+        runCurrent()
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+        assertTrue(f.store.saves.isEmpty(), "there is no password to store")
+        assertFalse(f.biometric.state.value.stored)
+        assertNull(f.biometric.unlock(Secret.empty()), "not locked: nothing started")
     }
 
     @Test

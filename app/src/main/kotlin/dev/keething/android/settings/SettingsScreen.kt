@@ -51,13 +51,15 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
 import dev.keething.android.biometric.KeystorePasswordStore.KeyLocation
+import dev.keething.android.databases.DatabasesSetting
 import dev.keething.android.list.seconds
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.FitText
 import dev.keething.android.ui.readableInset
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.vault.biometric.BiometricState
+import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.session.SessionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,7 +71,7 @@ internal fun SettingsScreen(
     container: AppContainer,
     database: DatabaseSession,
     onBack: () -> Unit,
-    onChooseDatabase: () -> Unit,
+    onDatabase: (DatabaseId) -> Unit,
     onStorageProbe: () -> Unit,
 ) {
     val timeout by container.settings.lockTimeout.collectAsStateWithLifecycle()
@@ -89,11 +91,7 @@ internal fun SettingsScreen(
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
             Text("Settings", style = MaterialTheme.typography.titleLarge)
         }
-        Group("Database") {
-            Text(database.file.name, style = MaterialTheme.typography.bodyLarge)
-            Text(database.file.parent.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FilledTonalButton(onClick = onChooseDatabase) { Text("Choose another database") }
-        }
+        DatabasesSetting(container, onDatabase)
         Group("Fingerprint") {
             FingerprintSetting(container, database)
         }

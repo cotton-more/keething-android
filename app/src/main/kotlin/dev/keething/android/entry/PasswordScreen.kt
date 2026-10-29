@@ -69,7 +69,7 @@ import dev.keething.card.CryptoAddress
 import dev.keething.card.CryptoNetwork
 import dev.keething.card.EntryCardBuilder
 import dev.keething.card.SeedPhrase
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.FullBrightness

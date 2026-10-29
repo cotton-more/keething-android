@@ -2,7 +2,7 @@ package dev.keething.android.recyclebin
 
 import dev.keething.android.editor.SAVE_BUSY
 import dev.keething.android.editor.problem
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.ui.Notice
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.VaultEdit

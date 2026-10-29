@@ -23,9 +23,9 @@ import dev.keething.android.settings.SharedPreferencesSettingsStore
 import dev.keething.android.sharing.CodePictures
 import dev.keething.android.sharing.FileSharingStore
 import dev.keething.android.sharing.SharingKey
-import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.android.storage.FileObserverFolderWatcher
 import dev.keething.android.storage.PathDatabaseStore
+import dev.keething.android.storage.PathKeyFileSource
 import dev.keething.android.storage.PathNewFile
 import dev.keething.android.storage.SharedStorage
 import dev.keething.android.storageprobe.ProbeSettings
@@ -33,6 +33,7 @@ import dev.keething.android.ui.Notice
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.sharing.message.PartCollector
 import dev.keething.sharing.requests.ShareRequests
+import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.session.SessionState
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -73,9 +74,13 @@ internal class AppContainer(context: Context) {
 
     val biometricStore = KeystorePasswordStore(context, FingerprintPrompt(context), biometricIo)
 
+    /**
+     * The databases this phone knows (SPEC §3.1). Each one's backups in a folder of its own under `backups`; the flat
+     * files the one database of before left there stay as they were.
+     */
     val sessions = Sessions(
-        settings, settingsStore, databaseStoreAt, FileDatabaseBackups(File(context.filesDir, "backups")),
-        biometricStore, appScope, biometricIo, LockAlarm(context),
+        settings, settingsStore, DatabaseList(settingsStore), databaseStoreAt, File(context.filesDir, "backups"),
+        ::PathKeyFileSource, biometricStore, appScope, biometricIo, LockAlarm(context),
     )
 
     /** Delete and Restore: saves whose outcome the list shows after the card closed (SPEC §6.2). */

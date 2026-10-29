@@ -4,13 +4,19 @@ import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import dev.keething.android.settings.AppSettings
+import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStore
 import dev.keething.domain.settings.SettingsStore
-import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.storage.DatabaseStore
+import dev.keething.domain.storage.KeyFileSource
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.BiometricUnlock
+import dev.keething.vault.databases.CurrentDatabase
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.DatabaseList
+import dev.keething.vault.databases.DatabaseRecord
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.LockReason
@@ -19,7 +25,6 @@ import dev.keething.vault.session.VaultSession
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,56 +33,44 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/**
- * The chosen database, the session that opens it and its fingerprint unlock. [number] tells the sessions of
- * this process apart: choosing the same file again starts a new one, and a screen must not keep the old.
- */
-internal class DatabaseSession(
-    val number: Int,
-    val file: File,
-    val store: DatabaseStore,
-    val session: VaultSession,
-    val biometric: BiometricUnlock,
-)
-
 /** One stay of the app in the foreground: [number] counts them; [beganLocked]: the vault was locked when it began. */
 internal data class Visit(val number: Int, val beganLocked: Boolean)
 
 /**
- * Owns the session of the chosen database for the whole app (screens, later autofill and the code
- * notification), and tells it when the app goes to the background and comes back (SPEC §4). Choosing
- * another database locks the old session and starts a new one. Call it on the main thread.
+ * Owns the current database's session for the whole app (screens, autofill, the code notification): the list of
+ * databases and the one of them open ([CurrentDatabase], one at a time until several, plan AD8). Tells the session
+ * when the app goes to the background and comes back (SPEC §4). Call it on the main thread.
  */
 internal class Sessions(
     private val settings: AppSettings,
     private val settingsStore: SettingsStore,
+    val list: DatabaseList,
     private val storeAt: (File) -> DatabaseStore,
-    /** Where saves keep the file they replace (SPEC §3.3 step 7). */
-    private val backups: DatabaseBackups,
+    /** Each database's backups go into a folder of its own here, named by its id (SPEC §3.3 step 7). */
+    private val backupsFolder: File,
+    private val keyFileAt: (File) -> KeyFileSource,
     private val biometricStore: BiometricPasswordStore,
     private val scope: CoroutineScope,
     /** One task at a time: the fingerprint's saves and deletes stay in order. */
     private val biometricIo: CoroutineDispatcher,
     private val lockAlarm: LockAlarm,
 ) : DefaultLifecycleObserver {
-    private var started = 0
-    private val mutableCurrent = MutableStateFlow(settings.database.value?.let(::start))
-    val current: StateFlow<DatabaseSession?> = mutableCurrent.asStateFlow()
+    /** Another database chosen, a file opened or located, a key file, Remove from List. */
+    val databases = CurrentDatabase(list, scope, ::start)
+
+    val current: StateFlow<DatabaseSession?> = databases.current
 
     private val mutableVisit = MutableStateFlow(Visit(0, beganLocked = true))
 
     /** The lock screen offers the fingerprint once in a visit that began locked (SPEC §5), not after the lock button. */
     val visit: StateFlow<Visit> = mutableVisit.asStateFlow()
 
-    fun chooseDatabase(file: File) {
-        val previous = current.value
-        previous?.session?.lock(LockReason.Initial)
-        // The stored password opens the old database, not this one, and the fingerprint is asked for again: a
-        // password typed for another database is not stored unasked (SPEC §5). Undispatched, so the switch is off
-        // before the new session reads it; deleting the stored password goes on in the background.
-        if (previous != null && previous.file != file) scope.launch(start = CoroutineStart.UNDISPATCHED) { previous.biometric.setEnabled(false) }
-        settings.chooseDatabase(file)
-        mutableCurrent.value = start(file)
+    /**
+     * Remove from List; [onProblem] hears why the stored password could not be deleted. In the app's scope: the screen
+     * that asked goes at once (the next database's lock screen, or the welcome).
+     */
+    fun remove(id: DatabaseId, onProblem: (String) -> Unit) {
+        scope.launch { databases.remove(id)?.let(onProblem) }
     }
 
     fun lock() {
@@ -104,25 +97,27 @@ internal class Sessions(
         if (session.state.value !is SessionState.Locked) lockAlarm.schedule(settings.lockTimeout.value)
     }
 
-    private fun start(file: File): DatabaseSession {
+    private fun start(record: DatabaseRecord, number: Int, keyFilePath: () -> String?, watching: CoroutineScope): DatabaseSession {
+        val file = File(record.path)
         val store = storeAt(file)
         val session = VaultSession(
             store = store,
             opener = VaultOpener(),
-            backups = backups,
+            backups = FileDatabaseBackups(File(backupsFolder, record.id.fileName)),
             clock = AndroidClock,
             scope = scope,
             io = Dispatchers.IO,
             lockTimeout = { settings.lockTimeout.value },
+            keyFile = { keyFilePath()?.let { keyFileAt(File(it)) } },
         )
         // Which states the session went through (names only, never data): how a lock came about.
-        scope.launch { session.state.collect { Log.i(TAG, it.describe()) } }
+        watching.launch { session.state.collect { Log.i(TAG, it.describe()) } }
         val biometric = BiometricUnlock(session, biometricStore, settingsStore, AndroidClock, scope, biometricIo)
-        scope.launch { biometric.refresh() }
-        scope.launch {
+        watching.launch { biometric.refresh() }
+        watching.launch {
             biometric.state.map { it.copy(prompting = false) }.distinctUntilChanged().collect { Log.i(TAG, it.describe()) }
         }
-        return DatabaseSession(++started, file, store, session, biometric)
+        return DatabaseSession(number, record.id, file, store, session, biometric)
     }
 
     private fun BiometricState.describe(): String = "fingerprint: " + listOfNotNull(

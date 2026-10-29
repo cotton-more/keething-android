@@ -90,7 +90,7 @@ import dev.keething.android.attachment.SaveAttachment
 import dev.keething.android.navigation.inTwoPanes
 import dev.keething.android.navigation.sharedIcon
 import dev.keething.android.navigation.sharedTitle
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.sharing.SendToRequestSheet
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.EntryMark

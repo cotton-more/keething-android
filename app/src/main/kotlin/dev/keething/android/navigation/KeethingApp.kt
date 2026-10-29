@@ -46,8 +46,11 @@ import dev.keething.android.entry.PasswordScreen
 import dev.keething.android.entry.PasswordView
 import dev.keething.android.groups.GroupsScreen
 import dev.keething.android.list.EntryListScreen
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.settings.SettingsScreen
+import dev.keething.android.databases.DatabasePageScreen
+import dev.keething.android.databases.WelcomeScreen
+import dev.keething.vault.databases.DatabaseId
 import dev.keething.android.sharing.AnswerScreen
 import dev.keething.android.sharing.AskScreen
 import dev.keething.android.sharing.ChooseEntriesScreen
@@ -59,7 +62,6 @@ import dev.keething.android.sharing.ReviewScreen
 import dev.keething.android.sharing.SentScreen
 import dev.keething.android.sharing.SharingScreen
 import dev.keething.android.sharing.TheirRequestScreen
-import dev.keething.android.setup.SetupScreen
 import dev.keething.android.storageprobe.StorageProbeScreen
 import dev.keething.android.unlock.LockScreen
 import dev.keething.vault.session.SessionState
@@ -84,6 +86,9 @@ internal sealed interface Screen {
     data object Groups : Screen
 
     data object Settings : Screen
+
+    /** A database's page in Settings › Databases, by its id. */
+    data class Database(val id: String) : Screen
 
     data object StorageProbe : Screen
 
@@ -123,7 +128,8 @@ internal class NavigationState : ViewModel() {
     /** The search, kept here so that the card's group and tag chips can set it. */
     val query = TextFieldState()
 
-    var choosingDatabase by mutableStateOf(false)
+    /** The database shown before another was chosen on the lock screen: its Back shows it again. */
+    var lockBack by mutableStateOf<DatabaseId?>(null)
 
     /** The "Codes" shortcut's list (SPEC §6.2). A lock keeps it: the shortcut opens the lock screen first. */
     var codesOnly by mutableStateOf(false)
@@ -190,24 +196,28 @@ internal class NavigationState : ViewModel() {
 
 internal val LocalSharedTransitionScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
 
-/** Choosing the database, the lock screen, or the vault's screens (SPEC §6.2). */
+/** The welcome (no database yet), the lock screen, or the vault's screens (SPEC §6.2). */
 @Composable
 internal fun KeethingApp(container: AppContainer) {
     val navigation: NavigationState = viewModel()
     val database by container.sessions.current.collectAsStateWithLifecycle()
+    val list by container.sessions.list.state.collectAsStateWithLifecycle()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         val current = database
-        if (current == null || navigation.choosingDatabase) {
-            SetupScreen(
-                container = container,
-                onChosen = { navigation.choosingDatabase = false },
-                onBack = if (current != null) ({ navigation.choosingDatabase = false }) else null,
-            )
+        if (current == null) {
+            WelcomeScreen(container)
             return@Surface
         }
         val state by current.session.state.collectAsStateWithLifecycle()
         val unlocked = state is SessionState.Unlocked
-        LaunchedEffect(unlocked) { if (!unlocked) navigation.reset() }
+        LaunchedEffect(unlocked) { if (!unlocked) navigation.reset() else navigation.lockBack = null }
+        // Back to the database shown before, while it is in the list and another is shown.
+        val back = navigation.lockBack?.takeIf { it != current.id && list.record(it) != null }?.let { previous ->
+            {
+                navigation.lockBack = null
+                container.sessions.databases.choose(previous)
+            }
+        }
         val enter = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
         val grow = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
         val exit = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
@@ -219,7 +229,7 @@ internal fun KeethingApp(container: AppContainer) {
             if (showVault) {
                 VaultScreens(container, current, navigation)
             } else {
-                LockScreen(container, current, onChooseDatabase = { navigation.choosingDatabase = true })
+                LockScreen(container, current, onBack = back, onChose = { shown -> if (navigation.lockBack == null) navigation.lockBack = shown })
             }
         }
     }
@@ -333,9 +343,12 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                             container = container,
                             database = database,
                             onBack = navigation::back,
-                            onChooseDatabase = { navigation.choosingDatabase = true },
+                            onDatabase = { id -> navigation.open(Screen.Database(id.value)) },
                             onStorageProbe = { navigation.open(Screen.StorageProbe) },
                         )
+                    }
+                    entry<Screen.Database> { key ->
+                        DatabasePageScreen(container, DatabaseId(key.id), onBack = { navigation.close(key) })
                     }
                     entry<Screen.StorageProbe> { StorageProbeScreen(container) }
                     entry<Screen.Sharing> {

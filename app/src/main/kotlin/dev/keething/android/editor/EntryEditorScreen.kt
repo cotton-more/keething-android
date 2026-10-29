@@ -136,7 +136,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.generator.GeneratorUse
 import dev.keething.android.generator.PasswordGeneratorSheet
 import dev.keething.android.generator.PasswordGeneratorState
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.SecretTextMenu

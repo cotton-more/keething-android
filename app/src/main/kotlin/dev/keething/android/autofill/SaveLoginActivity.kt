@@ -126,7 +126,7 @@ private fun SaveLoginScreen(
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         val current = database ?: return@Surface NoDatabase(onClose)
         val state by current.session.state.collectAsStateWithLifecycle()
-        val vault = (state as? SessionState.Unlocked)?.vault ?: return@Surface LockScreen(container, current, onChooseDatabase = {})
+        val vault = (state as? SessionState.Unlocked)?.vault ?: return@Surface LockScreen(container, current, onBack = null, onChose = {})
         // Decided once on the vault as it was when unlocked: the save itself changes the vault.
         val plan = remember(current.number, model.asNew) { plan(container, vault, save, label, model.asNew) }
         val password = remember { save.password.reveal() }

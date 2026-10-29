@@ -9,9 +9,11 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * The database as it was before each save (SPEC §3.3 step 7; the Mac `KDBXFileSaver.backup`): in the app's own
- * storage (`filesDir/backups`, never backed up off the phone: the app does not allow backups), named after the
- * database and the local time; the newest [count] of each database stay.
+ * One database's copies as it was before each save (SPEC §3.3 step 7; the Mac `KDBXFileSaver.backup`): in a folder of
+ * its own in the app's storage (`filesDir/backups/<database id>`, never backed up off the phone: the app does not allow
+ * backups), named after the database and the local time; the newest [count] stay. The folder is the database's, so
+ * two `Personal.kdbx` in two folders keep theirs apart, and a database located under another name keeps its older
+ * ones; files in it that are not backups are left alone.
  */
 internal class FileDatabaseBackups(
     private val folder: File,
@@ -22,22 +24,33 @@ internal class FileDatabaseBackups(
         if (!folder.isDirectory && !folder.mkdirs()) throw IOException("backup folder")
         val stem = fileName.substringBeforeLast('.')
         val stamp = STAMP.format(at.atZone(zone))
-        // Two saves within a second (a new entry, then deleting it): "_2", "_3"… sort after the first.
-        val target = (listOf("") + (2..99).map { "_$it" })
-            .map { File(folder, "$stem $stamp$it.kdbx") }
-            .firstOrNull { !it.exists() } ?: throw IOException("backup: too many saves within a second")
+        // Two saves within a second (a new entry, then deleting it): "_2", "_3"… sort after the first. After the last one
+        // there is, not in a gap the pruning left: that name would sort first and go at once.
+        val names = (listOf("") + (2..99).map { "_$it" }).map { File(folder, "$stem $stamp$it.kdbx") }
+        val target = names.getOrNull(names.indexOfLast { it.exists() } + 1) ?: throw IOException("backup: too many saves within a second")
         FileOutputStream(target).use { out ->
             out.write(database)
             out.fd.sync()
         }
         folder.list().orEmpty()
-            .filter { it.startsWith("$stem ") && it.endsWith(".kdbx") }
-            .sortedDescending()
+            .mapNotNull { name -> order(name)?.let { name to it } }
+            .sortedByDescending { it.second }
             .drop(count)
-            .forEach { File(folder, it).delete() }
+            .forEach { File(folder, it.first).delete() }
     }
 
-    private companion object {
-        val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH-mm-ss")
+    companion object {
+        private val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH-mm-ss")
+        private val BACKUP = Regex(".* ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2})(?:_([2-9]|[1-9][0-9]))?\\.kdbx")
+
+        /**
+         * A backup's name, `<name> 2026-10-26T14-03-22.kdbx` or `…_2.kdbx`: its time and number in an order that sorts
+         * as they were made; null when it is not a backup (the Mac's `backupOrder`).
+         */
+        internal fun order(fileName: String): String? {
+            val match = BACKUP.matchEntire(fileName) ?: return null
+            val number = match.groupValues[2].ifEmpty { "1" }.toInt()
+            return "${match.groupValues[1]}_%02d".format(number)
+        }
     }
 }

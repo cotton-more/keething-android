@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BarTitle

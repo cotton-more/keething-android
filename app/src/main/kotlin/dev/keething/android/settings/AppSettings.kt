@@ -3,7 +3,6 @@ package dev.keething.android.settings
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import dev.keething.domain.settings.SettingsStore
-import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
@@ -18,20 +17,11 @@ internal class SharedPreferencesSettingsStore(private val preferences: SharedPre
 }
 
 /**
- * The few settings the app has (SPEC §6.2: database file, lock timeout, how long a request lasts; the fingerprint's is
- * `BiometricUnlock`'s).
+ * The few settings the app has (SPEC §6.2: lock timeout, how long a request lasts; the databases are `DatabaseList`'s,
+ * the fingerprint's `BiometricUnlock`'s). The single database path of before the list (`databasePath`) is left as it
+ * was and read no more.
  */
 internal class AppSettings(private val store: SettingsStore) {
-    private val mutableDatabase = MutableStateFlow(store.string(DATABASE_PATH)?.let(::File))
-
-    /** The database, remembered by its path (SPEC §3.1). */
-    val database: StateFlow<File?> = mutableDatabase.asStateFlow()
-
-    fun chooseDatabase(file: File) {
-        store.setString(DATABASE_PATH, file.path)
-        mutableDatabase.value = file
-    }
-
     private val mutableLockTimeout = MutableStateFlow(
         store.string(LOCK_TIMEOUT_MINUTES)?.toIntOrNull()?.minutes?.takeIf { it in LOCK_TIMEOUTS } ?: DEFAULT_LOCK_TIMEOUT,
     )
@@ -82,7 +72,6 @@ internal class AppSettings(private val store: SettingsStore) {
         val DEFAULT_REQUEST_VALIDITY = 3.days
         val REQUEST_VALIDITIES = listOf(1.days, 3.days, 7.days)
 
-        private const val DATABASE_PATH = "databasePath"
         private const val LOCK_TIMEOUT_MINUTES = "lockTimeoutMinutes"
         private const val REQUEST_VALIDITY_DAYS = "requestValidityDays"
         private const val REQUEST_NAME = "requestName"

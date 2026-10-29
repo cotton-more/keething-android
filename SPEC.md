@@ -68,7 +68,7 @@ stays open until the lock, autofill covers most logins, and it needs the notific
 only for frequent copying into apps autofill does not reach), Google Play (§8.1).
 
 Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
-databases, key files (the core is in, §4; choosing one comes with the list of databases), creating a database (the
+databases side by side (the list is in, one open at a time, §3.1), key files (in, §4), creating a database (the
 file is in, §3.5; the screen comes later), KDBX
 3.1 (refused until then), moving entries between groups, merging conflicting copies (detected and shown only until
 then, §3.4).
@@ -165,6 +165,24 @@ be swapped without touching anything else. Two implementations are planned:
   sync could pick up a half-written file. Play allows all-files access only for file managers, backup,
   antivirus and similar apps, so a password manager is expected to be refused it; a Play build would use
   this one. For the side-loaded build it is only a fallback if all-files access turns out not to work.
+
+**The list of databases** (keething-spec databases.list; `core/vault` `DatabaseList`, the Mac's): the databases this
+phone knows, each remembered by its **path** (standardized: `.` and `..` resolved, so the same file however written is
+the same database) with an **id** of its own given when it joins the list (a UUID, never the file's: a KDBX header has
+no stable id and a copy keeps every UUID), its key file's path, and choices; nothing secret. Kept as JSON under the
+setting `databases`: `{"current": <id>, "databases": [record…], "version": 1}` (a record: `id`, `path`, `keyFilePath`,
+`name`, `color`, `useBiometric`, `opensWithoutPassword`, `lastOpened` in seconds since 1970, `inWindow`,
+`checkedInChooser`; written with sorted keys). A record without `id` or `path`, a field of another type or text that is
+not JSON makes the list **unreadable**: it is kept under `databases.unreadable.<seconds>`, never overwritten, and the
+list starts empty; any other field missing reads as its default, unknown ones are ignored. The first database added
+is current: the one the lock screen shows and the session opens; **one is open at a time** (several side by side are
+`plans/android-databases.md` AD8). There is **no default path and no migration**: the single path of before
+(`databasePath`) is left as it was and read no more, so the first start after the list shows the welcome (§6.2). A
+database is added by opening its file (the system picker, any file; the app keeps the document's path, which the
+phone's storage provider and the downloads provider's `raw:` ids give, and says when a place has none); Locate… gives
+a database whose file moved its new path (it keeps its id, its backups and its stored password; one open locks first;
+a path another database of the list has is refused: "That file is already in the list as “Personal”."); Remove from
+List forgets it with its stored password and leaves the file; the current one removed, the first left is current.
 
 Decided by the storage experiment (ROADMAP step 1, on the Android 17 emulator with Syncthing-Fork 2.1.6 and the
 Mac's Syncthing): the side-loaded build uses all-files access. The probe followed every change from the Mac,
@@ -265,8 +283,11 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    shows as a difference.
 6. If the file on disk changed meanwhile (byte for byte), do it all again on the new file (once more, then
    fail).
-7. Back up the old file into app-private storage (`filesDir/backups`, `<name> <local date and time>.kdbx`,
-   the newest 10 of each database; not in the Syncthing folder, and the app allows no Android backup, so they
+7. Back up the old file into app-private storage (`filesDir/backups/<database id>/`, `<name> <local date and
+   time>.kdbx`, `_2`… for more within a second, numbered after the last one there; the newest 10 in the database's
+   folder, whatever the file was called, other files left alone, so two `Personal.kdbx` keep theirs apart and a
+   database located under another name keeps its older ones; the flat files of before the list stay in
+   `filesDir/backups` as they were; not in the Syncthing folder, and the app allows no Android backup, so they
    stay on the phone) and replace: temporary file in the same folder, then rename. The temporary file is
    `.syncthing.keething-<uuid>.tmp`: Syncthing never scans or sends `.syncthing.*.tmp` (its own downloads),
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
@@ -435,9 +456,21 @@ SPEC §3.26). Nothing on the screen chooses it yet (keething-spec `plans/android
   password alone "Wrong password — or this database needs a key file." (the file cannot tell which, so every
   database says it), a password and a key file "Wrong password or key file.", a key file alone "This key file
   does not open the database (or it needs a password too)." A stored password (§5) rejected while the database
-  has a key file, or with the key file missing, is kept: the key file may be the wrong part. Not in the app yet:
-  a way to choose a database's key file (keething-spec `plans/android-databases.md` AD4); until then no database
-  has one.
+  has a key file, or with the key file missing, is kept: the key file may be the wrong part; so is one rejected
+  while the key file was chosen, changed or forgotten since the last unlock that opened it (`biometricKeyFileChanged`,
+  cleared by the next unlock that opens, or the switch off), else Forget on a key file the database needs would cost
+  a right password at the next fingerprint.
+- **A database's key file** (keething-spec unlock.key-file, kdbx.key-files AC8): chosen on the lock screen (Key
+  file…, or Change… / Choose… under the field) or on the database's page in Settings (Choose…, Change…, Forget), with
+  the system picker, and remembered by its **path** in the list (never copied); read at every unlock, the
+  fingerprint's too. Choosing, changing or forgetting it says nothing more of a locked database's last failure.
+  **Nothing typed** with a key file: Unlock works with the field empty. A database that opened so is remembered
+  (`opensWithoutPassword`): its lock screen shows no field, only "It opens with its key file alone: nothing to type."
+  and Unlock; nothing typed rejected brings the field back (a password was added elsewhere), a typed password that
+  opens it forgets it, a key file not there teaches nothing, nor does an unlock whose database stopped being current
+  or whose key file changed meanwhile. A changed key file forgets it too. Nothing typed is never stored for the
+  fingerprint (§5). A key file not there is said on the lock screen before anything is typed ("Work needs its key
+  file: work.keyx is not in Documents/Keys.") and no fingerprint is asked for.
 - Unlock time, measured on the test phone (Pixel 6, Android 17, release build) with a fictitious database
   of 1,895 entries (165 KB) and the owner's real KDF parameters (Argon2d, 64 MiB, 42 iterations,
   parallelism 2): 2.4 s for the first unlock in a process, 2.3 s once warm; the key derivation alone is
@@ -525,10 +558,15 @@ rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`
   sets the switch: the next typed unlock that opens
   the vault stores the master password, and every later one stores it again, so a database password changed
   elsewhere heals the next time it is typed. A password typed while the vault is open, a wrong one, or one
-  typed on a phone without an enrolled strong biometric is never stored. Turning it off deletes it, and so
-  does choosing another database, which turns the switch off too: the password typed for the other database is
-  stored only when it is turned on again (a copy of the real database opened on the test phone was stored
-  unasked while the switch stayed on).
+  typed on a phone without an enrolled strong biometric is never stored; nor is nothing typed (a database that
+  opens with its key file alone, §4). Turning it off deletes it, and so does another database becoming current
+  (chosen, opened, or the next one after Remove from List), which turns the switch off too: the password typed for
+  the other database is stored only when it is turned on again (a copy of the real database opened on the test
+  phone was stored unasked while the switch stayed on). It is one stored password, the current database's, until
+  each database has its own (`plans/android-databases.md` AD5): so Remove from List of the current one deletes it,
+  and the first database opened into an empty list (the first start after the list) starts with the switch off
+  and nothing stored, as what was stored belongs to no database of the list. Locating the current database keeps it.
+  The session of a database that is no longer current is closed: a fingerprint prompt still up cannot open it.
 - **How it is kept** (`KeystorePasswordStore`): an RSA-2048 key pair in the Android Keystore, in StrongBox
   (Titan M2) when the phone has one, created with `setUserAuthenticationRequired(true)`,
   `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` (no time window: each use is one operation
@@ -629,8 +667,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - Few settings, fixed sensible defaults instead of switches.
 
 ### 6.2 Screens
-- **Choose the database** (first start, or from the lock screen and Settings): all-files access, the folder
-  in the system picker, the `.kdbx` file in it (conflict copies left out).
+- **Welcome** (an empty list: the first start, or every database removed): the app's logo, "Welcome to Keething",
+  why a database ("Your passwords live in a KeePass database: one encrypted file that stays yours. Keep it in a
+  folder that syncs, and the same file opens on your computer too."), **Open a database…** (the system picker) and
+  "Already use KeePass, KeePassXC, KeePassDX or Strongbox? Open your database: it stays theirs too, and Keething writes
+  it in their format." Create a new database… comes with the New database screen (AD7).
 - **Databases** (agreed on the canvas, rows "Databases" for one database at a time and "Databases (AD3b, pass 2)",
   "Search across databases", "⋮ › Databases, the chooser and its run" for several open; being built, keething-spec
   `plans/android-databases.md` AD4–AD13, whose AD3b lists the phone's own choices): the welcome at the first start,
@@ -638,10 +679,27 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Databases and a database's page, New database; with several open, rows saying their database, the databases not
   open as one line under the header (a tap: its lock screen; a long press: its whole say and menu), ⋮ › Databases
   (a row swiped left closes it, with Undo), `!` and narrowing in the search, the chooser and its run, a new entry's
-  Save into. They replace Choose the database once built. The welcome's large icon is the app's logo, as the lock
-  screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key files.
-- **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database
-  with its folder and when it changed (a tap chooses another), reason of the last lock. When the fingerprint
+  Save into. One database at a time is built (AD4: the welcome, the lock screen's line, sheet and key file, not
+  found, Settings → Databases and a database's page), replacing Choose the database; names and colours (the tile's
+  colour, a name read from the file, names alike) are AD6, New database AD7. The welcome's large icon is the app's
+  logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
+  files.
+- **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
+  line: its tile (its initial), name, folder from the shared storage's root and when it changed ("Sync/KeePass ·
+  changed 2 hours ago", "changed yesterday", "changed in March"; "Download · not found" in red) and ⇅; a tap opens
+  the **sheet** "Databases": the list's databases (a check on the one shown; its folder or "not found"; more than six
+  scroll inside it, "9 databases · scroll for the rest"), Open other… and Remove “…” from list… (asked: "Remove
+  “Work” from the list?", "Keething forgets it on this phone, with its stored password. The file stays where it
+  is.", Cancel / Remove). Another chosen there is shown locked with an empty field and nothing said of the last one,
+  with Back (and the system back) to the one before. Then the reason of the last lock; a key file not there is said
+  first (§4). The field's placeholder is "Master password", with a key file "Master password, if it has one"; Unlock
+  is unavailable while the field is empty unless the database has a key file. Under the field the key file (key,
+  name, folder or "not there · folder" in red, Change… or Choose…), or **Key file…** while it has none; a database
+  that opens with its key file alone has "It opens with its key file alone: nothing to type." and Unlock instead of
+  the field. A file **not found** has, in place of the field, "Crypto.kdbx is not in Download any more. Locate the
+  file, or choose another database." (on a card: "… is not in /storage/1234-5678. Put the card in, or locate the
+  file."), **Locate…** and "or choose another database above". Without all-files access nothing is said missing
+  (the file cannot be seen); "Allow all-files access" shows. When the fingerprint
   is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
   field then does not open the keyboard by itself, and typing hides the button. While it is off, a "Use
   fingerprint next time" switch under the field turns it on, so the password typed then sets it up. When the
@@ -877,7 +935,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   while it is open, as in the editor.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
-- **Settings**: database file, the fingerprint switch (§5; it says where the key is: StrongBox, the TEE) and,
+- **Settings**: **Databases**: every database (tile, name, its folder or "Not found · Download" in red, a key for
+  one with a key file); a tap opens **its page**: tile, name, path from the shared storage's root, "Changed 2 hours
+  ago" (of a file not found "Not found at …" with Locate… and "Last opened 2 weeks ago" when it was), **Key file**
+  (its name and folder, or "None · It opens with its password alone"; Choose… / Change…, Forget; "Remembered here by
+  its path, not its contents. It must be there at every unlock, the fingerprint too."), **Remove from list…** ("Forgets
+  it on this phone, with its stored password. The file stays."); each acts at once. Under the list **Open a
+  database…** (it becomes current: one open locks). Then the fingerprint switch (§5; it says where the key is: StrongBox, the TEE) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.

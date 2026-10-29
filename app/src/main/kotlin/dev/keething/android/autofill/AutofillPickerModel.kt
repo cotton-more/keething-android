@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dev.keething.android.list.ListSection
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.list.VaultListing
-import dev.keething.android.session.DatabaseSession
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.domain.vault.Entry
 import dev.keething.vault.session.SessionState
