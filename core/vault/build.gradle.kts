@@ -20,3 +20,13 @@ tasks.register<JavaExec>("probe") {
     maxHeapSize = "2g"
     args(providers.gradleProperty("database").getOrElse(""))
 }
+
+// The field types' key under the apps' former name renamed, into a new file: `tools/rename-field-types.sh <db> <new>`.
+tasks.register<JavaExec>("renameFieldTypes") {
+    description = "KeePassBar.FieldTypes renamed to Keething.FieldTypes into a new file; the password on standard input"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.keething.vault.probe.RenameFieldTypesKt")
+    standardInput = System.`in`
+    maxHeapSize = "2g"
+    args(providers.gradleProperty("database").getOrElse(""), providers.gradleProperty("output").getOrElse(""))
+}

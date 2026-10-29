@@ -9,9 +9,6 @@ package dev.keething.domain.vault
 public object EntryFieldTypes {
     public const val CUSTOM_DATA_KEY: String = "Keething.FieldTypes"
 
-    /** The key under the apps' former name: read while there is no item under [CUSTOM_DATA_KEY], removed when the types are next written. */
-    public const val FORMER_CUSTOM_DATA_KEY: String = "KeePassBar.FieldTypes"
-
     /** Null when [text] is not a JSON object of strings. */
     public fun decode(text: String): Map<String, String>? = JsonStrings(text).objectOfStrings()
 

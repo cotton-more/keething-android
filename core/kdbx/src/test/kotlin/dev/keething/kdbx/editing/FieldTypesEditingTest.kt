@@ -19,7 +19,6 @@ import kotlin.test.assertNull
 /** The field types in an entry's `CustomData` (the Mac `FieldTypeTests` "Writing" expectations). */
 class FieldTypesEditingTest {
     private val key = EntryFieldTypes.CUSTOM_DATA_KEY
-    private val former = EntryFieldTypes.FORMER_CUSTOM_DATA_KEY
     private val now = Instant.ofEpochSecond(1_900_000_000)
 
     private fun item(key: String, value: String) = "<Item><Key>$key</Key><Value>$value</Value></Item>"
@@ -103,27 +102,6 @@ class FieldTypesEditingTest {
         fun time(id: String) = root.entry(id).first("CustomData")?.first("Item")?.first("LastModificationTime")?.text
         assertEquals("2030-03-17T17:46:40Z", time("a"))
         assertEquals(dev.keething.kdbx.xml.KdbxTime.base64(now), time("b"))
-    }
-
-    @Test
-    fun theFormerNameIsReadWhileThereIsNoNewItemAndGoesWithTheNextWriteOfTheTypes() {
-        val root = tree(
-            """
-            <Entry><UUID>old</UUID><CustomData>${item(former, """{"Ablauf":"until"}""")}</CustomData></Entry>
-            <Entry><UUID>both</UUID><CustomData>${item(former, """{"A":"until"}""")}${item(key, """{"A":"date"}""")}</CustomData></Entry>
-            """,
-        )
-        val entry = root.entry("old")
-
-        EntryEditing.apply(EntryChanges(fieldTypes = mapOf("Ablauf" to "date")), entry, root, now)
-        assertEquals(listOf(key), entry.dataKeys())
-
-        EntryEditing.apply(EntryChanges(title = "T"), entry, root, now)
-        assertEquals(listOf(key), entry.dataKeys(), "other edits leave it")
-
-        val both = root.entry("both")
-        EntryEditing.apply(EntryChanges(fieldTypes = emptyMap()), both, root, now)
-        assertNull(both.first("CustomData"), "no types: both items go")
     }
 
     @Test

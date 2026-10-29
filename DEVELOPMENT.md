@@ -1,6 +1,6 @@
 # Developing Keething for Android
 
-How to build, test and install the app on this Mac. What the app does is in SPEC.md, the plan in .x/ROADMAP.md (not in the repository).
+How to build, test and install the app on this Mac. What the app does is in SPEC.md, what comes next in `~/Projects/keething-spec` (`./status --gaps`, its ideas and `plans/`).
 
 ## What is needed
 
@@ -47,7 +47,7 @@ from a computer that is not yours.
 Losing the key or its password does not touch the database (it lives in the Syncthing folder): the app is
 uninstalled once, which deletes its own settings (the chosen database, the fingerprint setup, recent entries,
 its backups), and a build signed with a new key installed. For Google Play this key can serve as the upload
-key; Play signs the published app with a key of its own (ROADMAP step 8).
+key; Play signs the published app with a key of its own (keething-spec `app.public-release`).
 
 Up to 2026-10-21 the test builds were signed with the Mac's debug key (`~/.android/debug.keystore`, password
 `android`: whoever has that file can sign an update the phone accepts). The test phone still has such a build;
@@ -89,6 +89,17 @@ Wireless debugging › "Pair device with pairing code"; the dialog must stay ope
 Reads and writes back the copy unchanged and compares KeePassXC's exports, then makes eight checked saves on it
 (a new entry, an edit, the recycle bin and back), and compares it with the original (SPEC §3.3). Always on a
 copy outside the Syncthing folder.
+
+## The field types' former key renamed
+
+    tools/rename-field-types.sh <database.kdbx> <new.kdbx>   # asks for the password; writes only the new file
+
+A database from before 2026-10-21 keeps its entries' field types under the apps' former name, which this app no
+longer reads. The tool renames that `CustomData` item in every entry, history item and the recycle bin into a new
+file (no entry's times change, nothing goes into the history), then checks it: it opens here with as many entries,
+and KeePassXC's export of it is the original's with only the key renamed. Then: the Mac app quit, the phone's
+locked, the database file replaced with the new one (the original kept aside), Syncthing left to deliver it.
+Prints counts, never a value.
 
 ## Checking autofill on the phone
 

@@ -61,8 +61,7 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
             groupId = raw.ancestorGroupUuids.lastOrNull() ?: "",
             tags = raw.tags.split(';', ',').map { it.trim() }.filter { it.isNotEmpty() },
             customFields = customFields,
-            fieldTypes = (raw.customData[EntryFieldTypes.CUSTOM_DATA_KEY] ?: raw.customData[EntryFieldTypes.FORMER_CUSTOM_DATA_KEY])
-                ?.let(EntryFieldTypes::decode).orEmpty(),
+            fieldTypes = raw.customData[EntryFieldTypes.CUSTOM_DATA_KEY]?.let(EntryFieldTypes::decode).orEmpty(),
             totp = TotpResolver.resolve(otp, legacySeed, legacySettings),
             attachments = raw.attachments.map { Attachment(it.name, it.ref?.let(binarySizes::getOrNull)) },
             expires = raw.expires,

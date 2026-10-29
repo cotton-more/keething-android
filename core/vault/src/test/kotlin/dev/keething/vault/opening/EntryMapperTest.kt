@@ -129,15 +129,12 @@ class EntryMapperTest {
     }
 
     @Test
-    fun fieldTypesComeFromTheEntrysCustomDataTheNewNameFirstAnythingButJsonIsNone() {
+    fun fieldTypesComeFromTheEntrysCustomDataAnythingButJsonIsNone() {
         fun types(data: Map<String, String>) = map(KdbxEntry("id", emptyList(), customData = data)).fieldTypes
         val key = EntryFieldTypes.CUSTOM_DATA_KEY
-        val former = EntryFieldTypes.FORMER_CUSTOM_DATA_KEY
 
         assertEquals(mapOf("Ablauf" to "until"), types(mapOf("Other" to "x", key to """{"Ablauf":"until"}""")))
-        assertEquals(mapOf("A" to "until"), types(mapOf(former to """{"A":"until"}""")), "the former name while there is no new item")
-        assertEquals(mapOf("A" to "date"), types(mapOf(former to """{"A":"until"}""", key to """{"A":"date"}""")), "the new item wins")
-        assertEquals(emptyMap(), types(mapOf(key to "not json", former to """{"A":"until"}""")))
+        assertEquals(emptyMap(), types(mapOf(key to "not json")))
         assertEquals(emptyMap(), types(emptyMap()))
     }
 }

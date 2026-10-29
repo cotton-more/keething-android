@@ -53,7 +53,6 @@ internal object EntryEditing {
         changes.customFields?.let { setCustomFields(it, entry) }
         changes.fieldTypes?.let { types ->
             setCustomData(EntryFieldTypes.CUSTOM_DATA_KEY, types.takeIf { it.isNotEmpty() }?.let(EntryFieldTypes::encode), entry, now)
-            setCustomData(EntryFieldTypes.FORMER_CUSTOM_DATA_KEY, null, entry, now)
         }
         changes.tags?.let { setTags(it, entry) }
         changes.totp?.let { setTotp(it, entry) }

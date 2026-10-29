@@ -1,9 +1,13 @@
 # Keething for Android — spec
 
+A reference to a *ROADMAP* step, *RELEASE.md* or the Mac's plans says where and when a decision was taken: those
+working files moved to `~/Projects/keething-spec` on 2026-10-27 (`plans/README.md` maps the names), with what
+comes next (its features, ideas and open stages).
+
 The application id is `dev.keething.android`, the packages `dev.keething.*`. The Mac app's settings entry is
-the one titled "Keething" (the Mac still also reads one titled "KeePassBar", the apps' former name; this app
-does not: rename such an entry to "Keething"). The field types are read under `Keething.FieldTypes`, else the former
-`KeePassBar.FieldTypes`, which a write of the types removes (§3.3).
+the one titled "Keething", the field types are read under `Keething.FieldTypes` (§6.3) and nothing else: a
+database from before 2026-10-21 has the apps' former name there, which the Mac still reads; rename the entry by
+hand and the field types' key with `tools/rename-field-types.sh` (DEVELOPMENT.md).
 
 A small Android client for the same KeePassXC database the Mac app Keething (`~/Projects/keepass-bar`)
 reads and writes: unlock with a fingerprint, search, view an entry with its custom fields laid out readably,
@@ -916,7 +920,7 @@ service, the screen it opens and the system's view structure are in `app/autofil
 - Google's developer verification for side-loaded apps (rolling out 2026–2027): check its state before the
   first install; installing over `adb` is expected to stay possible.
 
-### 8.1 Google Play (ROADMAP step 8, RELEASE.md)
+### 8.1 Google Play (keething-spec `app.public-release`, was ROADMAP step 8 and RELEASE.md)
 
 Decided (2026-10-21): the app is to be published on Google Play. It needs the SAF storage (§3.1: Play does not
 allow all-files access for a password manager), a privacy policy, a store listing, the licences shown in the

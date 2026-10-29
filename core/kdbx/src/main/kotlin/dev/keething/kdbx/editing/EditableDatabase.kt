@@ -43,6 +43,9 @@ public class EditableDatabase internal constructor(
         }
     }
 
+    /** Renames the entries' `CustomData` item [from] to [to] everywhere, history included ([CustomDataRename]). */
+    public fun renameEntryCustomData(from: String, to: String): CustomDataRenamed = CustomDataRename.rename(from, to, root)
+
     /**
      * Writes the file as the tree stands now. Attachments nothing refers to any more are dropped and identical
      * ones stored once (as KeePassXC does); every reference must still mean the same bytes.
