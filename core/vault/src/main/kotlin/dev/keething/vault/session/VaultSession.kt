@@ -43,7 +43,8 @@ import kotlinx.coroutines.withContext
  *
  * While unlocked it holds the vault, its attachments and the database key (of the password, the key file, or both),
  * and wipes them all on lock. It watches the database's folder and reads the file again when it changed, with the
- * key in memory.
+ * key in memory. The app's coordinator ([dev.keething.vault.databases.VaultSessions]) holds one per database of the
+ * window and locks them all at its timeout.
  *
  * Call it from [scope]'s thread (the main thread); file reads and the key derivation run on [io]. A read
  * in progress is never cancelled (the key derivation cannot stop halfway): a lock makes its result be
@@ -58,8 +59,6 @@ public class VaultSession(
     private val clock: Clock,
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher,
-    /** How long the app may stay in the background before it locks (SPEC §4). */
-    private val lockTimeout: () -> Duration,
     /** How long the folder must be quiet after a change before the file is read again (SPEC §3.2). */
     private val settleTime: Duration = 1.5.seconds,
     /** How long a missing file is waited for: Syncthing in the middle of a replace (SPEC §3.2). */
@@ -70,6 +69,9 @@ public class VaultSession(
 ) {
     private val mutableState = MutableStateFlow<SessionState>(SessionState.Locked(LockReason.Initial))
     public val state: StateFlow<SessionState> = mutableState.asStateFlow()
+
+    /** Told at once of every state set, before anyone collecting [state] (the coordinator follows it so). */
+    internal var onStateChange: ((SessionState) -> Unit)? = null
 
     private val saver = VaultSaver(store, backups)
 
@@ -97,8 +99,6 @@ public class VaultSession(
     private var reloadPending = false
     private var watch: AutoCloseable? = null
     private var settleJob: Job? = null
-    private var timeoutJob: Job? = null
-    private var backgroundSince: Duration? = null
     private var closed = false
 
     /** Its database is no longer the one shown ([close]): nothing opens it again. */
@@ -119,7 +119,7 @@ public class VaultSession(
         val token = generation
         val typed = password.copy()
         val source = keyFile()
-        mutableState.value = SessionState.Unlocking
+        set(SessionState.Unlocking)
         val outcome = CompletableDeferred<UnlockOutcome>()
         scope.launch {
             val waiting = ArrayDeque<Attempt>()
@@ -131,7 +131,7 @@ public class VaultSession(
                 }
                 val failure = noKeys ?: tryInTurn(waiting, token, outcome) ?: return@launch
                 if (token != generation) return@launch
-                mutableState.value = SessionState.Locked(LockReason.UnlockFailed(failure))
+                set(SessionState.Locked(LockReason.UnlockFailed(failure)))
                 outcome.complete(UnlockOutcome.Failed(failure))
             } finally {
                 waiting.forEach { it.key.wipe() }
@@ -153,14 +153,14 @@ public class VaultSession(
             return null
         }
         val token = generation
-        mutableState.value = SessionState.Unlocking
+        set(SessionState.Unlocking)
         val outcome = CompletableDeferred<UnlockOutcome>()
         scope.launch {
             val waiting = ArrayDeque(listOf(Attempt(key, OpenFailure.WrongPassword)))
             try {
                 val failure = tryInTurn(waiting, token, outcome) ?: return@launch
                 if (token != generation) return@launch
-                mutableState.value = SessionState.Locked(LockReason.UnlockFailed(failure))
+                set(SessionState.Locked(LockReason.UnlockFailed(failure)))
                 outcome.complete(UnlockOutcome.Failed(failure))
             } finally {
                 waiting.forEach { it.key.wipe() }
@@ -235,8 +235,10 @@ public class VaultSession(
             when (result) {
                 is OpenResult.Opened -> {
                     key = attempt.key
-                    adopt(result, copies)
                     watch = store.watch { scope.launch { fileChanged() } }
+                    adopt(result, copies)
+                    // Told at once (the coordinator): a lock that caused wiped it all, and this unlock did not happen.
+                    if (token != generation) return null
                     outcome.complete(UnlockOutcome.Opened)
                     return null
                 }
@@ -263,7 +265,6 @@ public class VaultSession(
     public fun lock(reason: LockReason = LockReason.Manual) {
         generation++
         settleJob?.cancel()
-        timeoutJob?.cancel()
         watch?.close()
         watch = null
         key?.wipe()
@@ -276,7 +277,7 @@ public class VaultSession(
         loadedVersion = null
         triedVersion = null
         reloadPending = false
-        mutableState.value = SessionState.Locked(reason)
+        set(SessionState.Locked(reason))
     }
 
     /**
@@ -313,41 +314,12 @@ public class VaultSession(
         }
     }
 
-    /** The app went to the background (turning the screen off does that too). */
-    public fun movedToBackground() {
-        backgroundSince = clock.elapsed()
-        if (mutableState.value is SessionState.Locked) return
-        timeoutJob?.cancel()
-        timeoutJob = scope.launch {
-            delay(lockTimeout())
-            if (mutableState.value !is SessionState.Locked) lock(LockReason.Timeout)
-        }
-    }
-
     /**
-     * The app came back. The timer may not have run (a phone in deep sleep), so the time in the background
-     * is checked here too; then the file is checked for a new version.
+     * The app came back: the file is checked for a new version, which the watcher may have missed while the app was
+     * frozen. The lock timeout is the coordinator's.
      */
-    public fun movedToForeground() {
-        timeoutJob?.cancel()
-        val timedOut = backgroundTimedOut()
-        backgroundSince = null
-        if (mutableState.value is SessionState.Locked) return
-        if (timedOut) return lock(LockReason.Timeout)
+    public fun checkFile() {
         if (mutableState.value is SessionState.Unlocked) scope.launch { checkForChanges() }
-    }
-
-    /**
-     * A wake-up while in the background (an alarm): locks when the timeout has passed. Android freezes a
-     * background app, so the timer of [movedToBackground] may not run until the app comes back.
-     */
-    public fun checkBackgroundTime() {
-        if (mutableState.value !is SessionState.Locked && backgroundTimedOut()) lock(LockReason.Timeout)
-    }
-
-    private fun backgroundTimedOut(): Boolean {
-        val since = backgroundSince ?: return false
-        return clock.elapsed() - since >= lockTimeout()
     }
 
     private suspend fun checkForChanges() {
@@ -360,7 +332,7 @@ public class VaultSession(
             triedVersion = version
             reload()
         } else if (copies != unlocked.conflictCopies) {
-            mutableState.value = unlocked.copy(conflictCopies = copies)
+            set(unlocked.copy(conflictCopies = copies))
         }
     }
 
@@ -413,7 +385,7 @@ public class VaultSession(
                     return false
                 }
                 val unlocked = mutableState.value as? SessionState.Unlocked ?: return false
-                mutableState.value = unlocked.copy(conflictCopies = copies, reloadFailure = result.failure)
+                set(unlocked.copy(conflictCopies = copies, reloadFailure = result.failure))
             }
         }
         true
@@ -477,7 +449,7 @@ public class VaultSession(
         (mutableState.value as? SessionState.Unlocked)?.vault?.let(retiredVaults::add)
         loadedVersion = opened.version
         triedVersion = opened.version
-        mutableState.value = SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation)
+        set(SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation))
     }
 
     private suspend fun open(key: DatabaseKey): OpenResult = withContext(io) { opener.open(store, key) }
@@ -494,6 +466,12 @@ public class VaultSession(
     }
 
     private val OpenResult.failure: OpenFailure? get() = (this as? OpenResult.Failed)?.failure
+
+    /** The new state, told at once to [onStateChange] (as [state] keeps it: an equal one leaves the one before). */
+    private fun set(new: SessionState) {
+        mutableState.value = new
+        onStateChange?.invoke(mutableState.value)
+    }
 }
 
 /** Why a key file cannot be used, as the lock screen says it (the Mac's `KeyFileLoader.reason`). */

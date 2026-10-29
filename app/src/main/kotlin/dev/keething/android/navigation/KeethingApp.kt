@@ -70,7 +70,7 @@ import dev.keething.android.sharing.SharingScreen
 import dev.keething.android.sharing.TheirRequestScreen
 import dev.keething.android.storageprobe.StorageProbeScreen
 import dev.keething.android.unlock.LockScreen
-import dev.keething.vault.session.SessionState
+import dev.keething.vault.databases.SessionsState
 
 /** The screens of the unlocked vault. */
 internal sealed interface Screen {
@@ -223,8 +223,10 @@ internal fun KeethingApp(container: AppContainer) {
             WelcomeScreen(container)
             return@Surface
         }
-        val state by current.session.state.collectAsStateWithLifecycle()
-        val unlocked = state is SessionState.Unlocked
+        val state by container.sessions.state.collectAsStateWithLifecycle()
+        // The app's state, not one session's: nothing open clears the screens, also while another database still opens
+        // (keething-spec databases.several-open AC10).
+        val unlocked = (state as? SessionsState.Open)?.vaults?.any { it.id == current.id } == true
         LaunchedEffect(unlocked) { if (!unlocked) navigation.reset() else navigation.lockBack = null }
         // Another database's session (a new database made from Settings opens at once, its lock never shown here):
         // nothing of the screens of before goes over to it.

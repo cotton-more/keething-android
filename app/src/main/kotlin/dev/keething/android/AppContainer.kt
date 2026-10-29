@@ -43,18 +43,15 @@ import dev.keething.domain.storage.DatabaseStore
 import dev.keething.sharing.message.PartCollector
 import dev.keething.sharing.requests.ShareRequests
 import dev.keething.vault.databases.DatabaseList
-import dev.keething.vault.session.SessionState
+import dev.keething.vault.databases.SessionsState
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -189,15 +186,14 @@ internal class AppContainer(context: Context) {
         followTheLockWithTheRequests()
     }
 
-    /** The requests open with their key when the vault unlocks, and are wiped when it locks. */
-    @OptIn(ExperimentalCoroutinesApi::class)
+    /** The requests open with their key when a database opens, and are wiped when none is open. */
     private fun followTheLockWithTheRequests() {
         appScope.launch {
-            sessions.current
-                .flatMapLatest { database -> database?.session?.state?.map { database.takeIf { _ -> it is SessionState.Unlocked } } ?: flowOf(null) }
+            sessions.state
+                .map { it is SessionsState.Open }
                 .distinctUntilChanged()
-                .collect { unlocked ->
-                    if (unlocked == null) {
+                .collect { open ->
+                    if (!open) {
                         shareRequests.close()
                     } else {
                         withContext(Dispatchers.IO) {
@@ -210,14 +206,15 @@ internal class AppContainer(context: Context) {
         }
     }
 
-    /** What outlives a screen and holds the vault's data goes with the lock. */
-    @OptIn(ExperimentalCoroutinesApi::class)
+    /**
+     * What outlives a screen and holds a vault's data goes when no database is open any more, also while another is
+     * still opening (keething-spec databases.several-open AC10).
+     */
     private fun clearOnLock() {
         appScope.launch {
-            sessions.current
-                .flatMapLatest { it?.session?.state ?: flowOf(null) }
+            sessions.state
                 .collect {
-                    if (it == null || it is SessionState.Locked) {
+                    if (it !is SessionsState.Open) {
                         attachmentFiles.clear()
                         autofillEntries.clear()
                         recycleBin.forget()

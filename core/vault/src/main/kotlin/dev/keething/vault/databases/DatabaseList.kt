@@ -94,9 +94,12 @@ public data class DatabaseRecord(
     }
 }
 
-/** The list's databases and the current one: the one the lock screen shows and the session opens. */
+/** The list's databases and the current one: the one the lock screen shows, always one of the window's. */
 public data class Databases(val records: List<DatabaseRecord>, val currentId: DatabaseId?) {
     public val current: DatabaseRecord? get() = currentId?.let(::record)
+
+    /** The databases side by side, each with its session (plan AD8), in the list's order. */
+    public val window: List<DatabaseRecord> get() = records.filter { it.inWindow }
 
     public fun record(id: DatabaseId): DatabaseRecord? = records.firstOrNull { it.id == id }
 }
@@ -127,11 +130,22 @@ public class DatabaseList(
         if (stored == null) save()
     }
 
+    private val observers = mutableListOf<() -> Unit>()
+
     public val records: List<DatabaseRecord> get() = state.value.records
     public val currentId: DatabaseId? get() = state.value.currentId
     public val current: DatabaseRecord? get() = state.value.current
+    public val window: List<DatabaseRecord> get() = state.value.window
 
     public fun record(id: DatabaseId): DatabaseRecord? = state.value.record(id)
+
+    /**
+     * Calls [handler] after every change, at once, with the list already changed (the sessions follow it before anything
+     * reads them). A change made by a handler tells every handler again, from within.
+     */
+    public fun observe(handler: () -> Unit) {
+        observers += handler
+    }
 
     /**
      * The record of the file at [path]: the one there is (the same file, however the path is written), or a new one at
@@ -165,9 +179,15 @@ public class DatabaseList(
         change(Databases(records, id))
     }
 
+    /** Into the window or out of it; only a database of the list. */
+    public fun setInWindow(id: DatabaseId, inWindow: Boolean) {
+        update(id) { it.copy(inWindow = inWindow) }
+    }
+
     private fun change(databases: Databases) {
         mutableState.value = databases
         save()
+        observers.toList().forEach { it() }
     }
 
     private fun save() {

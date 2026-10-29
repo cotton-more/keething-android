@@ -257,4 +257,40 @@ class DatabaseListTest {
         assertEquals("Family Shared", again?.name)
         assertEquals("#FF8000", again?.color)
     }
+
+    // The window (several open, plan AD8)
+
+    @Test
+    fun theWindowIsItsDatabasesInTheListsOrderAndIsKeptWithTheList() {
+        val store = MapSettings()
+        val list = list(store)
+        val personal = list.add("/a/Personal.kdbx")
+        val work = list.add("/b/Work.kdbx")
+        list.add("/c/Old.kdbx")
+        assertTrue(list.window.isEmpty(), "a database joins the list out of the window")
+
+        list.setInWindow(work.id, true)
+        list.setInWindow(personal.id, true)
+        assertEquals(listOf(personal.id, work.id), list.window.map { it.id })
+
+        list.setInWindow(personal.id, false)
+        list.setInWindow(DatabaseId("not in the list"), true)
+        assertEquals(listOf(work.id), list(store).window.map { it.id })
+    }
+
+    @Test
+    fun anObserverIsToldAfterEveryChangeWithTheListAlreadyChanged() {
+        val list = list(MapSettings())
+        val seen = mutableListOf<List<String>>()
+        list.observe { seen += list.records.map { it.path } }
+
+        val personal = list.add("/a/Personal.kdbx")
+        list.add("/a/Personal.kdbx")
+        list.update(personal.id) { it }
+        list.setCurrent(personal.id)
+        list.setInWindow(personal.id, true)
+        list.remove(personal.id)
+
+        assertEquals(listOf(listOf("/a/Personal.kdbx"), listOf("/a/Personal.kdbx"), emptyList()), seen, "only what changed it is told")
+    }
 }

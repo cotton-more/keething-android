@@ -175,8 +175,10 @@ setting `databases`: `{"current": <id>, "databases": [record…], "version": 1}`
 `checkedInChooser`; written with sorted keys). A record without `id` or `path`, a field of another type or text that is
 not JSON makes the list **unreadable**: it is kept under `databases.unreadable.<seconds>`, never overwritten, and the
 list starts empty; any other field missing reads as its default, unknown ones are ignored. The first database added
-is current: the one the lock screen shows and the session opens; **one is open at a time** (several side by side are
-`plans/android-databases.md` AD8). There is **no default path and no migration**: the single path of before
+is current: the one the lock screen shows. **The window** (`inWindow`, kept with the list) is the databases side by
+side, each with a session of its own (§4); the current one is always in it. **One is open at a time** from the screens
+until `plans/android-databases.md` AD9: the window holds the current database alone, and choosing another closes the
+one shown. There is **no default path and no migration**: the single path of before
 (`databasePath`) is left as it was and read no more, so the first start after the list shows the welcome (§6.2). A
 database is added by opening its file (the system picker, any file; the app keeps the document's path, which the
 phone's storage provider and the downloads provider's `raw:` ids give, and says when a place has none); Locate… gives
@@ -525,12 +527,25 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
 - The keyboard is asked not to learn what is typed in the editor and the search field
   (`IME_FLAG_NO_PERSONALIZED_LEARNING`, Gboard's incognito mode): entries' names and notes stay out of its
   dictionary. Password fields are never learnt anyway.
+- **A session per database** (keething-spec databases.several-open; `core/vault` `VaultSessions`, the Mac's D5): a
+  `VaultSession` and its `BiometricUnlock` for each database of the window (§3.1), each its file's own (its key, vault,
+  attachments, folder watcher, reloads and saves) and wiped at its own lock; a typed password goes to its own database
+  only. A session is made when its database joins the window, and dropped (locked, never opened again) when it leaves
+  the window or the list or its file moves (Locate… starts a new one). The Lock button and the timeout lock every
+  database at once; one can be locked or closed alone (the core only, the menu is AD12); a reload that finds one
+  database's password changed locks that one only, and each lock screen says its own database's reason. The **app's
+  state** (nothing open and why, opening, the open vaults in the window's order) is told once per change, and the
+  screens follow it: nothing open clears the list, the search, the card and the editor, the attachments opened
+  elsewhere, autofill's matching and the sharing requests, also while another database is still opening.
 - Lock: after N minutes in the background (default 5, a choice of 1, 5, 15, 60; turning the screen off
-  puts the app in the background), and from a button. Removing the app from recents ends its process, which
+  puts the app in the background), and from a button. **One timeout for the app**, not one per database: it runs
+  while the app is in the background and a database is open or opening, from the moment the app left (or the first
+  database began to open there: a new database's Create that ended in the background) until the last one locks;
+  coming back postpones it for all. The alarm below is set each time this timer starts. Removing the app from recents ends its process, which
   takes the vault with it; leaving the app with Back is the background like any other (Android 17 finishes
   the activity then, so locking on that would ask for the password after every Back). Locking wipes the
   key, the vault and attachments.
-- Android freezes an app in the background (about 10 s after it leaves), so the session's own timer may
+- Android freezes an app in the background (about 10 s after it leaves), so the app's timer may
   not run; an alarm (inexact, no exact-alarm permission) wakes the app at the timeout to lock it: on time
   or a little later, in Doze at the next maintenance window. Coming back checks the time too. Checked on
   the Android 17 emulator: the alarm thawed the frozen app and it locked. On the test phone (Pixel 6,
@@ -591,7 +606,7 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
 Same idea as the Mac app's Touch ID (Mac SPEC §3.8), with the Keystore in place of the Secure Enclave; the
 rules are a port of the Mac's `TouchIDUnlock`: `BiometricSetup` (`core/vault`) for the whole app, `BiometricUnlock` for
 each database. Each database has its **own stored password** (`plans/android-databases.md` AD5); one database is open
-at a time (several, and one fingerprint for several, are AD8 and AD13).
+at a time from the screens (several are AD9; one fingerprint for several is AD13).
 
 - **Two switches.** The app's, "Unlock with the fingerprint" in Settings, is **off** until turned on; each database
   has its own **Use fingerprint** besides (`useBiometric` in the list, §3.1), on its page in Settings and as "Use

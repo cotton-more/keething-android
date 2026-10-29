@@ -75,14 +75,14 @@ class CurrentDatabaseTest {
                 clock = clock,
                 scope = scope.backgroundScope,
                 io = io,
-                lockTimeout = { 5.minutes },
                 keyFile = { keyFilePath()?.let { keyFiles.getOrPut(it) { FakeKeyFile(null, File(it).name) } } },
             )
             val biometric = BiometricUnlock(record.id, session, setup, list, scope.backgroundScope, watching, fileExists = { true })
             DatabaseSession(number, record.id, File(record.path), store, session, biometric)
         }
 
-        val databases: CurrentDatabase by lazy { CurrentDatabase(list, scope.backgroundScope, factory, setup, now = clock::now) }
+        val sessions: VaultSessions by lazy { VaultSessions(list, scope.backgroundScope, factory, clock, lockTimeout = { 5.minutes }, now = clock::now) }
+        val databases: CurrentDatabase by lazy { CurrentDatabase(list, scope.backgroundScope, sessions, setup) }
 
         val shown: DatabaseSession get() = assertNotNull(databases.current.value)
 

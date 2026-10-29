@@ -28,7 +28,6 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
@@ -74,7 +73,6 @@ class BiometricUnlockTest {
                 clock = clock,
                 scope = scope.backgroundScope,
                 io = fileReads,
-                lockTimeout = { 5.minutes },
                 keyFile = { keyFile },
             )
             val biometric = BiometricUnlock(record.id, session, setup, list, scope.backgroundScope, scope.backgroundScope, fileExists = { it !in missing })

@@ -4,6 +4,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
@@ -22,7 +23,6 @@ import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -43,7 +43,6 @@ class VaultSessionTest {
             clock = clock,
             scope = scope.backgroundScope,
             io = StandardTestDispatcher(scope.testScheduler),
-            lockTimeout = { 5.minutes },
         )
     }
 
@@ -123,6 +122,27 @@ class VaultSessionTest {
         advanceTimeBy(10.seconds)
         runCurrent()
         assertEquals(SessionState.Locked(LockReason.Manual), f.session.state.value, "no reload without the key")
+    }
+
+    @Test
+    fun aLockCausedByTellingTheOpeningEndsTheUnlockWithNothingLeftOpen() = runTest {
+        // The coordinator hears of every state at once and may drop the session then (its database left the window).
+        val f = fixture()
+        var seen: Vault? = null
+        f.session.onStateChange = {
+            if (it is SessionState.Unlocked) {
+                seen = it.vault
+                f.session.lock()
+            }
+        }
+
+        val outcome = assertNotNull(f.session.unlock(Secret.of("pw")))
+        runCurrent()
+
+        assertTrue(assertNotNull(seen).entries.all { it.password.isWiped }, "the vault it was told of is wiped")
+        assertEquals(UnlockOutcome.Interrupted, outcome.await(), "nothing to store for the fingerprint")
+        assertEquals(SessionState.Locked(LockReason.Manual), f.session.state.value)
+        assertEquals(0, f.store.watching, "no watcher left on a locked session")
     }
 
     @Test
@@ -261,80 +281,15 @@ class VaultSessionTest {
         assertSame(vault, f.vault, "only the copies changed: no reload")
     }
 
-    // Auto-lock (SPEC §4)
-
-    @Test
-    fun locksAfterTheTimeoutInTheBackground() = runTest {
-        val f = unlocked()
-
-        f.session.movedToBackground()
-        advanceTimeBy(4.minutes)
-        runCurrent()
-        assertIs<SessionState.Unlocked>(f.session.state.value)
-        advanceTimeBy(1.minutes)
-        runCurrent()
-
-        assertEquals(SessionState.Locked(LockReason.Timeout), f.session.state.value)
-    }
-
-    @Test
-    fun comingBackInTimeKeepsItUnlocked() = runTest {
-        val f = unlocked()
-
-        f.session.movedToBackground()
-        advanceTimeBy(4.minutes)
-        f.session.movedToForeground()
-        advanceTimeBy(10.minutes)
-        runCurrent()
-
-        assertIs<SessionState.Unlocked>(f.session.state.value)
-    }
-
-    @Test
-    fun comingBackAfterDeepSleepLocksAlthoughTheTimerDidNotRun() = runTest {
-        val f = unlocked()
-
-        f.session.movedToBackground()
-        f.clock.sleep(6.minutes)
-        f.session.movedToForeground()
-
-        assertEquals(SessionState.Locked(LockReason.Timeout), f.session.state.value)
-    }
-
-    @Test
-    fun aWakeUpInTheBackgroundLocksOnceTheTimeoutPassedAlthoughTheTimerDidNotRun() = runTest {
-        val f = unlocked()
-        f.session.movedToBackground()
-
-        f.clock.sleep(4.minutes) // a frozen process: no timer runs
-        f.session.checkBackgroundTime()
-        assertIs<SessionState.Unlocked>(f.session.state.value, "not before the timeout")
-
-        f.clock.sleep(1.minutes)
-        f.session.checkBackgroundTime()
-        assertEquals(SessionState.Locked(LockReason.Timeout), f.session.state.value)
-    }
-
-    @Test
-    fun aWakeUpInTheForegroundChangesNothing() = runTest {
-        val f = unlocked()
-        f.session.movedToBackground()
-        f.session.movedToForeground()
-
-        f.clock.sleep(10.minutes)
-        f.session.checkBackgroundTime()
-
-        assertIs<SessionState.Unlocked>(f.session.state.value)
-    }
+    // Coming back (the lock timeout is the coordinator's, VaultSessionsTest)
 
     @Test
     fun comingBackChecksTheFileForANewVersion() = runTest {
         val f = unlocked()
         val before = f.vault
-        f.session.movedToBackground()
         f.store.change(fixtureBytes("kdbx4-aes-argon2d"), notify = false) // the watcher missed it
 
-        f.session.movedToForeground()
+        f.session.checkFile()
         runCurrent()
 
         assertNotSame(before, f.vault)

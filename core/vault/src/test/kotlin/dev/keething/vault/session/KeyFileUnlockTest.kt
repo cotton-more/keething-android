@@ -16,7 +16,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -35,7 +34,6 @@ class KeyFileUnlockTest {
             clock = FakeClock(scope.testScheduler),
             scope = scope.backgroundScope,
             io = StandardTestDispatcher(scope.testScheduler),
-            lockTimeout = { 5.minutes },
             keyFile = { keyFile },
         )
 

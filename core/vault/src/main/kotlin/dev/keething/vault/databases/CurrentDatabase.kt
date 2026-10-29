@@ -1,56 +1,22 @@
 package dev.keething.vault.databases
 
 import dev.keething.domain.secret.Secret
-import dev.keething.domain.storage.DatabaseStore
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.creating.DerivedKey
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
-import dev.keething.vault.session.VaultSession
-import java.io.File
-import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 
 /**
- * The current database's session (SPEC §3.1, §4): what the screens unlock, show and save through. [number] tells the
- * sessions of this process apart: the same database chosen again, or its file located, starts a new one, and a screen
- * must not keep the old.
- */
-public class DatabaseSession(
-    public val number: Int,
-    public val id: DatabaseId,
-    public val file: File,
-    public val store: DatabaseStore,
-    public val session: VaultSession,
-    public val biometric: BiometricUnlock,
-)
-
-/** Builds a database's session; the app picks the file store, the backups and how a key file is read. */
-public fun interface SessionFactory {
-    /**
-     * [keyFilePath] is the database's key file as the list has it at each unlock; [scope] ends when the session is no
-     * longer current (for watching it).
-     */
-    public fun start(record: DatabaseRecord, number: Int, keyFilePath: () -> String?, scope: CoroutineScope): DatabaseSession
-}
-
-/**
- * The list's current database and its session, one open at a time (plan AD4; the Mac's D4 `DatabaseListModel`):
- * another chosen, a file opened, a file located, a key file chosen and Remove from List. Each acts on the list at once.
+ * The list's current database and its session (plan AD4; the Mac's `DatabaseListModel`): another chosen, a file opened,
+ * a file located, a key file chosen and Remove from List. Each acts on the list at once, and [sessions] follow it. One
+ * open at a time from the screens until plan AD9: the window holds the current database alone, so choosing another
+ * locks the one shown.
  *
  * Each database keeps its own stored password for the fingerprint (plan AD5): choosing another keeps each one's, and
  * Remove from List deletes the removed one's ([biometric]).
@@ -60,21 +26,19 @@ public fun interface SessionFactory {
 public class CurrentDatabase(
     private val list: DatabaseList,
     private val scope: CoroutineScope,
-    private val factory: SessionFactory,
+    private val sessions: VaultSessions,
     private val biometric: BiometricSetup,
-    private val now: () -> Instant = Instant::now,
 ) {
-    private var started = 0
-    private var watching: CoroutineScope? = null
-    private val mutableCurrent = MutableStateFlow(list.current?.let(::start))
+    init {
+        list.currentId?.let { sessions.showAlone(it, LockReason.Initial) }
+    }
 
-    public val current: StateFlow<DatabaseSession?> = mutableCurrent.asStateFlow()
+    public val current: StateFlow<DatabaseSession?> = sessions.current
 
     /** The lock screen's sheet: this database's lock screen; the one shown before closes (one open at a time). */
     public fun choose(id: DatabaseId) {
         if (id == list.currentId || list.record(id) == null) return
-        list.setCurrent(id)
-        follow()
+        sessions.showAlone(id, LockReason.Initial)
     }
 
     /**
@@ -83,22 +47,20 @@ public class CurrentDatabase(
      */
     public fun open(path: String): DatabaseId {
         val record = list.add(path)
-        list.setCurrent(record.id)
-        follow()
+        sessions.showAlone(record.id, LockReason.Initial)
         return record.id
     }
 
     /**
-     * Locate…: the file moved; the database stays, with its id, its stored password and its backups. Open, it locks
-     * first (its vault was the old file's); locked, the old file's reason goes. Why not, when that file is another
-     * database of the list.
+     * Locate…: the file moved; the database stays, with its id, its stored password and its backups. Its session is the
+     * new file's: open, it locks first (its vault was the old file's); locked, the old file's reason goes. Why not, when
+     * that file is another database of the list.
      */
     public fun locate(id: DatabaseId, path: String): String? {
         val standardized = DatabaseList.standardized(path)
         val other = list.records.firstOrNull { it.id != id && DatabaseList.standardized(it.path) == standardized }
         if (other != null) return "That file is already in the list as “${other.displayName}”."
         list.update(id) { it.copy(path = standardized) }
-        follow()
         return null
     }
 
@@ -110,18 +72,16 @@ public class CurrentDatabase(
     public fun setKeyFile(id: DatabaseId, path: String?) {
         list.update(id) { it.copy(keyFilePath = path?.let { DatabaseList.standardized(it) }, opensWithoutPassword = false) }
         biometric.keyFileChanged(id)
-        val database = current.value?.takeIf { it.id == id } ?: return
-        if (database.session.state.value is SessionState.Locked) database.session.lock(LockReason.Initial)
+        if (sessions.session(id)?.session?.state?.value is SessionState.Locked) sessions.lock(id, LockReason.Initial)
     }
 
     /**
-     * Remove from List: the database is forgotten on this phone with its stored password; the file stays. The current
-     * one locks first and the first left becomes current. Why the stored password could not be deleted, or null.
+     * Remove from List: the database is forgotten on this phone with its stored password; the file stays. Its session
+     * locks first and goes; the current one removed, the first left becomes current. Why the stored password could not
+     * be deleted, or null.
      */
     public suspend fun remove(id: DatabaseId): String? {
-        val wasCurrent = current.value?.id == id
         list.remove(id)
-        if (wasCurrent) follow()
         return biometric.forget(id)
     }
 
@@ -146,15 +106,12 @@ public class CurrentDatabase(
         val old = list.records.firstOrNull { DatabaseList.standardized(it.path) == standardized }
         var problem: String? = null
         if (old != null) {
-            val wasCurrent = current.value?.id == old.id
             list.remove(old.id)
-            if (wasCurrent) follow()
             problem = biometric.forget(old.id)
         }
         val record = list.add(standardized, useBiometric = useBiometric)
         list.update(record.id) { it.copy(keyFilePath = keyFilePath?.let(DatabaseList::standardized)) }
-        list.setCurrent(record.id)
-        follow()
+        sessions.showAlone(record.id, LockReason.Initial)
         val database = current.value?.takeIf { it.id == record.id }
         if (database == null || lockedSince()) {
             key.wipe()
@@ -188,39 +145,5 @@ public class CurrentDatabase(
             }
         }
         return true
-    }
-
-    /**
-     * The session follows the list's current database: another one, or its file moved, closes the session shown (a
-     * fingerprint prompt still up for it opens nothing) and starts the next. Each keeps its stored password.
-     */
-    private fun follow() {
-        val record = list.current
-        val previous = current.value
-        if (previous?.id == record?.id && previous?.file?.path == record?.path) return
-        previous?.session?.close()
-        watching?.cancel()
-        mutableCurrent.value = record?.let(::start)
-    }
-
-    private fun start(record: DatabaseRecord): DatabaseSession {
-        val session = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext.job))
-        watching = session
-        val id = record.id
-        val database = factory.start(record, ++started, { list.record(id)?.keyFilePath }, session)
-        // When it was last opened, by any unlock (Settings says it of a file not found).
-        session.launch {
-            database.session.state.map { it is SessionState.Unlocked }.distinctUntilChanged().filter { it }.collect {
-                list.update(id) { it.copy(lastOpened = now()) }
-            }
-        }
-        // What the file says of itself, at every open and reload, so the lock screen and the sheet say it while it is
-        // locked (keething-spec databases.name-colour AC2); the list is not touched when nothing changed.
-        session.launch {
-            database.session.state.filterIsInstance<SessionState.Unlocked>().collect { unlocked ->
-                list.update(id) { it.copy(name = DatabaseRecord.nameFromFile(unlocked.vault.name), color = DatabaseRecord.colorFromFile(unlocked.vault.color)) }
-            }
-        }
-        return database
     }
 }

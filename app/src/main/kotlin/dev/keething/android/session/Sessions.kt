@@ -20,12 +20,15 @@ import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.databases.SessionsState
+import dev.keething.vault.databases.VaultSessions
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.VaultSession
 import java.io.File
+import kotlin.time.DurationUnit
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,9 +43,10 @@ import kotlinx.coroutines.launch
 internal data class Visit(val number: Int, val beganLocked: Boolean)
 
 /**
- * Owns the current database's session for the whole app (screens, autofill, the code notification): the list of
- * databases and the one of them open ([CurrentDatabase], one at a time until several, plan AD8). Tells the session
- * when the app goes to the background and comes back (SPEC §4). Call it on the main thread.
+ * Owns the databases' sessions for the whole app (screens, autofill, the code notification): the list of databases, a
+ * session per database of the window and the app's state over them ([VaultSessions], plan AD8), and the current one
+ * ([CurrentDatabase]; one open at a time from the screens until plan AD9). Tells the sessions when the app goes to the
+ * background and comes back: one lock timeout for all (SPEC §4). Call it on the main thread.
  */
 internal class Sessions(
     private val settings: AppSettings,
@@ -61,10 +65,43 @@ internal class Sessions(
     /** The fingerprint's switch and days for the app, and each database's stored password (SPEC §5). */
     val biometric = BiometricSetup(biometricStores, list, settingsStore, AndroidClock, biometricIo)
 
-    /** Another database chosen, a file opened or located, a key file, Remove from List. */
-    val databases = CurrentDatabase(list, scope, ::start, biometric)
+    /** The app's locks, counted: a new database made across one stays locked, and New database's form goes. */
+    val locks = AppLocks(SystemClock::elapsedRealtime)
 
+    /** A session per database of the window; Lock and the background timeout lock them all. */
+    private val vaults = VaultSessions(list, scope, ::start, AndroidClock, lockTimeout = { settings.lockTimeout.value })
+
+    /** Another database chosen, a file opened or located, a key file, Remove from List. */
+    val databases = CurrentDatabase(list, scope, vaults, biometric)
+
+    /** The current database's session: the one the lock screen shows. */
     val current: StateFlow<DatabaseSession?> = databases.current
+
+    /** What the screens show: nothing open (and why), a database opening, or the open vaults (SPEC §4). */
+    val state: StateFlow<SessionsState> = vaults.state
+
+    init {
+        // Lock and the timeout, by any way it came: counted once each.
+        vaults.observeLocks { reason ->
+            Log.i(TAG, "lock all, ${SessionState.Locked(reason).describe()}")
+            locks.locked()
+        }
+        // In the background with a database open or opening (also one that opens there: a Create, a late fingerprint).
+        vaults.observeTimer { left ->
+            Log.i(TAG, "background, lock after ${left.toString(DurationUnit.SECONDS, 0)}")
+            lockAlarm.schedule(left)
+        }
+        // What the screens show (names and counts only, never data); a session dropped says nothing of itself.
+        scope.launch {
+            state.collect {
+                Log.i(TAG, "app: " + when (it) {
+                    is SessionsState.NothingOpen -> "nothing open, " + SessionState.Locked(it.reason).describe()
+                    SessionsState.Opening -> "opening"
+                    is SessionsState.Open -> "${it.vaults.size} open"
+                })
+            }
+        }
+    }
 
     private val mutableVisit = MutableStateFlow(Visit(0, beganLocked = true))
 
@@ -82,61 +119,43 @@ internal class Sessions(
         scope.launch { databases.remove(id)?.let(onProblem) }
     }
 
-    fun lock() {
-        locks.locked()
-        current.value?.session?.lock()
-    }
-
-    /** The app's locks, counted: a new database made across one stays locked, and New database's form goes. */
-    val locks = AppLocks(SystemClock::elapsedRealtime)
+    /** The Lock button: every database. */
+    fun lock() = vaults.lockAll(LockReason.Manual)
 
     /** How many times the app locked so far ([locks]). */
     val lockCount: Int get() = locks.count
 
-    private var inForeground = false
-
     /**
      * A new database made on the New database screen joins the list, becomes current and opens with the key it was made
      * with, unless the app locked since Create was tapped ([made]'s lock count). Made while the app was in the
-     * background, its timeout starts now. Why an old record's stored password could not be deleted, or null.
+     * background, its timeout starts with its opening, and the alarm with it. Why an old record's stored password could
+     * not be deleted, or null.
      */
-    suspend fun created(made: CreatedDatabase): String? {
-        val result = databases.created(made.path, made.keyFilePath, made.useFingerprint, made.key, made.password) {
+    suspend fun created(made: CreatedDatabase): String? =
+        databases.created(made.path, made.keyFilePath, made.useFingerprint, made.key, made.password) {
             locks.lockedSince(made.lockCount, settings.lockTimeout.value)
-        }
-        val session = current.value?.session
-        if (!inForeground && session != null && result.opened != null) {
-            session.movedToBackground()
-            lockAlarm.schedule(settings.lockTimeout.value)
-        }
-        return result.problem
-    }
+        }.problem
 
     /** The lock alarm went off. */
     fun checkBackgroundTime() {
         // Autofill asks too, at every fill request: only a real stay past the timeout is a lock.
         if (locks.awayPast(settings.lockTimeout.value)) locks.locked()
-        current.value?.session?.checkBackgroundTime()
+        vaults.checkBackgroundTime()
     }
 
     override fun onStart(owner: LifecycleOwner) {
         Log.i(TAG, "foreground")
-        inForeground = true
         // Away past the timeout, with or without a vault open: a lock (an unopened new database stays locked).
         locks.movedToForeground(settings.lockTimeout.value)
         lockAlarm.cancel()
-        val session = current.value?.session
-        session?.movedToForeground()
-        mutableVisit.value = Visit(visit.value.number + 1, beganLocked = session?.state?.value !is SessionState.Unlocked)
+        vaults.movedToForeground()
+        mutableVisit.value = Visit(visit.value.number + 1, beganLocked = state.value !is SessionsState.Open)
     }
 
     override fun onStop(owner: LifecycleOwner) {
-        inForeground = false
         locks.movedToBackground()
-        val session = current.value?.session ?: return
-        Log.i(TAG, "background, lock after ${settings.lockTimeout.value}")
-        session.movedToBackground()
-        if (session.state.value !is SessionState.Locked) lockAlarm.schedule(settings.lockTimeout.value)
+        // A database open or opening: the timer starts, and the alarm with it (above).
+        vaults.movedToBackground()
     }
 
     private fun start(record: DatabaseRecord, number: Int, keyFilePath: () -> String?, watching: CoroutineScope): DatabaseSession {
@@ -149,16 +168,10 @@ internal class Sessions(
             clock = AndroidClock,
             scope = scope,
             io = Dispatchers.IO,
-            lockTimeout = { settings.lockTimeout.value },
             keyFile = { keyFilePath()?.let { keyFileAt(File(it)) } },
         )
-        // Which states the session went through (names only, never data): how a lock came about. Its own timeout counts.
-        watching.launch {
-            session.state.collect {
-                Log.i(TAG, it.describe())
-                if (it is SessionState.Locked && it.reason == LockReason.Timeout) locks.locked()
-            }
-        }
+        // Which states the session went through (names only, never data): how a lock came about.
+        watching.launch { session.state.collect { Log.i(TAG, "${record.id.fileName.take(8)} ${it.describe()}") } }
         val fingerprint = BiometricUnlock(record.id, session, biometric, list, scope, watching)
         watching.launch { fingerprint.refresh() }
         watching.launch {
