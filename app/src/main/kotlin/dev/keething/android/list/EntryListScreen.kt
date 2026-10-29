@@ -173,7 +173,10 @@ internal fun EntryListScreen(
     val selected = selectedId?.takeIf { inTwoPanes() }
     val holdRecent by rememberUpdatedState(selected != null)
     val requests by container.shareRequests.book.collectAsStateWithLifecycle()
-    val model = viewModel { EntryListViewModel(database, container.recents, container.recycleBin, container.clipboard, query, codesOnly = { codes }, besideCard = { holdRecent }) }
+    val model = viewModel { EntryListViewModel(
+            database, container.recents, container.recycleBin, container.clipboard, query, codesOnly = { codes }, besideCard = { holdRecent },
+            databases = container.sessions.list.state,
+        ) }
     val state by model.state.collectAsStateWithLifecycle()
     val chips by model.chips.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -277,7 +280,7 @@ internal fun EntryListScreen(
                         val newest = state.conflictCopies.first()
                         Banner(
                             title = "Syncthing found two versions",
-                            text = "Open: ${state.databaseName}. The other one is from ${newest.createdAt.format(CONFLICT_TIME)} " +
+                            text = "Open: ${database.file.name}. The other one is from ${newest.createdAt.format(CONFLICT_TIME)} " +
                                 "(device ${newest.deviceId}) — merge it in KeePassXC (Database › Merge), then delete it.",
                         )
                     }

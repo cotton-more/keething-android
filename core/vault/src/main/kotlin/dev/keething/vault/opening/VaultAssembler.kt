@@ -27,6 +27,8 @@ internal object VaultAssembler {
             recycleBinEnabled = document.meta.recycleBinEnabled,
             defaultUsername = document.meta.defaultUserName,
             customIcons = document.meta.customIcons,
+            name = document.meta.databaseName,
+            color = document.meta.color.ifEmpty { null },
         )
     }
 }

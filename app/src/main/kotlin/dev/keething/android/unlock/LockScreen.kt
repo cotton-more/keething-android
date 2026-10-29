@@ -13,6 +13,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import dev.keething.android.databases.DatabaseLine
 import dev.keething.android.databases.DatabaseLinesModel
+import dev.keething.android.databases.DatabaseLabel
+import dev.keething.android.databases.DatabaseLabelText
 import dev.keething.android.databases.DatabaseTile
 import dev.keething.android.databases.DatabasesSheet
 import dev.keething.android.databases.KeyFileLine
@@ -133,6 +135,8 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onBa
     val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
     val lock = screens?.lockScreen?.takeIf { it.line.id == database.id }
+    // Its name as last read from the file, before the lines (the files looked at) are there.
+    val name = lock?.line?.name ?: container.sessions.list.record(database.id)?.displayName ?: database.file.name
     val session by model.session.collectAsStateWithLifecycle()
     val biometric by model.biometric.collectAsStateWithLifecycle()
     val fingerprintNotice by model.fingerprintNotice.collectAsStateWithLifecycle()
@@ -228,7 +232,7 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onBa
             Text("Keething", style = MaterialTheme.typography.displaySmall)
             Spacer(Modifier.height(8.dp))
         }
-        DatabaseIdentity(lock?.line, database.file.name, onClick = { sheet = true })
+        DatabaseIdentity(lock?.line, name, onClick = { sheet = true })
         // The file's problems first (its key file not there; a file not found says it in place of the field); then
         // why the fingerprint is not offered; then why it is locked.
         val reasonNotice = reason?.notice(timeout, database.file)
@@ -260,7 +264,7 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onBa
                 busy -> Column(Modifier.fillMaxWidth().height(96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     ContainedLoadingIndicator()
                     Spacer(Modifier.height(12.dp))
-                    Text("Opening ${database.file.name}…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Opening $name…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 // Not known yet (the files are being looked at): nothing rather than a field that goes again.
                 lock == null -> Spacer(Modifier.height(56.dp))
@@ -444,17 +448,18 @@ private fun FingerprintButton(enabled: Boolean, otherWay: String, onClick: () ->
 
 /** The database's line (SPEC §6.2): its tile, name, folder and when it changed; a tap opens the list's databases. */
 @Composable
-private fun DatabaseIdentity(line: DatabaseLine?, fileName: String, onClick: () -> Unit) {
+private fun DatabaseIdentity(line: DatabaseLine?, name: String, onClick: () -> Unit) {
     Surface(onClick = onClick, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
             Modifier.padding(start = 10.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            DatabaseTile(line?.initial ?: fileName.take(1).uppercase())
+            // Its colour needs the whole list's: neutral until the lines are there.
+            DatabaseTile(line?.initial ?: name.trim().firstOrNull()?.uppercase() ?: "?", line?.colorIndex)
             // Weighted, so that with a large font the icon keeps its place beside the lines.
             Column(Modifier.weight(1f, fill = false)) {
-                Text(line?.name ?: fileName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                DatabaseLabelText(line?.label ?: DatabaseLabel(name), MaterialTheme.typography.titleMedium)
                 Text(
                     line?.detail.orEmpty().dotsAtLineEnd(),
                     style = MaterialTheme.typography.bodyMedium,

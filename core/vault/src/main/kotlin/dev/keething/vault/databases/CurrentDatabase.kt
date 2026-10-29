@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
@@ -168,6 +169,13 @@ public class CurrentDatabase(
         session.launch {
             database.session.state.map { it is SessionState.Unlocked }.distinctUntilChanged().filter { it }.collect {
                 list.update(id) { it.copy(lastOpened = now()) }
+            }
+        }
+        // What the file says of itself, at every open and reload, so the lock screen and the sheet say it while it is
+        // locked (keething-spec databases.name-colour AC2); the list is not touched when nothing changed.
+        session.launch {
+            database.session.state.filterIsInstance<SessionState.Unlocked>().collect { unlocked ->
+                list.update(id) { it.copy(name = DatabaseRecord.nameFromFile(unlocked.vault.name), color = DatabaseRecord.colorFromFile(unlocked.vault.color)) }
             }
         }
         return database

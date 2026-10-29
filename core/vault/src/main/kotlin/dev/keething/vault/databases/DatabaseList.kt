@@ -2,7 +2,9 @@ package dev.keething.vault.databases
 
 import dev.keething.domain.settings.SettingsStore
 import java.io.File
+import java.text.Normalizer
 import java.time.Instant
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +64,34 @@ public data class DatabaseRecord(
 
     /** Opens with its key file alone: nothing to type, nothing for the fingerprint to store. */
     public val isPasswordless: Boolean get() = keyFilePath != null && opensWithoutPassword
+
+    public companion object {
+        /**
+         * KeePassXC fills in "Passwords" as every new database's name (its wizard; here in the languages of the
+         * keyboard layouts the Mac knows), so it says nothing of which database it is (folded: case and accents aside).
+         */
+        private val defaultNames = setOf("passwords", "passworter", "пароли")
+        private val marks = Regex("\\p{M}+")
+
+        /**
+         * The name a file's `Meta/DatabaseName` gives its database (keething-spec databases.name-colour AC1): itself, its
+         * outer spaces aside; null for none, or KeePassXC's default (the file name then says it).
+         */
+        public fun nameFromFile(name: String): String? {
+            val trimmed = name.trim()
+            val folded = marks.replace(Normalizer.normalize(trimmed.lowercase(Locale.ROOT), Normalizer.Form.NFD), "")
+            return if (trimmed.isEmpty() || folded in defaultNames) null else trimmed
+        }
+
+        /**
+         * The colour a file's `Meta/Color` gives its database: `#RRGGBB` (KeePass 2.x and KeePassDX write it so; the `#`
+         * may be left out), upper-case; null for anything else.
+         */
+        public fun colorFromFile(color: String?): String? {
+            val hex = color?.trim()?.removePrefix("#") ?: return null
+            return if (hex.length == 6 && hex.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) "#" + hex.uppercase(Locale.ROOT) else null
+        }
+    }
 }
 
 /** The list's databases and the current one: the one the lock screen shows and the session opens. */

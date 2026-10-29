@@ -231,4 +231,30 @@ class DatabaseListTest {
             assertFailsWith<JsonException>(bad) { Json.parse(bad) }
         }
     }
+
+    @Test
+    fun whatTheFileSaysOfItselfANameButKeePassXcsDefaultAndARrGgBbColour() {
+        // The Mac's "database record: what the file says of itself".
+        for (name in listOf("Passwords", "passwords", " Passwords ", "Passwörter", "PASSWÖRTER", "Пароли", "", "  ")) {
+            assertNull(DatabaseRecord.nameFromFile(name), name)
+        }
+        assertEquals("Personal", DatabaseRecord.nameFromFile(" Personal "))
+        assertEquals("My Passwords", DatabaseRecord.nameFromFile("My Passwords"))
+        assertEquals("#FF8000", DatabaseRecord.colorFromFile("#ff8000"))
+        assertEquals("#00A0FF", DatabaseRecord.colorFromFile(" 00A0FF "), "the # is left out by some")
+        for (odd in listOf(null, "", "#F80", "red", "#GG0000", "#FF800000", "##FF8000")) {
+            assertNull(DatabaseRecord.colorFromFile(odd), odd ?: "null")
+        }
+    }
+
+    @Test
+    fun aNameAndColourAreKeptInTheList() {
+        val store = MapSettings()
+        val first = list(store)
+        val record = first.add("/a/Personal.kdbx")
+        first.update(record.id) { it.copy(name = "Family Shared", color = "#FF8000") }
+        val again = list(store).record(record.id)
+        assertEquals("Family Shared", again?.name)
+        assertEquals("#FF8000", again?.color)
+    }
 }

@@ -14,6 +14,7 @@ import dev.keething.card.OpenableUrl
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.vault.Entry
 import dev.keething.totp.TotpGenerator
+import dev.keething.vault.databases.Databases
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.session.SessionState
 import java.time.Instant
@@ -22,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -36,6 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal data class ListUiState(
+    /** The database's name (SPEC §3.1): its own, else its file name without `.kdbx`. */
     val databaseName: String,
     val entryCount: Int? = null,
     val sections: List<ListSection> = emptyList(),
@@ -74,6 +77,8 @@ internal class EntryListViewModel(
     private val codesOnly: () -> Boolean,
     /** A card open beside the list (two panes); read in a snapshot. */
     private val besideCard: () -> Boolean = { false },
+    /** The list of databases, for the database's name (read from its file at every open and reload). */
+    databases: StateFlow<Databases> = MutableStateFlow(Databases(emptyList(), null)),
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
@@ -123,14 +128,14 @@ internal class EntryListViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
 
-    val state: StateFlow<ListUiState> = combine(unlocked, prepared, sections, recycleBin.leaving) { unlocked, prepared, sections, leaving ->
+    val state: StateFlow<ListUiState> = combine(unlocked, prepared, sections, recycleBin.leaving, databases.map(::nameIn).distinctUntilChanged()) { unlocked, prepared, sections, leaving, name ->
         // A lock wipes the vault at once: nothing of it is shown while the screen fades out. A vault read again
         // (a save, a sync) is listed while the one before stays on screen, so the list keeps its scroll position.
         if (unlocked == null || prepared == null) {
-            return@combine ListUiState(database.file.name, preparing = unlocked != null)
+            return@combine ListUiState(name, preparing = unlocked != null)
         }
         ListUiState(
-            databaseName = database.file.name,
+            databaseName = name,
             entryCount = prepared.listing.vault.entries.size,
             sections = sections.without(leaving),
             icons = prepared.icons,
@@ -138,7 +143,10 @@ internal class EntryListViewModel(
             reloadFailure = unlocked.reloadFailure,
             preparing = false,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, ListUiState(database.file.name))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, ListUiState(nameIn(databases.value)))
+
+    /** Its name as the list of databases has it (SPEC §3.1); the file's name for one not in the list. */
+    private fun nameIn(databases: Databases): String = databases.record(database.id)?.displayName ?: database.file.name
 
     init {
         // The list is new after every unlock: say how long the key derivation took (measured on the phone).

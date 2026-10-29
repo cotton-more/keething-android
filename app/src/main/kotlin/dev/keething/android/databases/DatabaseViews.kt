@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,10 +42,15 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -56,20 +62,20 @@ import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.segmentShape
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
+import dev.keething.vault.databases.Databases
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.delay
-import kotlin.time.Duration.Companion.seconds
-import dev.keething.vault.databases.Databases
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
@@ -114,20 +120,56 @@ internal class DatabaseLinesModel(list: DatabaseList) : ViewModel() {
     }
 }
 
-/** A database's tile: its initial in a rounded square (its colour comes with names and colours, plan AD6). */
+/** A database's colours in the theme shown (SPEC §6.2; the Mac's `Theme.database`): its dot, its text, its tile's fill. */
+internal class DatabaseColors(val dot: Color, val text: Color, val soft: Color)
+
 @Composable
-internal fun DatabaseTile(initial: String, size: Dp = 40.dp) {
+internal fun databaseColors(index: Int): DatabaseColors {
+    val shades = DatabasePalette.shades
+    val shade = shades[Math.floorMod(index, shades.size)]
+    val dark = isSystemInDarkTheme()
+    val dot = opaque(if (dark) shade.dotDark else shade.dotLight)
+    return DatabaseColors(dot, opaque(if (dark) shade.textDark else shade.textLight), dot.copy(alpha = 0.16f))
+}
+
+private fun opaque(rgb: Int): Color = Color(0xFF000000.toInt() or rgb)
+
+/** A database's tile: its initial in its colour on a soft fill of it, in a rounded square; neutral without a colour. */
+@Composable
+internal fun DatabaseTile(initial: String, colorIndex: Int?, size: Dp = 40.dp) {
+    val colors = colorIndex?.let { databaseColors(it) }
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(MaterialTheme.colorScheme.secondaryContainer),
+        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(colors?.soft ?: MaterialTheme.colorScheme.secondaryContainer),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             initial,
             style = if (size > 48.dp) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            color = colors?.text ?: MaterialTheme.colorScheme.onSecondaryContainer,
         )
     }
+}
+
+/** A database's dot (the lock screen's sheet). */
+@Composable
+internal fun DatabaseDot(colorIndex: Int) {
+    Box(Modifier.size(12.dp).clip(CircleShape).background(databaseColors(colorIndex).dot))
+}
+
+/**
+ * A database's label on one line (keething-spec databases.name-colour AC3): its name, and what tells it apart from
+ * another named alike in the secondary colour ("Personal · Personal-2024.kdbx"); a long one is cut in its middle,
+ * never at its end (the file name's end tells copies apart).
+ */
+@Composable
+internal fun DatabaseLabelText(label: DatabaseLabel, style: TextStyle, modifier: Modifier = Modifier, fontWeight: FontWeight? = null) {
+    val secondary = MaterialTheme.colorScheme.onSurfaceVariant
+    val text = buildAnnotatedString {
+        append(label.name)
+        label.addition?.let { withStyle(SpanStyle(color = secondary, fontWeight = FontWeight.Normal)) { append(" · $it") } }
+    }
+    Text(text, modifier, style = style, fontWeight = fontWeight, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
 }
 
 /**
@@ -207,9 +249,9 @@ internal fun DatabasesSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        Box(Modifier.size(12.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondary))
+                        DatabaseDot(line.colorIndex)
                         Column(Modifier.weight(1f)) {
-                            Text(line.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            DatabaseLabelText(line.label, MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                             Text(
                                 line.sheetDetail,
                                 style = MaterialTheme.typography.bodyMedium,

@@ -28,9 +28,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -452,6 +454,64 @@ class CurrentDatabaseTest {
         f.shown.biometric.unlockWithFingerprint()
 
         assertEquals(typedAt.plusSeconds(3600), f.list.record(personal.id)?.lastOpened)
+    }
+
+    @Test
+    fun anOpenAndAReloadCopyTheFilesNameAndColourIntoItsRecord() = runTest {
+        // The Mac's "sessions: an open and a reload copy the file's name and colour into its record" (D7b).
+        val f = Fixture(this)
+        val family = f.add("/a/p.kdbx", fixtureBytes("names/family-shared"))
+        assertEquals("p", family.displayName, "nothing read yet: the file name")
+
+        typed(f, "pw")
+        assertEquals("Family Shared", f.list.record(family.id)?.name, "its outer spaces aside")
+        assertEquals("Family Shared", f.list.record(family.id)?.displayName)
+        assertEquals("#FF8000", f.list.record(family.id)?.color, "as #RRGGBB")
+
+        f.files.getValue("/a/p.kdbx").change(fixtureBytes("names/family"))
+        advanceTimeBy(10.seconds)
+        runCurrent()
+        assertEquals("Family", f.list.record(family.id)?.name, "renamed elsewhere: the file says")
+        assertNull(f.list.record(family.id)?.color, "a colour taken out of the file goes")
+
+        f.shown.session.lock()
+        runCurrent()
+        assertEquals("Family", f.list.record(family.id)?.displayName, "kept while it is locked")
+    }
+
+    @Test
+    fun aFailedReloadAndAnotherChosenKeepTheNameAndColourLastRead() = runTest {
+        val f = Fixture(this)
+        val family = f.add("/a/p.kdbx", fixtureBytes("names/family-shared"))
+        val work = f.add("/a/Work.kdbx")
+        typed(f, "pw")
+
+        f.files.getValue("/a/p.kdbx").change(byteArrayOf(1, 2, 3))
+        advanceTimeBy(10.seconds)
+        runCurrent()
+        assertIs<SessionState.Unlocked>(f.shown.state()).let { assertNotNull(it.reloadFailure, "the reload failed") }
+        assertEquals("Family Shared", f.list.record(family.id)?.name)
+        assertEquals("#FF8000", f.list.record(family.id)?.color)
+
+        f.databases.choose(work.id)
+        runCurrent()
+        typed(f, "pw")
+        assertEquals("Family Shared", f.list.record(family.id)?.name, "kept for its lock screen and the sheet")
+        assertEquals("#FF8000", f.list.record(family.id)?.color)
+        assertNull(f.list.record(work.id)?.name, "the fixture names none")
+    }
+
+    @Test
+    fun keePassXcsDefaultNameIsNoNameAndAColourNotWrittenAsKeePassDoesIsNone() = runTest {
+        val f = Fixture(this)
+        val w = f.add("/a/w.kdbx", fixtureBytes("names/passwoerter"))
+        f.list.update(w.id) { it.copy(name = "Old", color = "#00FF00") }
+
+        typed(f, "pw")
+
+        assertNull(f.list.record(w.id)?.name, "KeePassXC's default name is no name")
+        assertEquals("w", f.list.record(w.id)?.displayName, "the file name says it")
+        assertNull(f.list.record(w.id)?.color, "\"red\" is not a colour KeePass writes")
     }
 
     // Remove from List

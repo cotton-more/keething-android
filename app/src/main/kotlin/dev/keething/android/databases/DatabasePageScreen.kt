@@ -100,9 +100,9 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    DatabaseTile(line.initial)
+                    DatabaseTile(line.initial, line.colorIndex)
                     Column(Modifier.weight(1f)) {
-                        Text(line.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        DatabaseLabelText(line.label, MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                         Text(
                             line.settingsDetail,
                             style = MaterialTheme.typography.bodyMedium,
@@ -173,9 +173,9 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to Settings") }
         }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            DatabaseTile(line.initial, size = 64.dp)
+            DatabaseTile(line.initial, line.colorIndex, size = 64.dp)
             Spacer(Modifier.height(8.dp))
-            Text(line.name, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            DatabaseLabelText(line.label, MaterialTheme.typography.headlineSmall)
             Text(DatabaseText.abbreviated(line.path, root), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, overflow = TextOverflow.MiddleEllipsis, maxLines = 2)
             changedText(line)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }

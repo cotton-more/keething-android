@@ -184,6 +184,22 @@ a database whose file moved its new path (it keeps its id, its backups and its s
 a path another database of the list has is refused: "That file is already in the list as “Personal”."); Remove from
 List forgets it with its stored password and leaves the file; the current one removed, the first left is current.
 
+**A database's name and colour** (keething-spec databases.name-colour; the Mac's D7b): its name is its file's
+`Meta/DatabaseName` (outer spaces aside), else the file name without `.kdbx`; KeePassXC's default names "Passwords",
+"Passwörter" and "Пароли" (case and accents aside) are no name. The name and `Meta/Color` (`#RRGGBB`, or the six hex
+digits without `#`, kept upper-cased; anything else is none) are copied into the database's record at **every open and
+reload**, so the lock screen, the sheet and Settings say them while it is locked. Its **label** is the name; when two
+databases of the list have the same name (folded as the search folds: case and accents aside) each adds its file name
+("Personal · Personal-2024.kdbx"), and with file names alike too its folder ("Personal · Sync/KeePass"); compared over
+the whole list, so a label does not change when another database opens. A long label is cut in its middle, never at
+its end. Its **colour** is one of nine (teal, orange, green, purple, pink, indigo, brown, red, grey; a dot and a text
+colour each, light and dark, the Mac's): a file's own colour shown as the nearest of them in OKLab (a colour with chroma
+under 0.035 is grey; otherwise the distance to both dots of each, the chroma capped at 0.12 and the lightness at half
+weight: yellow becomes orange, navy indigo, magenta pink), two files of one colour both keeping it; databases without one
+take the colours no database has, in the list's order, then the colour of their place (index mod 9), so a file's
+colour read for the first time can move the others'. The colour and label are not written to the file (that is
+keething-spec databases.rename-recolour).
+
 Decided by the storage experiment (ROADMAP step 1, on the Android 17 emulator with Syncthing-Fork 2.1.6 and the
 Mac's Syncthing): the side-loaded build uses all-files access. The probe followed every change from the Mac,
 a real conflict, deletions and the app's own writes without losing the file. The file's identity
@@ -740,14 +756,14 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   open as one line under the header (a tap: its lock screen; a long press: its whole say and menu), ⋮ › Databases
   (a row swiped left closes it, with Undo), `!` and narrowing in the search, the chooser and its run, a new entry's
   Save into. One database at a time is built (AD4: the welcome, the lock screen's line, sheet and key file, not
-  found, Settings → Databases and a database's page), replacing Choose the database; names and colours (the tile's
-  colour, a name read from the file, names alike) are AD6, New database AD7. The welcome's large icon is the app's
+  found, Settings → Databases and a database's page), replacing Choose the database; names and colours (AD6: the
+  tile's colour, a name read from the file, names alike, §3.1); New database is AD7. The welcome's large icon is the app's
   logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
   files.
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
-  line: its tile (its initial), name, folder from the shared storage's root and when it changed ("Sync/KeePass ·
+  line: its tile (its initial in its colour on a soft fill of it, §3.1), its label, folder from the shared storage's root and when it changed ("Sync/KeePass ·
   changed 2 hours ago", "changed yesterday", "changed in March"; "Download · not found" in red) and ⇅; a tap opens
-  the **sheet** "Databases": the list's databases (a check on the one shown; its folder or "not found"; more than six
+  the **sheet** "Databases": the list's databases (a dot in its colour and its label; a check on the one shown; its folder or "not found"; more than six
   scroll inside it, "9 databases · scroll for the rest"), Open other… and Remove “…” from list… (asked: "Remove
   “Work” from the list?", "Keething forgets it on this phone, with its stored password. The file stays where it
   is.", Cancel / Remove). Another chosen there is shown locked with an empty field and nothing said of the last one,
@@ -771,7 +787,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   up only the database's line stays beside the field.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
   site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group, the
-  path inside the bin for an entry in it, as the Mac's rows). The header (large "Keething", the database and its
+  path inside the bin for an entry in it, as the Mac's rows). The header (large "Keething", the database's name (§3.1) and its
   entries; Lock first and set apart, so that a tap meant for another icon does not lock, then Groups & tags,
   Sharing (§10; a dot while requests wait for an answer) and ⋮ with "Generate a password" (the editor's wand) and
   Settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top; it collapses
@@ -997,8 +1013,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   while it is open, as in the editor.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
-- **Settings**: **Databases**: every database (tile, name, its folder or "Not found · Download" in red, a key for
-  one with a key file, a fingerprint for one the fingerprint opens); a tap opens **its page**: tile, name, path from
+- **Settings**: **Databases**: every database (tile, label, its folder or "Not found · Download" in red, a key for
+  one with a key file, a fingerprint for one the fingerprint opens); a tap opens **its page**: tile, label, path from
   the shared storage's root, "Changed 2 hours ago" (of a file not found "Not found at …" with Locate… and "Last opened
   2 weeks ago" when it was), **Key file** (its name and folder, or "None · It opens with its password alone"; Choose… /
   Change…, Forget; "Remembered here by its path, not its contents. It must be there at every unlock, the fingerprint
@@ -1223,7 +1239,10 @@ key is in keething-spec `features/kdbx.key-files.md`. `fixtures/created/` (the M
 creator, §3.5): `created-aes-argon2d.kdbx` (the Mac's default, 64 MiB, 4 lanes, 115 iterations), `created-chacha20-argon2id.kdbx`,
 `created-aes-aeskdf.kdbx`, `created-keyfile.kdbx` (`pw` + `created.keyx`), `created-keyfile-only.kdbx` (`created.keyx`
 alone), each one root group named as the database and no entries; `created.keyx` is Keething's own key file, byte for
-byte as KeePassXC writes one. Never use the real database in tests.
+byte as KeePassXC writes one. `fixtures/names/` (password `pw`; `kdbx4-aes-aeskdf.kdbx` with its `Meta` changed and
+written by the phone's own writer, then opened by keepassxc-cli 2.7.12): `family-shared.kdbx` (" Family Shared ",
+`#ff8000`), `family.kdbx` ("Family", no colour), `passwoerter.kdbx` ("Passwörter", `red`). Never use the real database
+in tests.
 
 ## 10. Sharing entries
 

@@ -2,6 +2,7 @@ package dev.keething.kdbx.xml
 
 import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.FieldValue
+import dev.keething.kdbx.Fixtures
 import dev.keething.kdbx.crypto.ChaCha20
 import dev.keething.kdbx.reader.KdbxException
 import java.time.Instant
@@ -269,5 +270,30 @@ class KdbxXmlReaderTest {
         )
 
         assertEquals(listOf(mapOf("Other" to "x", "K" to "{\"Ablauf\":\"until\"}", "Empty" to ""), emptyMap()), d.entries.map { it.customData })
+    }
+
+    @Test
+    fun theDatabasesOwnNameAndColourAsWritten() {
+        // The Mac's "parser: the database's own name and colour (Meta/DatabaseName, Meta/Color), as written".
+        val d = read(
+            doc(
+                meta = "<DatabaseName> Family Shared </DatabaseName><Color>#FF8000</Color>",
+                root = """
+                <Group><UUID>R</UUID><Name>Root</Name>
+                  ${entry("e", listOf("Title" to "Mail"), "<ForegroundColor>#00FF00</ForegroundColor><BackgroundColor>#0000FF</BackgroundColor>")}
+                  <Group><UUID>G</UUID><Name>Shared</Name><CustomData><Item><Key>Color</Key><Value>#123456</Value></Item></CustomData></Group>
+                </Group>
+                """,
+            ),
+        )
+        assertEquals("Family Shared", d.meta.databaseName, "its outer spaces aside")
+        assertEquals("#FF8000", d.meta.color, "Meta's own, not an entry's colours")
+        val none = read(doc(meta = "<DatabaseName/><Color/>", root = "<Group><UUID>R</UUID></Group>"))
+        assertEquals("", none.meta.databaseName)
+        assertEquals("", none.meta.color, "an empty colour is none")
+        // keepassxc-cli's db-create: KeePassXC's default name, no colour.
+        val cli = KdbxXmlReader.read(Fixtures.bytes("kdbx4-export.xml"))
+        assertEquals("Passwords", cli.meta.databaseName)
+        assertEquals("", cli.meta.color)
     }
 }

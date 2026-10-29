@@ -25,8 +25,10 @@ public data class KdbxMeta(
     val recycleBinEnabled: Boolean = true,
     val defaultUserName: String = "",
     val customIcons: Map<String, CustomIcon> = emptyMap(),
-    /** `DatabaseName`: "" when the file names none. */
+    /** `DatabaseName`, its outer spaces aside: "" when the file names none. */
     val databaseName: String = "",
+    /** `Color` as written (KeePass 2.x writes `#RRGGBB`), its outer spaces aside: "" when the file has none. */
+    val color: String = "",
 )
 
 public data class KdbxGroup(

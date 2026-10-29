@@ -19,6 +19,10 @@ public data class Vault(
     val defaultUsername: String = "",
     /** The database's custom icons (favicons KeePassXC downloaded) by UUID. */
     val customIcons: Map<String, CustomIcon> = emptyMap(),
+    /** `Meta/DatabaseName`, its outer spaces aside; empty when the file has none. */
+    val name: String = "",
+    /** `Meta/Color` as written (KeePass 2.x writes `#RRGGBB`); null when the file has none. */
+    val color: String? = null,
 ) {
     /** Overwrites every secret the vault holds (the lock). */
     public fun wipe() {
