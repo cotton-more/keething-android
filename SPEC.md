@@ -631,12 +631,15 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 ### 6.2 Screens
 - **Choose the database** (first start, or from the lock screen and Settings): all-files access, the folder
   in the system picker, the `.kdbx` file in it (conflict copies left out).
-- **Databases** (agreed on the canvas, rows "Databases": one database at a time; being built, keething-spec
-  `plans/android-databases.md` AD4–AD7; the rows for several open come with its AD3b): the welcome at the first
-  start, the lock screen's database line and its sheet, a key file under the field, a database not found, Settings →
-  Databases and a database's page, New database. They replace Choose the database once built. The welcome's large
-  icon is the app's logo, as the lock screen's (the launcher icon's layers); the canvas's key glyph there is a
-  stand-in, kept only for key files.
+- **Databases** (agreed on the canvas, rows "Databases" for one database at a time and "Databases (AD3b, pass 2)",
+  "Search across databases", "⋮ › Databases, the chooser and its run" for several open; being built, keething-spec
+  `plans/android-databases.md` AD4–AD13, whose AD3b lists the phone's own choices): the welcome at the first start,
+  the lock screen's database line and its sheet, a key file under the field, a database not found, Settings →
+  Databases and a database's page, New database; with several open, rows saying their database, the databases not
+  open as one line under the header (a tap: its lock screen; a long press: its whole say and menu), ⋮ › Databases
+  (a row swiped left closes it, with Undo), `!` and narrowing in the search, the chooser and its run, a new entry's
+  Save into. They replace Choose the database once built. The welcome's large icon is the app's logo, as the lock
+  screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key files.
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database
   with its folder and when it changed (a tap chooses another), reason of the last lock. When the fingerprint
   is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
