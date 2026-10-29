@@ -18,13 +18,16 @@ How to build, test and install the app on this Mac. What the app does is in SPEC
 
 ## Building the APK
 
-    tools/build-apk.sh              # release build, signed; asks for the keystore's password
+    tools/build-apk.sh              # release build, signed; the keystore's password from the Keychain, else asked
     tools/build-apk.sh --install    # and installs it with adb on the connected phone
 
 The APK lands in `~/Downloads` as `Keething-<version>-<commit>.apk` (shrunk with R8, about 4 MB). It is
-signed with the keystore in `KEYSTORE` (default `~/.keystores/keething.jks`); the script asks for its
-password, which never goes into a file or onto the command line. Uncommitted changes are built too (it says
-so).
+signed with the keystore in `KEYSTORE` (default `~/.keystores/keething.jks`). The default keystore's password
+comes from the login Keychain item `keething-apk-keystore` when there is one (stored once with
+`security add-generic-password -a "$USER" -s keething-apk-keystore -w`, which prompts for it; since 2026-10-29), so
+the script, and Claude, can build without asking; anything running as the user can then sign with that key. Without
+the item, or for another `KEYSTORE`, apksigner asks. The password reaches apksigner through the environment, never a
+file or the command line. Uncommitted changes are built too (it says so).
 
 ### The signing key (once)
 
