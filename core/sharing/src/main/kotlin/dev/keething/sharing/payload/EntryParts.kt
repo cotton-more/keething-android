@@ -31,8 +31,9 @@ public sealed interface EntryPart {
 /** What of an entry goes into an answer. */
 public object Sending {
     /**
-     * Left out unless the sender turns them on: the one-time code, custom fields KeePass keeps a code's secret in
-     * (`TimeOtp-…`, `HmacOtp-…`, which the app does not read as a code): they hand over the sign-in's second step too;
+     * Left out unless the sender turns them on: the one-time code, custom fields that hold a code's secret all the same
+     * (`HmacOtp-…`, KeePass's counter-based codes, which the app does not make, or `TimeOtp-…` under a name KeePass
+     * does not read): they hand over the sign-in's second step too;
      * and a wallet's extended public key, which shows all of the wallet (SPEC §10.1).
      */
     public fun leftOutByDefault(entry: Entry): Set<EntryPart> =
@@ -116,8 +117,9 @@ public object Receiving {
         FieldTypes(entry.fieldTypes).type(field.name)?.isNeverCopied == true
 
     /**
-     * A new entry's fields for [entry] (SPEC §10): everything it carries, [TAG] added, its one-time code written as
-     * KeePassXC writes it. The secrets are copies: wipe the changes once saved.
+     * A new entry's fields for [entry] (SPEC §10): everything it carries, [TAG] added, its one-time code written in the
+     * format the database's codes use (KeePassXC's link when it has none). The secrets are copies: wipe the changes once
+     * saved.
      */
     public fun changes(entry: SharedEntry): EntryChanges = EntryChanges(
         title = entry.title,

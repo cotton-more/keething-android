@@ -1,6 +1,7 @@
 package dev.keething.vault.opening
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
@@ -24,9 +25,7 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
         var password: Secret? = null
         var url = ""
         var notes = ""
-        var otp: String? = null
-        var legacySeed: String? = null
-        var legacySettings: String? = null
+        val totpFields = mutableMapOf<String, String>()
         val customFields = mutableListOf<CustomField>()
 
         for (field in raw.fields) {
@@ -42,10 +41,7 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
                 }
                 URL -> url = text(field.value)
                 NOTES -> notes = text(field.value)
-                OTP -> otp = text(field.value)
-                TOTP_SEED -> legacySeed = text(field.value)
-                TOTP_SETTINGS -> legacySettings = text(field.value)
-                in TIME_OTP -> wipe(field.value)
+                in TotpFormat.FIELD_NAMES -> totpFields[field.key] = text(field.value)
                 else -> customFields += CustomField(field.key, field.value)
             }
         }
@@ -62,7 +58,7 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
             tags = raw.tags.split(';', ',').map { it.trim() }.filter { it.isNotEmpty() },
             customFields = customFields,
             fieldTypes = raw.customData[EntryFieldTypes.CUSTOM_DATA_KEY]?.let(EntryFieldTypes::decode).orEmpty(),
-            totp = TotpResolver.resolve(otp, legacySeed, legacySettings),
+            totp = TotpResolver.resolve(totpFields),
             attachments = raw.attachments.map { Attachment(it.name, it.ref?.let(binarySizes::getOrNull)) },
             expires = raw.expires,
             expiryTime = raw.expiryTime,
@@ -81,23 +77,11 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
         is FieldValue.Protected -> value.secret.reveal().also { value.secret.wipe() }
     }
 
-    private fun wipe(value: FieldValue) {
-        (value as? FieldValue.Protected)?.secret?.wipe()
-    }
-
     private companion object {
         const val TITLE = "Title"
         const val USERNAME = "UserName"
         const val PASSWORD = "Password"
         const val URL = "URL"
         const val NOTES = "Notes"
-        const val OTP = "otp"
-        const val TOTP_SEED = "TOTP Seed"
-        const val TOTP_SETTINGS = "TOTP Settings"
-
-        /** KeeTrayTOTP's fields: hidden from the custom fields, not read as a code (as on the Mac). */
-        val TIME_OTP = setOf(
-            "TimeOtp-Secret-Base32", "TimeOtp-Length", "TimeOtp-Period", "TimeOtp-Algorithm",
-        )
     }
 }

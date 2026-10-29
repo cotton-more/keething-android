@@ -1,6 +1,7 @@
 package dev.keething.vault.opening
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.CustomIcon
@@ -62,14 +63,32 @@ class EntryMapperTest {
     @Test
     fun customFieldsKeepOrderAndProtectionReservedKeysExcluded() {
         val reserved = listOf(
-            "otp", "TOTP Seed", "TOTP Settings", "TimeOtp-Secret-Base32", "TimeOtp-Length",
-            "TimeOtp-Period", "TimeOtp-Algorithm",
+            "otp", "TOTP Seed", "TOTP Settings", "TimeOtp-Secret", "TimeOtp-Secret-Hex", "TimeOtp-Secret-Base32",
+            "TimeOtp-Secret-Base64", "TimeOtp-Length", "TimeOtp-Period", "TimeOtp-Algorithm",
         ).map { protected(it, "x") }
 
         val e = map(raw(listOf(protected("Z", "1"), plain("Title", "t")) + reserved + plain("A", "")))
 
         assertEquals(listOf(CustomField.protected("Z", "1"), CustomField.plain("A", "")), e.customFields)
         assertTrue(reserved.all { (it.value as FieldValue.Protected).secret.isWiped }, "the code's fields are wiped once read")
+    }
+
+    @Test
+    fun keePasssOwnFieldsAreTheCodeWhenThereIsNoOtpAndNoTotpSeed() {
+        val key = "12345678901234567890123456789012"
+        val keePass = listOf(
+            protected("TimeOtp-Secret-Hex", key.encodeToByteArray().joinToString("") { "%02x".format(it) }),
+            plain("TimeOtp-Length", "8"),
+            plain("TimeOtp-Algorithm", "HMAC-SHA-256"),
+            plain("HmacOtp-Counter", "3"),
+        )
+
+        val e = map(raw(keePass))
+
+        assertEquals(TotpConfig(Secret.of(key), digits = 8, algorithm = TotpConfig.Algorithm.SHA256), e.totp)
+        assertEquals(listOf(CustomField.plain("HmacOtp-Counter", "3")), e.customFields, "counter-based codes stay fields")
+        val otp = plain("otp", "otpauth://totp/x?secret=GEZDGNBVGY3TQOJQ&digits=7")
+        assertEquals(7, map(raw(keePass + otp)).totp?.digits, "the otp link first")
     }
 
     @Test

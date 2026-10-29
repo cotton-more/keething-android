@@ -1,8 +1,11 @@
 package dev.keething.totp
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.totp.Base32
 import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.totp.TotpFormat
 import java.io.ByteArrayOutputStream
+import java.util.Base64
 
 /** Why a one-time code's fields cannot be used (Mac `TOTPConfig.ParseError`). */
 public sealed class TotpParseException(message: String) : Exception(message) {
@@ -16,7 +19,7 @@ public sealed class TotpParseException(message: String) : Exception(message) {
     public class Unsupported(public val what: String) : TotpParseException("unsupported: $what")
 }
 
-/** The two formats a one-time code is kept in (Mac `OtpAuthURIParser` and `LegacyTOTPParser`). */
+/** The formats a one-time code is kept in (Mac `OtpAuthURIParser`, `LegacyTOTPParser` and `KeePassTOTPParser`). */
 public object TotpParser {
     private const val SCHEME = "otpauth://"
 
@@ -61,6 +64,53 @@ public object TotpParser {
         val secret = Base32.decode(seed)?.takeIf { it.isNotEmpty() } ?: throw TotpParseException.InvalidBase32()
         return TotpConfig(Secret.adopt(secret), digits, period)
     }
+
+    /**
+     * KeePass 2.x's own fields (2.47+, its `{TIMEOTP}`), read as KeePass reads them (`EntryUtil.GetOtpSecret`,
+     * `HmacOtp.GenerateTimeOtp`): the first secret field there (`TimeOtp-Secret` as UTF-8, `-Hex`, `-Base32`,
+     * `-Base64`); `TimeOtp-Length` 6 and `TimeOtp-Period` 30 when missing, not a number or 0; `TimeOtp-Algorithm`
+     * SHA-1 when missing, else one of KeePass's three names exactly. A secret that does not decode, or what KeePass
+     * makes no code for (more than 8 digits, another algorithm), is no code. [value]: a field's value by its name.
+     */
+    public fun parseKeePass(value: (String) -> String?): TotpConfig {
+        fun present(key: String) = value(key)?.takeIf { it.isNotBlank() }
+        val key = TotpFormat.KEEPASS_SECRET_FIELDS.firstOrNull { present(it) != null } ?: throw TotpParseException.MissingSecret()
+        val secret = keePassSecret(present(key)!!, key)?.takeIf { it.isNotEmpty() } ?: throw TotpParseException.InvalidBase32()
+
+        val digits = keePassNumber(value(TotpFormat.KEEPASS_LENGTH_FIELD)).takeIf { it != 0 } ?: 6
+        if (digits > TotpFormat.KEEPASS_MAXIMUM_DIGITS) throw TotpParseException.Unsupported("digits")
+        val period = keePassNumber(value(TotpFormat.KEEPASS_PERIOD_FIELD)).takeIf { it != 0 } ?: 30
+        val algorithm = value(TotpFormat.KEEPASS_ALGORITHM_FIELD)?.takeIf { it.isNotEmpty() }?.let { name ->
+            TotpConfig.Algorithm.entries.firstOrNull { TotpFormat.keePassAlgorithm(it) == name }
+                ?: throw TotpParseException.Unsupported(name)
+        } ?: TotpConfig.Algorithm.SHA1
+        return TotpConfig(Secret.adopt(secret), digits, period, algorithm)
+    }
+
+    private fun keePassSecret(text: String, key: String): ByteArray? {
+        val compact = text.filterNot { it.isWhitespace() }
+        return when (key) {
+            "TimeOtp-Secret" -> text.encodeToByteArray()
+            "TimeOtp-Secret-Hex" -> hex(compact)
+            "TimeOtp-Secret-Base32" -> Base32.decode(compact)
+            // As .NET's Convert.FromBase64String: the padding is not optional.
+            else -> if (compact.length % 4 != 0) null else runCatching { Base64.getDecoder().decode(compact) }.getOrNull()
+        }
+    }
+
+    private fun hex(text: String): ByteArray? {
+        if (text.length % 2 != 0) return null
+        return ByteArray(text.length / 2) { i ->
+            val high = Character.digit(text[2 * i], 16)
+            val low = Character.digit(text[2 * i + 1], 16)
+            if (high < 0 || low < 0) return null
+            (high * 16 + low).toByte()
+        }
+    }
+
+    /** As .NET's `uint.TryParse`: 0 when it is not a number (nor one this app can count to). */
+    private fun keePassNumber(text: String?): Int =
+        text?.trim()?.toUIntOrNull()?.takeIf { it <= Int.MAX_VALUE.toUInt() }?.toInt() ?: 0
 
     private fun period(text: String): Int =
         text.toIntOrNull()?.takeIf { it > 0 } ?: throw TotpParseException.Unsupported("period")

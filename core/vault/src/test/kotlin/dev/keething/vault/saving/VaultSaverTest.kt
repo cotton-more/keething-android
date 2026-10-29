@@ -12,8 +12,10 @@ import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.editing.BrokenFiles
+import dev.keething.kdbx.editing.CodeFiles
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.schema.SchemaCheck
+import dev.keething.totp.TotpSetup
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
@@ -174,6 +176,51 @@ class VaultSaverTest {
 
         assertEquals(config, created.totp)
         assertEquals(config, unlock(store).titled("Coded").totp)
+    }
+
+    @Test
+    fun oneTimeCodesInKeePasssOwnFieldsAreReadKeptAndTheDatabasesFormatIsWritten() {
+        val key = key()
+        val ids = unlock(FakeStore(fixtureBytes("kdbx4-aes-argon2d")), key).entries.map { it.id }
+        assertTrue(ids.size >= 2, "two entries at least")
+        val sha256 = "12345678901234567890123456789012"
+        val hex = sha256.encodeToByteArray().joinToString("") { "%02x".format(it) }
+        val store = FakeStore(
+            CodeFiles.withCodeFields(
+                fixtureBytes("kdbx4-aes-argon2d"), key, ids[0],
+                listOf("TimeOtp-Secret-Hex" to hex, "TimeOtp-Length" to "8", "TimeOtp-Algorithm" to "HMAC-SHA-256"),
+            ),
+        )
+        val saver = VaultSaver(store, backups)
+
+        // AC6: KeePass's fields are the entry's code, and no custom fields.
+        val keePass = unlock(store, key).entries.single { it.id == ids[0] }
+        assertEquals(TotpConfig(Secret.of(sha256), digits = 8, algorithm = TotpConfig.Algorithm.SHA256), keePass.totp)
+        assertTrue(keePass.customFields.none { it.name.startsWith("TimeOtp-") })
+
+        // AC5: a save that does not change the code leaves its fields as they were.
+        val before = CodeFiles.codeFields(store.content!!, key, ids[0])
+        saved(saver.save(VaultEdit.Update(ids[0], keePass.lastModified, EntryChanges(title = "Renamed")), key, now))
+        assertEquals(before, CodeFiles.codeFields(store.content!!, key, ids[0]))
+
+        // AC7: a new code on an entry without one takes the database's format, KeePass's; the save's check reads it back.
+        val second = unlock(store, key).entries.single { it.id == ids[1] }
+        val code = TotpConfig(Secret.of("12345678901234567890"), period = 60)
+        val link = TotpSetup.otpauthUri(code, second.title, second.username)
+        val coded = saved(saver.save(VaultEdit.Update(ids[1], second.lastModified, EntryChanges(totp = TotpChange.Set(code, link))), key, now))
+            .entries.single { it.id == ids[1] }
+        assertEquals(code, coded.totp)
+        assertEquals(
+            listOf("TimeOtp-Secret-Base32=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ*", "TimeOtp-Length=6", "TimeOtp-Period=60", "TimeOtp-Algorithm=HMAC-SHA-1"),
+            CodeFiles.codeFields(store.content!!, key, ids[1]),
+        )
+
+        // AC3, AC4: changed to what KeePass cannot hold (10 digits), it is one otp link, KeePass's fields gone.
+        val long = TotpConfig(Secret.of("12345678901234567890"), digits = 10)
+        val longLink = TotpSetup.otpauthUri(long, coded.title, coded.username)
+        val relinked = saved(saver.save(VaultEdit.Update(ids[1], coded.lastModified, EntryChanges(totp = TotpChange.Set(long, longLink))), key, now))
+        assertEquals(listOf("otp=$longLink*"), CodeFiles.codeFields(store.content!!, key, ids[1]))
+        assertEquals(long, relinked.entries.single { it.id == ids[1] }.totp)
     }
 
     @Test

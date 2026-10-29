@@ -1,6 +1,7 @@
 package dev.keething.kdbx.editing
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.EntryFieldTypes
@@ -56,7 +57,7 @@ internal object EntryEditing {
             setCustomData(EntryFieldTypes.CUSTOM_DATA_KEY, types.takeIf { it.isNotEmpty() }?.let(EntryFieldTypes::encode), entry, now)
         }
         changes.tags?.let { setTags(it, entry) }
-        changes.totp?.let { setTotp(it, entry) }
+        changes.totp?.let { setTotp(it, entry, root) }
 
         val times = child("Times", entry)
         val iso = times.elements.any { KdbxTime.isIso(it.text) }
@@ -157,17 +158,53 @@ internal object EntryEditing {
     }
 
     /**
-     * One source for the code: every one-time code field goes, then a set one is written as a protected `otp` (as
-     * KeePassXC does), where `otp` was, else after the other fields.
+     * One source for the code (keething-spec `kdbx.otp-storage`): every code field goes, then a set one is written in
+     * the entry's format, else the one most of the database's codes use, else as a protected `otp` link (as KeePassXC
+     * writes it); as a link too when that format cannot hold the code. The fields go where the entry's first code field
+     * was, else after its other fields.
      */
-    private fun setTotp(change: TotpChange, entry: XElement) {
-        val old = strings(entry).filter { it.second in EntryChanges.TOTP_FIELD_NAMES }
-        val place = if (change is TotpChange.Set) old.firstOrNull { it.second == "otp" }?.first else null
-        old.filter { it.first !== place }.forEach { (element, _) ->
+    private fun setTotp(change: TotpChange, entry: XElement, root: XElement) {
+        val all = strings(entry)
+        val first = all.indexOfFirst { it.second in TotpFormat.FIELD_NAMES }
+        var previous = (if (first >= 0) all.take(first).lastOrNull() else all.lastOrNull())?.first ?: entry.first("Times")
+        val own = totpFormat(entry)
+        all.filter { it.second in TotpFormat.FIELD_NAMES }.forEach { (element, _) ->
             element.wipeSecrets()
             entry.remove(element)
         }
-        if (change is TotpChange.Set) setString("otp", FieldValue.Protected(Secret.of(change.uri)), entry)
+        if (change !is TotpChange.Set) return
+        val format = TotpFormat.forNewCode(own, if (own == null) totpFormats(root) else emptyMap())
+        val fields = format.fields(change.config, change.uri) ?: TotpFormat.LINK.fields(change.config, change.uri).orEmpty()
+        for ((key, value) in fields) {
+            val element = XElement("String").apply {
+                append(XElement("Key", key))
+                append(XElement("Value").also { setValue(it, value) })
+            }
+            entry.insertAfter(element, previous)
+            previous = element
+        }
+    }
+
+    /** The format an entry's code is read from ([TotpFormat.of]), null when it has none. */
+    fun totpFormat(entry: XElement): TotpFormat? {
+        val values = strings(entry).associate { (element, key) -> key to element.first("Value") }
+        return TotpFormat.of { key ->
+            val value = values[key] ?: return@of false
+            value.secret?.useBytes { it.decodeToString().isNotBlank() } ?: value.text.isNotBlank()
+        }
+    }
+
+    /** How many entries keep their code in each format, over every current entry under `Root` (histories not). */
+    fun totpFormats(root: XElement): Map<TotpFormat, Int> {
+        val counts = mutableMapOf<TotpFormat, Int>()
+        fun count(group: XElement) {
+            for (child in group.elements) {
+                if (child.name == "Entry") totpFormat(child)?.let { counts.merge(it, 1, Int::plus) }
+                if (child.name == "Group") count(child)
+            }
+        }
+        root.first("Root")?.let(::count)
+        return counts
     }
 
     private fun copyOf(value: FieldValue): FieldValue =

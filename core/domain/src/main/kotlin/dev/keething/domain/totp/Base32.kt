@@ -1,4 +1,4 @@
-package dev.keething.totp
+package dev.keething.domain.totp
 
 import java.io.ByteArrayOutputStream
 

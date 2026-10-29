@@ -59,9 +59,9 @@ class EntryPartsTest {
 
     @Test
     fun aCodeSecretKeptInCustomFieldsIsLeftOutByDefaultAsTheCodeIs() {
-        val keePass = Entry("k", title = "KeePass code", customFields = listOf(CustomField.protected("TimeOtp-Secret", "12345678"), CustomField.plain("HmacOtp-Counter", "3"), CustomField.plain("Note", "x")))
+        val keePass = Entry("k", title = "KeePass code", customFields = listOf(CustomField.protected("HmacOtp-Secret", "12345678"), CustomField.plain("HmacOtp-Counter", "3"), CustomField.plain("Note", "x")))
 
-        assertEquals(setOf(EntryPart.Field("TimeOtp-Secret"), EntryPart.Field("HmacOtp-Counter")), Sending.leftOutByDefault(keePass))
+        assertEquals(setOf(EntryPart.Field("HmacOtp-Secret"), EntryPart.Field("HmacOtp-Counter")), Sending.leftOutByDefault(keePass))
         assertEquals(setOf(EntryPart.OneTimeCode), Sending.leftOutByDefault(entry))
         assertTrue(Sending.isSecondStep(EntryPart.Field("timeotp-secret-hex")))
         assertFalse(Sending.isSecondStep(EntryPart.Field("Note")))

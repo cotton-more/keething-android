@@ -102,6 +102,16 @@ and KeePassXC's export of it is the original's with only the key renamed. Then: 
 locked, the database file replaced with the new one (the original kept aside), Syncthing left to deliver it.
 Prints counts, never a value.
 
+## Checking one-time codes in other apps' formats
+
+    tools/make-otp-database.py otp-formats.kdbx     # needs KeePassXC's keepassxc-cli; password pw
+
+A fictitious database whose codes are in every format other apps keep them in (keething-spec `kdbx.otp-storage`):
+KeePass 2.x's `TimeOtp-*` with the secret in each of its four encodings (one broken: no code, only its other field
+shown), KeePassXC's `otp` link and the legacy `TOTP Seed`. Opened on the phone, each list row shows its code; compare
+them with the codes KeePassXC shows (`keepassxc-cli show -t`). Most of its codes are KeePass's, so a code written into
+it (an entry received, §10) takes KeePass's fields.
+
 ## Checking autofill on the phone
 
 `tools/autofill-test/` holds local test pages (a login with and without hints, username first, a one-time

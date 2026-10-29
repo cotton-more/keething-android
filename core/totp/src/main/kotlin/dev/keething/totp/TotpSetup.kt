@@ -1,5 +1,6 @@
 package dev.keething.totp
 
+import dev.keething.domain.totp.Base32
 import dev.keething.domain.totp.TotpConfig
 
 /** A one-time code written into an entry (Mac `TOTPSetup`, Mac SPEC §3.23); setting one up by hand is not ported yet. */

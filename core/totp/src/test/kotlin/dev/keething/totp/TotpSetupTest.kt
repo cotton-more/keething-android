@@ -1,6 +1,7 @@
 package dev.keething.totp
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.totp.Base32
 import dev.keething.domain.totp.TotpConfig
 import kotlin.test.Test
 import kotlin.test.assertContentEquals

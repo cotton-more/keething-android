@@ -81,7 +81,7 @@ core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attach
               EntryChanges, VaultEdit, the secret value type, and the ports (DatabaseStore §3.1,
               DatabaseBackups §3.3, Clock, BiometricPasswordStore §5, SettingsStore, …).
               Depends on nothing.
-core/totp     one-time codes: Base32, otpauth links, KeePassXC's formats, code generation   → domain
+core/totp     one-time codes: otpauth links, KeePassXC's and KeePass's formats, code generation → domain
 core/search   search rules, ranking, site matching with the public suffix list (a resource,
               `tools/update-public-suffix-list.sh`)                                       → domain
 core/kdbx     the KDBX 4 file format: crypto, reader, writer, XML tree, KeePass's schema   → domain
@@ -197,6 +197,15 @@ keeps the new time. The way out is in §3.3 step 7.
   that failed to open (damaged) is not read again until the file changes.
 - An earlier vault stays intact until the lock (a card may still show one of its entries); the lock wipes
   every vault of the session.
+- An entry's one-time code (keething-spec `kdbx.otp-storage`, the Mac's `TOTPFormat`) is read from one format, the
+  first there: a non-blank `otp` (KeePassXC's `otpauth://` link; one that does not parse is no code, with no
+  fallback), else `TOTP Seed` with `TOTP Settings` (`<period>;<digits>`), else KeePass 2.x's own `TimeOtp-*` fields
+  as KeePass 2.47+ reads them (`TotpParser.parseKeePass`; its source, `EntryUtil.GetOtpSecret` and `HmacOtp`): the
+  secret the first non-blank of `TimeOtp-Secret` (UTF-8), `-Secret-Hex`, `-Secret-Base32`, `-Secret-Base64` (padded,
+  as .NET reads it), one that does not decode no code; `TimeOtp-Length` 6 and `TimeOtp-Period` 30 when missing, not
+  a number or 0, more than 8 digits no code; `TimeOtp-Algorithm` SHA-1 when missing, else exactly `HMAC-SHA-1`,
+  `HMAC-SHA-256` or `HMAC-SHA-512`. Those ten fields are never custom fields; `HmacOtp-*` (counter-based codes, not
+  made here) are.
 - Histories are skipped: an unlock and a reload read no entry's `History`. An entry's history is read when
   its History screen opens (§6.2): the file once more with the in-memory key (no key derivation), keeping
   that entry's `History` items only (`KdbxReader.open(…, historyOf)`), every other secret of that read
@@ -207,8 +216,17 @@ keeps the new time. The way out is in §3.3 step 7.
 
 What the phone writes (`VaultEdit`): an entry's fields (title, username, password, URL, notes, custom fields,
 their types, tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it.
-Deleting for good, history, attachments, one-time codes (but that of an entry received, §10, written as
-KeePassXC's `otp` link) and groups are left to the Mac (§1).
+Deleting for good, history, attachments, one-time codes (but that of an entry received, §10) and groups are left to
+the Mac (§1).
+
+A one-time code written (`EntryEditing`, the Mac's alike) first removes every code field of the entry (the ten of
+§3.2), so one entry never holds two formats; a save that does not change the code leaves its fields as they are. The
+code takes the entry's own format; for an entry without one, the format most of the database's current entries use
+(not their histories), and `otp` when there are none or a tie: `otp` as KeePassXC 2.7 writes it (protected,
+`TotpSetup`); `TOTP Seed` (protected, Base32) with `TOTP Settings`; KeePass's as `TimeOtp-Secret-Base32` (protected,
+unpadded), `TimeOtp-Length`, `TimeOtp-Period` and `TimeOtp-Algorithm`, all four. A code its format cannot hold
+(KeePass: more than 8 digits; `TOTP Settings`: SHA-256 or SHA-512) is written as `otp`. The fields go where the
+entry's first code field was, else after its other fields; the save's check reads the code back from whichever.
 
 The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/vault` `VaultSaver`, `core/kdbx`
 `EditableDatabase`):
@@ -1019,8 +1037,9 @@ needed each time, come later (ROADMAP).
   only once the request is checked; the core refuses an answer before that.
 - **The answer.** The entries chosen (at most 50) and, of each, the parts left on: username, password, website,
   notes, each custom field, and the one-time code, off to start with ("With it, <name> can sign in without you: the
-  second step is no longer yours alone"); so are custom fields KeePass keeps a code's secret in (`TimeOtp-…`,
-  `HmacOtp-…`, not read as a code here), with the same warning. The title, tags, expiry and the custom fields' types always go; attachments
+  second step is no longer yours alone"); so are custom fields that still hold a code's secret
+  (`HmacOtp-…`, KeePass's counter-based codes, not made here, or `TimeOtp-…` under a name KeePass does not read; its
+  own `TimeOtp-*` are the entry's code, §3.2), with the same warning. The title, tags, expiry and the custom fields' types always go; attachments
   ("1 attachment stays on this phone"), history and the icon never do. The sender names themselves ("From",
   remembered).
 - **What of a wallet never goes** (`WalletSecrets`, `Sending.neverSent`). A recovery phrase (`crypto.seed`), its
@@ -1048,8 +1067,8 @@ needed each time, come later (ROADMAP).
   but anyone who saw your request could have made it, and the name is theirs to choose". Under a wallet's address
   (typed `crypto.address`, or read as one): "Check it with <name> another way before paying to it"; an envelope's
   come from whoever gave its pictures, without the note. Save makes each entry a
-  new one in the group chosen (the top level to start with), each its own checked save (§3.3), a one-time code as
-  KeePassXC's `otp` link (`TotpSetup`, the Mac's `TOTPSetup`), tagged `received` besides the sender's tags (once,
+  new one in the group chosen (the top level to start with), each its own checked save (§3.3), a one-time code in the
+  format the database's codes use (§3.3; KeePassXC's `otp` link when it has none), tagged `received` besides the sender's tags (once,
   in any case): what came from outside is found with `#received`, and taking the tag off says it was looked at.
   When all are saved the request is closed: its key goes and the answer can no longer be opened. A save that
   fails stops there; trying again saves the rest only.
@@ -1076,7 +1095,9 @@ needed each time, come later (ROADMAP).
 - **Content** (sealed): version 1, the sender's name, the entries (title, username, password, URL, notes, tags,
   expiry, custom fields with a protected flag, field types, the one-time code as its key, digits, period and
   algorithm), then zeros up to a multiple of 128 bytes (its length says little about a password's). Read
-  strictly: a field named as KeePass's own fields or the code's, two fields of one name, a type for a field that
+  strictly: a field named as KeePass's own fields or the code's (since 2026-10-29 all ten of §3.2: an answer from an
+  older phone that sends `TimeOtp-Secret`, `-Secret-Hex` or `-Secret-Base64` as a field is refused), two fields of
+  one name, a type for a field that
   is not there, a control character XML cannot hold, a date outside the years 1 to 9999, more than 50 entries, no
   entries: refused. The sender reads what it made by the same rules before sealing, so what one side sends the
   other reads. The secrets are read into wipeable buffers. Any failure reading a code is "cannot be read", never

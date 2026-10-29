@@ -2,6 +2,7 @@ package dev.keething.domain.vault
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.totp.TotpFormat
 import java.time.Instant
 
 /**
@@ -24,7 +25,10 @@ public data class EntryChanges(
     val fieldTypes: Map<String, String>? = null,
     val tags: List<String>? = null,
     val expiry: Expiry? = null,
-    /** The one-time code (Mac SPEC §3.23): set (the `otp` link written, the older fields removed) or removed. */
+    /**
+     * The one-time code (Mac SPEC §3.23): set (every code field removed, then written in the entry's format or the
+     * database's, [TotpFormat.forNewCode]) or removed.
+     */
     val totp: TotpChange? = null,
 ) {
     public data class Expiry(val expires: Boolean, val time: Instant?)
@@ -42,14 +46,8 @@ public data class EntryChanges(
         /** The standard fields' keys in the file. */
         public val STANDARD_KEYS: List<String> = listOf("Title", "UserName", "Password", "URL", "Notes")
 
-        /**
-         * The fields a one-time code is kept in: KeePassXC's `otp` link, its older `TOTP Seed` / `TOTP Settings`,
-         * and KeeTrayTOTP's `TimeOtp-*`.
-         */
-        public val TOTP_FIELD_NAMES: Set<String> = setOf(
-            "otp", "TOTP Seed", "TOTP Settings",
-            "TimeOtp-Secret-Base32", "TimeOtp-Length", "TimeOtp-Period", "TimeOtp-Algorithm",
-        )
+        /** The fields a one-time code is kept in, in every format ([TotpFormat]). */
+        public val TOTP_FIELD_NAMES: Set<String> = TotpFormat.FIELD_NAMES
 
         /** Keys that are not custom fields: the standard ones and the one-time code's. */
         public val RESERVED_FIELD_NAMES: Set<String> = STANDARD_KEYS.toSet() + TOTP_FIELD_NAMES
@@ -58,7 +56,7 @@ public data class EntryChanges(
 
 /** A one-time code set or removed (Mac `TOTPChange`). */
 public sealed interface TotpChange {
-    /** [uri] is what goes into `otp`; [config] what it means (the save's check compares it). */
+    /** [config] is the code (the save's check compares it); [uri] is what goes into `otp` when it is written as a link. */
     public data class Set(val config: TotpConfig, val uri: String) : TotpChange {
         // The link holds the key: never in a log.
         override fun toString(): String = "Set(•••)"
