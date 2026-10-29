@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.keething.android.storage.AllFilesAccess
+import dev.keething.android.storage.PathNewFile
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
@@ -40,6 +41,7 @@ internal data class ProbeState(
 internal class StorageProbeViewModel(
     private val databaseStoreAt: (File) -> DatabaseStore,
     private val settings: ProbeSettings,
+    newFileAt: (File) -> PathNewFile,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ProbeState())
     val state: StateFlow<ProbeState> = mutableState.asStateFlow()
@@ -77,6 +79,20 @@ internal class StorageProbeViewModel(
     }
 
     fun read() = io { readDatabase("button") }
+
+    private val newFiles = NewFileProbe(newFileAt, ::log)
+
+    /** New databases (AD2): putting a new file in place, the Mac's 1 s file timed here, this phone's measurement. */
+    fun probeNewFilePlacement() = inFolder(newFiles::placement)
+
+    fun timeMacDefault() = inFolder(newFiles::timeMacDefault)
+
+    fun measure(seconds: Double) = inFolder { newFiles.measure(it, seconds) }
+
+    private fun inFolder(work: (File) -> Unit) = io {
+        val folder = state.value.folder ?: return@io log("choose a folder first")
+        work(folder)
+    }
 
     /** Replaces the database with its own bytes: exercises the temporary file and the rename. */
     fun rewriteDatabase() = io {

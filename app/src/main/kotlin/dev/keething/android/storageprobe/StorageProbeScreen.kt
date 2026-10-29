@@ -39,7 +39,7 @@ import dev.keething.android.storage.FolderPaths
 internal fun StorageProbeScreen(container: AppContainer) {
     val viewModel: StorageProbeViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { StorageProbeViewModel(container.databaseStoreAt, container.probeSettings) }
+            initializer { StorageProbeViewModel(container.databaseStoreAt, container.probeSettings, container.newFileAt) }
         },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -92,6 +92,18 @@ internal fun StorageProbeScreen(container: AppContainer) {
                             FilledTonalButton(viewModel::read) { Text("Read") }
                             FilledTonalButton(viewModel::rewriteDatabase) { Text("Rewrite") }
                             FilledTonalButton(viewModel::writeTestFile) { Text("Write test file") }
+                        }
+                    }
+                }
+            }
+            if (state.folder != null) {
+                item {
+                    Section("New databases") {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledTonalButton(viewModel::probeNewFilePlacement) { Text("Placement") }
+                            FilledTonalButton(viewModel::timeMacDefault) { Text("Mac's 1 s") }
+                            FilledTonalButton({ viewModel.measure(1.0) }) { Text("Measure 1 s") }
+                            FilledTonalButton({ viewModel.measure(0.5) }) { Text("Measure 0.5 s") }
                         }
                     }
                 }

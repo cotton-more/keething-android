@@ -26,6 +26,8 @@ import dev.keething.android.sharing.SharingKey
 import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.android.storage.FileObserverFolderWatcher
 import dev.keething.android.storage.PathDatabaseStore
+import dev.keething.android.storage.PathNewFile
+import dev.keething.android.storage.SharedStorage
 import dev.keething.android.storageprobe.ProbeSettings
 import dev.keething.android.ui.Notice
 import dev.keething.domain.storage.DatabaseStore
@@ -56,6 +58,9 @@ internal class AppContainer(context: Context) {
     private val folderWatcher = FileObserverFolderWatcher()
 
     val databaseStoreAt: (File) -> DatabaseStore = { file -> PathDatabaseStore(file, folderWatcher, AndroidClock) }
+
+    /** A new database or key file at a path; owner-only in the app's own storage, shared storage has no permissions. */
+    val newFileAt: (File) -> PathNewFile = { file -> PathNewFile(file, ownerOnly = !SharedStorage.contains(file)) }
 
     private val settingsStore = SharedPreferencesSettingsStore(context.getSharedPreferences("settings", Context.MODE_PRIVATE))
 

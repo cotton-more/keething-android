@@ -25,6 +25,8 @@ public data class KdbxMeta(
     val recycleBinEnabled: Boolean = true,
     val defaultUserName: String = "",
     val customIcons: Map<String, CustomIcon> = emptyMap(),
+    /** `DatabaseName`: "" when the file names none. */
+    val databaseName: String = "",
 )
 
 public data class KdbxGroup(

@@ -24,16 +24,19 @@ internal class Header(
         private const val SIGNATURE_1 = 0x9AA2D903.toInt()
         private const val SIGNATURE_2 = 0xB54BFB67.toInt()
 
-        private val CIPHERS = mapOf(
+        val CIPHERS = mapOf(
             "31c1f2e6bf714350be5805216afc5aff" to Cipher.AES256,
             "d6038a2b8b6f4cb5a524339a31dbb59a" to Cipher.CHACHA20,
             "ad68f29f576f4bb9a36ad47af965346c" to Cipher.TWOFISH,
         )
 
+        /** KeePass's own AES-KDF id: the one a new file gets (KeePass 2.x knows no other). */
+        const val KEEPASS_AES_KDF = "c9d9f39a628a4460bf740d08c18a4fea"
+
         // KeePass's AES-KDF and KeePassXC's KDBX 4 variant of it: the same transformation.
-        private val AES_KDF = setOf("c9d9f39a628a4460bf740d08c18a4fea", "7c02bb8279a74ac0927d114a00648238")
-        private const val ARGON2D = "ef636ddf8c29444b91f7a9a403e30a0c"
-        private const val ARGON2ID = "9e298b1956db4773b23dfc3ec6f0a1e6"
+        private val AES_KDF = setOf(KEEPASS_AES_KDF, "7c02bb8279a74ac0927d114a00648238")
+        const val ARGON2D = "ef636ddf8c29444b91f7a9a403e30a0c"
+        const val ARGON2ID = "9e298b1956db4773b23dfc3ec6f0a1e6"
 
         fun parse(file: ByteArray): Header {
             val r = ByteReader(file)
@@ -92,7 +95,8 @@ internal class Header(
             )
         }
 
-        private fun kdf(data: ByteArray): Pair<KdfParameters, Kdf> {
+        /** The KDF parameters field read: what transforms a key, and what the file says about it. */
+        fun kdf(data: ByteArray): Pair<KdfParameters, Kdf> {
             val dictionary = VariantDictionary.parse(data)
             val uuid = dictionary.bytes("\$UUID")?.let(::hex) ?: throw KdbxException.Corrupt("KDF id")
             return when (uuid) {
@@ -135,5 +139,8 @@ internal class Header(
         }
 
         fun hex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
+
+        /** An id above as bytes. */
+        fun id(hex: String): ByteArray = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
     }
 }

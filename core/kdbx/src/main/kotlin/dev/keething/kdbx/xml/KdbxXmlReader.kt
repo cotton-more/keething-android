@@ -100,6 +100,7 @@ internal object KdbxXmlReader {
         private var recycleBinUuid = ""
         private var recycleBinEnabled = ""
         private var defaultUserName = ""
+        private var databaseName = ""
         private val customIcons = LinkedHashMap<String, CustomIcon>()
         private var iconUuid = ""
         private var iconData = ""
@@ -123,7 +124,7 @@ internal object KdbxXmlReader {
         private val protectedText = StringBuilder()
 
         fun document(): KdbxDocument = KdbxDocument(
-            KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons),
+            KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons, databaseName),
             groups.filterNotNull(),
             entries,
             history,
@@ -181,7 +182,7 @@ internal object KdbxXmlReader {
             val grand = grand()
             val inEntry = entry != null
             when (name) {
-                "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName" -> if (parent == "Meta") beginCapture()
+                "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName", "DatabaseName" -> if (parent == "Meta") beginCapture()
                 "Icon" -> if (parent == "CustomIcons" && grand == "Meta") {
                     iconUuid = ""
                     iconData = ""
@@ -264,6 +265,7 @@ internal object KdbxXmlReader {
                     "RecycleBinUUID" -> if (parent == "Meta") recycleBinUuid = trimmed
                     "RecycleBinEnabled" -> if (parent == "Meta") recycleBinEnabled = trimmed
                     "DefaultUserName" -> if (parent == "Meta") defaultUserName = captured
+                    "DatabaseName" -> if (parent == "Meta") databaseName = captured
                     "Data" -> if (parent == "Icon" && grand == "CustomIcons") iconData = trimmed
                     "Icon" -> if (parent == "CustomIcons" && grand == "Meta") addIcon()
                     "UUID" -> when {

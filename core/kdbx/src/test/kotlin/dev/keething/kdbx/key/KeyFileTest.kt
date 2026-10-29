@@ -263,4 +263,59 @@ class KeyFileTest {
             }
         }
     }
+
+    // A new key file (keething-spec kdbx.new-key-file AC1, AC2, AC4)
+
+    @Test
+    fun aNewKeyFileIsXml20LaidOutAsKeePassXcWritesItAndReadsBackToTheSameKey() {
+        val key = KeyFile.newKey()
+        val hex = key.useBytes { bytes -> bytes.joinToString("") { "%02X".format(it) } }
+        val hash = key.useBytes { sha256(it) }.copyOf(4).joinToString("") { "%02X".format(it) }
+        fun groups(digits: String) = digits.chunked(8).joinToString(" ")
+        val expected = """
+            |<?xml version="1.0" encoding="UTF-8"?>
+            |<KeyFile>
+            |    <Meta>
+            |        <Version>2.0</Version>
+            |    </Meta>
+            |    <Key>
+            |        <Data Hash="$hash">
+            |            ${groups(hex.take(32))}
+            |            ${groups(hex.drop(32))}
+            |        </Data>
+            |    </Key>
+            |</KeyFile>
+            |
+        """.trimMargin()
+
+        val contents = KeyFile.contents(key)
+
+        assertEquals(expected, contents.decodeToString())
+        assertEquals(32, key.size)
+        assertTrue(KeyFile.key(contents).hasSameBytes(key))
+    }
+
+    @Test
+    fun keePassXcsOwnKeyxComesOutByteForByteFromItsKey() {
+        val contents = contents("keyx.keyx")
+        assertContentEquals(contents, KeyFile.contents(KeyFile.key(contents)))
+    }
+
+    @Test
+    fun twoNewKeyFilesNeverShareAKey() {
+        assertFalse(KeyFile.newKey().hasSameBytes(KeyFile.newKey()))
+    }
+
+    @Test
+    fun aDatabaseGivenTheNewKeyFileByKeePassXcOpensWithKeethingsReadingOfIt() {
+        if (!KeePassXcCli.isInstalled) return
+        val key = KeyFile.newKey()
+        val keyFile = File(folder, "new.keyx").apply { writeBytes(KeyFile.contents(key)) }
+        val database = File(folder, "db.kdbx").apply { writeBytes(Fixtures.bytes("kdbx4-aes-argon2d.kdbx")) }
+
+        val edit = KeePassXcCli.run("db-edit", "--set-key-file", keyFile.path, database.path)
+
+        assertEquals(0, edit.code, edit.err)
+        KdbxReader.open(database.readBytes(), DatabaseKey.of(Secret.of("pw"), key))
+    }
 }

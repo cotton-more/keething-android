@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.StringReader
 import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.Base64
 import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
@@ -51,6 +52,37 @@ public object KeyFile {
         if (contents.size == 32) return Secret.copyOf(contents)
         if (contents.size == 64) hex(contents.decodeToString())?.let { return Secret.adopt(it) }
         return Secret.adopt(MessageDigest.getInstance("SHA-256").digest(contents))
+    }
+
+    /** 32 random bytes: a new key file's key (keething-spec kdbx.new-key-file AC1); the caller wipes it. */
+    public fun newKey(random: SecureRandom = SecureRandom()): Secret = Secret.adopt(ByteArray(32).also(random::nextBytes))
+
+    /**
+     * The key as XML 2.0, byte for byte as KeePassXC writes a `.keyx` (`FileKey::create`; kdbx.new-key-file AC2):
+     * upper-case hex, a space every 8 digits, a line every 32, its `Hash`, 4-space indents, a final newline. The hex
+     * passes through `String`s, which cannot be wiped (the file holds the key in the clear anyway); the caller wipes
+     * the result.
+     */
+    public fun contents(key: Secret): ByteArray {
+        val digits = key.useBytes { bytes -> bytes.joinToString("") { "%02X".format(it) } }
+        val hash = key.useBytes { bytes ->
+            val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+            digest.copyOf(4).joinToString("") { "%02X".format(it) }.also { digest.fill(0) }
+        }
+        val lines = digits.chunked(32).joinToString("\n") { line -> "            " + line.chunked(8).joinToString(" ") }
+        return (
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<KeyFile>\n" +
+                "    <Meta>\n" +
+                "        <Version>2.0</Version>\n" +
+                "    </Meta>\n" +
+                "    <Key>\n" +
+                "        <Data Hash=\"$hash\">\n" +
+                "$lines\n" +
+                "        </Data>\n" +
+                "    </Key>\n" +
+                "</KeyFile>\n"
+            ).encodeToByteArray()
     }
 
     /** The key of a `KeyFile` XML; null when the contents are not one (not XML, or another root). */

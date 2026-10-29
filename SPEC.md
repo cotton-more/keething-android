@@ -68,7 +68,8 @@ stays open until the lock, autofill covers most logins, and it needs the notific
 only for frequent copying into apps autofill does not reach), Google Play (§8.1).
 
 Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
-databases, key files (the core is in, §4; choosing one comes with the list of databases), creating a database, KDBX
+databases, key files (the core is in, §4; choosing one comes with the list of databases), creating a database (the
+file is in, §3.5; the screen comes later), KDBX
 3.1 (refused until then), moving entries between groups, merging conflicting copies (detected and shown only until
 then, §3.4).
 
@@ -359,6 +360,48 @@ decrypted content, the tree, the new file and its reading back at once.
 - A `*.sync-conflict-*` copy of the database next to it is shown as a banner ("Syncthing found two versions:
   …") with its date. v1 does not merge: it says which one is open and that the other should be merged in
   KeePassXC (Database → Merge). Later: merge in the app.
+
+### 3.5 New database files
+
+The core of making a database (keething-spec `kdbx.new-file`, `kdbx.new-key-file`, `kdbx.kdf-calibration`; the Mac's
+SPEC §3.26). Nothing on the screen chooses it yet (keething-spec `plans/android-databases.md` AD7).
+- **The file** (`core/kdbx` `NewDatabase`): an ordinary KeePass file. KDBX 4.0, gzip, AES-256 or ChaCha20 (Twofish never
+  written), Argon2d, Argon2id or AES-KDF with a fresh 32-byte salt (AES-KDF: seed) from `SecureRandom`; the KDF
+  parameters as KeePass writes them (`$UUID`; Argon2 `V` 0x13, `S`, `P`, `M` in bytes, `I`; AES-KDF under KeePass's own
+  id `c9d9f39a…` with `R` and `S`), no public custom data. Parameters KeePass 2.x would not run are refused before
+  anything is measured (iterations 1 to 2³²−1, lanes 1 to 2²⁴−1, memory in whole KiB, at least 8 KiB a lane, under
+  2 GiB; AES-KDF at least 1 round; the phone's own Argon2 also stops at 2³¹−1 iterations). The XML as keepassxc-cli
+  2.7.12's `db-create` writes it, as KDBX 4: Generator `Keething`, the name given (outer blanks and control characters
+  dropped, or empty), `MemoryProtection` the password only, the bin enabled but not made (the first delete makes it,
+  §3.3), `HistoryMaxItems` 10, `HistoryMaxSize` 6 MiB, no KeePassXC custom data; one root group named as the database,
+  else the file name without `.kdbx`, else "Root"; no entries. Checked against KeePass's schema before it is written.
+- **The creator** (`core/vault` `DatabaseCreator`): nothing at the path and its folder there, said first; the file made
+  in memory with the key derived once (`DerivedKey`, kept for the first unlock), read back by the app's reader (the
+  name, one root group of that name, no entries, no attachments, the format asked for) and only then put in place.
+  Failures: there is already a file (`Exists`), the folder is not there, not written (with the reason), did not check
+  out, not supported; nothing is left behind. A **new key file**: 32 random bytes as XML 2.0, byte for byte as
+  KeePassXC writes a `.keyx`, never over a file there, read back before its key is used (removed again when it does not
+  read back).
+- **Putting it in place** (`app` `PathNewFile`; the owner's choice of 2026-10-29): created with `O_EXCL` and written in
+  one go, synced. A database is never replaced, not even by a file a sync put there meanwhile; never a check followed
+  by a move. Measured on the Pixel 6 in the Syncthing folder (shared storage, FUSE): a hard link (`link(2)`, the Mac's
+  fallback) is refused with `EACCES`, so is a symbolic link (a dangling link cannot be there); `O_EXCL` refuses a file
+  already there; a new file keeps its modification time through reads (§3.3 step 7 is for a rename over a file, not
+  needed here). The file is empty for the milliseconds between its creation and its one write (about 1.2 KB), against
+  Syncthing's 10 s watcher delay; checked with the Pixel 6 connected: a database, a key file and a 4 KB file made this
+  way reached the Mac byte for byte, each synced once at its full size (`Synced file` in the Mac's log), and
+  keepassxc-cli opened the database there with the key file. Owner-only (0600, a key file 0400) where the storage has permissions (app-private
+  storage); shared storage has none to set.
+- **The measurement** (`core/kdbx` `KdfCalibration`, `core/vault` `EncryptionMeasurement`): as the Mac's, the KDF run
+  with the memory and lanes chosen and the iterations scaled to the time asked for; the fixed cost of a run believed
+  only under half a run, so it errs towards a file that opens sooner; at least 2 iterations or 100,000 rounds; a clock
+  that does not move is an error; cancellable between runs. The phone's default (the owner's choice of 2026-10-29):
+  AES-256, Argon2d, 64 MiB, min(cores, 4) lanes, **1 s**. Measured on the Pixel 6 (release build, 4 lanes): 1 s gave
+  11–24 iterations in six runs (the plain estimate when Argon2's 64 MiB allocation looked like more than half a run),
+  files that open in 0.50–1.04 s, the measuring itself 0.84–0.98 s; 0.5 s gave 5 iterations (0.22–0.29 s). The Mac's
+  1 s default (`created-aes-argon2d.kdbx`, 115 iterations) takes 4.8–5.0 s here, about five times, not the two to
+  three the Mac's page says (the owner's database has 2 lanes); a phone-made 1 s file (24 iterations) opens in
+  keepassxc-cli on the Mac in 0.22 s.
 
 ## 4. Session and security
 
@@ -1040,7 +1083,11 @@ inner header). `fixtures/keyfiles/` (the Mac's `Fixtures/keyfiles`, made by keep
 `kdbx4-aes-argon2d.kdbx`): `keyfile-keyx.kdbx` (`pw` + `keyx.keyx`, XML 2.0), `keyfile-v1.kdbx` (`pw` + `v1.key`, XML
 1.0), `keyfile-raw32.kdbx` (`pw` + `raw32.key`, 32 bytes), `keyfile-hex64.kdbx` (`pw` + `hex64.key`, 64 hex digits),
 `keyfile-hashed.kdbx` (`pw` + `hashed.txt`, hashed), `keyfile-only.kdbx` (`keyx.keyx` alone); every key and composite
-key is in keething-spec `features/kdbx.key-files.md`. Never use the real database in tests.
+key is in keething-spec `features/kdbx.key-files.md`. `fixtures/created/` (the Mac's `Fixtures/created`, made by its
+creator, §3.5): `created-aes-argon2d.kdbx` (the Mac's default, 64 MiB, 4 lanes, 115 iterations), `created-chacha20-argon2id.kdbx`,
+`created-aes-aeskdf.kdbx`, `created-keyfile.kdbx` (`pw` + `created.keyx`), `created-keyfile-only.kdbx` (`created.keyx`
+alone), each one root group named as the database and no entries; `created.keyx` is Keething's own key file, byte for
+byte as KeePassXC writes one. Never use the real database in tests.
 
 ## 10. Sharing entries
 
