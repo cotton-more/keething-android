@@ -12,8 +12,11 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
@@ -24,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -49,9 +53,11 @@ import dev.keething.android.list.EntryListScreen
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.settings.SettingsScreen
 import dev.keething.android.databases.DatabasePageScreen
+import dev.keething.android.databases.NewDatabaseScreen
 import dev.keething.android.databases.WelcomeScreen
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.android.sharing.AnswerScreen
+import dev.keething.android.storage.CreationNote
 import dev.keething.android.sharing.AskScreen
 import dev.keething.android.sharing.ChooseEntriesScreen
 import dev.keething.android.sharing.MadeAnswer
@@ -134,6 +140,9 @@ internal class NavigationState : ViewModel() {
     /** The "Codes" shortcut's list (SPEC §6.2). A lock keeps it: the shortcut opens the lock screen first. */
     var codesOnly by mutableStateOf(false)
 
+    /** The database session the screens were last for ([DatabaseSession.number]): another one starts them afresh. */
+    var sessionNumber by mutableIntStateOf(0)
+
     /** The "Codes" launcher shortcut: the list of entries with a code, from the top. */
     fun showCodes() {
         backStack.retainAll { it == Screen.Entries }
@@ -203,6 +212,12 @@ internal fun KeethingApp(container: AppContainer) {
     val database by container.sessions.current.collectAsStateWithLifecycle()
     val list by container.sessions.list.state.collectAsStateWithLifecycle()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        container.newDatabases.notCreated?.let { left -> NotCreatedDialog(left) { container.newDatabases.notCreated = null } }
+        // New database, over whatever was shown (the welcome, a lock screen, Settings): its Create outlives the screen.
+        container.newDatabases.form?.let { form ->
+            NewDatabaseScreen(form, onClose = container.newDatabases::close)
+            return@Surface
+        }
         val current = database
         if (current == null) {
             WelcomeScreen(container)
@@ -211,6 +226,14 @@ internal fun KeethingApp(container: AppContainer) {
         val state by current.session.state.collectAsStateWithLifecycle()
         val unlocked = state is SessionState.Unlocked
         LaunchedEffect(unlocked) { if (!unlocked) navigation.reset() else navigation.lockBack = null }
+        // Another database's session (a new database made from Settings opens at once, its lock never shown here):
+        // nothing of the screens of before goes over to it.
+        LaunchedEffect(current.number) {
+            if (navigation.sessionNumber != current.number) {
+                navigation.sessionNumber = current.number
+                navigation.reset()
+            }
+        }
         // Back to the database shown before, while it is in the list and another is shown.
         val back = navigation.lockBack?.takeIf { it != current.id && list.record(it) != null }?.let { previous ->
             {
@@ -222,7 +245,8 @@ internal fun KeethingApp(container: AppContainer) {
         val grow = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
         val exit = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
         AnimatedContent(
-            targetState = unlocked,
+            // Not before the screens are reset for this session (above): never a frame of another database's.
+            targetState = unlocked && navigation.sessionNumber == current.number,
             transitionSpec = { (fadeIn(enter) + scaleIn(grow, initialScale = 0.94f)) togetherWith fadeOut(exit) },
             label = "lock",
         ) { showVault ->
@@ -233,6 +257,26 @@ internal fun KeethingApp(container: AppContainer) {
             }
         }
     }
+}
+
+/** What a process that ended while creating left was removed at this start (plan AD7). */
+@Composable
+private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (left.name.isEmpty()) "The new database was not created" else "“${left.name}” was not created") },
+        text = {
+            Text(
+                if (left.kept.isEmpty()) {
+                    "Keething was closed while writing it, so nothing of it was kept. Create it again."
+                } else {
+                    "Keething was closed while writing it. This may be left of it, written in part: " +
+                        left.kept.joinToString(", ") + ". Delete it if it is not yours, then create the database again."
+                },
+            )
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+    )
 }
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)

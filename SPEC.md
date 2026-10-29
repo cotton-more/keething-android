@@ -68,8 +68,8 @@ stays open until the lock, autofill covers most logins, and it needs the notific
 only for frequent copying into apps autofill does not reach), Google Play (§8.1).
 
 Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
-databases side by side (the list is in, one open at a time, §3.1), key files (in, §4), creating a database (the
-file is in, §3.5; the screen comes later), KDBX
+databases side by side (the list is in, one open at a time, §3.1), key files (in, §4), creating a database (in,
+§3.5, §6.2), KDBX
 3.1 (refused until then), moving entries between groups, merging conflicting copies (detected and shown only until
 then, §3.4).
 
@@ -401,7 +401,7 @@ decrypted content, the tree, the new file and its reading back at once.
 ### 3.5 New database files
 
 The core of making a database (keething-spec `kdbx.new-file`, `kdbx.new-key-file`, `kdbx.kdf-calibration`; the Mac's
-SPEC §3.26). Nothing on the screen chooses it yet (keething-spec `plans/android-databases.md` AD7).
+SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/android-databases.md` AD7).
 - **The file** (`core/kdbx` `NewDatabase`): an ordinary KeePass file. KDBX 4.0, gzip, AES-256 or ChaCha20 (Twofish never
   written), Argon2d, Argon2id or AES-KDF with a fresh 32-byte salt (AES-KDF: seed) from `SecureRandom`; the KDF
   parameters as KeePass writes them (`$UUID`; Argon2 `V` 0x13, `S`, `P`, `M` in bytes, `I`; AES-KDF under KeePass's own
@@ -439,6 +439,28 @@ SPEC §3.26). Nothing on the screen chooses it yet (keething-spec `plans/android
   1 s default (`created-aes-argon2d.kdbx`, 115 iterations) takes 4.8–5.0 s here, about five times, not the two to
   three the Mac's page says (the owner's database has 2 lanes); a phone-made 1 s file (24 iterations) opens in
   keepassxc-cli on the Mac in 0.22 s.
+- **Create** (`app` `NewDatabaseModel`, the Mac's `NewDatabaseModel`; keething-spec `databases.new-database`,
+  `databases.new-database-create`): measured on this phone unless the Encryption page measured these choices already,
+  then a new key file (made first, removed again when the database is not made; one the user has is only read), then
+  the database. Measuring can be cancelled; from the writing on nothing stops it. It runs in the app's scope, not the
+  screen's, and **a short foreground service** (`CreatingService`, Android 14's `shortService`, no permission of its
+  own; its notification is not shown without the notification permission, which is not asked) keeps the process while
+  it runs: removing the app from recents would otherwise end the process in the middle (the owner's choice at AD7's
+  start; to be looked into: `.x/RESEARCH-ad7-app-ended-while-creating.md`, not versioned). What a process that ended
+  anyway left (a crash, the system's own kill) is cleaned up at the next start: **`CreationNote`** (`filesDir/creating.note`)
+  names each file before it is written, with its SHA-256 and size; a file it names that is still empty or byte for byte
+  as written is removed, any other is someone else's and stays, and the app says "“Family Shared” was not created" ("Keething
+  was closed while writing it, so nothing of it was kept. Create it again."). A Create whose files the list already
+  names (the process ended between the record joining the list and the note's end) was made: its files stay, nothing
+  is said.
+- **After Create** (`CurrentDatabase.created`): a record of the list at that path (its file gone, even the current one,
+  which closes) is another database and goes first with its stored password, its days and its key-file note; the new
+  one joins the list with its key file and its Use fingerprint, becomes current and opens with the very key it was made
+  with (`VaultSession.unlockAdopting`: the derived key is in it, nothing is derived again, no key file is read), as a
+  typed unlock of the password (`BiometricUnlock.unlockCreated`: its days start, and the password is stored when the
+  fingerprint is on for it). The app counts its locks (`Sessions.lockCount`: the Lock button, the timeout, a stay in
+  the background past it with nothing open, the lock alarm): one since Create was tapped leaves the new database in
+  the list locked, its key wiped, nothing stored. Made while the app is in the background, its timeout starts then.
 
 ## 4. Session and security
 
@@ -577,7 +599,10 @@ at a time (several, and one fingerprint for several, are AD8 and AD13).
   app's switch **allows** a database's to be turned on and turns none on itself; a database's never turns the app's
   on (the owner at `plans/android-databases.md` AD5). A database new to the list starts with its own **off**,
   whatever the app's switch: no password is stored for a database nobody turned the fingerprint on for (the Mac's
-  rule, a new database taking the app's switch, stored a new database's first typed password unasked). "Use
+  rule, a new database taking the app's switch, stored a new database's first typed password unasked). A database
+  made on the New database screen (§6.2) has its own as chosen there: "Unlock it with the fingerprint" is shown only
+  while the app's switch is on and starts checked (the owner at AD7), and its password is stored at once, as Create
+  opens it as a typed unlock (§3.5). "Use
   fingerprint next time" shows while the app's switch is on, the database's own is off, the phone has a strong
   biometric and the lock screen says no problem (its key file not there), also for a database that opens with its key
   file alone; once turned on it stays until the password is stored. A switch going on (the app's, or a database's)
@@ -745,9 +770,44 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 ### 6.2 Screens
 - **Welcome** (an empty list: the first start, or every database removed): the app's logo, "Welcome to Keething",
   why a database ("Your passwords live in a KeePass database: one encrypted file that stays yours. Keep it in a
-  folder that syncs, and the same file opens on your computer too."), **Open a database…** (the system picker) and
-  "Already use KeePass, KeePassXC, KeePassDX or Strongbox? Open your database: it stays theirs too, and Keething writes
-  it in their format." Create a new database… comes with the New database screen (AD7).
+  folder that syncs, and the same file opens on your computer too."), **Create a new database…** (New database, below)
+  and **Open a database…** (the system picker), and "Already use KeePass, KeePassXC, KeePassDX or Strongbox? Open your
+  database: it stays theirs too, and Keething writes it in their format."
+- **New database** (keething-spec `databases.new-database`, `databases.new-database-create`; agreed on the canvas, row
+  "Databases: Settings, a database's page, New database"), from the welcome, the lock screen's sheet and Settings →
+  Databases, over whatever was shown (its close button and Back leave it, not while the file is written): **Name**
+  ("Personal, Work, Family…"; it makes the file name `<Name>.kdbx`, `/` and `:` as `-`, no leading dot, a typed `.kdbx`
+  not doubled, at most 255 bytes, and is written as the database's name and its root group's); **Save in** (the list's
+  databases' folders, the current one's first with "this database’s", then Documents, and Other folder… through the
+  system's folder picker, kept as a path) and the path under it ("Sync/KeePass/Family Shared.kdbx"); a file already
+  there is said in red ("There is already a Family Shared.kdbx in Sync/KeePass. A database is never replaced: choose
+  another name or folder.") and Create waits. **Master password** and **Again** (a password keyboard; one eye shows
+  both, in the code font; a check or a cross beside Again); the **strength line** (four segments; "Weak: shorter than
+  8 characters. Anyone with the file can try passwords against it.", "Fair: …", "Strong"; the database's name counts as
+  one character; a weak one is allowed); **Suggest a passphrase** (four EFF words joined by `-`, one Capitalised or in
+  CAPITALS, a digit and a symbol after words, 3–10 words with − and +, "EFF words, one with capitals, a digit and a
+  symbol: about 65 bits. Shown once: write it down.", Another, Use this: both fields, the eye open, "Strong · 4 words,
+  about 65 bits"); "Nobody can recover a forgotten master password, not even Keething." **Also require a key file**
+  (Optional): **Make a new one…** (a folder through the picker, starting in Documents; the file is `<Name>.keyx`, made at
+  Create: "Family Shared.keyx · Documents · made at Create") or **Use one I have…** (any file, §4); Change… goes back
+  to the two; a key file in the database's folder is warned "Beside the database, whoever gets the folder gets both.
+  Keep it apart: a folder that does not sync.", one under a folder Syncthing syncs (a `.stfolder` in it or above it)
+  "In a folder that syncs, it goes wherever the database goes. Keep it apart: a folder that does not sync." (a warning,
+  not a refusal); one already there, or whose folder is gone, waits; "Lose the key file and the database never opens
+  again. Keep a copy apart from it." **Unlock it with the fingerprint** (§5). The encryption line ("KDBX 4 · AES-256 ·
+  Argon2d · opens in about 1 s on this phone · read by every current KeePass app"; Argon2id: "read by KeePass 2.47 and
+  later and every current KeePass app") and **Change…**: the **Encryption** page (Format KDBX 4.0; Cipher AES-256 ·
+  ChaCha20; Key derivation Argon2d · Argon2id · AES-KDF; Memory halved or doubled, 1–2047 MiB, and Lanes 1–16 for
+  Argon2; Time to open 0.1–5 s; measured 300 ms after the last change and one at a time, the time alone scaling what
+  was measured: "1.0 s on this phone: 16 iterations, measured. A computer usually opens it faster."; Back to
+  recommended). **Create** waits, the first reason beside it ("Name it.", "Type a master password.", "Type the password
+  again.", "The two passwords differ.", "Make a key file, or choose one you have.", "Keething may not write to the
+  phone's storage: allow all-files access." with Allow all-files access…). **Creating…** ("Creating Family Shared…",
+  "Measuring this phone’s speed for 1 s to open, then writing the file and reading it back.", then "Writing the file
+  and reading it back."; Cancel only while measuring). A failure is said over Create as "Not created: …" in the Mac's
+  words, "this phone" for "this Mac" (a key file there: "… choose another folder"; too little memory for Argon2: "this
+  phone has not enough memory for 1024 MiB: choose less on the Encryption page."). Made, the screen goes and the new
+  database's empty list shows (§3.5).
 - **Databases** (agreed on the canvas, rows "Databases" for one database at a time and "Databases (AD3b, pass 2)",
   "Search across databases", "⋮ › Databases, the chooser and its run" for several open; being built, keething-spec
   `plans/android-databases.md` AD4–AD13, whose AD3b lists the phone's own choices): the welcome at the first start,
@@ -757,14 +817,14 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (a row swiped left closes it, with Undo), `!` and narrowing in the search, the chooser and its run, a new entry's
   Save into. One database at a time is built (AD4: the welcome, the lock screen's line, sheet and key file, not
   found, Settings → Databases and a database's page), replacing Choose the database; names and colours (AD6: the
-  tile's colour, a name read from the file, names alike, §3.1); New database is AD7. The welcome's large icon is the app's
+  tile's colour, a name read from the file, names alike, §3.1); New database (AD7, above). The welcome's large icon is the app's
   logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
   files.
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
   line: its tile (its initial in its colour on a soft fill of it, §3.1), its label, folder from the shared storage's root and when it changed ("Sync/KeePass ·
   changed 2 hours ago", "changed yesterday", "changed in March"; "Download · not found" in red) and ⇅; a tap opens
   the **sheet** "Databases": the list's databases (a dot in its colour and its label; a check on the one shown; its folder or "not found"; more than six
-  scroll inside it, "9 databases · scroll for the rest"), Open other… and Remove “…” from list… (asked: "Remove
+  scroll inside it, "9 databases · scroll for the rest"), Open other…, New database… and Remove “…” from list… (asked: "Remove
   “Work” from the list?", "Keething forgets it on this phone, with its stored password. The file stays where it
   is.", Cancel / Remove). Another chosen there is shown locked with an empty field and nothing said of the last one,
   with Back (and the system back) to the one before. Then the reason of the last lock; a key file not there is said
@@ -1020,7 +1080,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Change…, Forget; "Remembered here by its path, not its contents. It must be there at every unlock, the fingerprint
   too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
   **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
-  Under the list **Open a database…** (it becomes current: one open locks). Then the app's fingerprint switch (§5) and,
+  Under the list **Open a database…** (it becomes current: one open locks) and **New database…** (§6.2). Then the app's fingerprint switch (§5) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.

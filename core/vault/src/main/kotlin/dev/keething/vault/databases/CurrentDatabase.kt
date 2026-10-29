@@ -4,6 +4,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
+import dev.keething.vault.creating.DerivedKey
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
@@ -11,6 +12,7 @@ import dev.keething.vault.session.VaultSession
 import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -122,6 +124,47 @@ public class CurrentDatabase(
         if (wasCurrent) follow()
         return biometric.forget(id)
     }
+
+    /**
+     * A database just made (keething-spec databases.new-database AC8–AC10; the Mac's `DatabaseListModel.created`). A
+     * record of the list at its path (its file gone, even the current one, which closes) is another database: it goes
+     * first with its stored password, so the new one takes nothing of it (its id, backups, stored password). The new
+     * one joins the list with its key file and its Use fingerprint, becomes current and opens with [key], the key it was
+     * made with, as a typed unlock of [password] (its days start; stored for the fingerprint when chosen). A lock since
+     * Create was tapped ([lockedSince], asked once the list has it) leaves it locked and wipes [key]. The caller may
+     * wipe [password] as soon as this returns.
+     */
+    public suspend fun created(
+        path: String,
+        keyFilePath: String?,
+        useBiometric: Boolean,
+        key: DerivedKey,
+        password: Secret,
+        lockedSince: () -> Boolean,
+    ): Created {
+        val standardized = DatabaseList.standardized(path)
+        val old = list.records.firstOrNull { DatabaseList.standardized(it.path) == standardized }
+        var problem: String? = null
+        if (old != null) {
+            val wasCurrent = current.value?.id == old.id
+            list.remove(old.id)
+            if (wasCurrent) follow()
+            problem = biometric.forget(old.id)
+        }
+        val record = list.add(standardized, useBiometric = useBiometric)
+        list.update(record.id) { it.copy(keyFilePath = keyFilePath?.let(DatabaseList::standardized)) }
+        list.setCurrent(record.id)
+        follow()
+        val database = current.value?.takeIf { it.id == record.id }
+        if (database == null || lockedSince()) {
+            key.wipe()
+            return Created(record.id, opened = null, problem)
+        }
+        return Created(record.id, database.biometric.unlockCreated(key, password), problem)
+    }
+
+    /** What [created] did: the new database's [id], how its opening ends (null: not opened), why an old one's stored password stayed. */
+    public class Created(public val id: DatabaseId, public val opened: Deferred<UnlockOutcome>?, public val problem: String?)
 
     /**
      * The typed unlock of [database] (nothing typed with a key file too), as [BiometricUnlock.unlock]. With a key file

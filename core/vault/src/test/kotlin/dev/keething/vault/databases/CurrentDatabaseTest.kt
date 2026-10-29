@@ -1,11 +1,20 @@
 package dev.keething.vault.databases
 
+import dev.keething.domain.encryption.DatabaseEncryption
+import dev.keething.domain.encryption.DatabaseEncryption.Cipher
+import dev.keething.domain.encryption.DatabaseEncryption.KeyDerivation
+import dev.keething.domain.encryption.MeasuredEncryption
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.storage.NewFile
+import dev.keething.domain.storage.NewFilePlace
+import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.biometric.FakePasswordStores
 import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.biometric.MapSettings
+import dev.keething.vault.creating.DatabaseCreator
+import dev.keething.vault.creating.DerivedKey
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.FakeClock
@@ -13,6 +22,7 @@ import dev.keething.vault.session.FakeKeyFile
 import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
+import dev.keething.vault.session.UnlockOutcome
 import dev.keething.vault.session.VaultSession
 import dev.keething.vault.session.fixtureBytes
 import dev.keething.vault.session.keyFileBytes
@@ -21,6 +31,7 @@ import java.io.IOException
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -576,5 +587,136 @@ class CurrentDatabaseTest {
         f.add("/a/Personal.kdbx")
         typed(f, "pw")
         assertEquals(Instant.parse("2026-10-18T12:00:00Z"), f.list.current?.lastOpened?.let { Instant.ofEpochSecond(it.epochSecond) })
+    }
+
+    // A new database (plan AD7; the Mac's NewDatabaseWindowTests "After Create")
+
+    /** The key a database was made with; this fixture's file opens with "pw". */
+    private fun madeWith(text: String = "pw") = DerivedKey(DatabaseKey.of(Secret.of(text)))
+
+    private suspend fun Fixture.create(
+        path: String,
+        key: DerivedKey = madeWith(),
+        useBiometric: Boolean = false,
+        keyFilePath: String? = null,
+        lockedSince: Boolean = false,
+    ): CurrentDatabase.Created {
+        files[path] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        val typed = Secret.of("pw")
+        return databases.created(path, keyFilePath, useBiometric, key, typed) { lockedSince }.also { typed.wipe() }
+    }
+
+    @Test
+    fun createdItJoinsTheListIsCurrentOpensAndItsPasswordIsStoredForTheFingerprint() = runTest {
+        val f = Fixture(this)
+        val personal = f.add("/a/Personal.kdbx")
+        val before = f.shown
+        f.setup.setEnabled(true)
+        val created = f.create("/a/Family Shared.kdbx", useBiometric = true, keyFilePath = "/keys/family.keyx")
+        runCurrent()
+        val record = assertNotNull(f.list.record(created.id))
+        assertEquals("/a/Family Shared.kdbx", record.path)
+        assertEquals("/keys/family.keyx", record.keyFilePath)
+        assertTrue(record.useBiometric)
+        assertEquals(created.id, f.list.currentId)
+        assertEquals(created.id, f.shown.id)
+        assertEquals(UnlockOutcome.Opened, created.opened?.await())
+        assertIs<SessionState.Unlocked>(f.shown.state())
+        assertEquals("pw", f.stored(created.id), "a typed unlock: stored for the fingerprint")
+        assertNotNull(f.settings.string(BiometricSetup.lastTypedKey(created.id)), "its days start")
+        assertTrue(before.session.isClosed, "one open at a time: the one shown before closes")
+        assertNotNull(f.list.record(personal.id), "and stays in the list")
+        assertNull(created.problem)
+    }
+
+    @Test
+    fun createdWithoutTheFingerprintNothingIsStored() = runTest {
+        val f = Fixture(this)
+        f.setup.setEnabled(true)
+        val created = f.create("/a/New.kdbx", useBiometric = false)
+        runCurrent()
+        assertEquals(UnlockOutcome.Opened, created.opened?.await())
+        assertNull(f.stored(created.id))
+        assertFalse(f.list.record(created.id)!!.useBiometric)
+    }
+
+    @Test
+    fun createdWhereADatabaseOfTheListWasNotFoundThatOneGoesWithItsStoredPassword() = runTest {
+        val f = Fixture(this)
+        f.add("/a/Personal.kdbx")
+        val old = f.add("/a/Old.kdbx", bytes = null)
+        f.storedPassword("old-pw", old.id)
+        f.settings.setString(BiometricSetup.lastTypedKey(old.id), "1")
+        val created = f.create("/a/Old.kdbx")
+        runCurrent()
+        assertTrue(created.id != old.id, "a new database, not the old record")
+        assertNull(f.list.record(old.id))
+        assertNull(f.stored(old.id), "the old database's stored password is gone")
+        assertNull(f.settings.string(BiometricSetup.lastTypedKey(old.id)), "and its days")
+        assertFalse(f.list.record(created.id)!!.useBiometric)
+        assertEquals(UnlockOutcome.Opened, created.opened?.await())
+        assertEquals(2, f.list.records.size)
+    }
+
+    @Test
+    fun createdWhereTheOpenDatabasesFileWasDeletedThatOneClosesAndGoesTheNewOneOpensWithItsOwnKey() = runTest {
+        val f = Fixture(this)
+        val old = f.add("/a/Old.kdbx")
+        typed(f, "pw")
+        advanceTimeBy(1.seconds)
+        val oldSession = f.shown
+        assertIs<SessionState.Unlocked>(oldSession.state())
+        val created = f.create("/a/Old.kdbx")
+        runCurrent()
+        assertTrue(oldSession.session.isClosed)
+        assertIs<SessionState.Locked>(oldSession.state(), "its vault is wiped")
+        assertNull(f.list.record(old.id))
+        assertEquals(UnlockOutcome.Opened, created.opened?.await())
+        assertEquals(listOf(created.id), f.list.records.map { it.id })
+    }
+
+    @Test
+    fun aLockSinceCreateWasTappedLeavesItInTheListLockedItsKeyWipedNothingStored() = runTest {
+        val f = Fixture(this)
+        f.setup.setEnabled(true)
+        val key = madeWith()
+        val created = f.create("/a/New.kdbx", key = key, useBiometric = true, lockedSince = true)
+        runCurrent()
+        assertNull(created.opened)
+        assertEquals(created.id, f.list.currentId)
+        assertIs<SessionState.Locked>(f.shown.state())
+        assertFailsWith<IllegalStateException>("the key is wiped") { key.key.copy() }
+        assertNull(f.stored(created.id))
+    }
+
+    @Test
+    fun madeByTheRealCreatorTheFirstOpeningDerivesNothing() = runTest {
+        val f = Fixture(this)
+        var written: ByteArray? = null
+        val place = object : NewFile {
+            override val fileName = "Family Shared.kdbx"
+            override fun check() = NewFilePlace.FREE
+            override fun create(bytes: ByteArray, readOnly: Boolean) {
+                written = bytes.copyOf()
+            }
+            override fun removeCreated() = Unit
+        }
+        val measured = MeasuredEncryption(DatabaseEncryption(Cipher.CHACHA20, KeyDerivation.ARGON2D, 1, 1, 1.0), units = 2, seconds = 0.1)
+        val typed = Secret.of("pw-family")
+        val key = DatabaseCreator(now = { Instant.EPOCH }).create(place, "Family Shared", typed, null, measured)
+        val path = "/a/Family Shared.kdbx"
+        f.files[path] = FakeStore(assertNotNull(written))
+        val created = f.databases.created(path, null, false, key, typed) { false }
+        typed.wipe()
+        runCurrent()
+        assertEquals(UnlockOutcome.Opened, created.opened?.await())
+        val unlocked = assertIs<SessionState.Unlocked>(f.shown.state())
+        assertEquals("Family Shared", unlocked.vault.name)
+        assertNull(unlocked.keyDerivation, "the creator's key, its derived key kept: nothing derived again")
+
+        f.shown.session.lock()
+        assertTrue(typed(f, "pw-family"))
+        advanceTimeBy(1.seconds)
+        assertNotNull(assertIs<SessionState.Unlocked>(f.shown.state()).keyDerivation, "a typed password derives")
     }
 }

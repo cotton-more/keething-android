@@ -1,6 +1,7 @@
 package dev.keething.android
 
 import android.content.Context
+import android.os.Environment
 import android.util.Log
 import dev.keething.android.attachment.AndroidAttachments
 import dev.keething.android.attachment.AttachmentFiles
@@ -12,6 +13,11 @@ import dev.keething.android.biometric.KeystorePasswordStores
 import dev.keething.android.clipboard.AndroidSystemClipboard
 import dev.keething.android.clipboard.ClipboardClearAlarm
 import dev.keething.android.clipboard.SensitiveClipboard
+import dev.keething.android.databases.CreatingService
+import dev.keething.android.databases.FileDatabaseMaking
+import dev.keething.android.databases.NewDatabaseModel
+import dev.keething.android.databases.NewDatabases
+import dev.keething.android.databases.PhoneNewDatabaseFiles
 import dev.keething.android.generator.PasswordGeneratorState
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.recyclebin.RecycleBinMoves
@@ -23,6 +29,8 @@ import dev.keething.android.settings.SharedPreferencesSettingsStore
 import dev.keething.android.sharing.CodePictures
 import dev.keething.android.sharing.FileSharingStore
 import dev.keething.android.sharing.SharingKey
+import dev.keething.android.storage.AllFilesAccess
+import dev.keething.android.storage.CreationNote
 import dev.keething.android.storage.FileObserverFolderWatcher
 import dev.keething.android.storage.PathDatabaseStore
 import dev.keething.android.storage.PathKeyFileSource
@@ -84,6 +92,41 @@ internal class AppContainer(context: Context) {
         ::PathKeyFileSource, biometricStores, appScope, biometricIo, LockAlarm(context),
     )
 
+    /** What a new database's Create is making (plan AD7): an ended process's leftovers go at the next start. */
+    private val creationNote = CreationNote(File(context.filesDir, "creating.note"))
+
+    /** The New database screen (SPEC §6.2), kept by the app: Create goes on when the screen is gone. */
+    val newDatabases: NewDatabases = NewDatabases { newDatabase(context) }
+
+    /** A form for New database: Save in starts at the current database's folder, then the list's, then Documents. */
+    private fun newDatabase(context: Context): NewDatabaseModel {
+        val root = Environment.getExternalStorageDirectory()
+        val list = sessions.list
+        val folders = (listOfNotNull(list.current) + list.records)
+            .mapNotNull { File(it.path).parentFile?.takeIf(File::isDirectory)?.path }
+            .distinct()
+        val model = NewDatabaseModel(
+            making = FileDatabaseMaking(newFileAt, creationNote),
+            folders = folders,
+            documents = File(root, Environment.DIRECTORY_DOCUMENTS).path,
+            root = root.path,
+            files = PhoneNewDatabaseFiles(root, AllFilesAccess::isGranted),
+            offersFingerprint = sessions.biometric.state.value.enabled,
+            scope = appScope,
+            io = Dispatchers.IO,
+            lockCount = { sessions.lockCount },
+        )
+        model.onCreating = { creating -> if (creating) CreatingService.start(context) else CreatingService.stop(context) }
+        model.onCreated = { made ->
+            try {
+                sessions.created(made)?.let { Log.w("Creating", "an old record's stored password stayed: $it") }
+            } finally {
+                newDatabases.created(model)
+            }
+        }
+        return model
+    }
+
     /** Delete and Restore: saves whose outcome the list shows after the card closed (SPEC §6.2). */
     val recycleBin = RecycleBinMoves(appScope)
 
@@ -137,6 +180,11 @@ internal class AppContainer(context: Context) {
     val answerParts = PartCollector()
 
     init {
+        // A small file, almost never there: read at once, before any Create can note anything.
+        val listed = sessions.list.records.flatMap { listOfNotNull(it.path, it.keyFilePath) }.map(DatabaseList::standardized).toSet()
+        runCatching { creationNote.leftovers { DatabaseList.standardized(it) in listed } }.getOrNull()?.let { newDatabases.notCreated = it }
+        // A lock takes New database's form, with what was typed, unless it is being created.
+        sessions.locks.onLock = newDatabases::locked
         clearOnLock()
         followTheLockWithTheRequests()
     }

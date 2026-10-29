@@ -138,4 +138,26 @@ class PasswordGeneratorTest {
         assertEquals(GeneratorOptions(), GeneratorOptions.decode("kind=emoji\npinLength=lots"))
         assertEquals(GeneratorOptions(), GeneratorOptions.decode(null))
     }
+
+    @Test
+    fun theMasterPassphraseIsListWordsOneRaisedAndADigitAndASymbolAfterWords() {
+        for (seed in 1..300) {
+            val count = PasswordGenerator.MASTER_PASSPHRASE_WORDS.first + seed % 8
+            val password = PasswordGenerator.masterPassphrase(count, SeededRandom(seed.toLong()))
+            val parts = password.split("-")
+            assertEquals(count, parts.size, password)
+            assertEquals(1, password.count { it.isDigit() }, password)
+            assertEquals(1, password.count { it in PasswordGenerator.MASTER_PASSPHRASE_SYMBOLS }, password)
+            assertTrue(parts.all { it.first().isLetter() && it.dropWhile(Char::isLetter).none(Char::isLetter) }, "after a word: $password")
+            val bare = parts.map { part -> part.filter(Char::isLetter) }
+            assertTrue(bare.all { it.lowercase() in words }, password)
+            val raised = bare.filter { it != it.lowercase() }
+            assertEquals(1, raised.size, password)
+            assertTrue(raised.all { it == it.uppercase() || it == it.lowercase().replaceFirstChar(Char::uppercaseChar) }, password)
+        }
+        assertEquals(10, PasswordGenerator.masterPassphrase(99, SeededRandom(1)).split("-").size, "brought into range")
+        // The words, which one is raised and how, the digit and its word, the symbol and its word.
+        assertEquals(6 * log2(7772.0) + log2(12.0) + log2(60.0) + log2(60.0), PasswordGenerator.masterPassphraseEntropy(6))
+        assertEquals(65, PasswordGenerator.masterPassphraseEntropy(4).toInt(), "about 65 bits for four (databases.new-database AC4)")
+    }
 }

@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.PlaylistRemove
@@ -217,7 +218,7 @@ internal fun RemoveFromListDialog(name: String, onRemove: () -> Unit, onDismiss:
 
 /**
  * The lock screen's sheet (SPEC §6.2): the list's databases, a check on the one shown, each with its folder or that
- * it is not found; many scroll inside it. Then Open other… and Remove “…” from list….
+ * it is not found; many scroll inside it. Then Open other…, New database… and Remove “…” from list….
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -225,6 +226,7 @@ internal fun DatabasesSheet(
     lines: List<DatabaseLine>,
     onChoose: (DatabaseId) -> Unit,
     onOpenOther: () -> Unit,
+    onNew: () -> Unit,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -274,6 +276,7 @@ internal fun DatabasesSheet(
             }
             HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
             SheetAction(Icons.Rounded.FolderOpen, "Open other…", onOpenOther)
+            SheetAction(Icons.Rounded.Add, "New database…", onNew)
             if (current != null) SheetAction(Icons.Rounded.PlaylistRemove, "Remove “${current.name}” from list…", onRemove)
         }
     }

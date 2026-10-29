@@ -20,6 +20,7 @@ import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.saving.SaveResult
 import dev.keething.vault.saving.VaultSaver
 import dev.keething.vault.session.FakeStore
+import dev.keething.vault.session.keyFileBytes
 import java.io.IOException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.NoSuchFileException
@@ -276,6 +277,21 @@ class DatabaseCreatorTest {
         val reread = KeyFile.key(keyTarget.existing!!)
         KdbxReader.open(both.existing!!, DatabaseKey.of(Secret.of("pw"), reread))
         KdbxReader.open(only.existing!!, DatabaseKey.of(null, reread))
+    }
+
+    @Test
+    fun aKeyFileTheUserHasIsReadForItsKeyTheBytesWipedOneNotThereSaidByName() {
+        var handedOut: ByteArray? = null
+        val keyx = keyFileBytes("keyx.keyx")
+        val source = object : KeyFileSource {
+            override val fileName = "keyx.keyx"
+            override fun read(): KeyFileRead = KeyFileRead.Found(keyx.copyOf().also { handedOut = it })
+        }
+        val key = creator.readKeyFile(source)
+        assertTrue(key.hasSameBytes(KeyFile.key(keyx.copyOf())))
+        assertTrue(handedOut!!.all { it == 0.toByte() }, "the bytes read are wiped")
+        val missing = assertFailsWith<CreateFailure.KeyFileUnusable> { creator.readKeyFile(FakeKeyFile { null }) }
+        assertEquals("work.keyx", missing.name)
     }
 
     private companion object {

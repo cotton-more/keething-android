@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,8 +32,8 @@ import dev.keething.android.ui.AppLogo
 import dev.keething.android.ui.ButtonLabel
 
 /**
- * The first start, an empty list (SPEC §6.2; keething-spec databases.list AC1): no database is guessed, one is opened
- * (or, from plan AD7, made). The large icon is the app's logo, as the lock screen's.
+ * The first start, an empty list (SPEC §6.2; keething-spec databases.list AC1): no database is guessed, one is made or
+ * opened. The large icon is the app's logo, as the lock screen's.
  */
 @Composable
 internal fun WelcomeScreen(container: AppContainer) {
@@ -61,8 +63,10 @@ internal fun WelcomeScreen(container: AppContainer) {
         )
         Spacer(Modifier.height(40.dp))
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Create a new database… comes with the New database screen (plan AD7).
-            Button(onClick = { pick(null) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+            Button(onClick = container.newDatabases::open, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                ButtonLabel("Create a new database…", Icons.Rounded.Add, iconSize = 20.dp)
+            }
+            FilledTonalButton(onClick = { pick(null) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                 ButtonLabel("Open a database…", Icons.Rounded.FolderOpen, iconSize = 20.dp)
             }
         }

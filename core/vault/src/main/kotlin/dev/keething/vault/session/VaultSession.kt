@@ -141,6 +141,35 @@ public class VaultSession(
         return outcome
     }
 
+    /**
+     * Opens the vault with [key], the very key a new database was just made with (keething-spec databases.new-database
+     * AC8): what was derived for the file is in it, so nothing is derived again, and no key file is read. The session
+     * takes [key] over: it wipes it at the lock, or at once when it does not open the vault or the vault was not
+     * locked (null then).
+     */
+    internal fun unlockAdopting(key: DatabaseKey): Deferred<UnlockOutcome>? {
+        if (closed || mutableState.value !is SessionState.Locked) {
+            key.wipe()
+            return null
+        }
+        val token = generation
+        mutableState.value = SessionState.Unlocking
+        val outcome = CompletableDeferred<UnlockOutcome>()
+        scope.launch {
+            val waiting = ArrayDeque(listOf(Attempt(key, OpenFailure.WrongPassword)))
+            try {
+                val failure = tryInTurn(waiting, token, outcome) ?: return@launch
+                if (token != generation) return@launch
+                mutableState.value = SessionState.Locked(LockReason.UnlockFailed(failure))
+                outcome.complete(UnlockOutcome.Failed(failure))
+            } finally {
+                waiting.forEach { it.key.wipe() }
+                outcome.complete(UnlockOutcome.Interrupted)
+            }
+        }
+        return outcome
+    }
+
     /** A key to try, and what its rejection is called (it names what was given). */
     private class Attempt(val key: DatabaseKey, val rejected: OpenFailure)
 

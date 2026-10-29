@@ -193,6 +193,35 @@ public object PasswordGenerator {
         }
     }
 
+    /** New database's word counts (keething-spec databases.new-database AC4). */
+    public val MASTER_PASSPHRASE_WORDS: IntRange = 3..10
+
+    /** The master passphrase's symbols: the memorable kind's without `-`, which joins the words. */
+    internal val MASTER_PASSPHRASE_SYMBOLS: String = MEMORABLE_SYMBOLS.filter { it != '-' }
+
+    /**
+     * New database's Suggest a passphrase (the Mac's `masterPassphrase`): lowercase EFF words joined by `-`, one of them
+     * Capitalised or in CAPITALS, one digit after a word and one symbol after a word (the same one or another; a digit
+     * first).
+     */
+    public fun masterPassphrase(words: Int, random: RandomSource = SystemRandom): String {
+        val n = words.coerceIn(MASTER_PASSPHRASE_WORDS)
+        val chosen = MutableList(n) { this.words[random.nextBelow(this.words.size)] }
+        val raised = random.nextBelow(n)
+        chosen[raised] = if (random.nextBelow(2) == 0) chosen[raised].replaceFirstChar(Char::uppercaseChar) else chosen[raised].uppercase()
+        val digitAfter = random.nextBelow(n)
+        chosen[digitAfter] += DIGITS[random.nextBelow(DIGITS.length)]
+        val symbolAfter = random.nextBelow(n)
+        chosen[symbolAfter] += MASTER_PASSPHRASE_SYMBOLS[random.nextBelow(MASTER_PASSPHRASE_SYMBOLS.length)]
+        return chosen.joinToString("-")
+    }
+
+    /** [masterPassphrase]'s bits: the words, which one is raised and how, where the digit and the symbol go and which. */
+    public fun masterPassphraseEntropy(words: Int): Double {
+        val n = words.coerceIn(MASTER_PASSPHRASE_WORDS).toDouble()
+        return n * log2(this.words.size.toDouble()) + log2(2 * n) + log2(n * DIGITS.length) + log2(n * MASTER_PASSPHRASE_SYMBOLS.length)
+    }
+
     private fun strong(o: GeneratorOptions, random: RandomSource): String {
         val pools = pools(o)
         val all = pools.joinToString("")

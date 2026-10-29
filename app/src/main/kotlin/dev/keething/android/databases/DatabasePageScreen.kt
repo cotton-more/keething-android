@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.FindInPage
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.FolderOpen
@@ -121,9 +122,13 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
                 }
             }
         }
-        // New database… comes with the New database screen (plan AD7).
-        TextButton(onClick = { open(current?.file?.parentFile) }) {
-            ButtonLabel("Open a database…", Icons.Rounded.FolderOpen, iconSize = 18.dp, gap = 8.dp)
+        Row {
+            TextButton(onClick = { open(current?.file?.parentFile) }) {
+                ButtonLabel("Open a database…", Icons.Rounded.FolderOpen, iconSize = 18.dp, gap = 8.dp)
+            }
+            TextButton(onClick = container.newDatabases::open) {
+                ButtonLabel("New database…", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
+            }
         }
     }
 }

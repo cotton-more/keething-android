@@ -187,6 +187,11 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onBa
                 sheet = false
                 openOther(folder)
             },
+            onNew = {
+                sheet = false
+                leave()
+                container.newDatabases.open()
+            },
             onRemove = {
                 sheet = false
                 removing = true

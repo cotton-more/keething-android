@@ -33,6 +33,9 @@ public sealed class CreateFailure(message: String) : Exception(message) {
     /** The phone has not enough memory for the key derivation (Argon2's memory as chosen). */
     public class NotEnoughMemory : CreateFailure("not enough memory for the key derivation")
 
+    /** A key file the user has could not be read as one ([name]: its file name). */
+    public class KeyFileUnusable(public val name: String) : CreateFailure("$name cannot be read as a key file")
+
     /** The new file did not read back as made. */
     public class VerificationFailed(public val why: String) : CreateFailure("did not check out: $why")
 
@@ -135,6 +138,28 @@ public class DatabaseCreator(private val now: () -> Instant) {
             throw CreateFailure.WriteFailed("the key file did not read back")
         }
         return key
+    }
+
+    /**
+     * The key of a key file the user has, for a new database to require (any of KeePass's kinds, as an unlock reads it:
+     * kdbx.key-files); the bytes read are wiped. The caller wipes the key. Throws [CreateFailure.KeyFileUnusable] when it
+     * is not there or cannot be read.
+     */
+    public fun readKeyFile(source: KeyFileSource): Secret {
+        val found = try {
+            source.read() as? KeyFileRead.Found
+        } catch (_: Exception) {
+            null
+        } catch (_: OutOfMemoryError) {
+            null
+        } ?: throw CreateFailure.KeyFileUnusable(source.fileName)
+        return try {
+            KeyFile.key(found.bytes)
+        } catch (_: Exception) {
+            throw CreateFailure.KeyFileUnusable(source.fileName)
+        } finally {
+            found.bytes.fill(0)
+        }
     }
 
     /** Nothing at the path, and its folder there: said before anything is derived or written. */

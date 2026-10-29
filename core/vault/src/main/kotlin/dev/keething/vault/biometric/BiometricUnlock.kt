@@ -3,6 +3,7 @@ package dev.keething.vault.biometric
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
+import dev.keething.vault.creating.DerivedKey
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseRecord
@@ -174,6 +175,23 @@ public class BiometricUnlock(
      */
     public fun unlock(password: Secret): Deferred<UnlockOutcome>? {
         val outcome = session.unlock(password) ?: return null
+        afterTyped(outcome, password)
+        return outcome
+    }
+
+    /**
+     * A database just made (keething-spec databases.new-database AC8): opened with [key], the very key it was made with
+     * (nothing derived again; the session takes it over), as a typed unlock of [password]: its days start, and the
+     * password is stored when the fingerprint is on for it. The caller may wipe [password] as soon as this returns.
+     * Null when the vault was not locked ([key] is wiped then).
+     */
+    public fun unlockCreated(key: DerivedKey, password: Secret): Deferred<UnlockOutcome>? {
+        val outcome = session.unlockAdopting(key.key) ?: return null
+        afterTyped(outcome, password)
+        return outcome
+    }
+
+    private fun afterTyped(outcome: Deferred<UnlockOutcome>, password: Secret) {
         val kept = password.copy()
         scope.launch {
             try {
@@ -187,7 +205,6 @@ public class BiometricUnlock(
                 kept.wipe()
             }
         }
-        return outcome
     }
 
     /** Asks for the fingerprint and unlocks with this database's stored password (or its key file alone). One at a time. */

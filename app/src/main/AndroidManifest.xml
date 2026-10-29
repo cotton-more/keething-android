@@ -5,6 +5,12 @@
     <!-- The fingerprint unlock (SPEC §5). -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
+    <!--
+    New database (SPEC §6.2): a short foreground service keeps the process for the seconds Create writes the file, so
+    removing the app from recents does not leave it half-made. No notification permission is asked: it runs without.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <!-- Reading the code of a request or an answer (SPEC §10); asked for only when reading one. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature
@@ -59,6 +65,11 @@
         <receiver
             android:name=".sharing.ChosenAppReceiver"
             android:exported="false" />
+
+        <service
+            android:name=".databases.CreatingService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
 
         <!-- Autofill (SPEC §7): the service, and the screen it opens over the app being filled. -->
         <service

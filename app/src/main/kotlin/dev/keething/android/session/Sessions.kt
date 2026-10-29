@@ -1,6 +1,8 @@
 package dev.keething.android.session
 
+import android.os.SystemClock
 import android.util.Log
+import dev.keething.android.databases.CreatedDatabase
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import dev.keething.android.settings.AppSettings
@@ -81,16 +83,47 @@ internal class Sessions(
     }
 
     fun lock() {
+        locks.locked()
         current.value?.session?.lock()
+    }
+
+    /** The app's locks, counted: a new database made across one stays locked, and New database's form goes. */
+    val locks = AppLocks(SystemClock::elapsedRealtime)
+
+    /** How many times the app locked so far ([locks]). */
+    val lockCount: Int get() = locks.count
+
+    private var inForeground = false
+
+    /**
+     * A new database made on the New database screen joins the list, becomes current and opens with the key it was made
+     * with, unless the app locked since Create was tapped ([made]'s lock count). Made while the app was in the
+     * background, its timeout starts now. Why an old record's stored password could not be deleted, or null.
+     */
+    suspend fun created(made: CreatedDatabase): String? {
+        val result = databases.created(made.path, made.keyFilePath, made.useFingerprint, made.key, made.password) {
+            locks.lockedSince(made.lockCount, settings.lockTimeout.value)
+        }
+        val session = current.value?.session
+        if (!inForeground && session != null && result.opened != null) {
+            session.movedToBackground()
+            lockAlarm.schedule(settings.lockTimeout.value)
+        }
+        return result.problem
     }
 
     /** The lock alarm went off. */
     fun checkBackgroundTime() {
+        // Autofill asks too, at every fill request: only a real stay past the timeout is a lock.
+        if (locks.awayPast(settings.lockTimeout.value)) locks.locked()
         current.value?.session?.checkBackgroundTime()
     }
 
     override fun onStart(owner: LifecycleOwner) {
         Log.i(TAG, "foreground")
+        inForeground = true
+        // Away past the timeout, with or without a vault open: a lock (an unopened new database stays locked).
+        locks.movedToForeground(settings.lockTimeout.value)
         lockAlarm.cancel()
         val session = current.value?.session
         session?.movedToForeground()
@@ -98,6 +131,8 @@ internal class Sessions(
     }
 
     override fun onStop(owner: LifecycleOwner) {
+        inForeground = false
+        locks.movedToBackground()
         val session = current.value?.session ?: return
         Log.i(TAG, "background, lock after ${settings.lockTimeout.value}")
         session.movedToBackground()
@@ -117,8 +152,13 @@ internal class Sessions(
             lockTimeout = { settings.lockTimeout.value },
             keyFile = { keyFilePath()?.let { keyFileAt(File(it)) } },
         )
-        // Which states the session went through (names only, never data): how a lock came about.
-        watching.launch { session.state.collect { Log.i(TAG, it.describe()) } }
+        // Which states the session went through (names only, never data): how a lock came about. Its own timeout counts.
+        watching.launch {
+            session.state.collect {
+                Log.i(TAG, it.describe())
+                if (it is SessionState.Locked && it.reason == LockReason.Timeout) locks.locked()
+            }
+        }
         val fingerprint = BiometricUnlock(record.id, session, biometric, list, scope, watching)
         watching.launch { fingerprint.refresh() }
         watching.launch {
