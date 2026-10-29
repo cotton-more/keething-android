@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.FindInPage
+import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.PlaylistRemove
@@ -31,6 +33,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,11 +41,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,15 +56,20 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
+import dev.keething.android.biometric.KeystorePasswordStores.KeyLocation
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.ButtonLabel
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.segmentShape
+import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.vault.databases.DatabaseId
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Settings › Databases (SPEC §6.2; keething-spec databases.list AC7): every database with its name, its folder or
@@ -73,6 +83,7 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
     val current by container.sessions.current.collectAsStateWithLifecycle()
     val open = rememberFilePicker { file -> container.sessions.databases.open(file.path) }
     val lines = screens?.lines.orEmpty()
+    val fingerprint by container.sessions.biometric.state.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Databases", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         Column {
@@ -103,6 +114,9 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
                     if (line.keyFile != null) {
                         Icon(Icons.Rounded.Key, contentDescription = "Key file", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    if (fingerprint.enabled && line.usesFingerprint) {
+                        Icon(Icons.Rounded.Fingerprint, contentDescription = "Fingerprint", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -116,7 +130,8 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
 
 /**
  * A database's page (SPEC §6.2): its path and when it changed (or was last opened, when it is not found, with
- * Locate…), its key file (Choose…, Change…, Forget), and Remove from list…. Each acts at once.
+ * Locate…), its key file (Choose…, Change…, Forget), its Use fingerprint (SPEC §5), and Remove from list…. Each acts at
+ * once.
  */
 @Composable
 internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack: () -> Unit) {
@@ -209,6 +224,9 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Section("Fingerprint") {
+            FingerprintOfDatabase(container, id, line)
+        }
         Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             TextButton(onClick = { removing = true }) {
                 Icon(Icons.Rounded.PlaylistRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
@@ -224,6 +242,64 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
+/**
+ * The database's own Use fingerprint (SPEC §5; keething-spec unlock.biometric AC10): on, the fingerprint opens it; off,
+ * its stored password and its days go. Only while the app's switch, which allows it, is on.
+ */
+@Composable
+private fun FingerprintOfDatabase(container: AppContainer, id: DatabaseId, line: DatabaseLine) {
+    val setup = container.sessions.biometric
+    val state by setup.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var deleteFailure by remember { mutableStateOf<String?>(null) }
+    var location by remember { mutableStateOf<KeyLocation?>(null) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { setup.refresh() } }
+    val stored = id in state.stored
+    LaunchedEffect(stored) {
+        location = if (stored) withContext(Dispatchers.IO) { runCatching { container.biometricStores.keyLocation() }.getOrNull() } else null
+    }
+    val on = state.enabled && line.usesFingerprint
+    val unavailable = state.availability as? BiometricAvailability.Unavailable
+    val changeable = on || (state.enabled && unavailable == null)
+    Row(
+        Modifier.fillMaxWidth().toggleable(
+            value = on,
+            enabled = changeable,
+            role = Role.Switch,
+            onValueChange = { scope.launch { deleteFailure = setup.setUseBiometric(id, it) } },
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Use fingerprint", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Switch(checked = on, onCheckedChange = null, enabled = changeable)
+    }
+    val record = container.sessions.list.record(id)
+    val problem = deleteFailure?.let { "Its stored password could not be deleted: $it." }
+        ?: state.setupFailures[id]?.takeIf { on }?.let { "It could not be set up: $it. It tries again at the next unlock with the password." }
+    Text(
+        problem ?: when {
+            unavailable != null -> "Not available: ${unavailable.reason}."
+            !state.enabled -> "Off: Unlock with the fingerprint is off in Settings. Once it is on, the fingerprint can be turned on here."
+            !on -> "Off: its password is typed every time."
+            record?.isPasswordless == true -> "The fingerprint opens it, and nothing is stored."
+            setup.isDue(id) -> "Paused: it has been ${state.reminderDays} days, so the next unlock asks for its password."
+            stored -> "Its password is stored, sealed by a key in ${location.describe()} that opens only after your fingerprint. " +
+                "A fingerprint added on this phone undoes it."
+            else -> "Its password is stored the next time it is unlocked with the password."
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun KeyLocation?.describe(): String = when (this) {
+    KeyLocation.StrongBox -> "the phone's security chip (StrongBox)"
+    KeyLocation.TrustedEnvironment -> "the processor's secure area (TEE)"
+    KeyLocation.SecureHardware -> "the phone's secure hardware"
+    KeyLocation.Software -> "software (no secure hardware here)"
+    null -> "the Android Keystore"
 }
 
 /** "Changed 2 hours ago"; of a file not found, "Last opened 2 weeks ago" when it was. */

@@ -31,6 +31,9 @@ internal data class ProbeState(
     val version: FileVersion? = null,
     val lastRead: String? = null,
     val conflictCopies: List<ConflictCopy> = emptyList(),
+    /** A fingerprint spike step runs (AD5). */
+    val fingerprintBusy: Boolean = false,
+    val watchingUnlocks: Boolean = false,
     val log: List<String> = emptyList(),
 )
 
@@ -42,6 +45,7 @@ internal class StorageProbeViewModel(
     private val databaseStoreAt: (File) -> DatabaseStore,
     private val settings: ProbeSettings,
     newFileAt: (File) -> PathNewFile,
+    private val fingerprint: FingerprintProbe,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ProbeState())
     val state: StateFlow<ProbeState> = mutableState.asStateFlow()
@@ -53,6 +57,8 @@ internal class StorageProbeViewModel(
     init {
         refreshAccess()
         settings.databasePath?.let { open(it, reason = "remembered") }
+        fingerprint.sink = ::log
+        mutableState.update { it.copy(watchingUnlocks = fingerprint.watchingUnlocks) }
     }
 
     fun refreshAccess() {
@@ -88,6 +94,16 @@ internal class StorageProbeViewModel(
     fun timeMacDefault() = inFolder(newFiles::timeMacDefault)
 
     fun measure(seconds: Double) = inFolder { newFiles.measure(it, seconds) }
+
+    /** The fingerprint spike (AD5): one step at a time, on the main thread for the prompt. */
+    fun fingerprint(step: suspend FingerprintProbe.() -> Unit) {
+        if (state.value.fingerprintBusy) return
+        mutableState.update { it.copy(fingerprintBusy = true) }
+        viewModelScope.launch {
+            runCatching { fingerprint.step() }.onFailure { log("fingerprint: error: $it") }
+            mutableState.update { it.copy(fingerprintBusy = false, watchingUnlocks = fingerprint.watchingUnlocks) }
+        }
+    }
 
     private fun inFolder(work: (File) -> Unit) = io {
         val folder = state.value.folder ?: return@io log("choose a folder first")
@@ -173,6 +189,7 @@ internal class StorageProbeViewModel(
 
     override fun onCleared() {
         watch?.close()
+        fingerprint.sink = null
     }
 
     private companion object {

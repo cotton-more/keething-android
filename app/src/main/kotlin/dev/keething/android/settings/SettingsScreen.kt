@@ -33,7 +33,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +49,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
-import dev.keething.android.biometric.KeystorePasswordStore.KeyLocation
 import dev.keething.android.databases.DatabasesSetting
 import dev.keething.android.list.seconds
 import dev.keething.vault.databases.DatabaseSession
@@ -58,12 +56,11 @@ import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.FitText
 import dev.keething.android.ui.readableInset
 import dev.keething.domain.biometric.BiometricAvailability
+import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.session.SessionState
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /** Few settings, fixed sensible defaults otherwise (SPEC §6.1, §6.2). */
 @Composable
@@ -93,7 +90,7 @@ internal fun SettingsScreen(
         }
         DatabasesSetting(container, onDatabase)
         Group("Fingerprint") {
-            FingerprintSetting(container, database)
+            FingerprintSetting(container)
         }
         Group("Autofill") {
             AutofillSetting()
@@ -187,19 +184,16 @@ private fun AutofillSetting() {
     }
 }
 
-/** The switch of SPEC §5 and what it does now. */
+/** The app's switch of SPEC §5; each database has its own on its page (Settings › Databases). */
 @Composable
-private fun FingerprintSetting(container: AppContainer, database: DatabaseSession) {
-    val state by database.biometric.state.collectAsStateWithLifecycle()
+private fun FingerprintSetting(container: AppContainer) {
+    val setup = container.sessions.biometric
+    val state by setup.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var deleteFailure by remember { mutableStateOf<String?>(null) }
-    var location by remember { mutableStateOf<KeyLocation?>(null) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { database.biometric.refresh() } }
-    LaunchedEffect(state.stored) {
-        location = if (state.stored) withContext(Dispatchers.IO) { runCatching { container.biometricStore.keyLocation() }.getOrNull() } else null
-    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { setup.refresh() } }
     val unavailable = state.availability as? BiometricAvailability.Unavailable
-    val change = { on: Boolean -> scope.launch { deleteFailure = database.biometric.setEnabled(on) } }
+    val change = { on: Boolean -> scope.launch { deleteFailure = setup.setEnabled(on) } }
     Row(
         Modifier.fillMaxWidth().toggleable(
             value = state.enabled,
@@ -212,26 +206,27 @@ private fun FingerprintSetting(container: AppContainer, database: DatabaseSessio
         Text("Unlock with the fingerprint", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Switch(checked = state.enabled, onCheckedChange = null, enabled = state.enabled || unavailable == null)
     }
-    val problem = deleteFailure?.let { "The stored password could not be deleted: $it." }
-        ?: state.setupFailure?.let { "It could not be set up: $it. It tries again at the next unlock with the password." }
+    val problem = deleteFailure?.let { "The stored passwords could not be deleted: $it." }
     Text(
-        problem ?: state.describe(unavailable, location),
+        problem ?: unavailable?.let { "Not available: ${it.reason}." }
+            ?: "Each database whose Use fingerprint is on opens with it: turn it on under its password on the lock screen, " +
+                "or on its page in Databases. Turning this off deletes all their stored passwords.",
         style = MaterialTheme.typography.bodyMedium,
         color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    if (state.enabled) PasswordReminderSetting(database, state)
+    if (state.enabled) PasswordReminderSetting(setup, state.reminderDays)
 }
 
-/** How often the fingerprint steps aside for the typed password (SPEC §5). */
+/** How often the fingerprint steps aside for each typed password (SPEC §5): the app's choice, each database's days. */
 @Composable
-private fun PasswordReminderSetting(database: DatabaseSession, state: BiometricState) {
+private fun PasswordReminderSetting(setup: BiometricSetup, reminderDays: Int?) {
     Spacer(Modifier.height(4.dp))
-    Text("Ask for the master password every", style = MaterialTheme.typography.bodyLarge)
+    Text("Ask for each master password every", style = MaterialTheme.typography.bodyLarge)
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         BiometricState.REMINDER_CHOICES.forEachIndexed { index, days ->
             SegmentedButton(
-                selected = days == state.reminderDays,
-                onClick = { database.biometric.setReminderDays(days) },
+                selected = days == reminderDays,
+                onClick = { setup.setReminderDays(days) },
                 shape = SegmentedButtonDefaults.itemShape(index, BiometricState.REMINDER_CHOICES.size),
             ) {
                 FitText(if (days == null) "Never" else "$days days")
@@ -239,32 +234,16 @@ private fun PasswordReminderSetting(database: DatabaseSession, state: BiometricS
         }
     }
     Text(
-        if (state.reminderDays == null) {
-            "The fingerprint always opens it. If you forget the master password, the database cannot be opened " +
+        if (reminderDays == null) {
+            "The fingerprint always opens them. If you forget a master password, its database cannot be opened " +
                 "by anyone, not even with Keething."
         } else {
-            "After this long without typing it, the next unlock asks for the password, so it is not forgotten. " +
-                "Then the fingerprint again."
+            "After this long without typing it, the next unlock asks for that database's password, so it is not " +
+                "forgotten. Then the fingerprint again."
         },
         style = MaterialTheme.typography.bodyMedium,
-        color = if (state.reminderDays == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (reminderDays == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )
-}
-
-private fun BiometricState.describe(unavailable: BiometricAvailability.Unavailable?, location: KeyLocation?): String = when {
-    unavailable != null -> "Not available: ${unavailable.reason}."
-    !enabled -> "Off: the password is typed every time."
-    !stored -> "It is set up the next time you unlock with the password."
-    else -> "The password is sealed by a key in ${location.describe()} that opens it only after your fingerprint. " +
-        "A fingerprint added on this phone undoes it."
-}
-
-private fun KeyLocation?.describe(): String = when (this) {
-    KeyLocation.StrongBox -> "the phone's security chip (StrongBox)"
-    KeyLocation.TrustedEnvironment -> "the processor's secure area (TEE)"
-    KeyLocation.SecureHardware -> "the phone's secure hardware"
-    KeyLocation.Software -> "software (no secure hardware here)"
-    null -> "the Android Keystore"
 }
 
 @Composable

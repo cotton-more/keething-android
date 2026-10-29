@@ -39,7 +39,9 @@ import dev.keething.android.storage.FolderPaths
 internal fun StorageProbeScreen(container: AppContainer) {
     val viewModel: StorageProbeViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { StorageProbeViewModel(container.databaseStoreAt, container.probeSettings, container.newFileAt) }
+            initializer {
+                StorageProbeViewModel(container.databaseStoreAt, container.probeSettings, container.newFileAt, container.fingerprintProbe)
+            }
         },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -105,6 +107,27 @@ internal fun StorageProbeScreen(container: AppContainer) {
                             FilledTonalButton({ viewModel.measure(1.0) }) { Text("Measure 1 s") }
                             FilledTonalButton({ viewModel.measure(0.5) }) { Text("Measure 0.5 s") }
                         }
+                    }
+                }
+            }
+            item {
+                Section("Fingerprint (AD5 spike)") {
+                    Text(
+                        "Its own keys and fictitious passwords only, never the app's stored password.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val busy = state.fingerprintBusy
+                        FilledTonalButton({ viewModel.fingerprint { setUp() } }, enabled = !busy) { Text("Set up") }
+                        FilledTonalButton({ viewModel.fingerprint { promptEach() } }, enabled = !busy) { Text("(a) A prompt each") }
+                        FilledTonalButton({ viewModel.fingerprint { reuseOperation() } }, enabled = !busy) { Text("(c1) Reuse") }
+                        FilledTonalButton({ viewModel.fingerprint { timed(strongBox = true) } }, enabled = !busy) { Text("(b) StrongBox") }
+                        FilledTonalButton({ viewModel.fingerprint { timed(strongBox = false) } }, enabled = !busy) { Text("(b) TEE") }
+                        FilledTonalButton({ viewModel.fingerprint { chained() } }, enabled = !busy) { Text("(c5) Chained") }
+                        FilledTonalButton({ viewModel.fingerprint { watchUnlocks(!state.watchingUnlocks) } }, enabled = !busy) {
+                            Text(if (state.watchingUnlocks) "(b) Unlocks: stop" else "(b) Unlocks: watch")
+                        }
+                        FilledTonalButton({ viewModel.fingerprint { remove() } }, enabled = !busy) { Text("Remove") }
                     }
                 }
             }

@@ -6,10 +6,11 @@ import androidx.lifecycle.LifecycleOwner
 import dev.keething.android.settings.AppSettings
 import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.domain.biometric.BiometricAvailability
-import dev.keething.domain.biometric.BiometricPasswordStore
+import dev.keething.domain.biometric.BiometricPasswordStores
 import dev.keething.domain.settings.SettingsStore
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.KeyFileSource
+import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.databases.CurrentDatabase
@@ -49,14 +50,17 @@ internal class Sessions(
     /** Each database's backups go into a folder of its own here, named by its id (SPEC §3.3 step 7). */
     private val backupsFolder: File,
     private val keyFileAt: (File) -> KeyFileSource,
-    private val biometricStore: BiometricPasswordStore,
+    biometricStores: BiometricPasswordStores,
     private val scope: CoroutineScope,
     /** One task at a time: the fingerprint's saves and deletes stay in order. */
-    private val biometricIo: CoroutineDispatcher,
+    biometricIo: CoroutineDispatcher,
     private val lockAlarm: LockAlarm,
 ) : DefaultLifecycleObserver {
+    /** The fingerprint's switch and days for the app, and each database's stored password (SPEC §5). */
+    val biometric = BiometricSetup(biometricStores, list, settingsStore, AndroidClock, biometricIo)
+
     /** Another database chosen, a file opened or located, a key file, Remove from List. */
-    val databases = CurrentDatabase(list, scope, ::start)
+    val databases = CurrentDatabase(list, scope, ::start, biometric)
 
     val current: StateFlow<DatabaseSession?> = databases.current
 
@@ -64,6 +68,9 @@ internal class Sessions(
 
     /** The lock screen offers the fingerprint once in a visit that began locked (SPEC §5), not after the lock button. */
     val visit: StateFlow<Visit> = mutableVisit.asStateFlow()
+
+    /** Whether the lock screen shown now asks for the fingerprint by itself ([FingerprintOffers]). */
+    val fingerprintOffers = FingerprintOffers()
 
     /**
      * Remove from List; [onProblem] hears why the stored password could not be deleted. In the app's scope: the screen
@@ -112,16 +119,18 @@ internal class Sessions(
         )
         // Which states the session went through (names only, never data): how a lock came about.
         watching.launch { session.state.collect { Log.i(TAG, it.describe()) } }
-        val biometric = BiometricUnlock(session, biometricStore, settingsStore, AndroidClock, scope, biometricIo)
-        watching.launch { biometric.refresh() }
+        val fingerprint = BiometricUnlock(record.id, session, biometric, list, scope, watching)
+        watching.launch { fingerprint.refresh() }
         watching.launch {
-            biometric.state.map { it.copy(prompting = false) }.distinctUntilChanged().collect { Log.i(TAG, it.describe()) }
+            fingerprint.state.map { it.copy(prompting = false, opening = false) }.distinctUntilChanged().collect { Log.i(TAG, it.describe()) }
         }
-        return DatabaseSession(number, record.id, file, store, session, biometric)
+        return DatabaseSession(number, record.id, file, store, session, fingerprint)
     }
 
     private fun BiometricState.describe(): String = "fingerprint: " + listOfNotNull(
-        if (enabled) "on" else "off",
+        if (appEnabled) "on" else "off",
+        if (databaseEnabled) "on for it" else "off for it",
+        "opens with its key file alone".takeIf { passwordless },
         when (val availability = availability) {
             null -> "not checked"
             BiometricAvailability.Available -> "available"

@@ -1,8 +1,10 @@
 package dev.keething.vault.databases
 
 import dev.keething.domain.secret.Secret
+import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
-import dev.keething.vault.biometric.FakePasswordStore
+import dev.keething.vault.biometric.FakePasswordStores
+import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.biometric.MapSettings
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
@@ -26,6 +28,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -33,12 +37,12 @@ import kotlinx.coroutines.test.runTest
 
 /**
  * The current database and its session (plan AD4): the Mac's D4 `DatabaseListModelTests` for choosing, opening,
- * locating, a key file and Remove from List, with the phone's one stored password of before AD5.
+ * locating, a key file and Remove from List, each database with its own stored password (plan AD5).
  */
 class CurrentDatabaseTest {
     private class Fixture(scope: TestScope, val settings: MapSettings = MapSettings()) {
         val list = DatabaseList(settings, makeId = { DatabaseId("db-${++ids}") })
-        val passwords = FakePasswordStore()
+        val passwords = FakePasswordStores()
         val clock = FakeClock(scope.testScheduler)
 
         /** The files there are, by path. */
@@ -47,7 +51,9 @@ class CurrentDatabaseTest {
         private val io = StandardTestDispatcher(scope.testScheduler)
         private var ids = 0
 
-        private val factory = SessionFactory { record, number, keyFilePath, _ ->
+        val setup = BiometricSetup(passwords, list, settings, clock, io)
+
+        private val factory = SessionFactory { record, number, keyFilePath, watching ->
             val store = files.getOrPut(record.path) { FakeStore(null) }
             val session = VaultSession(
                 store = store,
@@ -59,11 +65,11 @@ class CurrentDatabaseTest {
                 lockTimeout = { 5.minutes },
                 keyFile = { keyFilePath()?.let { keyFiles.getOrPut(it) { FakeKeyFile(null, File(it).name) } } },
             )
-            val biometric = BiometricUnlock(session, passwords, settings, clock, scope.backgroundScope, io)
+            val biometric = BiometricUnlock(record.id, session, setup, list, scope.backgroundScope, watching, fileExists = { true })
             DatabaseSession(number, record.id, File(record.path), store, session, biometric)
         }
 
-        val databases: CurrentDatabase by lazy { CurrentDatabase(list, scope.backgroundScope, factory, now = clock::now) }
+        val databases: CurrentDatabase by lazy { CurrentDatabase(list, scope.backgroundScope, factory, setup, now = clock::now) }
 
         val shown: DatabaseSession get() = assertNotNull(databases.current.value)
 
@@ -78,10 +84,14 @@ class CurrentDatabaseTest {
             return list.record(record.id)!!
         }
 
-        fun storedPassword(text: String) {
-            settings.setString("biometricUnlock", "on")
-            passwords.stored = Secret.of(text)
+        /** The fingerprint on, with [text] stored for [id] (by default the current database). */
+        suspend fun storedPassword(text: String, id: DatabaseId = list.currentId!!) {
+            setup.setEnabled(true)
+            list.update(id) { it.copy(useBiometric = true) }
+            passwords.stored[id.fileName] = Secret.of(text)
         }
+
+        fun stored(id: DatabaseId): String? = passwords.stored[id.fileName]?.reveal()
     }
 
     private fun TestScope.typed(f: Fixture, text: String, database: DatabaseSession = f.shown): Boolean {
@@ -117,18 +127,23 @@ class CurrentDatabaseTest {
     }
 
     @Test
-    fun theFirstDatabaseOpenedIntoAnEmptyListStartsWithoutTheStoredPasswordOfBefore() = runTest {
+    fun aDatabaseOpenedIntoTheListStartsWithItsFingerprintOffWhateverTheAppsSwitch() = runTest {
+        // The owner's choice at plan AD5: no password is stored for a database nobody turned the fingerprint on for.
         val f = Fixture(this)
-        f.storedPassword("pw")
-        assertNull(f.databases.current.value)
-        f.files["/storage/emulated/0/Other.kdbx"] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        f.files["/storage/emulated/0/Personal.kdbx"] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        f.files["/storage/emulated/0/Work.kdbx"] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        f.setup.setEnabled(true)
+        val personal = f.databases.open("/storage/emulated/0/Personal.kdbx")
+        assertFalse(f.list.record(personal)!!.useBiometric, "the app's switch allows it, and turns none on")
+        assertNull(f.shown.biometric.useNextTime(true))
 
-        f.databases.open("/storage/emulated/0/Other.kdbx")
+        val work = f.databases.open("/storage/emulated/0/Work.kdbx")
+        typed(f, "pw")
 
-        assertFalse(f.shown.biometric.state.value.enabled, "off before its lock screen reads it")
-        assertNull(f.settings.string("biometricUnlock"))
-        runCurrent()
-        assertNull(f.passwords.stored, "it belongs to no database of the list")
+        assertTrue(f.list.record(personal)!!.useBiometric)
+        assertFalse(f.list.record(work)!!.useBiometric)
+        assertFalse(f.shown.biometric.state.value.enabled)
+        assertTrue(f.passwords.saves.isEmpty(), "Work's typed password is not stored: nobody turned it on for Work")
     }
 
     // Choosing another (the lock screen's sheet)
@@ -172,17 +187,46 @@ class CurrentDatabaseTest {
     }
 
     @Test
-    fun anotherChosenDeletesTheStoredPasswordAndTurnsTheSwitchOffAsBefore() = runTest {
+    fun anotherChosenKeepsEachOnesStoredPasswordAndEachIsUsedForItsOwn() = runTest {
         val f = Fixture(this)
-        f.add("/a/Personal.kdbx")
+        val personal = f.add("/a/Personal.kdbx")
         val work = f.add("/b/Work.kdbx")
-        f.storedPassword("pw")
+        f.storedPassword("pw", personal.id)
+        f.storedPassword("pw", work.id)
 
         f.databases.choose(work.id)
+        f.shown.biometric.refresh()
+        assertEquals(FingerprintOutcome.Unlocked, f.shown.biometric.unlockWithFingerprint())
+        f.databases.choose(personal.id)
+        f.shown.biometric.refresh()
 
-        assertFalse(f.shown.biometric.state.value.enabled, "the next session starts with it off")
+        assertTrue(f.shown.biometric.state.value.canUnlock)
+        assertEquals("pw", f.stored(personal.id))
+        assertEquals("pw", f.stored(work.id))
+        assertEquals(listOf(work.id.fileName), f.passwords.opened)
+        assertEquals(0, f.passwords.deletes + f.passwords.deleteAlls)
+    }
+
+    @Test
+    fun anotherChosenWhileTheFingerprintIsAskedOpensNothingAndDeletesNothing() = runTest {
+        val f = Fixture(this)
+        val personal = f.add("/a/Personal.kdbx")
+        val work = f.add("/b/Work.kdbx")
+        f.storedPassword("old-pw", personal.id)
+        val first = f.shown
+        first.biometric.refresh()
+        val finger = CompletableDeferred<Unit>()
+        f.passwords.gate = finger
+        val asking = async { first.biometric.unlockWithFingerprint() }
         runCurrent()
-        assertNull(f.passwords.stored, "the stored password opens the other database (one until plan AD5)")
+
+        f.databases.choose(work.id)
+        finger.complete(Unit)
+
+        assertEquals(FingerprintOutcome.Cancelled, asking.await())
+        assertEquals("old-pw", f.stored(personal.id), "never tried, so never rejected")
+        assertEquals(0, f.passwords.deletes)
+        assertEquals(SessionState.Locked(LockReason.Initial), f.shown.state(), "Work is not opened with Personal's")
     }
 
     // Opening a file
@@ -221,7 +265,7 @@ class CurrentDatabaseTest {
         assertEquals("/storage/emulated/0/Crypto.kdbx", f.shown.file.path)
         assertEquals(SessionState.Locked(LockReason.Initial), f.shown.state())
         runCurrent()
-        assertEquals("pw", f.passwords.stored?.reveal(), "the same database: its stored password stays")
+        assertEquals("pw", f.stored(crypto.id), "the same database: its stored password stays")
         assertTrue(f.shown.biometric.state.value.enabled)
         assertTrue(typed(f, "pw"))
         assertIs<SessionState.Unlocked>(f.shown.state())
@@ -277,7 +321,10 @@ class CurrentDatabaseTest {
 
         f.databases.setKeyFile(id, "/k/./personal.keyx")
         assertEquals("/k/personal.keyx", f.list.record(id)?.keyFilePath)
-        assertEquals("on", f.settings.string("biometricKeyFileChanged"), "a stored password rejected before the next unlock is kept")
+        assertEquals("on", f.settings.string(BiometricSetup.keyFileChangedKey(id)), "a stored password rejected before the next unlock is kept")
+        val work = f.add("/b/Work.kdbx")
+        f.databases.setKeyFile(work.id, "/k/work.keyx")
+        assertEquals("on", f.settings.string(BiometricSetup.keyFileChangedKey(work.id)), "also of a database not shown")
 
         f.list.update(id) { it.copy(opensWithoutPassword = true) }
         f.databases.setKeyFile(id, "/k/other.keyx")
@@ -414,7 +461,8 @@ class CurrentDatabaseTest {
         val f = Fixture(this)
         val personal = f.add("/a/Personal.kdbx")
         val work = f.add("/b/Work.kdbx")
-        f.storedPassword("pw")
+        f.storedPassword("pw", personal.id)
+        f.storedPassword("pw", work.id)
         val first = f.shown
         typed(f, "pw")
 
@@ -423,8 +471,10 @@ class CurrentDatabaseTest {
         assertIs<SessionState.Locked>(first.state())
         assertEquals(listOf(work.id), f.list.records.map { it.id })
         assertEquals(work.id, f.shown.id)
-        assertNull(f.passwords.stored)
-        assertFalse(f.shown.biometric.state.value.enabled)
+        assertNull(f.stored(personal.id))
+        assertNull(f.settings.string(BiometricSetup.lastTypedKey(personal.id)), "its days go too")
+        assertEquals("pw", f.stored(work.id), "nobody else's")
+        assertTrue(f.shown.biometric.state.value.enabled, "the app's switch stays on")
         assertNotNull(f.files.getValue("/a/Personal.kdbx").content, "the file is not touched")
     }
 
@@ -450,11 +500,14 @@ class CurrentDatabaseTest {
         val shown = f.shown
         typed(f, "pw")
 
+        f.storedPassword("work-pw", work.id)
+
         assertNull(f.databases.remove(work.id))
 
         assertSame(shown, f.shown)
         assertIs<SessionState.Unlocked>(shown.state())
-        assertEquals("pw", f.passwords.stored?.reveal(), "the stored password is the shown one's")
+        assertNull(f.stored(work.id), "its own stored password goes")
+        assertEquals("pw", f.stored(shown.id), "the shown one's stays")
     }
 
     @Test

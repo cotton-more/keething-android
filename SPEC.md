@@ -457,8 +457,8 @@ SPEC §3.26). Nothing on the screen chooses it yet (keething-spec `plans/android
   database says it), a password and a key file "Wrong password or key file.", a key file alone "This key file
   does not open the database (or it needs a password too)." A stored password (§5) rejected while the database
   has a key file, or with the key file missing, is kept: the key file may be the wrong part; so is one rejected
-  while the key file was chosen, changed or forgotten since the last unlock that opened it (`biometricKeyFileChanged`,
-  cleared by the next unlock that opens, or the switch off), else Forget on a key file the database needs would cost
+  while the key file was chosen, changed or forgotten since the last unlock that opened it (each database's
+  `biometricKeyFileChanged.<id>`, cleared by the next unlock that opens it, or the app's switch off), else Forget on a key file the database needs would cost
   a right password at the next fingerprint.
 - **A database's key file** (keething-spec unlock.key-file, kdbx.key-files AC8): chosen on the lock screen (Key
   file…, or Change… / Choose… under the field) or on the database's page in Settings (Choose…, Change…, Forget), with
@@ -551,67 +551,127 @@ SPEC §3.26). Nothing on the screen chooses it yet (keething-spec `plans/android
 ## 5. Biometric unlock
 
 Same idea as the Mac app's Touch ID (Mac SPEC §3.8), with the Keystore in place of the Secure Enclave; the
-rules are a port of the Mac's `TouchIDUnlock` (`BiometricUnlock` in `core/vault`).
+rules are a port of the Mac's `TouchIDUnlock`: `BiometricSetup` (`core/vault`) for the whole app, `BiometricUnlock` for
+each database. Each database has its **own stored password** (`plans/android-databases.md` AD5); one database is open
+at a time (several, and one fingerprint for several, are AD8 and AD13).
 
-- **Off** until turned on, in Settings or with "Use fingerprint next time" under the lock screen's password
-  field (shown while it is off and the phone has a strong biometric; the same switch). Turning it on only
-  sets the switch: the next typed unlock that opens
-  the vault stores the master password, and every later one stores it again, so a database password changed
-  elsewhere heals the next time it is typed. A password typed while the vault is open, a wrong one, or one
-  typed on a phone without an enrolled strong biometric is never stored; nor is nothing typed (a database that
-  opens with its key file alone, §4). Turning it off deletes it, and so does another database becoming current
-  (chosen, opened, or the next one after Remove from List), which turns the switch off too: the password typed for
-  the other database is stored only when it is turned on again (a copy of the real database opened on the test
-  phone was stored unasked while the switch stayed on). It is one stored password, the current database's, until
-  each database has its own (`plans/android-databases.md` AD5): so Remove from List of the current one deletes it,
-  and the first database opened into an empty list (the first start after the list) starts with the switch off
-  and nothing stored, as what was stored belongs to no database of the list. Locating the current database keeps it.
-  The session of a database that is no longer current is closed: a fingerprint prompt still up cannot open it.
-- **How it is kept** (`KeystorePasswordStore`): an RSA-2048 key pair in the Android Keystore, in StrongBox
+- **Two switches.** The app's, "Unlock with the fingerprint" in Settings, is **off** until turned on; each database
+  has its own **Use fingerprint** besides (`useBiometric` in the list, §3.1), on its page in Settings and as "Use
+  fingerprint next time" under its lock screen's field. The fingerprint opens a database while both are on. The
+  app's switch **allows** a database's to be turned on and turns none on itself; a database's never turns the app's
+  on (the owner at `plans/android-databases.md` AD5). A database new to the list starts with its own **off**,
+  whatever the app's switch: no password is stored for a database nobody turned the fingerprint on for (the Mac's
+  rule, a new database taking the app's switch, stored a new database's first typed password unasked). "Use
+  fingerprint next time" shows while the app's switch is on, the database's own is off, the phone has a strong
+  biometric and the lock screen says no problem (its key file not there), also for a database that opens with its key
+  file alone; once turned on it stays until the password is stored. A switch going on (the app's, or a database's)
+  first deletes what a failed deletion left, or stays off: it would open without anything typed since. With the app's switch off, a database's page says "Off: Unlock with the fingerprint is off in Settings. Once
+  it is on, the fingerprint can be turned on here." and its switch cannot be turned on. Turning the app's switch off
+  and on again keeps each database's own: those turned on store their passwords again at their next typed unlock.
+- **Storing.** Turning a switch on only sets it: the next typed unlock of that database that opens the vault stores its
+  master password, and every later one stores it again, so a database password changed elsewhere heals the next time
+  it is typed. A password typed while the vault is open, a wrong one, or one typed on a phone without an enrolled
+  strong biometric is never stored; nor is nothing typed (a database that opens with its key file alone, §4); nor one
+  whose switch went off, or that left the list, while it was being stored. A password that could not be stored says
+  why on the database's page ("It could not be set up: …. It tries again at the next unlock with the password.").
+- **Each its own.** A database's stored password is kept by its id (§3.1), so a file located again keeps it, and is
+  only ever handed to that database: choosing another database keeps each one's (before AD5 the one stored password
+  was deleted and the switch turned off then). Its own switch off, or Remove from List, deletes its stored password
+  and its days, nobody else's; the app's switch off deletes every one (a delete that fails is said; the switch still
+  goes off). The session of a database that is no longer current is closed: a fingerprint prompt still up for it ends
+  as cancelled, and its stored password is never tried, so never rejected.
+- **How it is kept** (`KeystorePasswordStores`, `KeyringFiles`, `Keyring`; the keyring was chosen by the owner after a
+  spike on the Pixel 6, `plans/android-databases.md` AD5). One RSA-2048 key pair in the Android Keystore, in StrongBox
   (Titan M2) when the phone has one, created with `setUserAuthenticationRequired(true)`,
-  `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` (no time window: each use is one operation
-  that the prompt unlocks) and `setInvalidatedByBiometricEnrollment(true)`. A random AES-256 key encrypts
-  the password with GCM, and the public key wraps that AES key with RSA-OAEP (SHA-256, MGF1 with SHA-1,
-  which the Keystore takes on every Android version). Sealing needs only the public key, so storing never
-  asks for a fingerprint; opening needs the private key, which never leaves the Keystore. The sealed file is
-  in `noBackupFilesDir`: never backed up nor moved to another phone, where no key could open it.
-  An AES-GCM key in the Keystore (the first plan) would need a fingerprint to encrypt too: every typed
-  unlock would ask for one to store the password again.
+  `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` (no time window: each use is one operation that the
+  prompt unlocks) and `setInvalidatedByBiometricEnrollment(true)`; making it took 14.6 s in StrongBox on the Pixel 6
+  (12 to 26 s in the spike), once, after a typed unlock, out of sight. It seals the **keyring**: a software RSA-2048
+  key pair whose private key (PKCS#8) is sealed for the Keystore key, and whose public key seals each database's
+  password. Sealing (`SealedPassword`): a random AES-256 key encrypts with GCM, and the RSA public key wraps that AES
+  key with OAEP (SHA-256, MGF1 with SHA-1, which the Keystore takes on every Android version). Storing needs only the
+  keyring's public key, so it never asks for a fingerprint; opening needs the Keystore's private key, which never
+  leaves the Keystore, then the keyring's. The keyring names the Keystore key it was sealed for (SHA-256 of its public
+  key), so one made for a key since replaced is known before any prompt. Files in `noBackupFilesDir/biometric/`:
+  `keyring` and `databases/<id>`, never backed up nor moved to another phone, where no key could open them. One prompt
+  opens the keyring's private key (0.32 s in StrongBox) and it the database's password (milliseconds): the same one
+  prompt will open several databases' (AD13). The one stored password of before (`noBackupFilesDir/biometric-password`)
+  is deleted at the first start of the build with the keyring, typed once more; the Keystore key keeps its name of
+  before. The switch of before stays the app's, and only the then current database's own is turned on with it (the
+  switch was that database's: it went off whenever another became current). An AES-GCM key in the Keystore would need a fingerprint to encrypt too: every typed unlock would ask for
+  one to store the password again.
+- **Accepted, and why.** The keyring's private key is in the app's memory for the moment of an unlock as a Java key
+  object, dropped but not wiped, and the keyring is never replaced: a read of the app's memory then gives a key that
+  opens every database's stored password, now and later (the password being opened is in that memory then too). A key
+  usable for a few seconds after a check (`setUserAuthenticationParameters(N, …)`) would have opened several
+  databases with one prompt without a keyring, but the spike showed it opened by any strong check, another prompt's or
+  the phone's own unlock by fingerprint, with no prompt in Keething. The keyring's public key is not authenticated:
+  whoever can write the app's private storage could put their own there and receive what is stored afterwards; that
+  access is beyond what the app defends against (it could change the app's data as well).
 - **Unlock**: the platform `BiometricPrompt` (strong biometrics only, "Use password" as the way out: the
-  lock screen's field is the fallback, not the screen-lock PIN) with a `CryptoObject` for the private key.
-  The opened password goes to the normal unlock, as if typed, and is wiped right after. One prompt at a
-  time. The lock screen offers it by itself once when the app comes to the foreground locked (a start, a
-  return after the timeout), not after the lock button.
-- **Discarding**: a fingerprint added or all removed, or the screen lock removed (the key is invalidated,
-  found before any prompt is shown), or a stored password the database rejects → the stored copy and the
-  key are deleted and the lock screen says to type the password; a rejected stored password does not shake
-  the field. Cancel or "Use password" → the password field takes the focus, nothing deleted. A failed check
-  (too many attempts) shows the system's words and keeps it; so does a database that could not be opened
-  for another reason (missing, damaged).
+  lock screen's field is the fallback, not the screen-lock PIN) with a `CryptoObject` for the Keystore's key.
+  The opened password goes to the normal unlock of its database, as if typed, and is wiped right after. One prompt at
+  a time. The lock screen offers it by itself once when the app comes to the foreground locked (a start, a
+  return after the timeout), for the database shown then: not after the lock button, nor for another database chosen
+  meanwhile (`FingerprintOffers`). A database that opens with its key file alone (§4) opens
+  after a prompt without a `CryptoObject` (nothing is stored: the fingerprint is the check that it is the user) and is
+  never due; one that its key file alone no longer opens gets its field back, and nothing is deleted. No prompt while
+  the database's file or its key file is not there. A lock (the button, the timeout, sleep) after the fingerprint,
+  also while the stored password is read, opens nothing and deletes nothing.
+- **Discarding**: a fingerprint added or all removed, or the screen lock removed (the Keystore key is invalidated,
+  found before any prompt is shown), a keyring made for a key since replaced, or a damaged keyring → every database's
+  stored password, the keyring and the key are deleted and the lock screen says to type the password. A database's
+  sealed copy the keyring does not open (sealed for a keyring of before, or changed) → that database's alone, said the
+  same way: a typed unlock after a fingerprint change makes a new key and keyring for its database, and each other
+  database says so at its own next fingerprint (until then its page says its password is stored, and its lock screen
+  offers the fingerprint: accepted, as it is rare). A stored password its database rejects → that database's, and the
+  lock screen says to type the new one; a rejected stored password does not shake the field. It is kept while the
+  database has a key file (the key file may be the wrong part), the key file is not there, or the key file was
+  chosen, changed or forgotten since its last unlock that worked (§4). The Keystore failing to give its key, or
+  refusing the operation after the fingerprint (it may be for a moment) → said ("The stored password could not be
+  read (…)"), everything kept, no key replaced; so is a file that cannot be read. Cancel or "Use password" → the
+  password field takes the focus, nothing deleted. A failed check (too many attempts) shows the system's words and
+  keeps it; so does a database that could not be opened for another reason (missing, damaged).
 - **The typed password now and then**: with the fingerprint on, the master password is never typed and gets
-  forgotten (1Key asks again too). After 14 days without a typed unlock (Settings: 7, 14, 30 days or Never) the password
-  is due: the lock screen does not offer the fingerprint, by itself or with its button, and says "It has been
-  14 days: type the master password, so it is not forgotten" (after a problem, before the reason of the lock);
-  the field takes the focus. The next typed unlock that opens the vault starts the days again, and the
-  fingerprint is back; a fingerprint unlock, a wrong password or the cancelled prompt do not count. The stored
-  copy stays meanwhile. The days count from the last typed unlock or from turning the switch on, on the wall
-  clock; with no time saved yet (turned on before this rule) or one in the future (the clock set back) they count
-  from now: it is a reminder, not a barrier, the fingerprint already says who it is. Never is there for those who
-  type the password elsewhere every day (the Mac app); Settings then says in red that a forgotten password
-  opens the database for nobody. One setting and one time for the app, not per database.
+  forgotten (1Key asks again too). After 14 days without a typed unlock of a database (Settings: 7, 14, 30 days or
+  Never, for the app; a stored value that is not one of them reads as 14) its password is due: its lock screen does
+  not offer the fingerprint, by itself or with its button, and says "It has been 14 days: type the master password,
+  so it is not forgotten" (after a problem, before the reason of the lock); the field takes the focus. The days are
+  **each database's** (`lastTypedUnlock.<id>`): typing one database's password does not count for another. Its next
+  typed unlock that opens the vault starts its days again, and the fingerprint is back; a fingerprint unlock, a
+  wrong password or the cancelled prompt do not count. The stored copy stays meanwhile. The days count from the last
+  typed unlock, from turning the app's switch on (every database's) or its own (its), on the wall clock, and only while
+  the fingerprint opens it; with no time saved yet (a database new to the list) or one in the future (the clock set
+  back) they count from now: it is a reminder, not a barrier, the fingerprint already says who it is. Never is there
+  for those who type the password elsewhere every day (the Mac app); Settings then says in red that a forgotten
+  password opens its database for nobody.
+- **Settings**: the app's switch with "Each database whose Use fingerprint is on opens with it: turn it on under its
+  password on the lock screen, or on its page in Databases. Turning this off deletes all their stored passwords." (or
+  why the phone cannot), and the days while it is on. A database's page: Use fingerprint with what it does now: "Not
+  available: …" when the phone cannot, "Off: its password is typed every time." (with the app's off, the words
+  above), "The fingerprint opens it, and nothing is stored." (its key
+  file alone), "Paused: it has been 14 days, so the next unlock asks for its password.", "Its password is stored,
+  sealed by a key in the phone's security chip (StrongBox) that opens only after your fingerprint. A fingerprint
+  added on this phone undoes it.", or "Its password is stored the next time it is unlocked with the password." The
+  databases' rows have a fingerprint for each whose Use fingerprint is on, the app's too.
 - Not done, and why: `setUnlockedDeviceRequired` (the prompt cannot be shown over the lock screen anyway);
   a marker of the enrolled set like the Mac's `evaluatedPolicyDomainState` (the Keystore's invalidation does
   that job here). Unlike the Mac, the key is bound to the app: the Keystore keeps it per app (UID).
-- Checked: the rules with a fake store, the file format with a software RSA key (JVM tests); on the Android
-  17 emulator with a simulated finger every path above (a software key there). On the test phone (Pixel 6,
-  release build): the key is created in StrongBox, in 2.9 s, after the typed unlock, out of sight; the
-  fingerprint unlock, the prompt by itself after a start, "Use password"; the lock screen's "Use fingerprint
-  next time" (the typed unlock stored the password, the next one took the fingerprint). Opening the stored password takes
-  0.3 s in StrongBox, then the unlock its usual 2.3 s (the key derivation). Android hands the app the accepted
-  fingerprint about 0.9 s after the sensor took it (measured 2026-10-21, the prompt closing; nothing the app
-  can shorten); from then on the lock screen says "Opening …", the StrongBox part included
-  (`BiometricState.opening`). A new fingerprint invalidating
-  the key was checked on the emulator only.
+- Checked: the rules with a fake store per database (JVM tests, the Mac's `TouchIDTests` for several databases), the
+  files and what each failure costs with a software key (`KeyringFilesTest`), the formats (`SealedPasswordTest`,
+  `KeyringTest`), the offer once per visit (`FingerprintOffersTest`). On the Android 17 emulator with a simulated
+  finger, before AD5, every path of the one stored password. On the test phone (Pixel 6, release build), with AD5:
+  two databases each with its own stored password, choosing between them keeping both, each opened by the fingerprint
+  with its own (0.33 s in StrongBox); one that opens with its key file alone opened after the fingerprint with nothing
+  stored; the fingerprint asked by itself at a start and not after Lock; a database added later came with its
+  fingerprint off and "Use fingerprint next time" shown; a database's own switch off and Remove from List each deleted
+  that database's stored password alone; a keyring the build could not read said the fingerprints changed and
+  deleted everything without a prompt; the Keystore key made in StrongBox in 14.6 s and 3.1 s. Not on the phone: a
+  fingerprint enrolled (the key's invalidation; on the emulator before AD5 only), the days per database, a lock
+  while the stored password is read, the Keystore failing. Before AD5 on the phone: the prompt by itself after a start,
+  "Use password"; opening the stored password took 0.3 s in StrongBox, then the unlock its usual 2.3 s (the key
+  derivation). Android hands the app the accepted fingerprint about 0.9 s after the sensor took it (measured
+  2026-10-21, the prompt closing; nothing the app can shorten); from then on the lock screen says "Opening …", the
+  StrongBox part included (`BiometricState.opening`).
 
 ## 6. The interface
 
@@ -700,9 +760,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   file, or choose another database." (on a card: "… is not in /storage/1234-5678. Put the card in, or locate the
   file."), **Locate…** and "or choose another database above". Without all-files access nothing is said missing
   (the file cannot be seen); "Allow all-files access" shows. When the fingerprint
-  is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
-  field then does not open the keyboard by itself, and typing hides the button. While it is off, a "Use
-  fingerprint next time" switch under the field turns it on, so the password typed then sets it up. When the
+  is set up for the database (§5), its large button with "Touch to unlock" and "or type the password" above the field
+  (a database that opens with its key file alone: "or use its key file" above its Unlock); the field then does not
+  open the keyboard by itself, and typing hides the button. While the app's fingerprint switch is on and this
+  database's is off, a "Use fingerprint next time" switch under the field turns it on for this database, so the
+  password typed then sets it up. When the
   password is due (§5) the button is not there and the reason chip says so. A wrong password (or key file,
   §4) shakes the field. The first list after an unlock says how long the key derivation took. On a screen less than 480 dp high
   (a phone in landscape) the logo, name and database are on the left and the field on the right; with the keyboard
@@ -936,12 +998,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
 - **Settings**: **Databases**: every database (tile, name, its folder or "Not found · Download" in red, a key for
-  one with a key file); a tap opens **its page**: tile, name, path from the shared storage's root, "Changed 2 hours
-  ago" (of a file not found "Not found at …" with Locate… and "Last opened 2 weeks ago" when it was), **Key file**
-  (its name and folder, or "None · It opens with its password alone"; Choose… / Change…, Forget; "Remembered here by
-  its path, not its contents. It must be there at every unlock, the fingerprint too."), **Remove from list…** ("Forgets
-  it on this phone, with its stored password. The file stays."); each acts at once. Under the list **Open a
-  database…** (it becomes current: one open locks). Then the fingerprint switch (§5; it says where the key is: StrongBox, the TEE) and,
+  one with a key file, a fingerprint for one the fingerprint opens); a tap opens **its page**: tile, name, path from
+  the shared storage's root, "Changed 2 hours ago" (of a file not found "Not found at …" with Locate… and "Last opened
+  2 weeks ago" when it was), **Key file** (its name and folder, or "None · It opens with its password alone"; Choose… /
+  Change…, Forget; "Remembered here by its path, not its contents. It must be there at every unlock, the fingerprint
+  too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
+  **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
+  Under the list **Open a database…** (it becomes current: one open locks). Then the app's fingerprint switch (§5) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.

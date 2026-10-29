@@ -1,32 +1,33 @@
 package dev.keething.vault.biometric
 
 import dev.keething.domain.biometric.BiometricAvailability
-import dev.keething.domain.biometric.BiometricPasswordStore
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
-import dev.keething.domain.settings.SettingsStore
-import dev.keething.domain.time.Clock
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.DatabaseList
+import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
 import dev.keething.vault.session.VaultSession
-import java.time.Duration
-import java.time.Instant
+import java.io.File
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-/** What the fingerprint unlock can do now: the lock screen's button, the switch in Settings. */
+/** What the fingerprint unlock can do now for one database: its lock screen's button and switch, its page in Settings. */
 public data class BiometricState(
-    /** The switch; off until it is turned on (SPEC §5). */
-    val enabled: Boolean,
+    /** The app's switch (Settings); off until it is turned on (SPEC §5). */
+    val appEnabled: Boolean,
+    /** The database's own Use fingerprint (its page, "Use fingerprint next time"). */
+    val databaseEnabled: Boolean,
+    /** It opens with its key file alone: the fingerprint opens it with nothing stored, and it is never due. */
+    val passwordless: Boolean = false,
     /** Null until the first [BiometricUnlock.refresh]. */
     val availability: BiometricAvailability? = null,
     val stored: Boolean = false,
@@ -39,13 +40,16 @@ public data class BiometricState(
      * "Opening…" from here, not only once the vault's own unlock starts.
      */
     val opening: Boolean = false,
-    /** Ask for the typed password after this many days without one; null: never (SPEC §5). */
+    /** Ask for the typed password after this many days without one; null: never (SPEC §5). The app's choice. */
     val reminderDays: Int? = DEFAULT_REMINDER_DAYS,
-    /** [reminderDays] have passed since the last typed unlock: the fingerprint waits until the password is typed. */
+    /** [reminderDays] have passed since this database's last typed unlock: the fingerprint waits until it is typed. */
     val passwordDue: Boolean = false,
 ) {
-    /** It is set up and works on this phone, whether or not the password is due now. */
-    public val isSetUp: Boolean get() = enabled && availability == BiometricAvailability.Available && stored
+    /** The fingerprint opens this database: the app's switch and its own. */
+    public val enabled: Boolean get() = appEnabled && databaseEnabled
+
+    /** It is set up and works on this phone, whether or not the password is due now: stored, or nothing to store. */
+    public val isSetUp: Boolean get() = enabled && availability == BiometricAvailability.Available && (stored || passwordless)
 
     /** The lock screen offers the fingerprint. */
     public val canUnlock: Boolean get() = isSetUp && !passwordDue
@@ -62,7 +66,7 @@ public data class BiometricState(
 public sealed interface FingerprintOutcome {
     public data object Unlocked : FingerprintOutcome
 
-    /** The user cancelled, or a lock came first: nothing to say. */
+    /** The user cancelled, a lock came first, or another database was chosen meanwhile: nothing to say. */
     public data object Cancelled : FingerprintOutcome
 
     /** Another unlock runs, or the vault is open: nothing was asked. */
@@ -72,7 +76,7 @@ public sealed interface FingerprintOutcome {
 
     public data object NothingStored : FingerprintOutcome
 
-    /** The fingerprints changed and the key with them: the stored password is deleted. */
+    /** The fingerprints changed and the key with them, or this database's stored copy no longer opens: it is deleted. */
     public data object KeyInvalidated : FingerprintOutcome
 
     /** [BiometricState.reminderDays] have passed: the password is to be typed this time. */
@@ -83,77 +87,90 @@ public sealed interface FingerprintOutcome {
 
     public data class AuthenticationFailed(val reason: String) : FingerprintOutcome
 
-    /** The stored password was tried and the file did not open for another reason; the password is kept. */
+    /**
+     * The stored password (or the key file alone) was tried and the file did not open for another reason, or the file or
+     * its key file is not there and nothing was asked; the stored password is kept.
+     */
     public data class UnlockFailed(val failure: OpenFailure) : FingerprintOutcome
 
     public data class StorageError(val reason: String) : FingerprintOutcome
 }
 
 /**
- * The fingerprint unlock (SPEC §5; Mac `TouchIDUnlock`, Mac SPEC §3.8). The master password is kept by a
- * [BiometricPasswordStore] and handed to the normal [VaultSession.unlock] after a fingerprint, so the
- * database is opened exactly as if the password had been typed.
+ * One database's fingerprint unlock (SPEC §5; Mac `TouchIDUnlock`, Mac SPEC §3.8). Its master password is kept by
+ * [setup]'s stores under its [id] and handed to the normal [VaultSession.unlock] after a fingerprint, so the database
+ * is opened exactly as if the password had been typed; it is only ever opened with its own.
  *
- * - The password is stored after a typed unlock that opened the vault while the switch is on, so a
- *   database password changed elsewhere heals the next time it is typed.
+ * - The fingerprint opens it while the app's switch and its own Use fingerprint are on.
+ * - The password is stored after a typed unlock that opened the vault, so a database password changed elsewhere heals
+ *   the next time it is typed. Nothing typed stores nothing.
  * - The stored password is opened only after a fingerprint, never to find out whether it is there.
- * - New fingerprints (the key is invalidated) or a stored password the database rejects delete it; a
- *   cancelled or failed fingerprint keeps it.
- * - After [BiometricState.reminderDays] without a typed unlock the password is due: the fingerprint is not
- *   offered until it is typed again, so it is not forgotten. The stored copy stays.
+ * - A stored password the database rejects deletes its own (kept with a key file, which may be the wrong part, and
+ *   while a key file changed since the last unlock that worked); new fingerprints delete every database's; a copy that
+ *   no longer opens deletes its own. A cancelled or failed fingerprint keeps it.
+ * - After [BiometricState.reminderDays] without a typed unlock of this database its password is due: the fingerprint
+ *   is not offered until it is typed again. The stored copy stays.
+ * - A database that opens with its key file alone opens after the fingerprint with nothing stored, and is never due.
+ * - No fingerprint is asked while its file or its key file is not there.
  *
- * Call it from [scope]'s thread (the main thread); the store's file and keystore work runs on [io], which
- * runs one task at a time in the app, so saves and deletes happen in the order they were asked for.
+ * Call it from the main thread. [scope] is the app's (storing a typed password outlives the screen); [states] ends with
+ * the session (it follows the switches and the list for [state]).
  */
 public class BiometricUnlock(
+    private val id: DatabaseId,
     private val session: VaultSession,
-    private val store: BiometricPasswordStore,
-    private val settings: SettingsStore,
-    private val clock: Clock,
+    private val setup: BiometricSetup,
+    private val list: DatabaseList,
     private val scope: CoroutineScope,
-    private val io: CoroutineDispatcher,
+    states: CoroutineScope,
+    private val fileExists: (String) -> Boolean = { File(it).isFile },
 ) {
-    private val mutableState = MutableStateFlow(
-        BiometricState(enabled = settings.string(ENABLED) == ON, reminderDays = reminderDays()).let { it.copy(passwordDue = isDue(it.reminderDays)) },
-    )
+    private var prompting = false
+    private var opening = false
+
+    private val mutableState = MutableStateFlow(current())
     public val state: StateFlow<BiometricState> = mutableState.asStateFlow()
 
-    /** Asks the phone again whether it can, the store whether a password is there, and the clock whether the password is due. */
-    public suspend fun refresh() {
-        val availability = withContext(io) { store.availability() }
-        val stored = withContext(io) { runCatching { store.hasPassword() }.getOrDefault(false) }
-        mutableState.update { it.copy(availability = availability, stored = stored, passwordDue = isDue(it.reminderDays)) }
+    init {
+        // The switches changed in Settings, the record (its own switch, a key file, opening without a password).
+        states.launch { combine(setup.state, list.state) { _, _ -> }.collect { publish() } }
+    }
+
+    /** What [state] says once it has caught up with the switches and the list; for a decision made at once. */
+    public fun current(): BiometricState {
+        val setupState = setup.state.value
+        val record = list.record(id)
+        return BiometricState(
+            appEnabled = setupState.enabled,
+            databaseEnabled = record?.useBiometric == true,
+            passwordless = record?.isPasswordless == true,
+            availability = setupState.availability,
+            stored = id in setupState.stored,
+            setupFailure = setupState.setupFailures[id],
+            prompting = prompting,
+            opening = opening,
+            reminderDays = setupState.reminderDays,
+            passwordDue = record != null && setup.isDue(record),
+        )
+    }
+
+    /** Asks the phone again whether it can, the store whether a password is there, and the clock whether it is due. */
+    public suspend fun refresh(): BiometricState {
+        setup.refresh()
+        publish()
+        return state.value
     }
 
     /**
-     * Turning it on only sets the switch: the password is stored at the next typed unlock. Turning it off
-     * deletes the stored password; returns why that failed, or null. Off, nothing should be stored: what is there
-     * when it goes on is a deletion that failed, perhaps of another database's password, so it goes first, or the
-     * switch stays off (it is never tried on this database).
+     * The lock screen's "Use fingerprint next time": this database's own switch ([BiometricSetup.setUseBiometric]),
+     * offered while the app's is on. Returns why a stored password could not be deleted, or null.
      */
-    public suspend fun setEnabled(enabled: Boolean): String? {
-        if (enabled && !state.value.enabled && withContext(io) { runCatching { store.hasPassword() }.getOrDefault(true) }) {
-            delete()?.let { return it }
-        }
-        settings.setString(ENABLED, if (enabled) ON else null)
-        // The days count from here: the password was typed a moment ago, or is typed at the next unlock.
-        if (enabled) typedNow()
-        // Off: nothing is stored whose key file could have changed.
-        if (!enabled) clearKeyFileChange()
-        mutableState.update { it.copy(enabled = enabled, setupFailure = null, passwordDue = isDue(it.reminderDays)) }
-        return if (enabled) null else delete()
-    }
-
-    /** Ask for the typed password after [days] without one; null: never. */
-    public fun setReminderDays(days: Int?) {
-        settings.setString(REMINDER, days?.toString() ?: NEVER)
-        mutableState.update { it.copy(reminderDays = days, passwordDue = isDue(days)) }
-    }
+    public suspend fun useNextTime(on: Boolean): String? = setup.setUseBiometric(id, on).also { publish() }
 
     /**
-     * The typed password: unlocks, and stores the password when the switch is on and this unlock opened the
-     * vault. Nothing typed (a database with a key file) stores nothing: there is no password. The caller may wipe its
-     * own copy as soon as this returns. Null when the vault was not locked.
+     * The typed password: unlocks, and stores the password when the fingerprint is on for this database and this unlock
+     * opened the vault. Nothing typed (a database with a key file) stores nothing: there is no password. The caller may
+     * wipe its own copy as soon as this returns. Null when the vault was not locked.
      */
     public fun unlock(password: Secret): Deferred<UnlockOutcome>? {
         val outcome = session.unlock(password) ?: return null
@@ -161,10 +178,10 @@ public class BiometricUnlock(
         scope.launch {
             try {
                 if (outcome.await() == UnlockOutcome.Opened) {
-                    clearKeyFileChange()
-                    typedNow()
-                    mutableState.update { it.copy(passwordDue = false) }
-                    if (state.value.enabled && !kept.isEmpty()) storeTyped(kept)
+                    setup.opened(id)
+                    setup.typedNow(id)
+                    publish()
+                    if (current().enabled && !kept.isEmpty()) storeTyped(kept)
                 }
             } finally {
                 kept.wipe()
@@ -173,143 +190,108 @@ public class BiometricUnlock(
         return outcome
     }
 
-    /**
-     * The database's key file was chosen, changed or forgotten (Settings, the lock screen): until something opens it, a
-     * stored password it rejects is kept, as its key file may be what is wrong (keething-spec unlock.key-file AC7; else
-     * Forget on a key file the database needs would cost a right password at the next fingerprint).
-     */
-    public fun keyFileChanged() {
-        settings.setString(KEY_FILE_CHANGED, ON)
-    }
-
-    /** Asks for the fingerprint and unlocks with the stored password. One at a time. */
+    /** Asks for the fingerprint and unlocks with this database's stored password (or its key file alone). One at a time. */
     public suspend fun unlockWithFingerprint(): FingerprintOutcome {
-        if (state.value.prompting || session.state.value !is SessionState.Locked) return FingerprintOutcome.InProgress
-        if (!state.value.enabled) return FingerprintOutcome.NotAvailable("it is turned off in Settings")
-        if (isDue(state.value.reminderDays)) {
-            mutableState.update { it.copy(passwordDue = true) }
+        if (session.isClosed) return FingerprintOutcome.Cancelled
+        if (prompting || session.state.value !is SessionState.Locked) return FingerprintOutcome.InProgress
+        val record = list.record(id) ?: return FingerprintOutcome.Cancelled
+        if (!setup.state.value.enabled) return FingerprintOutcome.NotAvailable("it is turned off in Settings")
+        if (!record.useBiometric) return FingerprintOutcome.NotAvailable("it is turned off for this database")
+        // It could not open: asking for a finger only to fail is noise (keething-spec unlock.key-file AC3).
+        if (!fileExists(record.path)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
+        record.keyFilePath?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(File(it).name)) }
+        if (setup.isDue(record)) {
+            publish()
             return FingerprintOutcome.PasswordDue
         }
-        mutableState.update { it.copy(prompting = true) }
+        prompting = true
+        publish()
+        // A lock from here on (the button, the timeout, sleep) opens nothing (keething-spec unlock.biometric-invalidation AC6).
+        val locks = session.locks
         try {
-            val availability = withContext(io) { store.availability() }
-            mutableState.update { it.copy(availability = availability) }
+            val availability = setup.availability()
             if (availability is BiometricAvailability.Unavailable) return FingerprintOutcome.NotAvailable(availability.reason)
-            if (!withContext(io) { runCatching { store.hasPassword() }.getOrDefault(false) }) return nothingStored()
-            val opening = try {
-                store.open(onRecognised = { mutableState.update { it.copy(opening = true) } })
+            if (!record.isPasswordless && !setup.hasPassword(id)) return nothingStored()
+            val recognised = {
+                opening = true
+                publish()
+            }
+            val opened = try {
+                if (record.isPasswordless) setup.confirm(recognised) else setup.open(id, recognised)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                return FingerprintOutcome.StorageError(failure.reason())
+                return FingerprintOutcome.StorageError(failure.message ?: failure.javaClass.simpleName)
             }
-            return when (opening) {
-                is StoredPasswordOpening.Opened -> unlockWithStored(opening.password)
+            // Locked while the stored password was read (StrongBox takes a moment): nothing opens, nothing is deleted.
+            if (session.locks != locks) {
+                (opened as? StoredPasswordOpening.Opened)?.password?.wipe()
+                return FingerprintOutcome.Cancelled
+            }
+            return when (opened) {
+                is StoredPasswordOpening.Opened -> unlockWithStored(opened.password, record)
                 StoredPasswordOpening.Cancelled -> FingerprintOutcome.Cancelled
-                is StoredPasswordOpening.Failed -> FingerprintOutcome.AuthenticationFailed(opening.reason)
+                is StoredPasswordOpening.Failed -> FingerprintOutcome.AuthenticationFailed(opened.reason)
                 StoredPasswordOpening.KeyInvalidated -> {
-                    delete()
+                    // Every stored password depended on the fingerprints that were enrolled.
+                    setup.deleteAll()
+                    FingerprintOutcome.KeyInvalidated
+                }
+                StoredPasswordOpening.CopyInvalidated -> {
+                    setup.delete(id)
                     FingerprintOutcome.KeyInvalidated
                 }
                 StoredPasswordOpening.NothingStored -> nothingStored()
             }
         } finally {
-            mutableState.update { it.copy(prompting = false, opening = false) }
+            prompting = false
+            opening = false
+            publish()
         }
     }
 
-    private suspend fun unlockWithStored(password: Secret): FingerprintOutcome {
+    /** [password] (empty: the key file alone) opens the vault, and the outcome is judged for this database alone. */
+    private suspend fun unlockWithStored(password: Secret, record: DatabaseRecord): FingerprintOutcome {
         val outcome = try {
             session.unlock(password)
         } finally {
             password.wipe()
-        } ?: return FingerprintOutcome.InProgress
+        } ?: return if (session.isClosed) FingerprintOutcome.Cancelled else FingerprintOutcome.InProgress
         return when (val ended = outcome.await()) {
-            UnlockOutcome.Opened -> FingerprintOutcome.Unlocked.also { clearKeyFileChange() }
+            UnlockOutcome.Opened -> FingerprintOutcome.Unlocked.also { setup.opened(id) }
             UnlockOutcome.Interrupted -> FingerprintOutcome.Cancelled
-            is UnlockOutcome.Failed -> if (ended.failure == OpenFailure.WrongPassword && settings.string(KEY_FILE_CHANGED) == null) {
-                delete()
-                FingerprintOutcome.StoredPasswordRejected
-            } else {
-                FingerprintOutcome.UnlockFailed(ended.failure)
+            is UnlockOutcome.Failed -> when {
+                record.isPasswordless -> {
+                    // Nothing is stored: a key file it no longer opens with alone brings the field back (a password was added).
+                    if (ended.failure.isWrongKey && list.record(id)?.keyFilePath == record.keyFilePath) {
+                        list.update(id) { it.copy(opensWithoutPassword = false) }
+                    }
+                    FingerprintOutcome.UnlockFailed(ended.failure)
+                }
+                // With a key file the database cannot say which part it rejected (WrongPasswordOrKeyFile): kept.
+                ended.failure == OpenFailure.WrongPassword && !setup.keyFileChangedSinceOpened(id) -> {
+                    setup.delete(id)
+                    FingerprintOutcome.StoredPasswordRejected
+                }
+                else -> FingerprintOutcome.UnlockFailed(ended.failure)
             }
         }
     }
 
     private suspend fun storeTyped(password: Secret) {
-        val availability = withContext(io) { store.availability() }
-        mutableState.update { it.copy(availability = availability) }
-        if (availability != BiometricAvailability.Available) return
-        val failure = withContext(io) {
-            try {
-                store.save(password)
-                null
-            } catch (failure: Exception) {
-                failure.reason()
-            }
-        }
-        val stored = failure == null || withContext(io) { runCatching { store.hasPassword() }.getOrDefault(false) }
-        mutableState.update { it.copy(stored = stored, setupFailure = failure) }
+        if (setup.availability() != BiometricAvailability.Available) return
+        // Once more after the wait: turned off or removed meanwhile, nothing is stored (its deletion went first).
+        if (!current().enabled) return
+        setup.save(id, password)
+        publish()
     }
 
     private fun nothingStored(): FingerprintOutcome {
-        mutableState.update { it.copy(stored = false) }
+        publish()
         return FingerprintOutcome.NothingStored
     }
 
-    /** Returns why it failed, or null. */
-    private suspend fun delete(): String? {
-        val failure = withContext(io) {
-            try {
-                store.delete()
-                null
-            } catch (failure: Exception) {
-                failure.reason()
-            }
-        }
-        val stored = failure != null && withContext(io) { runCatching { store.hasPassword() }.getOrDefault(true) }
-        mutableState.update { it.copy(stored = stored) }
-        return failure
-    }
-
-    private fun reminderDays(): Int? = when (val saved = settings.string(REMINDER)) {
-        null -> BiometricState.DEFAULT_REMINDER_DAYS
-        NEVER -> null
-        else -> saved.toIntOrNull() ?: BiometricState.DEFAULT_REMINDER_DAYS
-    }
-
-    /** An unlock opened the database (a key file changed before is confirmed), or the switch went off. */
-    private fun clearKeyFileChange() {
-        settings.setString(KEY_FILE_CHANGED, null)
-    }
-
-    private fun typedNow() {
-        settings.setString(LAST_TYPED, clock.now().toEpochMilli().toString())
-    }
-
-    /**
-     * Wall-clock days, as the user counts them. No time saved yet (it was turned on before this rule), or one
-     * in the future (the clock was set back): the days count from now.
-     */
-    private fun isDue(days: Int?): Boolean {
-        if (days == null) return false
-        val now = clock.now()
-        val last = settings.string(LAST_TYPED)?.toLongOrNull()?.let(Instant::ofEpochMilli)
-        if (last == null || last.isAfter(now)) {
-            typedNow()
-            return false
-        }
-        return Duration.between(last, now) >= Duration.ofDays(days.toLong())
-    }
-
-    private fun Exception.reason(): String = message ?: javaClass.simpleName
-
-    private companion object {
-        const val ENABLED = "biometricUnlock"
-        const val ON = "on"
-        const val REMINDER = "passwordReminderDays"
-        const val NEVER = "never"
-        const val LAST_TYPED = "lastTypedUnlock"
-        const val KEY_FILE_CHANGED = "biometricKeyFileChanged"
+    private fun publish() {
+        mutableState.value = current()
     }
 }

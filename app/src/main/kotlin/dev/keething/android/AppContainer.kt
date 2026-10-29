@@ -8,7 +8,7 @@ import dev.keething.android.autofill.AutofillEntries
 import dev.keething.android.autofill.FillResponses
 import dev.keething.android.autofill.PendingSaves
 import dev.keething.android.biometric.FingerprintPrompt
-import dev.keething.android.biometric.KeystorePasswordStore
+import dev.keething.android.biometric.KeystorePasswordStores
 import dev.keething.android.clipboard.AndroidSystemClipboard
 import dev.keething.android.clipboard.ClipboardClearAlarm
 import dev.keething.android.clipboard.SensitiveClipboard
@@ -28,6 +28,7 @@ import dev.keething.android.storage.PathDatabaseStore
 import dev.keething.android.storage.PathKeyFileSource
 import dev.keething.android.storage.PathNewFile
 import dev.keething.android.storage.SharedStorage
+import dev.keething.android.storageprobe.FingerprintProbe
 import dev.keething.android.storageprobe.ProbeSettings
 import dev.keething.android.ui.Notice
 import dev.keething.domain.storage.DatabaseStore
@@ -72,7 +73,7 @@ internal class AppContainer(context: Context) {
     /** The fingerprint unlock's file and keystore work, one task at a time. */
     private val biometricIo = Dispatchers.IO.limitedParallelism(1)
 
-    val biometricStore = KeystorePasswordStore(context, FingerprintPrompt(context), biometricIo)
+    val biometricStores = KeystorePasswordStores(context, FingerprintPrompt(context), biometricIo)
 
     /**
      * The databases this phone knows (SPEC §3.1). Each one's backups in a folder of its own under `backups`; the flat
@@ -80,7 +81,7 @@ internal class AppContainer(context: Context) {
      */
     val sessions = Sessions(
         settings, settingsStore, DatabaseList(settingsStore), databaseStoreAt, File(context.filesDir, "backups"),
-        ::PathKeyFileSource, biometricStore, appScope, biometricIo, LockAlarm(context),
+        ::PathKeyFileSource, biometricStores, appScope, biometricIo, LockAlarm(context),
     )
 
     /** Delete and Restore: saves whose outcome the list shows after the card closed (SPEC §6.2). */
@@ -101,6 +102,9 @@ internal class AppContainer(context: Context) {
     val clipboard = SensitiveClipboard(AndroidSystemClipboard(context), ClipboardClearAlarm(context), appScope)
 
     val probeSettings = ProbeSettings(context.getSharedPreferences("storage-probe", Context.MODE_PRIVATE))
+
+    /** The fingerprint spike of the debug probe (plans/android-databases.md AD5); for the whole process, as unlocks are. */
+    val fingerprintProbe by lazy { FingerprintProbe(context, FingerprintPrompt(context)) }
 
     /** Attachments opened in another app; what a process that died left behind goes at once (SPEC §4). */
     val attachmentFiles = AttachmentFiles(File(context.cacheDir, "attachments")).also(AttachmentFiles::clear)

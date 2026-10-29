@@ -26,6 +26,8 @@ internal class LockViewModel(
     private val database: DatabaseSession,
     private val databases: CurrentDatabase,
     private val list: DatabaseList,
+    /** Once in a visit that began locked, for the app ([dev.keething.android.session.FingerprintOffers]). */
+    private val offersFingerprint: (Visit) -> Boolean,
 ) : ViewModel() {
     /**
      * The typed master password. Kept here, not in the screen's saved state: a saved state would put it
@@ -52,8 +54,6 @@ internal class LockViewModel(
     /** Counts the times the fingerprint prompt was closed without a fingerprint: the password field takes the focus. */
     val passwordWanted: StateFlow<Int> = mutablePasswordWanted.asStateFlow()
 
-    private var offeredInVisit = -1
-
     private val mutableAccessGranted = MutableStateFlow(AllFilesAccess.isGranted())
     val accessGranted: StateFlow<Boolean> = mutableAccessGranted.asStateFlow()
 
@@ -65,26 +65,25 @@ internal class LockViewModel(
 
     /**
      * Asks for the fingerprint by itself once in a [visit] that began locked: not after the lock button (SPEC §5), nor
-     * while the file or its key file is not there (it could not open; keething-spec unlock.key-file AC3), nor for a
-     * database that opens with its key file alone (there is no password to give).
+     * for another database chosen meanwhile, nor while the file or its key file is not there (it could not open;
+     * keething-spec unlock.key-file AC3). A database that opens with its key file alone opens after it with nothing
+     * stored.
      */
     fun offerFingerprint(visit: Visit) {
-        if (!visit.beganLocked || visit.number == offeredInVisit) return
-        offeredInVisit = visit.number
+        if (!offersFingerprint(visit)) return
         viewModelScope.launch {
-            database.biometric.refresh()
-            if (database.biometric.state.value.canUnlock && AllFilesAccess.isGranted() && fingerprintCanOpen()) fingerprint()
+            if (database.biometric.refresh().canUnlock && AllFilesAccess.isGranted() && fingerprintCanOpen()) fingerprint()
         }
     }
 
     private suspend fun fingerprintCanOpen(): Boolean = withContext(Dispatchers.IO) {
         val record = list.record(database.id) ?: return@withContext false
-        !record.isPasswordless && File(record.path).isFile && record.keyFilePath?.let { File(it).isFile } != false
+        File(record.path).isFile && record.keyFilePath?.let { File(it).isFile } != false
     }
 
-    /** The lock screen's "Use fingerprint next time": the Settings switch, so the password typed next is stored. */
+    /** The lock screen's "Use fingerprint next time": this database's own switch, so the password typed next is stored. */
     fun useFingerprint(on: Boolean) {
-        viewModelScope.launch { database.biometric.setEnabled(on) }
+        viewModelScope.launch { database.biometric.useNextTime(on)?.let { mutableFingerprintNotice.value = LockNotice("The stored password could not be deleted: $it.", isProblem = true) } }
     }
 
     fun unlockWithFingerprint() {

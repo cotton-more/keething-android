@@ -45,6 +45,8 @@ internal data class DatabaseLine(
     val isCurrent: Boolean,
     val lastOpened: Instant?,
     val modified: Instant?,
+    /** Its own Use fingerprint (the fingerprint opens it while the app's switch is on too). */
+    val usesFingerprint: Boolean = false,
 ) {
     /** The tile's letter. */
     val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"
@@ -80,10 +82,10 @@ internal data class LockScreenDatabase(
     val opensWithKeyFileAlone: Boolean get() = !showsPasswordField && !showsLocate
 
     /**
-     * A fingerprint may open it: not while its file or its key file is not there (it could not), nor while it opens
-     * with its key file alone (there is no password for it to give; the fingerprint for that comes with plan AD5).
+     * A fingerprint may open it: not while its file or its key file is not there (it could not). One that opens with its
+     * key file alone opens after the fingerprint with nothing stored.
      */
-    val offersFingerprint: Boolean get() = problem == null && showsPasswordField
+    val offersFingerprint: Boolean get() = problem == null && !line.isMissing
 }
 
 /** The words for databases: their folders, when they changed (the Mac's `DatabaseText`). */
@@ -144,6 +146,7 @@ internal fun Databases.lines(files: DatabaseFiles, root: String, now: Instant, z
         isCurrent = record.id == currentId,
         lastOpened = record.lastOpened,
         modified = modified,
+        usesFingerprint = record.useBiometric,
     )
 }
 

@@ -125,7 +125,7 @@ class DatabaseLinesTest {
 
         assertFalse(lock.showsPasswordField || lock.needsPassword || lock.showsLocate)
         assertTrue(lock.opensWithKeyFileAlone)
-        assertFalse(lock.offersFingerprint, "no password to give: a stored one could only be rejected")
+        assertTrue(lock.offersFingerprint, "it opens after the fingerprint with nothing stored (plan AD5)")
         assertNull(lock.problem)
     }
 

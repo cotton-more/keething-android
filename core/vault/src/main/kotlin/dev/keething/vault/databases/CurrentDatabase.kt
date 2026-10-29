@@ -2,6 +2,7 @@ package dev.keething.vault.databases
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseStore
+import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
@@ -10,9 +11,7 @@ import dev.keething.vault.session.VaultSession
 import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,9 +49,8 @@ public fun interface SessionFactory {
  * The list's current database and its session, one open at a time (plan AD4; the Mac's D4 `DatabaseListModel`):
  * another chosen, a file opened, a file located, a key file chosen and Remove from List. Each acts on the list at once.
  *
- * The fingerprint keeps one stored password, the current database's, until each database has its own (plan AD5): it
- * is deleted, the switch off, when another database becomes current or the current one leaves the list; and the
- * first database opened into an empty list starts without one (what was stored belongs to no database of the list).
+ * Each database keeps its own stored password for the fingerprint (plan AD5): choosing another keeps each one's, and
+ * Remove from List deletes the removed one's ([biometric]).
  *
  * Call it on [scope]'s thread (the main thread).
  */
@@ -60,6 +58,7 @@ public class CurrentDatabase(
     private val list: DatabaseList,
     private val scope: CoroutineScope,
     private val factory: SessionFactory,
+    private val biometric: BiometricSetup,
     private val now: () -> Instant = Instant::now,
 ) {
     private var started = 0
@@ -76,8 +75,8 @@ public class CurrentDatabase(
     }
 
     /**
-     * Open a database… / Open other…: the file joins the list (once: the same file is the same database) and becomes
-     * current. Its id.
+     * Open a database… / Open other…: the file joins the list (once: the same file is the same database), its
+     * fingerprint off until it is turned on for it (the owner's choice at plan AD5), and becomes current. Its id.
      */
     public fun open(path: String): DatabaseId {
         val record = list.add(path)
@@ -107,8 +106,8 @@ public class CurrentDatabase(
      */
     public fun setKeyFile(id: DatabaseId, path: String?) {
         list.update(id) { it.copy(keyFilePath = path?.let { DatabaseList.standardized(it) }, opensWithoutPassword = false) }
+        biometric.keyFileChanged(id)
         val database = current.value?.takeIf { it.id == id } ?: return
-        database.biometric.keyFileChanged()
         if (database.session.state.value is SessionState.Locked) database.session.lock(LockReason.Initial)
     }
 
@@ -117,13 +116,10 @@ public class CurrentDatabase(
      * one locks first and the first left becomes current. Why the stored password could not be deleted, or null.
      */
     public suspend fun remove(id: DatabaseId): String? {
-        val removed = current.value?.takeIf { it.id == id }
+        val wasCurrent = current.value?.id == id
         list.remove(id)
-        if (removed == null) return null
-        // Undispatched: the switch is off before the next database's session reads it.
-        val forgetting = scope.async(start = CoroutineStart.UNDISPATCHED) { removed.biometric.setEnabled(false) }
-        follow(forgetting = false)
-        return forgetting.await()
+        if (wasCurrent) follow()
+        return biometric.forget(id)
     }
 
     /**
@@ -151,24 +147,16 @@ public class CurrentDatabase(
     }
 
     /**
-     * The session follows the list's current database: another one, or its file moved, closes the session shown and
-     * starts the next. [forgetting]: the stored password goes when another database becomes current (Remove from
-     * List deletes it itself, to say why it could not).
+     * The session follows the list's current database: another one, or its file moved, closes the session shown (a
+     * fingerprint prompt still up for it opens nothing) and starts the next. Each keeps its stored password.
      */
-    private fun follow(forgetting: Boolean = true) {
+    private fun follow() {
         val record = list.current
         val previous = current.value
         if (previous?.id == record?.id && previous?.file?.path == record?.path) return
         previous?.session?.close()
         watching?.cancel()
-        // Undispatched, so that the switch is off before the next session reads it; the stored password is deleted in
-        // the background, one task at a time after anything the fingerprint was doing.
-        if (previous != null && previous.id != record?.id && forgetting) {
-            scope.launch(start = CoroutineStart.UNDISPATCHED) { previous.biometric.setEnabled(false) }
-        }
-        val next = record?.let(::start)
-        if (previous == null && next != null) scope.launch(start = CoroutineStart.UNDISPATCHED) { next.biometric.setEnabled(false) }
-        mutableCurrent.value = next
+        mutableCurrent.value = record?.let(::start)
     }
 
     private fun start(record: DatabaseRecord): DatabaseSession {

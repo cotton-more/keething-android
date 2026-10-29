@@ -127,7 +127,9 @@ import kotlin.math.roundToInt
 internal fun LockScreen(container: AppContainer, database: DatabaseSession, onBack: (() -> Unit)?, onChose: (DatabaseId) -> Unit) {
     val databases = container.sessions.databases
     // Per session, not per file: a model of an earlier session of the same file would unlock that one.
-    val model = viewModel(key = "lock:${database.number}") { LockViewModel(database, databases, container.sessions.list) }
+    val model = viewModel(key = "lock:${database.number}") {
+        LockViewModel(database, databases, container.sessions.list, container.sessions.fingerprintOffers::offer)
+    }
     val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
     val lock = screens?.lockScreen?.takeIf { it.line.id == database.id }
@@ -269,7 +271,12 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onBa
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     // Typing hides it: the keyboard leaves no room, and the user chose the password.
                     AnimatedVisibility(visible = biometric.canUnlock && lock.offersFingerprint && !WindowInsets.isImeVisible) {
-                        FingerprintButton(enabled = accessGranted && !biometric.prompting, onClick = model::unlockWithFingerprint)
+                        FingerprintButton(
+                            enabled = accessGranted && !biometric.prompting,
+                            // A database that opens with its key file alone has Unlock in place of the field.
+                            otherWay = if (lock.showsPasswordField) "or type the password" else "or use its key file",
+                            onClick = model::unlockWithFingerprint,
+                        )
                     }
                     if (lock.showsPasswordField) {
                         PasswordRow(
@@ -292,12 +299,13 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onBa
                             ButtonLabel("Key file…", Icons.Rounded.Key, iconSize = 18.dp, gap = 8.dp)
                         }
                     }
-                    // Offered while the fingerprint is off; it stays once turned on, until the password is typed. Not for
-                    // a database that opens with its key file alone: there is no password to store.
+                    // Offered while the app's switch allows it and this database's own is off (Settings turns the app's
+                    // on; it turns none on itself); it stays once turned on, until the password is typed. A database that
+                    // opens with its key file alone has it too: the fingerprint then opens it with nothing stored.
                     val available = biometric.availability == BiometricAvailability.Available
-                    var offerSwitch by remember { mutableStateOf(false) }
-                    if (available && !biometric.enabled) offerSwitch = true
-                    if (offerSwitch && available && !biometric.stored && lock.showsPasswordField) {
+                    var offerSwitch by remember(database.number) { mutableStateOf(false) }
+                    if (available && biometric.appEnabled && !biometric.databaseEnabled) offerSwitch = true
+                    if (offerSwitch && available && biometric.appEnabled && !biometric.stored && lock.problem == null) {
                         UseFingerprintSwitch(checked = biometric.enabled, onChange = model::useFingerprint)
                     }
                 }
@@ -406,7 +414,7 @@ private fun UseFingerprintSwitch(checked: Boolean, onChange: (Boolean) -> Unit) 
 }
 
 @Composable
-private fun FingerprintButton(enabled: Boolean, onClick: () -> Unit) {
+private fun FingerprintButton(enabled: Boolean, otherWay: String, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         FilledIconButton(
             onClick = onClick,
@@ -428,7 +436,7 @@ private fun FingerprintButton(enabled: Boolean, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
-            Text("or type the password", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(otherWay, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
         }
     }

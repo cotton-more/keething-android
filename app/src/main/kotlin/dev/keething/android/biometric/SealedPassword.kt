@@ -13,7 +13,13 @@ import javax.crypto.spec.PSource
 import javax.crypto.spec.SecretKeySpec
 
 /** The bytes are not a sealed password, were changed, or this key does not open them. */
-internal class UnreadableSealException(message: String, cause: Throwable? = null) : Exception(message, cause)
+internal open class UnreadableSealException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+/**
+ * The RSA step refused: the key does not open the wrapped AES key. Of a software key, the bytes are another key's; of
+ * the Keystore's, that may be the Keystore failing for a moment as well.
+ */
+internal class UnwrapRefusedException(cause: Throwable) : UnreadableSealException("the key did not unwrap it (${cause.javaClass.simpleName})", cause)
 
 /**
  * The stored master password (SPEC §5): a random AES-256 key encrypts it with GCM, and the Keystore's RSA
@@ -69,7 +75,11 @@ internal object SealedPassword {
         val encrypted = ByteArray(buffer.remaining()).also { buffer.get(it) }
         var aesKey: ByteArray? = null
         try {
-            aesKey = rsa.doFinal(wrapped)
+            aesKey = try {
+                rsa.doFinal(wrapped)
+            } catch (refused: GeneralSecurityException) {
+                throw UnwrapRefusedException(refused)
+            }
             if (aesKey.size != KEY_BYTES) throw UnreadableSealException("not a sealed password")
             return Secret.adopt(gcm(Cipher.DECRYPT_MODE, aesKey, iv).doFinal(encrypted))
         } catch (failure: GeneralSecurityException) {

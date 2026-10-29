@@ -101,6 +101,12 @@ public class VaultSession(
     private var backgroundSince: Duration? = null
     private var closed = false
 
+    /** Its database is no longer the one shown ([close]): nothing opens it again. */
+    public val isClosed: Boolean get() = closed
+
+    /** How many times it was locked: one that came meanwhile changes it. */
+    public val locks: Int get() = generation
+
     /**
      * Opens the vault with [password] and the database's key file, when it has one (keething-spec kdbx.key-files):
      * the key file is read now, and a missing or unusable one fails the unlock before the database is read. Nothing
