@@ -9,6 +9,7 @@ import dev.keething.kdbx.editing.EditingFixtures.document
 import dev.keething.kdbx.editing.EditingFixtures.open
 import dev.keething.kdbx.editing.EditingFixtures.reread
 import dev.keething.kdbx.reader.KdbxReader
+import dev.keething.kdbx.schema.KdbxSchema
 import dev.keething.kdbx.tree.XElement
 import dev.keething.kdbx.tree.XmlTree
 import dev.keething.kdbx.xml.KdbxField
@@ -121,7 +122,7 @@ class EntryLifecycleTest {
         val entry = assertNotNull(EntryLifecycle.locate(one.uuid, editable.root)).entry
         assertEquals(one.ancestorGroupUuids.last(), entry.first("PreviousParentGroup")?.text)
         val names = entry.elements.map { it.name }
-        assertEquals(names.indexOf("Times") + 1, names.indexOf("PreviousParentGroup"), "right after Times")
+        assertEquals(names.indexOf("Times") - 1, names.indexOf("PreviousParentGroup"), "right before Times (KeePass's schema)")
         assertEquals(now, entry.first("Times")?.first("LocationChanged")?.text?.let(KdbxTime::parse))
 
         val written = EditingFixtures.write(editable)
@@ -171,7 +172,7 @@ class EntryLifecycleTest {
         val group = path.last()
         path[path.size - 2].remove(group)
         bin.append(group)
-        group.insertAfter(XElement("PreviousParentGroup", EntryLifecycle.uuidText(path[path.size - 2])), group.first("Times"))
+        KdbxSchema.insert(XElement("PreviousParentGroup", EntryLifecycle.uuidText(path[path.size - 2])), group)
 
         val first = EntryLifecycle.restore(one.uuid, editable.root, now)
 

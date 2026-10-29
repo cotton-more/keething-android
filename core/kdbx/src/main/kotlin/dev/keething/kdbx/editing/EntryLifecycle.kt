@@ -3,6 +3,7 @@ package dev.keething.kdbx.editing
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.kdbx.schema.KdbxSchema
 import dev.keething.kdbx.tree.XElement
 import dev.keething.kdbx.xml.KdbxTime
 import java.time.Instant
@@ -143,12 +144,10 @@ internal object EntryLifecycle {
         if (existing != null) {
             existing.text = previous
         } else {
-            // After Times (and QualityCheck), before the fields: KeePassXC's order.
-            entry.insertAfter(XElement("PreviousParentGroup", previous), entry.first("QualityCheck") ?: entry.first("Times"))
+            // KeePass's schema (`TEntry`): after Tags (or what comes before it), before Times.
+            KdbxSchema.insert(XElement("PreviousParentGroup", previous), entry)
         }
-        val times = entry.first("Times") ?: XElement("Times").also {
-            entry.insertAfter(it, entry.first("Tags") ?: entry.first("UUID"))
-        }
+        val times = entry.first("Times") ?: XElement("Times").also { KdbxSchema.insert(it, entry) }
         for (name in listOf("LastModificationTime", "LastAccessTime", "LocationChanged")) EntryEditing.setTime(name, now, times, iso)
         touch(location.group, now, iso)
         touch(destination, now, iso)

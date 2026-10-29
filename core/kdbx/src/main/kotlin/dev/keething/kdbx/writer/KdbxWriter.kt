@@ -3,10 +3,12 @@ package dev.keething.kdbx.writer
 import dev.keething.domain.secret.Secret
 import dev.keething.kdbx.crypto.Bytes
 import dev.keething.kdbx.crypto.ChaCha20
+import dev.keething.kdbx.editing.EntryLifecycle
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxFormat
 import dev.keething.kdbx.reader.KdbxTemplate
+import dev.keething.kdbx.schema.KdbxSchema
 import dev.keething.kdbx.tree.XElement
 import dev.keething.kdbx.tree.XmlTree
 import java.io.ByteArrayOutputStream
@@ -41,6 +43,7 @@ internal object KdbxWriter {
     ): ByteArray {
         if (template.cipher == KdbxFormat.Cipher.TWOFISH) throw KdbxException.UnsupportedCipher("Twofish")
         require(binaryFlags.size == binaries.size) { "a flag for every attachment" }
+        WrittenDocuments.observer?.let { observe -> observe(XmlTree.withoutSecrets(root), KdbxSchema.violations(root)) }
 
         val masterSeed = ByteArray(32).also(random::nextBytes)
         val iv = ByteArray(if (template.cipher == KdbxFormat.Cipher.CHACHA20) 12 else 16).also(random::nextBytes)
@@ -75,12 +78,28 @@ internal object KdbxWriter {
     }
 
     /**
-     * KDBX 4.1 when the document uses what only 4.1 has; of that, the app itself writes only
-     * `PreviousParentGroup` (an entry in the recycle bin). KeePassXC raises the version for it the same way.
+     * KDBX 4.1 when the document uses what only 4.1 has (keepass.info/help/kb/kdbx_4.1.html): a `PreviousParentGroup`
+     * (KeePassXC raises the version for it; KeePass's schema lists it as 4.1), an entry's `QualityCheck`, a group's
+     * `Tags`, a custom icon's `Name` or `LastModificationTime`, a `CustomData` item's `LastModificationTime`. An empty
+     * one, or a `PreviousParentGroup` of the null UUID, counts as none. Of these, the app itself writes only
+     * `PreviousParentGroup` (an entry in the recycle bin); the version read is never lowered ([write]).
      */
     fun requiredMinor(root: XElement): Int {
-        fun uses41(element: XElement): Boolean = element.elements.any { it.name == "PreviousParentGroup" || uses41(it) }
-        return if (root.first("Root")?.let(::uses41) == true) 1 else 0
+        fun filled(element: XElement?): Boolean {
+            val text = element?.text?.trim() ?: return false
+            return text.isNotEmpty() && text != EntryLifecycle.NULL_UUID
+        }
+        fun uses41(element: XElement): Boolean {
+            val uses = when (element.name) {
+                "Entry" -> filled(element.first("PreviousParentGroup")) || filled(element.first("QualityCheck"))
+                "Group" -> filled(element.first("PreviousParentGroup")) || filled(element.first("Tags"))
+                "Icon" -> filled(element.first("Name")) || filled(element.first("LastModificationTime"))
+                "Item" -> filled(element.first("LastModificationTime"))
+                else -> false
+            }
+            return uses || element.elements.any(::uses41)
+        }
+        return if (uses41(root)) 1 else 0
     }
 
     private fun header(template: KdbxTemplate, masterSeed: ByteArray, iv: ByteArray, minor: Int): ByteArray {

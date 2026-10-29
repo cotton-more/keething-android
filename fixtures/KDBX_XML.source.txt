@@ -1,0 +1,8 @@
+KDBX_XML.xsd: KeePass's "KDBX 4.1 XML Schema", (C) 2007-2026 Dominik Reichl, kept exactly as published.
+Source:     https://keepass.info/help/download/KDBX_XML.xsd (linked from https://keepass.info/help/kb/kdbx.html)
+Downloaded: 2026-10-28 (the Mac app's copy), 692 lines
+SHA-256:    be59310463b6388e7253c26a65d7c7ea8742f6419062dbc3fea4f530ad0790e5
+
+To update it, download it again over this file and change the date and the hash here. The JDK's validator (like
+libxml2 on the Mac) does not compile the colour pattern's .NET escape "#"; XsdValidator (core/kdbx test
+fixtures) derives a copy with "#" in its place when it loads the schema, so this file stays the official one.

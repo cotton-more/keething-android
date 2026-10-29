@@ -1,5 +1,5 @@
 #!/bin/zsh
-# The phone's writing tried on a COPY of a database (ROADMAP step 7; core/vault KdbxProbe). Asks for the
+# The phone's writing tried on a COPY of a database, KeePass's schema included (core/vault KdbxProbe). Asks for the
 # password without echo and passes it on standard input; prints counts, times and differences, never a value.
 # Usage: tools/kdbx-probe.sh <copy.kdbx>
 set -e

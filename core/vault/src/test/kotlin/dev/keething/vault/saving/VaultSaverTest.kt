@@ -11,7 +11,9 @@ import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
+import dev.keething.kdbx.editing.BrokenFiles
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.schema.SchemaCheck
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
@@ -172,6 +174,29 @@ class VaultSaverTest {
 
         assertEquals(config, created.totp)
         assertEquals(config, unlock(store).titled("Coded").totp)
+    }
+
+    @Test
+    fun aSaveThatWouldAddWhatKeePasssSchemaDoesNotAllowIsRefusedAndNothingIsReplaced() {
+        // The root group's custom icon is not in the file: a new entry would take it and refer to an icon that is not there.
+        SchemaCheck.allowViolations()
+        val (broken, groupId) = BrokenFiles.rootGroupWithAMissingIcon(fixtureBytes("kdbx4-aes-argon2d"), key())
+        val store = FakeStore(broken)
+        val key = key()
+        val saver = VaultSaver(store, backups)
+
+        val refused = failure(saver.save(VaultEdit.Create(Entry.newId(), groupId, EntryChanges(title = "New")), key, now))
+
+        assertEquals(SaveFailure.BreaksFormat("an entry's CustomIconUUID: no such custom icon"), refused)
+        assertContentEquals(broken, store.content)
+        assertEquals(0, store.replaced)
+        assertTrue(backups.kept.isEmpty(), "no backup without a save")
+
+        // The violation the file already had is no reason to refuse another change.
+        val entry = unlock(store, key).entries.first()
+        val checked = SchemaCheck.checked
+        assertEquals("n", saved(saver.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "n")), key, now)).titled(entry.title).notes)
+        assertTrue(SchemaCheck.checked > checked, "the written file was checked against KDBX_XML.xsd (JUnit's extension auto-detection)")
     }
 
     @Test

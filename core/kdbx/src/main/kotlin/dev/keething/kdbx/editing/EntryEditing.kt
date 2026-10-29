@@ -6,6 +6,7 @@ import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.EntryFieldTypes
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.TotpChange
+import dev.keething.kdbx.schema.KdbxSchema
 import dev.keething.kdbx.tree.XElement
 import dev.keething.kdbx.xml.KdbxTime
 import java.time.Instant
@@ -57,7 +58,7 @@ internal object EntryEditing {
         changes.tags?.let { setTags(it, entry) }
         changes.totp?.let { setTotp(it, entry) }
 
-        val times = child("Times", entry, before = listOf("String", "Binary", "AutoType", "History"))
+        val times = child("Times", entry)
         val iso = times.elements.any { KdbxTime.isIso(it.text) }
         setTime("LastModificationTime", now, times, iso)
         setTime("LastAccessTime", now, times, iso)
@@ -209,24 +210,16 @@ internal object EntryEditing {
         if (existing != null) {
             existing.text = text
         } else if (text.isNotEmpty()) {
-            val element = XElement("Tags", text)
-            val elements = entry.elements
-            val index = elements.indexOfFirst { it.name == "Times" }
-            if (index > 0) entry.insertAfter(element, elements[index - 1]) else entry.insertAfter(element, entry.first("UUID"))
+            // Where KeePass's schema has it: before PreviousParentGroup and Times.
+            KdbxSchema.insert(XElement("Tags", text), entry)
         }
     }
 
     // Times
 
-    /** The child [name] of [parent], made before the first of [before] when missing. */
-    fun child(name: String, parent: XElement, before: List<String>): XElement {
-        parent.first(name)?.let { return it }
-        val element = XElement(name)
-        val elements = parent.elements
-        val index = elements.indexOfFirst { it.name in before }
-        if (index > 0) parent.insertAfter(element, elements[index - 1]) else parent.append(element)
-        return element
-    }
+    /** An entry's or a group's child [name], made where KeePass's schema has it when there is none. */
+    fun child(name: String, parent: XElement): XElement =
+        parent.first(name) ?: XElement(name).also { KdbxSchema.insert(it, parent) }
 
     fun setTime(name: String, time: Instant, times: XElement, iso: Boolean) {
         setText(name, if (iso) KdbxTime.iso(time) else KdbxTime.base64(time), times)

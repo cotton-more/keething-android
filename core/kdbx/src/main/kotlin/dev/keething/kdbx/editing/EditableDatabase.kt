@@ -5,7 +5,10 @@ import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxTemplate
+import dev.keething.kdbx.schema.KdbxSchema
+import dev.keething.kdbx.schema.SchemaViolation
 import dev.keething.kdbx.tree.XElement
+import dev.keething.kdbx.tree.XmlTree
 import dev.keething.kdbx.writer.KdbxWriter
 import dev.keething.kdbx.xml.KdbxDocument
 import java.time.Instant
@@ -26,6 +29,9 @@ public class EditableDatabase internal constructor(
     internal val binaryFlags: List<Byte>,
     internal val template: KdbxTemplate,
 ) {
+    /** What KeePass's schema does not allow in the file as it was read: kept, never a reason to refuse a save. */
+    private val schemaBefore: Set<SchemaViolation> = KdbxSchema.violations(root)
+
     /** Applies [edit] to the tree as KeePassXC would (SPEC §3.3); throws an [EditException] when it cannot. */
     public fun apply(edit: VaultEdit, now: Instant): AppliedEdit = when (edit) {
         is VaultEdit.Update -> {
@@ -48,15 +54,26 @@ public class EditableDatabase internal constructor(
 
     /**
      * Writes the file as the tree stands now. Attachments nothing refers to any more are dropped and identical
-     * ones stored once (as KeePassXC does); every reference must still mean the same bytes.
+     * ones stored once (as KeePassXC does); every reference must still mean the same bytes. A `PreviousParentGroup`
+     * out of the schema's order (an older Keething's) is moved to its place. Throws [EditException.BreaksFormat]
+     * when the file would have a schema violation it did not have when read ([KdbxSchema]).
      */
     public fun write(key: DatabaseKey): WrittenDatabase {
+        KdbxSchema.placePreviousParentGroups(root)
         val pool = AttachmentPool(binaries, binaryFlags)
         val referenced = pool.digests(root)
         pool.compact(root)
         if (pool.digests(root) != referenced) throw EditException.Malformed("attachments renumbered wrongly")
+        val broken = KdbxSchema.added(schemaBefore, KdbxSchema.violations(root))
+        if (broken.isNotEmpty()) throw EditException.BreaksFormat(broken.first().describe(more = broken.size - 1))
         return WrittenDatabase(KdbxWriter.write(root, pool.binaries, pool.flags, template, key), pool.binaries)
     }
+
+    /** What KeePass's schema does not allow in the tree as it stands ([KdbxSchema]): for the probe. */
+    public fun schemaViolations(): Set<SchemaViolation> = KdbxSchema.violations(root)
+
+    /** The XML as it stands, every protected value left empty: for checking it against `KDBX_XML.xsd` (the probe). */
+    public fun xmlWithoutSecrets(): ByteArray = XmlTree.withoutSecrets(root)
 
     /** Overwrites every secret: the tree's, the document's and the attachments. */
     public fun wipe() {

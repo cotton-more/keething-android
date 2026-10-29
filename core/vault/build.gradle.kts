@@ -9,14 +9,22 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.kotlinx.coroutines.test)
+    // Every file a test writes is checked against KeePass's KDBX_XML.xsd (core:kdbx SchemaCheck).
+    testImplementation(testFixtures(project(":core:kdbx")))
 }
 
-// The phone's writing tried on a copy of a real database (ROADMAP step 7): `tools/kdbx-probe.sh <copy.kdbx>`.
+tasks.withType<Test>().configureEach {
+    systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
+}
+
+// The phone's writing tried on a copy of a real database, KeePass's schema included: `tools/kdbx-probe.sh <copy.kdbx>`.
 tasks.register<JavaExec>("probe") {
     description = "Round trip and lifecycle on a copy of a database; the password on standard input"
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("dev.keething.vault.probe.KdbxProbeKt")
     standardInput = System.`in`
+    // KeePass's KDBX_XML.xsd, which every file the probe writes is checked against.
+    systemProperty("keething.fixtures", rootDir.resolve("fixtures").absolutePath)
     maxHeapSize = "2g"
     args(providers.gradleProperty("database").getOrElse(""))
 }

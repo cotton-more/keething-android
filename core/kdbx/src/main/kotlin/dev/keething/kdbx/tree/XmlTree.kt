@@ -4,6 +4,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.kdbx.crypto.ChaCha20
 import dev.keething.kdbx.reader.KdbxException
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
 import java.io.StringReader
@@ -60,6 +61,9 @@ internal object XmlTree {
         sink.ascii("\n")
         sink.flush()
     }
+
+    /** The document as UTF-8 with every protected value left empty (still marked protected): for the schema's checks. */
+    fun withoutSecrets(root: XElement): ByteArray = ByteArrayOutputStream().also { write(root, it) { "" } }.toByteArray()
 
     /** The secret's bytes XORed with [stream] (which moves on by their length), in base64. */
     fun seal(secret: Secret, stream: ChaCha20): String = secret.useBytes { bytes ->

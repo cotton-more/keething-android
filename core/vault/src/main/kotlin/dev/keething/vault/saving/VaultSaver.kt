@@ -96,8 +96,11 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 throw Refused(failure.toSaveFailure())
             }
             // Attachments nothing refers to any more are dropped; every reference must still mean the same bytes.
+            // Nothing KeePass's schema does not allow may be added (SPEC §3.3).
             val written = try {
                 editable.write(key)
+            } catch (failure: EditException.BreaksFormat) {
+                throw Refused(SaveFailure.BreaksFormat(failure.what))
             } catch (failure: EditException) {
                 throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
             }
@@ -157,6 +160,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         is EditException.EntryExists -> SaveFailure.VerificationFailed("the new entry's id is taken")
         is EditException.MalformedLinks -> SaveFailure.VerificationFailed("the recycle bin's groups point to each other in a circle")
         is EditException.Malformed -> SaveFailure.VerificationFailed(message ?: "malformed")
+        is EditException.BreaksFormat -> SaveFailure.BreaksFormat(what)
     }
 
     /** A save that wrote nothing, and why. */

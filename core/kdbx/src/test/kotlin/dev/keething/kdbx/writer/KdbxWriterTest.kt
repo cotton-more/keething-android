@@ -68,17 +68,6 @@ class KdbxWriterTest {
     }
 
     @Test
-    fun theVersionGoesFrom40To41OnlyWithPreviousParentGroup() {
-        val key = key()
-        val editable = KdbxReader.openForEditing(Fixtures.bytes("kdbx4-aes-argon2d.kdbx"), key)
-
-        assertEquals("4.0", KdbxReader.format(write(editable, key)).version)
-        val entry = editable.root.first("Root")!!.first("Group")!!.descendants().first { it.name == "Entry" }
-        entry.append(XElement("PreviousParentGroup", "AAAAAAAAAAAAAAAAAAAAAA=="))
-        assertEquals("4.1", KdbxReader.format(write(editable, key)).version)
-    }
-
-    @Test
     fun anUncompressedFileStaysUncompressed() {
         val key = key()
         val editable = KdbxReader.openForEditing(Fixtures.bytes("kdbx4-chacha20-argon2id.kdbx"), key)

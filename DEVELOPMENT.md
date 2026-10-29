@@ -87,8 +87,9 @@ Wireless debugging › "Pair device with pairing code"; the dialog must stay ope
     tools/kdbx-probe.sh <copy.kdbx>     # asks for the password; changes the copy, prints no values
 
 Reads and writes back the copy unchanged and compares KeePassXC's exports, then makes eight checked saves on it
-(a new entry, an edit, the recycle bin and back), and compares it with the original (SPEC §3.3). Always on a
-copy outside the Syncthing folder.
+(a new entry, an edit, the recycle bin and back), and compares it with the original (SPEC §3.3). The copy and
+every file it writes are checked against KeePass's `fixtures/KDBX_XML.xsd` and by the app's own check; none may
+add a violation. Always on a copy outside the Syncthing folder.
 
 ## The field types' former key renamed
 

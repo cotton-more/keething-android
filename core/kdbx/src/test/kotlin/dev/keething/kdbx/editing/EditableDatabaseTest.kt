@@ -38,12 +38,16 @@ class EditableDatabaseTest {
     fun aNewEntryIsExpectedInItsGroupWithTheGroupsCustomIcon() {
         val editable = open("kdbx4-aes-aeskdf")
         val group = document("kdbx4-aes-aeskdf").groups.single { it.name == "Web & Mail" }.uuid
-        EntryLifecycle.group(group, editable.root)!!.last().apply { insertAfter(XElement("CustomIconUUID", "ICON"), first("IconID")) }
+        val icon = "AAECAwQFBgcICQoLDA0ODw=="
+        val meta = editable.root.first("Meta")!!
+        val icons = meta.first("CustomIcons") ?: XElement("CustomIcons").also(meta::append)
+        icons.append(XElement("Icon").apply { append(XElement("UUID", icon)); append(XElement("Data", "iVBORw0KGgo=")) })
+        EntryLifecycle.group(group, editable.root)!!.last().apply { insertAfter(XElement("CustomIconUUID", icon), first("IconID")) }
         val id = Entry.newId()
 
         val applied = editable.apply(VaultEdit.Create(id, group, EntryChanges(title = "New", password = Secret.of("pw1"))), now)
 
-        assertEquals(AppliedEdit(expectedGroupId = group, customIconId = "ICON"), applied)
+        assertEquals(AppliedEdit(expectedGroupId = group, customIconId = icon), applied)
         val written = KdbxReader.open(editable.write(key).file, key).document
         assertEquals(protected("pw1"), written.entries.single { it.uuid == id }.field("Password"))
     }

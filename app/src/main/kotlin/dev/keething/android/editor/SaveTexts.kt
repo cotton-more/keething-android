@@ -17,6 +17,8 @@ internal fun SaveFailure.describe(file: File): String = when (this) {
         "This database has the recycle bin turned off. Nothing was deleted; delete the entry in KeePassXC or on the Mac."
     SaveFailure.WrongPlace -> "This entry was moved elsewhere (into or out of the recycle bin). Nothing was saved."
     is SaveFailure.VerificationFailed -> "The new file did not check out ($detail), so the database was not replaced."
+    is SaveFailure.BreaksFormat ->
+        "The change would leave the file in a form KeePass does not accept ($what), so the database was not replaced."
     SaveFailure.FileKeepsChanging -> "The database file keeps changing (a sync?). Nothing was saved; try again in a moment."
     is SaveFailure.WriteFailed -> "Could not write the database: $detail."
     SaveFailure.OutOfMemory -> "Not enough memory to write the database. Nothing was saved."

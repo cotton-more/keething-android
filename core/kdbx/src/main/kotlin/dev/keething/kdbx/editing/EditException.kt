@@ -20,6 +20,12 @@ public sealed class EditException(message: String) : Exception(message) {
     /** The recycle bin's `PreviousParentGroup` links go round in a circle. */
     public class MalformedLinks : EditException("previous groups in a circle")
 
+    /**
+     * The change would leave the file with something KeePass's schema does not allow that it did not have before:
+     * [what] says it as "an entry's PreviousParentGroup: out of order", never with a value.
+     */
+    public class BreaksFormat(public val what: String) : EditException("breaks the format: $what")
+
     /** The document lacks what every KeePass file has (`Meta`, the root group). */
     public class Malformed(detail: String) : EditException("malformed: $detail")
 }

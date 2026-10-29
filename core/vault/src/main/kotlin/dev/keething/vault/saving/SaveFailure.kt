@@ -26,6 +26,12 @@ public sealed interface SaveFailure {
     /** The written file did not read back as expected; nothing was replaced. */
     public data class VerificationFailed(val detail: String) : SaveFailure
 
+    /**
+     * The change would leave the file with something KeePass's own schema does not allow that it did not have
+     * before ([what], without values, e.g. "an entry's CustomIconUUID: no such custom icon"); nothing was replaced.
+     */
+    public data class BreaksFormat(val what: String) : SaveFailure
+
     /** The file changed on disk while saving, twice in a row. */
     public data object FileKeepsChanging : SaveFailure
 

@@ -12,6 +12,8 @@ import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
+import dev.keething.kdbx.schema.SchemaViolation
+import dev.keething.kdbx.schema.XsdValidator
 import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.saving.SaveResult
@@ -38,6 +40,8 @@ import org.w3c.dom.Node
  * 2. Lifecycle on the copy, each through the save path with its checks: a new entry, an edit of it, an edit of
  *    an existing entry (its notes), into the recycle bin and back, for both.
  * 3. The copy read again from scratch: every other entry and group as before; KeePassXC opens it.
+ * Throughout, KeePass's XML schema (SPEC §3.3): the copy, the file written back and every saved file checked against
+ * `KDBX_XML.xsd` (fixtures/) and by the app's own check, which none may add a violation to.
  */
 fun main(arguments: Array<String>) {
     val copy = File(arguments.singleOrNull() ?: fail("usage: KdbxProbe <copy.kdbx>"))
@@ -58,6 +62,8 @@ fun main(arguments: Array<String>) {
     }
     val attachments = (before.entries + before.recycleBin).sumOf { it.attachments.size }
     println("Vault:  ${before.entries.size} entries, ${before.groups.size} groups, recycle bin ${if (before.recycleBinEnabled) "on" else "OFF"} with ${before.recycleBin.size}, $attachments attachments")
+
+    schemaBefore = checkSchema(bytes, key, "the database")
 
     roundTrip(copy, bytes, key, password)
     lifecycle(store, key, before)
@@ -87,6 +93,7 @@ private fun roundTrip(copy: File, bytes: ByteArray, key: DatabaseKey, password: 
     reread.binaries.forEach(Secret::wipe)
     written.binaries.forEach(Secret::wipe)
     if (!sameBinaries) fail("RESULT: attachments differ")
+    if (!keepsSchema(written.file, key, "the file written back")) fail("RESULT: the file written back breaks KeePass's schema")
     val out = File(copy.parentFile, "roundtrip.kdbx")
     out.writeBytes(written.file)
     try {
@@ -124,6 +131,7 @@ private fun lifecycle(store: FileStore, key: DatabaseKey, start: Vault) {
                 total += elapsed.inWholeMilliseconds / 1000.0
                 saves++
                 println("  $name: saved and checked in $elapsed")
+                if (!keepsSchema(store.read().let { (it as DatabaseRead.Found).bytes }, key, name)) fail("RESULT: $name breaks KeePass's schema")
             }
             is SaveResult.Failed -> fail("  $name: NOT saved: ${result.failure}")
         }
@@ -165,6 +173,47 @@ private fun lifecycle(store: FileStore, key: DatabaseKey, start: Vault) {
     step("new into the bin again") { VaultEdit.MoveToRecycleBin(probeId, entry(probeId).lastModified) }
     println("Saving: %.2f s on average over %d saves (read, apply, write, read back, check, replace)".format(total / saves, saves))
     vault.wipe()
+}
+
+private var schemaBefore: SchemaCheckResult? = null
+
+/** What KeePass's schema says of a file: valid by `KDBX_XML.xsd`, and the app's own violations. */
+private class SchemaCheckResult(val valid: Boolean, val own: Set<SchemaViolation>)
+
+/**
+ * The file checked against `KDBX_XML.xsd` and by the app's own check, with how long that takes. The validator's
+ * messages quote values: only their line and error code are printed.
+ */
+private fun checkSchema(bytes: ByteArray, key: DatabaseKey, label: String): SchemaCheckResult {
+    val editable = KdbxReader.openForEditing(bytes, key)
+    val xml = editable.xmlWithoutSecrets()
+    try {
+        val errors = XsdValidator.errors(xml)
+        val started = TimeSource.Monotonic.markNow()
+        val own = editable.schemaViolations()
+        val took = started.elapsedNow()
+        println(
+            "Schema: $label: KDBX_XML.xsd ${if (errors.isEmpty()) "valid" else "${errors.size} errors"}, " +
+                "the app's check ${if (own.isEmpty()) "valid" else "${own.size} violations"} ($took)",
+        )
+        // "line 12: cvc-datatype-valid.1.2.1: '…' is not …": the line and the code, never the value.
+        errors.take(20).forEach { println("  xsd: ${it.split(": ").take(2).joinToString(": ")}") }
+        own.sorted().take(20).forEach { println("  own: $it") }
+        if (errors.isEmpty() != own.isEmpty()) println("  the two DISAGREE")
+        return SchemaCheckResult(errors.isEmpty(), own)
+    } finally {
+        xml.fill(0)
+        editable.wipe()
+    }
+}
+
+/** A written file adds nothing to what the database had, as a save requires. */
+private fun keepsSchema(bytes: ByteArray, key: DatabaseKey, label: String): Boolean {
+    val before = schemaBefore ?: return false
+    val now = checkSchema(bytes, key, label)
+    val added = (now.own - before.own).sorted()
+    added.forEach { println("  NEW: $it") }
+    return added.isEmpty() && (now.valid || !before.valid)
 }
 
 /** The copy read again against the original: only the probe's entry and the existing entry's notes changed. */

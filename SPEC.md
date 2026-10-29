@@ -84,7 +84,7 @@ core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attach
 core/totp     one-time codes: Base32, otpauth links, KeePassXC's formats, code generation   → domain
 core/search   search rules, ranking, site matching with the public suffix list (a resource,
               `tools/update-public-suffix-list.sh`)                                       → domain
-core/kdbx     the KDBX 4 file format: crypto, reader, writer, XML tree                    → domain
+core/kdbx     the KDBX 4 file format: crypto, reader, writer, XML tree, KeePass's schema   → domain
 core/vault    application layer: open, edit, save with the checks, the lock / unlock /
               auto-lock state machine, the fingerprint unlock's rules    → domain, kdbx, totp
 core/autofill autofill's rules: what a field asks for, the target, the matching entries (§7)
@@ -219,16 +219,27 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    nothing is saved, the vault reloads. Other entries changed elsewhere are kept.
 3. Apply the change as KeePassXC does: the old version into `History`, trimmed to `HistoryMaxItems`; a new
    entry with KeePassXC's elements and its group's own icon; the recycle bin made as KeePassXC makes it when
-   there is none (the file then becomes KDBX 4.1, for `PreviousParentGroup`); a restored entry into the group
-   it came from, the root group when that is gone, and an entry recycled with its group into that group's
-   place, the group made again there by name (as on the Mac).
+   there is none; an entry moved remembers its group in `PreviousParentGroup`, before `Times` as KeePass's schema
+   has it (after `Tags` or whichever of `UUID`, `IconID`, `CustomIconUUID`, `ForegroundColor`, `BackgroundColor`,
+   `OverrideURL`, `QualityCheck` the entry has; new `Tags` and a missing `Times` go where the schema has them too);
+   a restored entry into the group it came from, the root group when that is gone, and an entry recycled with
+   its group into that group's place, the group made again there by name (as on the Mac).
 4. Write: same format, new master seed / IV / inner stream key; the KDF parameters and salt kept, so the key
    in memory writes it and a save derives nothing; attachments nothing refers to dropped, identical ones
-   stored once, `Ref`s renumbered, every reference still meaning the same bytes.
-5. **Check before replacing**: open the new bytes with the built-in reader; every other entry and group
-   exactly as before, the changed entry exactly as asked, every attachment byte for byte. "Before" is the
-   reader's own reading of the same decrypted XML the tree was made from, so a fault in the tree shows as a
-   difference.
+   stored once, `Ref`s renumbered, every reference still meaning the same bytes. A `PreviousParentGroup` out of
+   the schema's order (Keething put an entry's after `Times` until 2026-10, the Mac and this app alike) is moved
+   to its place by any save, in histories too. The version: raised from 4.0 to 4.1 only when the document holds
+   what only 4.1 has (keepass.info/help/kb/kdbx_4.1.html): a `PreviousParentGroup` (KeePassXC raises the version
+   for it too; the schema lists it as 4.1, though KeePass 2.48+ does not raise for it alone), an entry's
+   `QualityCheck`, a group's `Tags`, a custom icon's `Name` or `LastModificationTime`, a `CustomData` item's
+   `LastModificationTime`; empty ones and a null UUID count as none. Of these the app itself writes only
+   `PreviousParentGroup` (the recycle bin). Never lowered; asked nothing, the 4.0 file stays in the backup.
+   KeePass reads 4.1 from 2.48 (May 2021).
+5. **Check before replacing**: nothing KeePass's XML schema does not allow may be added (below; a violation
+   the file already had is kept and no reason to refuse); open the new bytes with the built-in reader; every
+   other entry and group exactly as before, the changed entry exactly as asked, every attachment byte for byte.
+   "Before" is the reader's own reading of the same decrypted XML the tree was made from, so a fault in the tree
+   shows as a difference.
 6. If the file on disk changed meanwhile (byte for byte), do it all again on the new file (once more, then
    fail).
 7. Back up the old file into app-private storage (`filesDir/backups`, `<name> <local date and time>.kdbx`,
@@ -251,6 +262,47 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    10 s), sets that time on the phone's file and its content is never sent. Fixed in Syncthing 2.1.7 (a
    release candidate in October 2026); both phones run 2.1.3, so Syncthing-Fork is to be updated when it
    ships. Nothing the app can do; it needs a change that touches only the time, which KeePassXC never makes.
+
+**KeePass's XML schema** (keething-spec `kdbx.keepass-schema`; Mac SPEC §3.16). A file Keething writes must open
+in the official KeePass 2.x, not only in KeePassXC, which is more lenient; the hashes and HMACs say nothing about
+the XML inside. KeePass publishes the XML's schema, `KDBX_XML.xsd` ("KDBX 4.1 XML Schema",
+keepass.info/help/download/KDBX_XML.xsd, linked from keepass.info/help/kb/kdbx.html, which gives no other check).
+`KdbxSchema` (core/kdbx) is that schema written out in Kotlin, the same checker as the Mac's `KDBXSchema`: what
+each element may hold and in what order (`TEntry`, `TGroup` and the others are sequences, `TMeta`, `TTimes` sets),
+attributes, value formats (`True`/`False` and the group's `True`/`False`/`Null` in either case, 16-byte base64
+UUIDs, base64 or ISO times, `#RRGGBB` upper case or empty, numbers in range), UUIDs used once (`KUuid`: custom
+icons, groups and entries, not the versions in a history) and custom icons that exist (`RCustomIcon`). A violation
+has a place (`entry <UUID>` — its history versions count as the entry, so a version copied into the history adds
+nothing —, `group <UUID>`, `Meta`, `Root`, `UUID <UUID>`) and a problem, never a value. `EditableDatabase` checks
+the whole document as read and again right before writing; a violation it did not have refuses the save
+(`SaveFailure.BreaksFormat`: "The change would leave the file in a form KeePass does not accept (an entry's
+CustomIconUUID: no such custom icon), so the database was not replaced."). A pass takes about 0.06–0.12 s on the
+Mac's JVM for 56–70 MiB of XML (the fictitious demo, 1,896 entries, given 8–10 versions of 30 more fields each),
+0.02 s for the demo as it is. On the test phone (Pixel 6, release build, 2026-10-29) a save of that 56 MiB file
+(into the bin, and back with Undo) took 9.3–9.5 s against 8.9–9.1 s before: both passes cost about 0.4 s there. A
+save on the phone in `autofill.kdbx` (two entries with an older Keething's `PreviousParentGroup` after `Times`)
+wrote a file valid by `KDBX_XML.xsd` and by `KdbxSchema` (pulled with adb and checked on the Mac). The full schema
+is not validated in the app: users' files hold what it does not
+know (plugins, older apps), and Android has no XSD validator. As on the Mac, the checker is as strict as libxml2
+2.9: no blanks around numbers, digits only for the unsigned ones, no blank inside base64's padding — where the
+JDK's validator is more lenient.
+
+**The tests hold every file to the schema itself**: `fixtures/KDBX_XML.xsd` is the official file as published
+(its source, date and SHA-256 beside it in `KDBX_XML.source.txt`); the JDK's validator, like libxml2, refuses its
+colour pattern's .NET escape `\u0023`, so the tests compile a copy with `#` in its place, and updating the schema
+stays a plain download. Every document any test in core/kdbx and core/vault writes is validated against it by the
+JDK (`javax.xml.validation`) and checked by `KdbxSchema` (core/kdbx's test fixtures: `SchemaCheck`, a JUnit
+extension found through its service file; the writer tells it of every document through `WrittenDocuments`,
+set by the tests only): a file the schema refuses fails the test that wrote it (unless it writes one on purpose,
+`SchemaCheck.allowViolations`), and the two must agree on every file, valid or not — so the app's check misses
+nothing the schema catches. One gap of the JDK's validator: it misses duplicate entry UUIDs (the `.//Group/Entry`
+part of `KUuid`'s selector; libxml2 finds them, groups and icons it finds too); `KdbxSchema` finds them.
+`tools/kdbx-probe.sh` does the same for a copy of a real database: the copy, the file written back and every file
+its saves write (the validator's messages quote values: only their line and code are printed). On copies of the
+test folder's fictitious databases it found what an older Keething wrote — `demo-kdf.kdbx` with one entry's
+`PreviousParentGroup` after `Times`, `autofill.kdbx` with two —, and the file written back was valid by both.
+**Not checked**: KeePass 2.x itself opening the files (KPScript under Mono, before a release; keething-spec
+`kdbx.keepass-schema` AC6).
 
 The session saves one change at a time with the key in memory (`VaultSession.save`); the vault is then the
 written file as read back, and the app's own write is not read again. Refused because the entry changed or went
@@ -934,7 +986,7 @@ that time. A donation link, if any, comes only with the Play release.
 
 `fixtures/` holds fictitious databases copied from the Mac project (password `pw`): KDBX 4 with AES + AES-KDF,
 AES + Argon2d, ChaCha20 + Argon2id, a KDBX 3 one (must be refused as unsupported), `kdbx4-export.xml` (keepassxc-cli's XML export of
-another fictitious database: two entries with attachments; KDBX 4 exports carry no `Meta/Binaries`) and `sample.xml` (hand-made, the real structure). The core's tests use them
+another fictitious database: two entries with attachments; KDBX 4 exports carry no `Meta/Binaries`), `sample.xml` (hand-made, the real structure) and KeePass's `KDBX_XML.xsd` as published (§3.3). The core's tests use them
 the way the Mac tests do (an export's `Meta/Binaries` are not read: KDBX 4 keeps attachments in the file's
 inner header). Never use the real database in tests.
 
