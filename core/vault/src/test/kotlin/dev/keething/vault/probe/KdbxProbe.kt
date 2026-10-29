@@ -46,7 +46,7 @@ import org.w3c.dom.Node
 fun main(arguments: Array<String>) {
     val copy = File(arguments.singleOrNull() ?: fail("usage: KdbxProbe <copy.kdbx>"))
     val password = readPasswordLine()
-    val key = DatabaseKey.fromPassword(password)
+    val key = DatabaseKey.of(password)
     val bytes = copy.readBytes()
     val format = KdbxReader.format(bytes)
     println("File:   ${bytes.size / 1024} KiB, $format")
@@ -69,7 +69,7 @@ fun main(arguments: Array<String>) {
     lifecycle(store, key, before)
 
     // From scratch: a new key, as the next unlock would read it.
-    val fresh = DatabaseKey.fromPassword(password.copy())
+    val fresh = DatabaseKey.of(password.copy())
     val after = (VaultOpener().open(store, fresh) as? OpenResult.Opened)?.opened?.vault ?: fail("The copy no longer opens")
     compare(before, after)
     val cli = KeePassXc.export(copy, password) ?: fail("RESULT: KeePassXC cannot open the copy")

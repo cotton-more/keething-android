@@ -59,14 +59,18 @@ Writing comes after them (ROADMAP step 7) and must be done before a Google Play 
   (a password without an entry, copied).
 
 Non-goals (v1): SSH agent, e-mail aliases,
-reports (but Groups & tags, without its changes), restoring a version from the history, key file / YubiKey, KDBX 3, Twofish, merging conflicting copies (detected and shown
-only, §3.4), deleting entries for good / emptying the recycle bin, adding / removing / renaming
+reports (but Groups & tags, without its changes), restoring a version from the history, YubiKey, Twofish, deleting entries for good / emptying the recycle bin, adding / removing / renaming
 attachments, reordering custom fields, a Quick Settings tile, a one-time code pinned to the notification
 shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
 foreground service for little gain), an entry pinned to the notification shade with Copy username / password /
 code (dropped 2026-10-22: doable without a service, but it saves only a switch back to the app, whose card
 stays open until the lock, autofill covers most logins, and it needs the notification permission; worth it
 only for frequent copying into apps autofill does not reach), Google Play (§8.1).
+
+Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
+databases, key files (the core is in, §4; choosing one comes with the list of databases), creating a database, KDBX
+3.1 (refused until then), moving entries between groups, merging conflicting copies (detected and shown only until
+then, §3.4).
 
 ## 2. Architecture
 
@@ -359,12 +363,38 @@ decrypted content, the tree, the new file and its reading back at once.
 ## 4. Session and security
 
 - Unlocked state holds the vault, the attachments and the **database key** in memory, as byte arrays that
-  are wiped on lock. The database key is the password's composite key (SHA-256 of its SHA-256: the password
-  itself is not kept) and the key derived from it. Using the derived key for reloads and saves avoids running
+  are wiped on lock. The database key is the composite key of the password, a key file's key or both (below: the
+  parts themselves are not kept) and the key derived from it. Using the derived key for reloads and saves avoids running
   Argon2 again (the Mac ROADMAP's "faster saving"); it is derived again when the file's KDF parameters or
   seed changed. The app's own saves keep the KDF salt; KeePassXC gives the file a new one on every save (checked
   on 2026-10-23 with keepassxc-cli 2.7.12: a new salt after each of two saves), so the first reload after a
   KeePassXC edit derives the key again.
+- **The key** (keething-spec kdbx.key-files; `core/kdbx` `DatabaseKey.of`): as KeePass and KeePassXC make it,
+  SHA-256 over the parts' keys in order — SHA-256(password), then the key file's 32 bytes. Password only:
+  SHA-256(SHA-256(pw)); key file only: SHA-256(key32); an empty password is a password (SHA-256(SHA-256("") ‖
+  key32) is another key).
+- **Key files** (`core/kdbx` `KeyFile`): read as KeePassXC's `FileKey.cpp` reads them, in this order: XML whose
+  root is `KeyFile` — `Meta/Version` 1.0 `Key/Data` in base64, 2.0 (`.keyx`) in hex, either case, whitespace
+  anywhere, its `Hash` (the first 4 bytes of the key's SHA-256) checked when there; exactly 32 bytes, the key as
+  it is; exactly 64 hex digits, the key in hex; anything else, the SHA-256 of the whole file. A file is tried as
+  XML when its first byte after a byte order mark and blanks is `<`; XML that does not parse or has another root
+  goes on to the next rules. A `KeyFile` XML that fails (another version, no `Key/Data`, not base64 or hex, not 32
+  bytes, a wrong `Hash`) is an error, never hashed instead; so is an empty file. The XML is parsed as the
+  database's is: a DOCTYPE is refused, so a key file with one is hashed (KeePassXC would read it as XML; no key
+  file written by KeePass or KeePassXC has one).
+- The session reads the key file through a port (`KeyFileSource`) at every unlock, never at a reload or a save,
+  and wipes the bytes read once the key is made; the parts go into the composite at once. A key file that is not
+  there or cannot be used fails the unlock before the database is read, by its name or the reason ("The key file
+  work.keyx is not there.", "The key file cannot be used: a key file whose key does not match its checksum
+  (changed or damaged).", "… Keething may not read work.keyx (allow all-files access)."). With a key file and nothing typed it tries the key file alone, then once the empty
+  password with it, as one Unlocking; both rejected are said as the key file alone rejected, and a failure that
+  is not a wrong key (the file missing, damaged) is not tried twice. A rejected key says what was given: a
+  password alone "Wrong password — or this database needs a key file." (the file cannot tell which, so every
+  database says it), a password and a key file "Wrong password or key file.", a key file alone "This key file
+  does not open the database (or it needs a password too)." A stored password (§5) rejected while the database
+  has a key file, or with the key file missing, is kept: the key file may be the wrong part. Not in the app yet:
+  a way to choose a database's key file (keething-spec `plans/android-databases.md` AD4); until then no database
+  has one.
 - Unlock time, measured on the test phone (Pixel 6, Android 17, release build) with a fictitious database
   of 1,895 entries (165 KB) and the owner's real KDF parameters (Argon2d, 64 MiB, 42 iterations,
   parallelism 2): 2.4 s for the first unlock in a process, 2.3 s once warm; the key derivation alone is
@@ -563,8 +593,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   is set up (§5), its large button with "Touch to unlock" and "or type the password" above the field; the
   field then does not open the keyboard by itself, and typing hides the button. While it is off, a "Use
   fingerprint next time" switch under the field turns it on, so the password typed then sets it up. When the
-  password is due (§5) the button is not there and the reason chip says so. A wrong password shakes the
-  field. The first list after an unlock says how long the key derivation took. On a screen less than 480 dp high
+  password is due (§5) the button is not there and the reason chip says so. A wrong password (or key file,
+  §4) shakes the field. The first list after an unlock says how long the key derivation took. On a screen less than 480 dp high
   (a phone in landscape) the logo, name and database are on the left and the field on the right; with the keyboard
   up only the database's line stays beside the field.
 - **List**: search results (empty query: recently used, then all by title); a row = title, username,
@@ -1006,7 +1036,11 @@ that time. A donation link, if any, comes only with the Play release.
 AES + Argon2d, ChaCha20 + Argon2id, a KDBX 3 one (must be refused as unsupported), `kdbx4-export.xml` (keepassxc-cli's XML export of
 another fictitious database: two entries with attachments; KDBX 4 exports carry no `Meta/Binaries`), `sample.xml` (hand-made, the real structure) and KeePass's `KDBX_XML.xsd` as published (§3.3). The core's tests use them
 the way the Mac tests do (an export's `Meta/Binaries` are not read: KDBX 4 keeps attachments in the file's
-inner header). Never use the real database in tests.
+inner header). `fixtures/keyfiles/` (the Mac's `Fixtures/keyfiles`, made by keepassxc-cli 2.7.12 from
+`kdbx4-aes-argon2d.kdbx`): `keyfile-keyx.kdbx` (`pw` + `keyx.keyx`, XML 2.0), `keyfile-v1.kdbx` (`pw` + `v1.key`, XML
+1.0), `keyfile-raw32.kdbx` (`pw` + `raw32.key`, 32 bytes), `keyfile-hex64.kdbx` (`pw` + `hex64.key`, 64 hex digits),
+`keyfile-hashed.kdbx` (`pw` + `hashed.txt`, hashed), `keyfile-only.kdbx` (`keyx.keyx` alone); every key and composite
+key is in keething-spec `features/kdbx.key-files.md`. Never use the real database in tests.
 
 ## 10. Sharing entries
 

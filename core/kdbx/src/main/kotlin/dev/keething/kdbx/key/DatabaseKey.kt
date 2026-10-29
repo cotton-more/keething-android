@@ -4,10 +4,10 @@ import dev.keething.domain.secret.Secret
 import java.security.MessageDigest
 
 /**
- * What opens the database (password only: no key file, no hardware key). It keeps the password's composite
- * key, not the password, and the key derived from it for the last file's KDF parameters: a reload of a file
- * with the same parameters needs no second Argon2 run (SPEC §4). A file with a new salt or new costs is
- * derived again. [wipe] on lock.
+ * What opens the database: a password, a key file's key, or both (no hardware key). It keeps their composite key,
+ * not the parts, and the key derived from it for the last file's KDF parameters: a reload of a file with the same
+ * parameters needs no second Argon2 run (SPEC §4). A file with a new salt or new costs is derived again. [wipe] on
+ * lock.
  */
 public class DatabaseKey private constructor(private val composite: ByteArray) {
     private var derivedFor: ByteArray? = null
@@ -44,15 +44,26 @@ public class DatabaseKey private constructor(private val composite: ByteArray) {
         wiped = true
     }
 
+    /** A copy of the composite key, for the tests' vectors. */
+    internal fun compositeForTests(): ByteArray = synchronized(this) { composite.copyOf() }
+
     public companion object {
-        /** A password-only composite key: SHA-256 of the password's SHA-256. */
-        public fun fromPassword(password: Secret): DatabaseKey {
-            val inner = password.useBytes { MessageDigest.getInstance("SHA-256").digest(it) }
-            try {
-                return DatabaseKey(MessageDigest.getInstance("SHA-256").digest(inner))
-            } finally {
+        /**
+         * The composite key as KeePass and KeePassXC make it (keething-spec kdbx.key-files AC6): SHA-256 over the
+         * parts' keys in order — SHA-256([password]), then the [keyFile]'s 32 bytes ([KeyFile.key]). At least one
+         * of the two; an empty password is a password. The parts stay the caller's to wipe.
+         */
+        public fun of(password: Secret?, keyFile: Secret? = null): DatabaseKey {
+            require(password != null || keyFile != null) { "a key needs a password or a key file" }
+            require(keyFile == null || keyFile.size == 32) { "a key file's key is 32 bytes" }
+            val parts = MessageDigest.getInstance("SHA-256")
+            password?.useBytes { bytes ->
+                val inner = MessageDigest.getInstance("SHA-256").digest(bytes)
+                parts.update(inner)
                 inner.fill(0)
             }
+            keyFile?.useBytes { parts.update(it) }
+            return DatabaseKey(parts.digest())
         }
     }
 }

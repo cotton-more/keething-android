@@ -13,7 +13,7 @@ import dev.keething.kdbx.xml.KdbxField
 
 /** Opening the fixtures for editing, writing them and reading them back (password `pw`). */
 internal object EditingFixtures {
-    val key: DatabaseKey = DatabaseKey.fromPassword(Secret.of(Fixtures.PASSWORD))
+    val key: DatabaseKey = DatabaseKey.of(Secret.of(Fixtures.PASSWORD))
 
     fun open(name: String): EditableDatabase = KdbxReader.openForEditing(Fixtures.bytes("$name.kdbx"), key)
 

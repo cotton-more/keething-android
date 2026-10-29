@@ -16,10 +16,10 @@ internal object KeePassXcCli {
         val text: String get() = out.decodeToString()
     }
 
-    /** Runs it with the fixtures' password on standard input. */
-    fun run(vararg arguments: String): Result {
+    /** Runs it with [input] on standard input: the fixtures' password unless said otherwise. */
+    fun run(vararg arguments: String, input: String = "${Fixtures.PASSWORD}\n"): Result {
         val process = ProcessBuilder(listOf(executable.path) + arguments).start()
-        process.outputStream.use { it.write("${Fixtures.PASSWORD}\n".encodeToByteArray()) }
+        process.outputStream.use { it.write(input.encodeToByteArray()) }
         val out = process.inputStream.use { it.readBytes() }
         val err = process.errorStream.use { it.readBytes() }.decodeToString()
         check(process.waitFor(60, TimeUnit.SECONDS)) { "keepassxc-cli did not finish" }

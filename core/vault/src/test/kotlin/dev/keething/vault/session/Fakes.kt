@@ -4,6 +4,8 @@ import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
+import dev.keething.domain.storage.KeyFileRead
+import dev.keething.domain.storage.KeyFileSource
 import dev.keething.domain.time.Clock
 import java.io.File
 import java.io.IOException
@@ -84,5 +86,22 @@ internal class FakeClock(private val scheduler: TestCoroutineScheduler) : Clock 
 
     fun sleep(duration: Duration) {
         slept += duration
+    }
+}
+
+internal fun keyFileBytes(name: String): ByteArray = File(System.getProperty("keething.fixtures"), "keyfiles/$name").readBytes()
+
+/** A key file in memory ([content] null: not there); counts its reads and keeps what each handed out. */
+internal open class FakeKeyFile(var content: ByteArray?, override val fileName: String = "work.keyx") : KeyFileSource {
+    var denied = false
+    val handedOut = mutableListOf<ByteArray>()
+    val reads: Int get() = handedOut.size + misses
+    private var misses = 0
+
+    override fun read(): KeyFileRead {
+        if (denied) return KeyFileRead.AccessDenied.also { misses++ }
+        val bytes = content?.copyOf() ?: return KeyFileRead.Missing.also { misses++ }
+        handedOut += bytes
+        return KeyFileRead.Found(bytes)
     }
 }

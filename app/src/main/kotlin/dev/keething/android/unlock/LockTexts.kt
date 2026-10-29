@@ -37,7 +37,12 @@ internal fun passwordDueNotice(days: Int): LockNotice =
     LockNotice("It has been $days days: type the master password, so it is not forgotten.", isProblem = false)
 
 internal fun OpenFailure.describe(file: File): String = when (this) {
-    OpenFailure.WrongPassword -> "Wrong password."
+    // The file cannot tell a typo from a missing key file (keething-spec unlock.key-file AC4).
+    OpenFailure.WrongPassword -> "Wrong password — or this database needs a key file."
+    OpenFailure.WrongPasswordOrKeyFile -> "Wrong password or key file."
+    OpenFailure.WrongKeyFile -> "This key file does not open the database (or it needs a password too)."
+    is OpenFailure.KeyFileMissing -> "The key file $name is not there."
+    is OpenFailure.KeyFileUnusable -> "The key file cannot be used: $why."
     OpenFailure.Missing -> "There is no database at ${file.path}. Syncthing may be replacing it: try again in a moment."
     OpenFailure.AccessDenied -> "Keething may not read the file: allow all-files access."
     is OpenFailure.Unsupported -> "This database cannot be opened: $what."

@@ -32,7 +32,7 @@ class KdbxWriterTest {
         folder.deleteRecursively()
     }
 
-    private fun key() = DatabaseKey.fromPassword(Secret.of(Fixtures.PASSWORD))
+    private fun key() = DatabaseKey.of(Secret.of(Fixtures.PASSWORD))
 
     private fun write(editable: EditableDatabase, key: DatabaseKey, template: KdbxTemplate = editable.template): ByteArray =
         KdbxWriter.write(editable.root, editable.binaries, editable.binaryFlags, template, key)

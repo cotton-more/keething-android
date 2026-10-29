@@ -144,6 +144,10 @@ internal class Sessions(
             LockReason.PasswordChanged -> "password changed"
             is LockReason.UnlockFailed -> "unlock failed, " + when (val failure = reason.failure) {
                 OpenFailure.WrongPassword -> "wrong password"
+                OpenFailure.WrongPasswordOrKeyFile -> "wrong password or key file"
+                OpenFailure.WrongKeyFile -> "wrong key file"
+                is OpenFailure.KeyFileMissing -> "key file missing"
+                is OpenFailure.KeyFileUnusable -> "key file unusable: ${failure.why}"
                 OpenFailure.Missing -> "missing"
                 OpenFailure.AccessDenied -> "access denied"
                 is OpenFailure.Unsupported -> "unsupported"

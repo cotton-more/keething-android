@@ -5,10 +5,14 @@ import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
+import dev.keething.domain.storage.KeyFileRead
+import dev.keething.domain.storage.KeyFileSource
 import dev.keething.domain.time.Clock
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.key.KeyFile
+import dev.keething.kdbx.key.KeyFileException
 import dev.keething.vault.opening.AttachmentContents
 import dev.keething.vault.opening.HistoryResult
 import dev.keething.vault.opening.OpenFailure
@@ -17,6 +21,7 @@ import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.saving.SaveFailure
 import dev.keething.vault.saving.SaveResult
 import dev.keething.vault.saving.VaultSaver
+import java.io.IOException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
@@ -36,8 +41,9 @@ import kotlinx.coroutines.withContext
 /**
  * The lock / unlock / reload lifecycle of the vault (SPEC §3.2, §4; Mac `VaultSession`).
  *
- * While unlocked it holds the vault, its attachments and the database key, and wipes them all on lock. It
- * watches the database's folder and reads the file again when it changed, with the key in memory.
+ * While unlocked it holds the vault, its attachments and the database key (of the password, the key file, or both),
+ * and wipes them all on lock. It watches the database's folder and reads the file again when it changed, with the
+ * key in memory.
  *
  * Call it from [scope]'s thread (the main thread); file reads and the key derivation run on [io]. A read
  * in progress is never cancelled (the key derivation cannot stop halfway): a lock makes its result be
@@ -59,6 +65,8 @@ public class VaultSession(
     /** How long a missing file is waited for: Syncthing in the middle of a replace (SPEC §3.2). */
     private val missingPatience: Duration = 10.seconds,
     private val missingRetry: Duration = 1.seconds,
+    /** The database's key file, null for none: asked for at every unlock and read then, never at a reload. */
+    private val keyFile: () -> KeyFileSource? = { null },
 ) {
     private val mutableState = MutableStateFlow<SessionState>(SessionState.Locked(LockReason.Initial))
     public val state: StateFlow<SessionState> = mutableState.asStateFlow()
@@ -93,41 +101,118 @@ public class VaultSession(
     private var backgroundSince: Duration? = null
 
     /**
-     * Opens the vault with [password]; the caller may wipe its own copy as soon as this returns. The result
-     * tells how this unlock ended once it has; null when the vault was not locked.
+     * Opens the vault with [password] and the database's key file, when it has one (keething-spec kdbx.key-files):
+     * the key file is read now, and a missing or unusable one fails the unlock before the database is read. Nothing
+     * typed with a key file: the key file alone, then once the empty password with it, as one Unlocking (KeePassXC
+     * does the same: the file cannot say which it has). The caller may wipe its own [password] as soon as this
+     * returns. The result tells how this unlock ended once it has; null when the vault was not locked.
      */
     public fun unlock(password: Secret): Deferred<UnlockOutcome>? {
         if (mutableState.value !is SessionState.Locked) return null
         val token = generation
-        val attempt = DatabaseKey.fromPassword(password)
+        val typed = password.copy()
+        val source = keyFile()
         mutableState.value = SessionState.Unlocking
         val outcome = CompletableDeferred<UnlockOutcome>()
         scope.launch {
+            val waiting = ArrayDeque<Attempt>()
             try {
-                val result = open(attempt)
-                val copies = conflictCopies()
-                if (token != generation) {
-                    discard(result, attempt)
-                    return@launch
+                val noKeys = try {
+                    withContext(io) { attempts(typed, source, waiting) }
+                } finally {
+                    typed.wipe()
                 }
-                when (result) {
-                    is OpenResult.Opened -> {
-                        key = attempt
-                        adopt(result, copies)
-                        watch = store.watch { scope.launch { fileChanged() } }
-                        outcome.complete(UnlockOutcome.Opened)
-                    }
-                    is OpenResult.Failed -> {
-                        attempt.wipe()
-                        mutableState.value = SessionState.Locked(LockReason.UnlockFailed(result.failure))
-                        outcome.complete(UnlockOutcome.Failed(result.failure))
-                    }
-                }
+                val failure = noKeys ?: tryInTurn(waiting, token, outcome) ?: return@launch
+                if (token != generation) return@launch
+                mutableState.value = SessionState.Locked(LockReason.UnlockFailed(failure))
+                outcome.complete(UnlockOutcome.Failed(failure))
             } finally {
+                waiting.forEach { it.key.wipe() }
                 outcome.complete(UnlockOutcome.Interrupted)
             }
         }
         return outcome
+    }
+
+    /** A key to try, and what its rejection is called (it names what was given). */
+    private class Attempt(val key: DatabaseKey, val rejected: OpenFailure)
+
+    /**
+     * Puts the keys to try for [typed] with [source]'s key file, read now, into [waiting] (whoever holds it wipes
+     * them); or says why there are none. Blocks.
+     */
+    private fun attempts(typed: Secret, source: KeyFileSource?, waiting: ArrayDeque<Attempt>): OpenFailure? {
+        if (source == null) {
+            waiting += Attempt(DatabaseKey.of(typed), OpenFailure.WrongPassword)
+            return null
+        }
+        val read = try {
+            source.read()
+        } catch (_: IOException) {
+            return OpenFailure.KeyFileUnusable("${source.fileName} could not be read")
+        } catch (_: OutOfMemoryError) {
+            return OpenFailure.KeyFileUnusable("${source.fileName} is too large to read")
+        }
+        val bytes = when (read) {
+            is KeyFileRead.Found -> read.bytes
+            KeyFileRead.Missing -> return OpenFailure.KeyFileMissing(source.fileName)
+            KeyFileRead.AccessDenied -> return OpenFailure.KeyFileUnusable("Keething may not read ${source.fileName} (allow all-files access)")
+        }
+        val fileKey = try {
+            KeyFile.key(bytes)
+        } catch (failure: KeyFileException) {
+            return OpenFailure.KeyFileUnusable(failure.reason())
+        } finally {
+            bytes.fill(0)
+        }
+        try {
+            if (typed.isEmpty()) {
+                waiting += Attempt(DatabaseKey.of(null, fileKey), OpenFailure.WrongKeyFile)
+                waiting += Attempt(DatabaseKey.of(typed, fileKey), OpenFailure.WrongKeyFile)
+            } else {
+                waiting += Attempt(DatabaseKey.of(typed, fileKey), OpenFailure.WrongPasswordOrKeyFile)
+            }
+        } finally {
+            fileKey.wipe()
+        }
+        return null
+    }
+
+    /**
+     * Opens the file with each key of [waiting] in turn while the database rejects them; the first one that opens it
+     * becomes the session's. Null when it opened, or when a lock came first (the outcome is complete then); else
+     * what the first rejection is called, or the failure that was not a wrong key (not tried again).
+     */
+    private suspend fun tryInTurn(waiting: ArrayDeque<Attempt>, token: Int, outcome: CompletableDeferred<UnlockOutcome>): OpenFailure? {
+        var failure: OpenFailure? = null
+        while (waiting.isNotEmpty()) {
+            if (token != generation) return null
+            // Left in [waiting] until this try is over: the caller wipes what is there, whatever ends the unlock.
+            val attempt = waiting.first()
+            val result = open(attempt.key)
+            val copies = if (result is OpenResult.Opened) conflictCopies() else emptyList()
+            waiting.removeFirst()
+            if (token != generation) {
+                discard(result, attempt.key)
+                return null
+            }
+            when (result) {
+                is OpenResult.Opened -> {
+                    key = attempt.key
+                    adopt(result, copies)
+                    watch = store.watch { scope.launch { fileChanged() } }
+                    outcome.complete(UnlockOutcome.Opened)
+                    return null
+                }
+                is OpenResult.Failed -> {
+                    attempt.key.wipe()
+                    val wrongKey = result.failure == OpenFailure.WrongPassword
+                    failure = failure ?: if (wrongKey) attempt.rejected else result.failure
+                    if (!wrongKey) break
+                }
+            }
+        }
+        return failure
     }
 
     public fun lock(reason: LockReason = LockReason.Manual) {
@@ -364,4 +449,12 @@ public class VaultSession(
     }
 
     private val OpenResult.failure: OpenFailure? get() = (this as? OpenResult.Failed)?.failure
+}
+
+/** Why a key file cannot be used, as the lock screen says it (the Mac's `KeyFileLoader.reason`). */
+internal fun KeyFileException.reason(): String = when (this) {
+    is KeyFileException.Empty -> "the file is empty"
+    is KeyFileException.UnsupportedVersion -> "a key file of version $version, which KeePass does not write"
+    is KeyFileException.Malformed -> "a key file whose key cannot be read ($why)"
+    is KeyFileException.HashMismatch -> "a key file whose key does not match its checksum (changed or damaged)"
 }

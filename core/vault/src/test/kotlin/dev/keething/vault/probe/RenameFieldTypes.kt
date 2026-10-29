@@ -27,7 +27,7 @@ fun main(arguments: Array<String>) {
     if (!input.isFile) fail("No database at $input")
     if (output.exists()) fail("$output exists: give a new file")
     val password = readPasswordLine()
-    val key = DatabaseKey.fromPassword(password)
+    val key = DatabaseKey.of(password)
 
     val editable = KdbxReader.openForEditing(input.readBytes(), key)
     val renamed = editable.renameEntryCustomData(FORMER_KEY, EntryFieldTypes.CUSTOM_DATA_KEY)
@@ -42,7 +42,7 @@ fun main(arguments: Array<String>) {
     written.binaries.forEach { it.wipe() }
     output.writeBytes(written.file)
 
-    val opened = { file: File -> (VaultOpener().open(FileStore(file), DatabaseKey.fromPassword(password.copy())) as? OpenResult.Opened)?.opened?.vault }
+    val opened = { file: File -> (VaultOpener().open(FileStore(file), DatabaseKey.of(password.copy())) as? OpenResult.Opened)?.opened?.vault }
     val before = opened(input) ?: fail("RESULT: the database no longer opens here")
     val after = opened(output) ?: fail("RESULT: the new file does not open here")
     val counts = { v: dev.keething.domain.vault.Vault -> listOf(v.entries.size, v.recycleBin.size, v.groups.size) }

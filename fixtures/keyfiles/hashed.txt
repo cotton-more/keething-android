@@ -1,0 +1,1 @@
+Any file at all can be a key file: KeePass then uses the SHA-256 of all of its bytes.

@@ -5,14 +5,17 @@ import dev.keething.domain.biometric.BiometricPasswordStore
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.settings.SettingsStore
+import dev.keething.domain.storage.KeyFileSource
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.FakeClock
+import dev.keething.vault.session.FakeKeyFile
 import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.VaultSession
 import dev.keething.vault.session.fixtureBytes
+import dev.keething.vault.session.keyFileBytes
 import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,7 +38,13 @@ import kotlinx.coroutines.test.runTest
 
 /** The Mac's `TouchIDTests`, for the Keystore in place of the Secure Enclave (SPEC §5). */
 class BiometricUnlockTest {
-    private class Fixture(scope: TestScope, database: ByteArray?, val settings: MapSettings, fileReads: CoroutineDispatcher) {
+    private class Fixture(
+        scope: TestScope,
+        database: ByteArray?,
+        val settings: MapSettings,
+        fileReads: CoroutineDispatcher,
+        keyFile: KeyFileSource? = null,
+    ) {
         val store = FakePasswordStore()
         val clock = FakeClock(scope.testScheduler)
         val session = VaultSession(
@@ -46,6 +55,7 @@ class BiometricUnlockTest {
             scope = scope.backgroundScope,
             io = fileReads,
             lockTimeout = { 5.minutes },
+            keyFile = { keyFile },
         )
         val biometric = BiometricUnlock(session, store, settings, clock, scope.backgroundScope, StandardTestDispatcher(scope.testScheduler))
     }
@@ -327,6 +337,25 @@ class BiometricUnlockTest {
 
         assertNull(f.store.stored)
         assertFalse(f.biometric.state.value.stored)
+    }
+
+    @Test
+    fun aStoredPasswordRejectedWithAKeyFileIsKeptTheKeyFileMayBeTheWrongPart() = runTest {
+        val keyFile = FakeKeyFile(keyFileBytes("raw32.key"))
+        val f = Fixture(this, keyFileBytes("keyfile-keyx.kdbx"), MapSettings(), StandardTestDispatcher(testScheduler), keyFile)
+        f.biometric.setEnabled(true)
+        f.store.stored = Secret.of("pw")
+        f.biometric.refresh()
+
+        assertEquals(FingerprintOutcome.UnlockFailed(OpenFailure.WrongPasswordOrKeyFile), f.biometric.unlockWithFingerprint())
+        assertEquals("pw", f.store.stored?.reveal())
+
+        keyFile.content = null
+        assertEquals(FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing("work.keyx")), f.biometric.unlockWithFingerprint())
+        assertEquals("pw", f.store.stored?.reveal(), "a missing key file keeps it too")
+
+        keyFile.content = keyFileBytes("keyx.keyx")
+        assertEquals(FingerprintOutcome.Unlocked, f.biometric.unlockWithFingerprint())
     }
 
     @Test

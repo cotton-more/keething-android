@@ -450,9 +450,9 @@ class VaultSessionTest {
     fun aPasswordChangedElsewhereLocksOnSave() = runTest {
         val f = unlocked()
         val entry = f.vault.entries.first()
-        val pw = DatabaseKey.fromPassword(Secret.of("pw"))
+        val pw = DatabaseKey.of(Secret.of("pw"))
         f.store.change(
-            KdbxReader.openForEditing(fixtureBytes("kdbx4-aes-aeskdf"), pw).write(DatabaseKey.fromPassword(Secret.of("other"))).file,
+            KdbxReader.openForEditing(fixtureBytes("kdbx4-aes-aeskdf"), pw).write(DatabaseKey.of(Secret.of("other"))).file,
             notify = false,
         )
 

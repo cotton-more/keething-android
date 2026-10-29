@@ -46,7 +46,7 @@ class VaultSaverTest {
 
     private val backups = FakeBackups()
 
-    private fun key() = DatabaseKey.fromPassword(Secret.of("pw"))
+    private fun key() = DatabaseKey.of(Secret.of("pw"))
 
     /** The vault as an unlock would show it, with the key that opened it (its derived key kept). */
     private fun unlock(store: FakeStore, key: DatabaseKey = key()): Vault =
@@ -98,7 +98,7 @@ class VaultSaverTest {
         assertEquals(SaveFailure.EntryNotFound, failure(saver.save(VaultEdit.Update("gone", null, EntryChanges(notes = "x")), key, now)))
         assertEquals(
             SaveFailure.CannotOpen(OpenFailure.WrongPassword),
-            failure(saver.save(VaultEdit.Update(entry.id, null, EntryChanges(notes = "x")), DatabaseKey.fromPassword(Secret.of("nope")), now)),
+            failure(saver.save(VaultEdit.Update(entry.id, null, EntryChanges(notes = "x")), DatabaseKey.of(Secret.of("nope")), now)),
         )
         assertEquals(SaveFailure.CannotOpen(OpenFailure.Missing), failure(VaultSaver(FakeStore(null), backups).save(VaultEdit.Update(entry.id, null, EntryChanges()), key, now)))
         assertContentEquals(original, store.content)

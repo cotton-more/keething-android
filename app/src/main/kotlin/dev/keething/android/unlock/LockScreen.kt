@@ -94,7 +94,6 @@ import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.ui.SecretTextMenu
 import dev.keething.android.ui.dotsAtLineEnd
 import dev.keething.domain.biometric.BiometricAvailability
-import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import kotlin.math.roundToInt
@@ -124,10 +123,10 @@ internal fun LockScreen(container: AppContainer, database: DatabaseSession, onCh
     val unlocking = session is SessionState.Unlocking || biometric.opening
 
     val short = LocalConfiguration.current.screenHeightDp < 480
-    // A wrong typed password shakes the field; a stored one the database rejected is not the user's typo.
+    // A wrong typed key shakes the field; a stored password the database rejected is not the user's typo.
     val shake = remember { Animatable(0f) }
     LaunchedEffect(reason) {
-        if ((reason as? LockReason.UnlockFailed)?.failure == OpenFailure.WrongPassword && !model.lastAttemptByFingerprint) {
+        if ((reason as? LockReason.UnlockFailed)?.failure?.isWrongKey == true && !model.lastAttemptByFingerprint) {
             for (target in listOf(-18f, 14f, -8f, 4f, 0f)) shake.animateTo(target, spring(stiffness = 4_000f))
         }
     }

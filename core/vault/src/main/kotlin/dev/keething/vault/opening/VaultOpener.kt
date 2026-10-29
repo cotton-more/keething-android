@@ -15,7 +15,23 @@ import kotlin.time.Duration
 
 /** Why the database could not be opened, in terms the screens can show. Never carries entry data. */
 public sealed interface OpenFailure {
+    /**
+     * The database rejected the key. Of an unlock: a password alone was given (the file cannot tell a typo from a
+     * missing key file). Of a reload or a save: the key that opened it no longer does.
+     */
     public data object WrongPassword : OpenFailure
+
+    /** An unlock with a password and a key file was rejected. */
+    public data object WrongPasswordOrKeyFile : OpenFailure
+
+    /** An unlock with a key file alone was rejected (and, with nothing typed, the empty password with it). */
+    public data object WrongKeyFile : OpenFailure
+
+    /** The key file is not at its place: its [name]. Said before the database is read. */
+    public data class KeyFileMissing(val name: String) : OpenFailure
+
+    /** The key file cannot be used: [why]. Said before the database is read. */
+    public data class KeyFileUnusable(val why: String) : OpenFailure
 
     /** No file at the place (Syncthing may be replacing it, SPEC §3.2). */
     public data object Missing : OpenFailure
@@ -23,7 +39,7 @@ public sealed interface OpenFailure {
     /** The file is there but may not be read (the all-files access was revoked). */
     public data object AccessDenied : OpenFailure
 
-    /** A database the app does not read (KDBX 3, Twofish, a key file…): [what]. */
+    /** A database the app does not read (KDBX 3, Twofish…): [what]. */
     public data class Unsupported(val what: String) : OpenFailure
 
     /** Truncated or altered: [detail]. A file caught half-written by a sync is this (SPEC §3.2). */
@@ -31,6 +47,9 @@ public sealed interface OpenFailure {
 
     /** The phone has not enough memory for the key derivation. */
     public data object OutOfMemory : OpenFailure
+
+    /** The database rejected the key, whatever it was made of. */
+    public val isWrongKey: Boolean get() = this == WrongPassword || this == WrongPasswordOrKeyFile || this == WrongKeyFile
 }
 
 /** A database just opened. */

@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 
 /** The Mac `KDBXTests` expectations, on the same fixtures. */
 class KdbxReaderTest {
-    private fun key(password: String = Fixtures.PASSWORD) = DatabaseKey.fromPassword(Secret.of(password))
+    private fun key(password: String = Fixtures.PASSWORD) = DatabaseKey.of(Secret.of(password))
 
     private fun open(name: String) = KdbxReader.open(Fixtures.bytes("$name.kdbx"), key())
 
