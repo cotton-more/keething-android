@@ -14,9 +14,9 @@ import kotlinx.coroutines.launch
 
 /**
  * The list's current database and its session (plan AD4; the Mac's `DatabaseListModel`): another chosen, a file opened,
- * a file located, a key file chosen and Remove from List. Each acts on the list at once, and [sessions] follow it. One
- * open at a time from the screens until plan AD9: the window holds the current database alone, so choosing another
- * locks the one shown.
+ * a file located, a key file chosen and Remove from List. Each acts on the list at once, and [sessions] follow it.
+ * Choosing, opening or making a database puts it in the window and makes it current: nothing closes, the databases
+ * already open stay open (plan AD9; keething-spec databases.list AC4).
  *
  * Each database keeps its own stored password for the fingerprint (plan AD5): choosing another keeps each one's, and
  * Remove from List deletes the removed one's ([biometric]).
@@ -29,26 +29,29 @@ public class CurrentDatabase(
     private val sessions: VaultSessions,
     private val biometric: BiometricSetup,
 ) {
-    init {
-        list.currentId?.let { sessions.showAlone(it, LockReason.Initial) }
-    }
-
     public val current: StateFlow<DatabaseSession?> = sessions.current
 
-    /** The lock screen's sheet: this database's lock screen; the one shown before closes (one open at a time). */
+    /** The lock screen's sheet, its Back: this database's lock screen (or its vault, open); nothing closes. */
     public fun choose(id: DatabaseId) {
-        if (id == list.currentId || list.record(id) == null) return
-        sessions.showAlone(id, LockReason.Initial)
+        if (list.record(id) == null) return
+        show(id)
     }
 
     /**
-     * Open a database… / Open other…: the file joins the list (once: the same file is the same database), its
-     * fingerprint off until it is turned on for it (the owner's choice at plan AD5), and becomes current. Its id.
+     * Open a database… / Open other…: the file joins the list (once: the same file is the same database) and the
+     * window, its fingerprint off until it is turned on for it (the owner's choice at plan AD5), and becomes current;
+     * nothing closes. Its id.
      */
     public fun open(path: String): DatabaseId {
         val record = list.add(path)
-        sessions.showAlone(record.id, LockReason.Initial)
+        show(record.id)
         return record.id
+    }
+
+    /** Into the window, current. */
+    private fun show(id: DatabaseId) {
+        sessions.addToWindow(id)
+        list.setCurrent(id)
     }
 
     /**
@@ -89,8 +92,8 @@ public class CurrentDatabase(
      * A database just made (keething-spec databases.new-database AC8–AC10; the Mac's `DatabaseListModel.created`). A
      * record of the list at its path (its file gone, even the current one, which closes) is another database: it goes
      * first with its stored password, so the new one takes nothing of it (its id, backups, stored password). The new
-     * one joins the list with its key file and its Use fingerprint, becomes current and opens with [key], the key it was
-     * made with, as a typed unlock of [password] (its days start; stored for the fingerprint when chosen). A lock since
+     * one joins the list and the window with its key file and its Use fingerprint, becomes current (nothing closes) and
+     * opens with [key], the key it was made with, as a typed unlock of [password] (its days start; stored for the fingerprint when chosen). A lock since
      * Create was tapped ([lockedSince], asked once the list has it) leaves it locked and wipes [key]. The caller may
      * wipe [password] as soon as this returns.
      */
@@ -111,7 +114,7 @@ public class CurrentDatabase(
         }
         val record = list.add(standardized, useBiometric = useBiometric)
         list.update(record.id) { it.copy(keyFilePath = keyFilePath?.let(DatabaseList::standardized)) }
-        sessions.showAlone(record.id, LockReason.Initial)
+        show(record.id)
         val database = current.value?.takeIf { it.id == record.id }
         if (database == null || lockedSince()) {
             key.wipe()
@@ -127,8 +130,9 @@ public class CurrentDatabase(
      * The typed unlock of [database] (nothing typed with a key file too), as [BiometricUnlock.unlock]. With a key file
      * its record learns whether it opens with the key file alone: opened with nothing typed it does, opened with a
      * password it does not, and nothing typed rejected it does not (a password was added elsewhere). A key file not
-     * there teaches nothing, nor does an unlock whose database stopped being current or whose key file changed
-     * meanwhile. The caller may wipe [password] as soon as this returns. False when nothing was started.
+     * there teaches nothing, nor does an unlock whose key file changed meanwhile (one whose session went, its file
+     * located say, ends interrupted); another database chosen meanwhile does not stop it. The caller may wipe
+     * [password] as soon as this returns. False when nothing was started.
      */
     public fun unlock(database: DatabaseSession, password: Secret): Boolean {
         val keyFile = list.record(database.id)?.keyFilePath
@@ -137,7 +141,7 @@ public class CurrentDatabase(
         if (keyFile == null) return true
         scope.launch {
             val ended = outcome.await()
-            if (current.value !== database || list.record(database.id)?.keyFilePath != keyFile) return@launch
+            if (list.record(database.id)?.keyFilePath != keyFile) return@launch
             when {
                 ended == UnlockOutcome.Opened -> list.update(database.id) { it.copy(opensWithoutPassword = nothingTyped) }
                 nothingTyped && ended is UnlockOutcome.Failed && ended.failure.isWrongKey ->

@@ -1,12 +1,17 @@
 package dev.keething.android.list
 
+import dev.keething.android.databases.DatabaseLabel
+import dev.keething.android.databases.DatabaseMark
 import dev.keething.card.ExpiryHint
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.CustomField
+import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.EntryRef
 import java.text.Collator
 import java.time.Instant
 import java.util.Locale
@@ -140,5 +145,123 @@ class VaultListingTest {
         val bin = listing.sections("-", emptyList()).single().rows.associateBy { it.id }
         assertEquals("Work", bin.getValue("b").group)
         assertEquals("", bin.getValue("c").group)
+    }
+
+    // Several databases open (plan AD9; the Mac's D6 `DatabasesWindowTests`)
+
+    private val personalId = DatabaseId("P")
+    private val workId = DatabaseId("W")
+    private val personalMark = DatabaseMark(personalId, DatabaseLabel("Personal"), 0)
+    private val workMark = DatabaseMark(workId, DatabaseLabel("Work"), 1)
+
+    private fun p(id: String) = EntryRef(personalId, id).text
+    private fun w(id: String) = EntryRef(workId, id).text
+
+    // The same UUID in both: Work was made from a copy of Personal.
+    private val personal = Vault(
+        entries = listOf(
+            Entry(id = "same", title = "GitHub", username = "alex", groupPath = listOf("Media")),
+            Entry(id = "bank", title = "Sparkasse", username = "alex", groupPath = listOf("Finanzen", "Banken")),
+            Entry(id = "tv", title = "Netflix", groupPath = listOf("Media")),
+        ),
+        recycleBin = listOf(
+            Entry(id = "oldP1", title = "Old Personal", groupPath = listOf("Recycle Bin", "Media")),
+            Entry(id = "oldP2", title = "Older Personal", groupPath = listOf("Recycle Bin")),
+        ),
+    )
+    private val work = Vault(
+        entries = listOf(
+            Entry(id = "same", title = "GitHub", username = "alex-work", groupPath = listOf("Engineering")),
+            Entry(id = "wbank", title = "Firmenkonto", groupPath = listOf("Finanzen")),
+        ),
+        recycleBin = listOf(Entry(id = "oldW", title = "Old Work", groupPath = listOf("Recycle Bin", "Engineering"))),
+    )
+
+    private fun both(p: Vault = personal, w: Vault = work) = VaultListing(
+        listOf(ListedDatabase(personalId, p, personalMark), ListedDatabase(workId, w, workMark)),
+        now,
+        Collator.getInstance(Locale.ENGLISH),
+    )
+
+    @Test
+    fun theSameUuidInTwoDatabasesIsTwoRowsEachWithItsDatabase() {
+        val listing = both()
+        val rows = listing.sections("github", emptyList()).single().rows
+
+        assertEquals(listOf(p("same"), w("same")), rows.map { it.id })
+        assertEquals(listOf("Personal", "Work"), rows.map { it.database?.label?.name })
+        assertEquals(listOf("alex", "alex-work"), rows.map { it.subtitle })
+        assertEquals("alex-work", listing.entry(w("same"))?.username, "each row is its own database's entry")
+        assertEquals(5, listing.vault.entries.size)
+        assertEquals(listOf(p("bank"), p("same"), p("tv"), w("same"), w("wbank")), listing.ids.sorted())
+    }
+
+    @Test
+    fun withOneDatabaseOpenTheRowsAreRefsWithoutLabels() {
+        val listing = VaultListing(listOf(ListedDatabase(personalId, personal)), now, Collator.getInstance(Locale.ENGLISH))
+        val rows = listing.sections("", emptyList()).single().rows
+
+        assertEquals(listOf(p("same"), p("tv"), p("bank")), rows.map { it.id })
+        assertTrue(rows.all { it.database == null })
+    }
+
+    @Test
+    fun recentIsAcrossTheOpenDatabasesEightInAllADatabaseNotListedTakesNoPlace() {
+        val listing = both()
+        val recent = listOf(w("same"), EntryRef(DatabaseId("Crypto"), "x").text, p("bank"), w("gone"))
+
+        assertEquals(listOf(w("same"), p("bank")), listing.sections("", recent).first().rows.map { it.id })
+
+        val many = Vault(entries = (0 until 10).map { Entry(id = "p$it", title = "P $it") })
+        val ten = (9 downTo 0).map { p("p$it") }
+        val rows = both(p = many).sections("", listOf(w("same")) + ten).first().rows
+        assertEquals(listOf(w("same")) + ten.take(7), rows.map { it.id }, "8 shown in all")
+    }
+
+    @Test
+    fun aMinusListsEveryBinInTheWindowsOrderEachLatestDeletedFirst() {
+        // A file keeps no time of the move, so not one merged order (keething-spec search.recycle-bin AC5).
+        val listing = both()
+        val bin = listing.sections("-", emptyList()).single()
+
+        assertEquals(ListSection.Kind.RECYCLE_BIN, bin.kind)
+        assertEquals(listOf(p("oldP2"), p("oldP1"), w("oldW")), bin.rows.map { it.id })
+        assertEquals(listOf("", "Media", "Engineering"), bin.rows.map { it.group }, "the bin's own group left out")
+        assertEquals(listOf("Personal", "Personal", "Work"), bin.rows.map { it.database?.label?.name })
+        assertEquals(listOf(w("oldW")), listing.sections("- old work", emptyList()).single().rows.map { it.id })
+        assertNull(listing.sections("", emptyList()).flatMap { it.rows }.firstOrNull { it.id == w("oldW") }, "never in the ordinary list")
+    }
+
+    @Test
+    fun theRowsOfADatabaseThatLockedAloneGoAtOnce() {
+        val sections = both().sections("", listOf(w("same"), p("bank")))
+
+        val left = sections.onlyOf(setOf(personalId))
+
+        assertEquals(listOf(listOf(p("bank")), listOf(p("same"), p("tv"), p("bank"))), left.map { section -> section.rows.map { it.id } })
+        assertTrue(sections.onlyOf(emptySet()).isEmpty())
+    }
+
+    @Test
+    fun iconsAndDeadlinesAreEachDatabasesOwnForTheSameUuid() {
+        val soon = Instant.parse("2026-10-25T00:00:00Z")
+        val a = Vault(
+            entries = listOf(Entry(id = "same", title = "Licence", customIconId = "icon", expires = true, expiryTime = soon)),
+            customIcons = mapOf("icon" to CustomIcon(byteArrayOf(1))),
+        )
+        val b = Vault(
+            entries = listOf(Entry(id = "same", title = "Licence", customIconId = "icon")),
+            customIcons = mapOf("icon" to CustomIcon(byteArrayOf(2))),
+        )
+        val listing = both(p = a, w = b)
+        val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
+
+        val personalIcon = assertNotNull(rows.getValue(p("same")).customIconId)
+        val workIcon = assertNotNull(rows.getValue(w("same")).customIconId)
+        assertTrue(personalIcon != workIcon)
+        assertEquals(1, listing.vault.customIcons.getValue(personalIcon).image.single().toInt())
+        assertEquals(2, listing.vault.customIcons.getValue(workIcon).image.single().toInt())
+        assertNotNull(rows.getValue(p("same")).deadline)
+        assertNull(rows.getValue(w("same")).deadline, "Work's copy does not expire")
     }
 }

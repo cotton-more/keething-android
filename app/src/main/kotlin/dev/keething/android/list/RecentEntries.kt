@@ -1,15 +1,19 @@
 package dev.keething.android.list
 
 import dev.keething.domain.settings.SettingsStore
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.EntryRef
+import dev.keething.vault.databases.StoredEntryIds
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * The entries used last, newest first: the list shows them first when nothing is typed (Mac
- * `RecentEntries`). Only ids are kept, so they survive a lock and a restart and say nothing without the
- * database. An entry is used when its card is opened or something is copied from it; a swipe removes it
- * (SPEC §6.2).
+ * The entries used last, newest first: the list shows them first when nothing is typed, across the open databases (Mac
+ * `RecentEntries`). Only the entries' refs are kept ([EntryRef.text]), so they survive a lock and a restart and say
+ * nothing without the database. An entry is used when its card is opened or something is copied from it; a swipe
+ * removes it (SPEC §6.2). 8 are kept per database, so a locked database's entries are not pushed out by those used
+ * meanwhile in the open ones (keething-spec search.recent AC7).
  */
 internal class RecentEntries(private val store: SettingsStore) {
     private val mutableIds = MutableStateFlow(store.string(KEY).orEmpty().split('\n').filter { it.isNotEmpty() })
@@ -18,7 +22,7 @@ internal class RecentEntries(private val store: SettingsStore) {
     fun note(id: String) {
         val ids = ids.value
         if (ids.firstOrNull() == id) return
-        save((listOf(id) + ids.filter { it != id }).take(LIMIT))
+        save(trimmed(listOf(id) + ids.filter { it != id }))
     }
 
     /**
@@ -35,14 +39,14 @@ internal class RecentEntries(private val store: SettingsStore) {
             val ids = ids.value
             if (id !in ids) {
                 val at = ids.indexOfFirst(older::contains).takeIf { it >= 0 } ?: ids.size
-                save((ids.take(at) + id + ids.drop(at)).take(LIMIT))
+                save(trimmed(ids.take(at) + id + ids.drop(at)))
             }
         }
     }
 
-    /** Entries gone from the vault (deleted, or another database) are dropped. */
-    fun keepOnly(existing: Set<String>) {
-        val kept = ids.value.filter(existing::contains)
+    /** Entries gone from their open database are dropped; a database not open keeps its own ([StoredEntryIds]). */
+    fun keep(stored: StoredEntryIds) {
+        val kept = stored.keep(ids.value)
         if (kept != ids.value) save(kept)
     }
 
@@ -51,8 +55,15 @@ internal class RecentEntries(private val store: SettingsStore) {
         store.setString(KEY, ids.joinToString("\n"))
     }
 
-    private companion object {
-        const val KEY = "recentEntries"
+    companion object {
+        /** How many are listed, in all; and kept, per database. */
         const val LIMIT = 8
+        private const val KEY = "recentEntries"
+
+        /** The newest [LIMIT] of each database. */
+        private fun trimmed(ids: List<String>): List<String> {
+            val counts = HashMap<DatabaseId, Int>()
+            return ids.filter { id -> counts.merge(EntryRef.of(id).database, 1, Int::plus)!! <= LIMIT }
+        }
     }
 }

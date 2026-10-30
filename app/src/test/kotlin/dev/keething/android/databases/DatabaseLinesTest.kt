@@ -211,6 +211,26 @@ class DatabaseLinesTest {
     }
 
     @Test
+    fun aMarkIsTheLabelAndColourOverTheWholeListWhicheverAreOpen() {
+        // Rows and cards say a database by its mark while two or more are open (keething-spec databases.name-colour AC6).
+        val old = record("o", "Old/Personal.kdbx", color = "#FF0000")
+        val work = record("w", "Work/Work.kdbx")
+        val marks = Databases(listOf(personal, old, work), personal.id).marks(root)
+
+        assertEquals(DatabaseMark(personal.id, DatabaseLabel("Personal", "Sync/KeePass"), 0), marks.getValue(personal.id))
+        assertEquals(DatabaseMark(old.id, DatabaseLabel("Personal", "Old"), 7), marks.getValue(old.id))
+        assertEquals(DatabaseMark(work.id, DatabaseLabel("Work"), 1), marks.getValue(work.id))
+    }
+
+    @Test
+    fun namesAreJoinedAsASentenceSaysThem() {
+        assertEquals("", DatabaseText.joined(emptyList()))
+        assertEquals("Personal", DatabaseText.joined(listOf("Personal")))
+        assertEquals("Personal and Work", DatabaseText.joined(listOf("Personal", "Work")))
+        assertEquals("Personal, Work and Family Shared", DatabaseText.joined(listOf("Personal", "Work", "Family Shared")))
+    }
+
+    @Test
     fun coloursGoRoundThePaletteInTheListsOrder() {
         val records = (1..10).map { record("$it", "db$it.kdbx") }.toTypedArray()
         assertEquals(9, DatabasePalette.shades.size)

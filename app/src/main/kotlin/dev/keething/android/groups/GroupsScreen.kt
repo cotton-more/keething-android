@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.list.SectionTitle
+import dev.keething.android.ui.BarTitle
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.SegmentGap
@@ -80,10 +81,11 @@ internal class GroupsViewModel(database: DatabaseSession) : ViewModel() {
 
 /**
  * Groups & tags (SPEC §6.2): the group tree with how many entries are in each group, the recycle bin, the
- * tags with their counts. A row lists its entries: [onSearch] gets the search to set on the list.
+ * tags with their counts. A row lists its entries: [onSearch] gets the search to set on the list. One database's:
+ * with two or more open, [label] says which.
  */
 @Composable
-internal fun GroupsScreen(database: DatabaseSession, onBack: () -> Unit, onSearch: (String) -> Unit) {
+internal fun GroupsScreen(database: DatabaseSession, label: String?, onBack: () -> Unit, onSearch: (String) -> Unit) {
     val model = viewModel { GroupsViewModel(database) }
     val overview by model.overview.collectAsStateWithLifecycle()
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
@@ -92,7 +94,7 @@ internal fun GroupsScreen(database: DatabaseSession, onBack: () -> Unit, onSearc
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { Text("Groups & tags") },
+                title = { BarTitle("Groups & tags", label) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
                 },

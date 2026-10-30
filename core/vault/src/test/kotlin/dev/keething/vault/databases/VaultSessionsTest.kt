@@ -2,6 +2,7 @@ package dev.keething.vault.databases
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Vault
+import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.biometric.BiometricSetup
@@ -13,6 +14,7 @@ import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.FakeClock
 import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.SaveOutcome
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.VaultSession
 import dev.keething.vault.session.fixtureBytes
@@ -25,6 +27,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -150,6 +153,39 @@ class VaultSessionsTest {
         unlock(f, p)
         assertEquals(f.open(p, w), f.sessions.state.value, "in the window's order")
         assertEquals(listOf(p.id, w.id), f.sessions.openIds)
+    }
+
+    @Test
+    fun anEntrysRefFindsItsOwnDatabasesEntryAndSessionWhichSavesIntoThatFileAlone() = runTest {
+        // What the screens resolve a ref with (the list's Delete; plan AD9, keething-spec databases.one-list AC2): Work
+        // is a copy of Personal, every UUID the same.
+        val f = Fixture(this)
+        val p = f.add("/a/Personal.kdbx")
+        val w = f.add("/b/Work.kdbx")
+        unlock(f, p)
+        unlock(f, w)
+        val same = f.vault(p).entries.first().id
+        assertEquals(same, f.vault(w).entries.first().id, "a copy keeps every UUID")
+
+        val found = assertNotNull(f.sessions.entry(EntryRef(w.id, same)))
+        assertSame(f.sessions.session(w.id), found.database)
+        assertEquals(same, found.entry.id, "its own id, not the ref")
+        assertFalse(found.inRecycleBin)
+        assertSame(f.sessions.session(p.id), f.sessions.entry(EntryRef(p.id, same))?.database)
+        assertNull(f.sessions.entry(EntryRef(p.id, "gone")))
+        assertNull(f.sessions.entry(EntryRef(DatabaseId("not in the window"), same)))
+
+        val saved = assertNotNull(found.database.session.save(VaultEdit.MoveToRecycleBin(found.entry.id, found.entry.lastModified)))
+        runCurrent()
+        assertEquals(SaveOutcome.Saved, saved.await())
+        assertEquals(1, f.files.getValue("/b/Work.kdbx").replaced)
+        assertEquals(0, f.files.getValue("/a/Personal.kdbx").replaced, "Personal's file is not touched")
+        assertTrue(f.vault(w).recycleBin.any { it.id == same })
+        assertTrue(f.vault(p).entries.any { it.id == same }, "Personal's copy stays where it was")
+        assertTrue(assertNotNull(f.sessions.entry(EntryRef(w.id, same))).inRecycleBin, "found in its bin too (a card there restores it)")
+
+        f.session(w).lock()
+        assertNull(f.sessions.entry(EntryRef(w.id, same)), "locked: not open")
     }
 
     @Test
@@ -339,31 +375,6 @@ class VaultSessionsTest {
         assertEquals(listOf(p.id, w.id), f.sessions.windowIds, "back in its place, locked")
         assertEquals(SessionState.Locked(LockReason.Initial), f.state(w))
         assertNotSame(session, f.session(w), "a session of its own again")
-    }
-
-    @Test
-    fun theWindowHoldsOneAloneTheOthersCloseWithTheReasonAndItIsCurrent() = runTest {
-        val f = Fixture(this)
-        val p = f.add("/a/p.kdbx", bytes = null)
-        val w = f.add("/a/w.kdbx", inWindow = false)
-        unlock(f, p)
-        assertEquals(SessionsState.NothingOpen(LockReason.UnlockFailed(OpenFailure.Missing)), f.sessions.state.value)
-
-        f.sessions.showAlone(w.id, closingOthers = LockReason.Initial)
-
-        assertEquals(listOf(w.id), f.sessions.windowIds)
-        assertEquals(w.id, f.list.currentId)
-        assertEquals(w.id, f.sessions.current.value?.id)
-        assertEquals(SessionsState.NothingOpen(LockReason.Initial), f.sessions.state.value, "'not found' was the other file's")
-
-        unlock(f, w)
-        val work = f.vault(w)
-        f.sessions.showAlone(p.id, closingOthers = LockReason.Initial)
-        assertTrue(work.isWiped(), "the one shown before closes, locked")
-        assertEquals(SessionsState.NothingOpen(LockReason.Initial), f.sessions.state.value)
-        val told = f.told.size
-        f.sessions.showAlone(p.id, closingOthers = LockReason.Initial)
-        assertEquals(told, f.told.size, "already alone: nothing changes")
     }
 
     @Test

@@ -55,7 +55,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
-import dev.keething.vault.databases.DatabaseSession
+import dev.keething.android.session.OpenDatabase
+import kotlinx.coroutines.flow.StateFlow
+import dev.keething.android.session.entries
+import dev.keething.vault.databases.EntryRef
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.ButtonLabel
@@ -72,7 +75,6 @@ import dev.keething.sharing.payload.AnswerPayload
 import dev.keething.sharing.payload.EntryPart
 import dev.keething.sharing.payload.Sending
 import dev.keething.sharing.requests.ShareRequests
-import dev.keething.vault.session.SessionState
 import java.time.Duration
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
@@ -91,7 +93,8 @@ internal data class MadeAnswer(val name: String, val reason: String, val entries
  * an envelope when [id] is null.
  */
 internal class ReviewModel(
-    private val database: DatabaseSession,
+    /** The open databases: each entry is read from its own, by its ref. */
+    private val open: StateFlow<List<OpenDatabase>>,
     private val requests: ShareRequests,
     private val id: String?,
     entryIds: List<String>,
@@ -101,8 +104,8 @@ internal class ReviewModel(
 
     /** Per entry, the parts left out: the one-time code and an extended public key to start with (SPEC §10). */
     val leftOut = mutableStateMapOf<String, Set<EntryPart>>().apply {
-        val vault = (database.session.state.value as? SessionState.Unlocked)?.vault
-        entryIds.forEach { id -> put(id, vault?.entries?.firstOrNull { it.id == id }?.let(Sending::leftOutByDefault).orEmpty()) }
+        val entries = open.value.entries(entryIds).associateBy { it.id }
+        entryIds.forEach { id -> put(id, entries[id]?.let(Sending::leftOutByDefault).orEmpty()) }
     }
 
     var sealing by mutableStateOf(false)
@@ -125,9 +128,9 @@ internal class ReviewModel(
      * else [onSent] gets the new envelope's id, for [recipient] (kept on this phone only).
      */
     fun seal(from: String, recipient: String, onMade: (MadeAnswer) -> Unit, onSent: (envelopeId: String) -> Unit) {
-        val vault = (database.session.state.value as? SessionState.Unlocked)?.vault ?: return
+        if (open.value.isEmpty()) return
         val their = id?.let { id -> requests.book.value?.theirs?.firstOrNull { it.request.id == id } ?: return }
-        val entries = entryIds.mapNotNull { entryId -> vault.entries.firstOrNull { it.id == entryId } }
+        val entries = open.value.entries(entryIds)
         if (entries.isEmpty()) {
             problem = "The entries are no longer in the database."
             return
@@ -191,7 +194,6 @@ internal class ReviewModel(
 @Composable
 internal fun ReviewScreen(
     container: AppContainer,
-    database: DatabaseSession,
     id: String?,
     entryIds: List<String>,
     onBack: () -> Unit,
@@ -199,17 +201,18 @@ internal fun ReviewScreen(
     onSent: (envelopeId: String) -> Unit,
 ) {
     val validity = Duration.ofDays(container.settings.requestValidity.value.inWholeDays)
-    val model = viewModel { ReviewModel(database, container.shareRequests, id, entryIds, validity) }
+    val model = viewModel { ReviewModel(container.sessions.open, container.shareRequests, id, entryIds, validity) }
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
-    val session by database.session.state.collectAsStateWithLifecycle()
+    val open by container.sessions.open.collectAsStateWithLifecycle()
     val their = id?.let { id -> book?.theirs?.firstOrNull { it.request.id == id } }
-    val vault = (session as? SessionState.Unlocked)?.vault
-    val gone = book == null || (id != null && their == null) || vault == null
+    // A chosen entry's database locked meanwhile: the review goes rather than send fewer than were chosen.
+    val gone = book == null || (id != null && their == null) ||
+        model.entryIds.any { ref -> open.none { it.database.id == EntryRef.of(ref).database } }
     LaunchedEffect(gone) { if (gone && !model.sealing && !model.made) onBack() }
-    if (gone || vault == null) return
+    if (gone) return
     var from by rememberSaveable { mutableStateOf(container.settings.requestName) }
     var recipient by rememberSaveable { mutableStateOf("") }
-    val entries = model.entryIds.mapNotNull { entryId -> vault.entries.firstOrNull { it.id == entryId } }
+    val entries = open.entries(model.entryIds)
     val ready = ShareRequest.isLine(from.trim(), ShareRequest.MAX_NAME_LENGTH) && entries.isNotEmpty() &&
         (recipient.isBlank() || ShareRequest.isLine(recipient.trim(), ShareRequest.MAX_NAME_LENGTH))
     // Who the warnings name: the asker, or whom the envelope is for.

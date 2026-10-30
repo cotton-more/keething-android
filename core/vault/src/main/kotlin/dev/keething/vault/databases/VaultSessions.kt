@@ -2,6 +2,7 @@ package dev.keething.vault.databases
 
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.time.Clock
+import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.session.LockReason
@@ -58,6 +59,12 @@ public sealed interface SessionsState {
 
 /** An open database's vault. */
 public data class OpenVault(val id: DatabaseId, val vault: Vault)
+
+/**
+ * An entry of an open database as its own vault has it ([entry] with its own id), and the [database] whose session
+ * reads and saves it (plan AD9; keething-spec databases.one-list AC2).
+ */
+public class OpenEntry(public val database: DatabaseSession, public val entry: Entry, public val inRecycleBin: Boolean)
 
 /**
  * The window's databases, each with its own session, and the app's state over them (plan AD8; the Mac's D5
@@ -136,6 +143,14 @@ public class VaultSessions(
     /** A database's session, while it is in the window. */
     public fun session(id: DatabaseId): DatabaseSession? = sessions[id]?.database
 
+    /** The entry of [ref] in its own database, while that one is open (in its recycle bin too); null otherwise. */
+    public fun entry(ref: EntryRef): OpenEntry? {
+        val database = sessions[ref.database]?.database ?: return null
+        val vault = (database.session.state.value as? SessionState.Unlocked)?.vault ?: return null
+        vault.entries.firstOrNull { it.id == ref.entry }?.let { return OpenEntry(database, it, inRecycleBin = false) }
+        return vault.recycleBin.firstOrNull { it.id == ref.entry }?.let { OpenEntry(database, it, inRecycleBin = true) }
+    }
+
     /** Calls [handler] after every Lock and its kin, also one that found nothing to lock. */
     public fun observeLocks(handler: (LockReason) -> Unit) {
         lockObservers += handler
@@ -167,17 +182,6 @@ public class VaultSessions(
             lastReason = reason // also when it was locked so already
         }
         list.setInWindow(id, false)
-    }
-
-    /**
-     * The window holds [id] alone, and it is the list's current database (one open at a time from the screens, until
-     * plan AD9): it goes in first, then the others close with [closingOthers], so the window is never empty on the way.
-     */
-    public fun showAlone(id: DatabaseId, closingOthers: LockReason) {
-        if (list.record(id) == null) return
-        list.setCurrent(id)
-        addToWindow(id)
-        for (other in windowIds) if (other != id) close(other, closingOthers)
     }
 
     // Locking

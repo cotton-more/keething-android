@@ -23,6 +23,7 @@ import dev.keething.android.editor.problem
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.recyclebin.RecycleBinMoves
 import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.databases.EntryRef
 import dev.keething.android.settings.AppSettings
 import dev.keething.android.ui.Notice
 import dev.keething.card.CardSection
@@ -85,7 +86,9 @@ internal data class CardUiState(
  * (SPEC §4, §6.2; Mac `EntryCardModel.previewAttachment` / `saveAttachment`).
  */
 internal class EntryCardViewModel(
-    private val entryId: String,
+    /** The entry by its ref: Recent and the declined offer keep it so (the same UUID in another database is another). */
+    private val ref: EntryRef,
+    /** Its own database's session: the card reads, saves and opens attachments there (keething-spec databases.one-list AC2). */
     private val database: DatabaseSession,
     private val recents: RecentEntries,
     private val clipboard: SensitiveClipboard,
@@ -96,6 +99,9 @@ internal class EntryCardViewModel(
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
+
+    /** Its own id in its database. */
+    private val entryId: String = ref.entry
 
     private val mutableOpenings = Channel<Intent>(Channel.BUFFERED)
 
@@ -117,7 +123,7 @@ internal class EntryCardViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, CardUiState(content.value, RevealState()))
 
     init {
-        content.value?.takeIf { !it.inRecycleBin }?.let { recents.note(entryId) }
+        content.value?.takeIf { !it.inRecycleBin }?.let { recents.note(ref.text) }
     }
 
     fun toggleReveal(rowId: String) {
@@ -130,7 +136,7 @@ internal class EntryCardViewModel(
     }
 
     /** The card's offer to type the fields (SPEC §6.3) was turned down for this entry: it is not made again. */
-    var suggestionDismissed: Boolean by mutableStateOf(settings.isSuggestionDismissed(entryId))
+    var suggestionDismissed: Boolean by mutableStateOf(settings.isSuggestionDismissed(ref.text))
         private set
 
     /** The offer's types being saved. */
@@ -138,7 +144,7 @@ internal class EntryCardViewModel(
         private set
 
     fun dismissSuggestion() {
-        settings.dismissSuggestion(entryId)
+        settings.dismissSuggestion(ref.text)
         suggestionDismissed = true
     }
 
@@ -200,7 +206,7 @@ internal class EntryCardViewModel(
             else -> row.clipboardText()
         }
         clipboard.copy(text, sensitive = row.isConcealed || row.kind == FieldRow.Kind.TOTP)
-        if (content.value?.inRecycleBin == false) recents.note(entryId)
+        if (content.value?.inRecycleBin == false) recents.note(ref.text)
         // A code of a list is copied to be used: the notice offers to mark it so.
         val copied = when {
             row.copiesCompact -> Notice("${row.noticeLabel} copied without spaces · clears in 30 s")
@@ -315,10 +321,10 @@ internal class EntryCardViewModel(
     fun openAttachment(row: FieldRow) {
         val name = row.label
         val bytes = database.session.attachment(entryId, name) ?: return problem("Could not read $name")
-        val generation = files.generation
+        val generation = files.generation(database.id)
         viewModelScope.launch {
             val intent = try {
-                withContext(Dispatchers.IO) { files.write(generation, name, bytes)?.let { android.viewIntent(it, bytes) } }
+                withContext(Dispatchers.IO) { files.write(database.id, generation, name, bytes)?.let { android.viewIntent(it, bytes) } }
             } catch (_: Exception) {
                 return@launch problem("Could not open $name")
             } finally {

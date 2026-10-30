@@ -174,7 +174,7 @@ internal fun EntryEditorScreen(
     /** What the editor is for, above the fields (the save offer of autofill). */
     banner: (@Composable () -> Unit)? = null,
 ) {
-    val model = viewModel(key = "editor/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill) }
+    val model = viewModel(key = "editor/${database.number}/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill) }
     val editor = model.editor
     LaunchedEffect(editor == null) { if (editor == null) onClose() }
     if (editor == null) return

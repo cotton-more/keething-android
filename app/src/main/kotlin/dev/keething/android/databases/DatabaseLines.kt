@@ -107,6 +107,12 @@ internal data class DatabaseLabel(val name: String, val addition: String? = null
 }
 
 /**
+ * How rows, cards and the header say a database while two or more are open (keething-spec databases.name-colour AC6;
+ * the Mac's `DatabaseMark`): its label and colour over the whole list, so neither changes when another opens.
+ */
+internal data class DatabaseMark(val id: DatabaseId, val label: DatabaseLabel, val colorIndex: Int)
+
+/**
  * The colours of databases (keething-spec databases.name-colour AC4, AC5; the Mac's `DatabasePalette`): teal, orange,
  * green, purple, pink, indigo, brown, red, grey; each a dot and a text colour, light and dark. A file's own colour
  * (`Meta/Color`) is shown as the nearest of them: they are tuned for both themes, an arbitrary colour is not.
@@ -261,7 +267,18 @@ internal object DatabaseText {
         }
     }
 
+    /** "Personal", "Personal and Work", "Personal, Work and Family Shared". */
+    fun joined(names: List<String>): String =
+        if (names.size < 2) names.joinToString("") else names.dropLast(1).joinToString(", ") + " and " + names.last()
+
     private fun count(n: Long, unit: String): String = if (n == 1L) "1 $unit" else "$n ${unit}s"
+}
+
+/** Every database's mark, over the whole list. */
+internal fun Databases.marks(root: String): Map<DatabaseId, DatabaseMark> {
+    val labels = DatabaseText.labels(records, root)
+    val colors = DatabasePalette.indices(records.map { it.color })
+    return records.withIndex().associate { (index, record) -> record.id to DatabaseMark(record.id, labels.getValue(record.id), colors[index]) }
 }
 
 /** The list's databases as the screens show them: in the list's order, the current one marked. */

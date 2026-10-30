@@ -3,6 +3,7 @@ package dev.keething.android.settings
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import dev.keething.domain.settings.SettingsStore
+import dev.keething.vault.databases.StoredEntryIds
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
@@ -54,16 +55,30 @@ internal class AppSettings(private val store: SettingsStore) {
         set(value) = store.setString(REQUEST_NAME, value.trim().ifEmpty { null })
 
     /**
-     * Entries whose card was told "Not now" to its offer to type their fields (SPEC §6.3), by id: the offer is not
-     * made again. Ids only, as Recent keeps them: they say nothing without the database.
+     * Entries whose card was told "Not now" to its offer to type their fields (SPEC §6.3), by ref
+     * ([dev.keething.vault.databases.EntryRef]): the offer is not made again, and the same UUID in another database is
+     * another entry. Refs only, as Recent keeps them: they say nothing without the database.
      */
     private val dismissedSuggestions: MutableSet<String> =
         store.string(DISMISSED_SUGGESTIONS)?.split(' ')?.filter { it.isNotEmpty() }?.toMutableSet() ?: mutableSetOf()
 
-    fun isSuggestionDismissed(entryId: String): Boolean = entryId in dismissedSuggestions
+    fun isSuggestionDismissed(ref: String): Boolean = ref in dismissedSuggestions
 
-    fun dismissSuggestion(entryId: String) {
-        if (dismissedSuggestions.add(entryId)) store.setString(DISMISSED_SUGGESTIONS, dismissedSuggestions.joinToString(" "))
+    fun dismissSuggestion(ref: String) {
+        if (dismissedSuggestions.add(ref)) saveDismissed()
+    }
+
+    /** The declined offers follow the open databases as Recent does ([StoredEntryIds]). */
+    fun keepDeclined(stored: StoredEntryIds) {
+        val kept = stored.keep(dismissedSuggestions.toList()).toSet()
+        if (kept == dismissedSuggestions) return
+        dismissedSuggestions.clear()
+        dismissedSuggestions += kept
+        saveDismissed()
+    }
+
+    private fun saveDismissed() {
+        store.setString(DISMISSED_SUGGESTIONS, dismissedSuggestions.joinToString(" ").ifEmpty { null })
     }
 
     companion object {

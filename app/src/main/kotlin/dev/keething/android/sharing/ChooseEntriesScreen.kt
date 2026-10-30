@@ -58,7 +58,11 @@ import dev.keething.android.list.SearchField
 import dev.keething.android.list.SectionTitle
 import dev.keething.android.list.VaultListing
 import dev.keething.android.list.title
-import dev.keething.vault.databases.DatabaseSession
+import dev.keething.android.list.listingOf
+import dev.keething.android.list.sameListing
+import dev.keething.android.session.OpenDatabase
+import dev.keething.vault.databases.EntryRef
+import kotlinx.coroutines.launch
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.CustomIconImages
@@ -67,7 +71,6 @@ import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.segmentShape
 import dev.keething.sharing.payload.AnswerPayload
-import dev.keething.vault.session.SessionState
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -75,23 +78,37 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
 internal data class ChooseUiState(val sections: List<ListSection> = emptyList(), val icons: CustomIconImages? = null, val preparing: Boolean = true)
 
-/** The vault searched as the list searches it, and the entries chosen so far (ids only, they survive a rotation). */
+/**
+ * The open databases searched as the list searches them, and the entries chosen so far (refs only, they survive a
+ * rotation).
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal class ChooseEntriesModel(database: DatabaseSession, recents: RecentEntries, preselected: List<String>) : ViewModel() {
+internal class ChooseEntriesModel(open: StateFlow<List<OpenDatabase>>, recents: RecentEntries, preselected: List<String>) : ViewModel() {
     val query = TextFieldState()
     val chosen = mutableStateListOf<String>().apply { addAll(preselected) }
 
-    private val listing: StateFlow<Pair<VaultListing, CustomIconImages>?> = database.session.state
-        .map { (it as? SessionState.Unlocked)?.vault }
-        .distinctUntilChanged { a, b -> a === b }
-        .mapLatest { vault -> vault?.let { withContext(Dispatchers.Default) { VaultListing(it, Instant.now()) to CustomIconImages(it.customIcons) } } }
+    init {
+        // A chosen entry's database locked meanwhile: it is not chosen any more (its row has gone, it could not be sent).
+        viewModelScope.launch {
+            open.collect { databases ->
+                if (databases.isEmpty()) return@collect
+                chosen.retainAll { ref -> databases.any { it.database.id == EntryRef.of(ref).database } }
+            }
+        }
+    }
+
+    private val listing: StateFlow<Pair<VaultListing, CustomIconImages>?> = open
+        .distinctUntilChanged(::sameListing)
+        .mapLatest { databases ->
+            if (databases.isEmpty()) return@mapLatest null
+            withContext(Dispatchers.Default) { listingOf(databases, Instant.now()).let { it to CustomIconImages(it.vault.customIcons) } }
+        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val state: StateFlow<ChooseUiState> = combine(listing, snapshotFlow { query.text.toString() }, recents.ids) { listing, text, recentIds ->
@@ -120,7 +137,6 @@ internal class ChooseEntriesModel(database: DatabaseSession, recents: RecentEntr
 @Composable
 internal fun ChooseEntriesScreen(
     container: AppContainer,
-    database: DatabaseSession,
     id: String?,
     preselected: List<String>,
     onClose: () -> Unit,
@@ -131,7 +147,7 @@ internal fun ChooseEntriesScreen(
     val gone = book == null || (id != null && their == null)
     LaunchedEffect(gone) { if (gone) onClose() }
     if (gone) return
-    val model = viewModel { ChooseEntriesModel(database, container.recents, preselected) }
+    val model = viewModel { ChooseEntriesModel(container.sessions.open, container.recents, preselected) }
     val state by model.state.collectAsStateWithLifecycle()
     var full by remember { mutableStateOf(false) }
     if (full) {

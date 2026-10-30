@@ -6,18 +6,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.keething.android.clipboard.SensitiveClipboard
 import dev.keething.android.recyclebin.RecycleBinMoves
-import dev.keething.vault.databases.DatabaseSession
+import dev.keething.android.databases.DatabaseText
+import dev.keething.android.session.OpenDatabase
+import dev.keething.vault.databases.EntryRef
+import dev.keething.vault.databases.OpenEntry
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.SessionsState
+import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.SessionState
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.Notice
 import dev.keething.android.unlock.describe
 import dev.keething.card.OpenableUrl
-import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.vault.Entry
 import dev.keething.totp.TotpGenerator
 import dev.keething.vault.databases.Databases
-import dev.keething.vault.opening.OpenFailure
-import dev.keething.vault.session.SessionState
 import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import kotlin.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,8 +34,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -38,16 +42,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal data class ListUiState(
-    /** The database's name (SPEC §3.1): its own, else its file name without `.kdbx`. */
+    /** The header: the open database's name (SPEC §3.1), or the open ones' labels joined ("Personal and Work"). */
     val databaseName: String,
     val entryCount: Int? = null,
     val sections: List<ListSection> = emptyList(),
     val icons: CustomIconImages? = null,
-    val conflictCopies: List<ConflictCopy> = emptyList(),
-    val reloadFailure: OpenFailure? = null,
+    /** Syncthing's conflict copies and a failed reload, each open database's. */
+    val banners: List<ListBanner> = emptyList(),
     /** Building the search index of a freshly opened vault. */
     val preparing: Boolean = true,
 )
+
+/** A warning over the list about one open database. */
+internal data class ListBanner(val key: String, val title: String, val text: String)
 
 /** What a long press on a row offers (SPEC §6.2), read from the entry when the sheet opens. */
 internal data class QuickActions(
@@ -63,13 +70,24 @@ internal data class QuickActions(
 /** What the sections are listed from. */
 private data class Listed(val prepared: Prepared?, val text: String, val codesOnly: Boolean, val recentIds: List<String>)
 
-/** A prepared vault and the icons decoded from it, replaced together when the vault is read again. */
+/** The open databases prepared and the icons decoded from them, replaced together when one is read again. */
 private class Prepared(val listing: VaultListing, val icons: CustomIconImages)
 
+/**
+ * The list over the open databases (plan AD9; keething-spec databases.one-list): one search and one Recent, each row its
+ * own database's entry by its ref, saved through that database's session.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class EntryListViewModel(
-    private val database: DatabaseSession,
+    /** The open databases, as [dev.keething.android.session.Sessions.open]. */
+    private val open: StateFlow<List<OpenDatabase>>,
+    /** The app's state: nothing open hides the list at once. */
+    private val app: StateFlow<SessionsState>,
+    /** An entry in its own open database, with that database's session. */
+    private val openEntry: (EntryRef) -> OpenEntry?,
     private val recents: RecentEntries,
+    /** The unlocks already told, the app's. */
+    private val toldUnlocks: ToldUnlocks,
     private val recycleBin: RecycleBinMoves,
     private val clipboard: SensitiveClipboard,
     private val query: TextFieldState,
@@ -77,28 +95,22 @@ internal class EntryListViewModel(
     private val codesOnly: () -> Boolean,
     /** A card open beside the list (two panes); read in a snapshot. */
     private val besideCard: () -> Boolean = { false },
-    /** The list of databases, for the database's name (read from its file at every open and reload). */
+    /** The list of databases: the current one's name before its vault is listed. */
     databases: StateFlow<Databases> = MutableStateFlow(Databases(emptyList(), null)),
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
 
-    private val unlocked: StateFlow<SessionState.Unlocked?> = database.session.state
-        .map { it as? SessionState.Unlocked }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, database.session.state.value as? SessionState.Unlocked)
-
-    private val prepared: StateFlow<Prepared?> = unlocked
-        .map { it?.vault }
-        .distinctUntilChanged { a, b -> a === b }
-        .mapLatest { vault ->
-            vault?.let { withContext(Dispatchers.Default) { Prepared(VaultListing(it, Instant.now()), CustomIconImages(it.customIcons)) } }
-        }
-        .onEach {
-            it?.let { prepared ->
-                recents.keepOnly(prepared.listing.ids)
-                recycleBin.settled(prepared.listing.ids)
+    private val prepared: StateFlow<Prepared?> = open
+        .distinctUntilChanged(::sameListing)
+        .mapLatest { databases ->
+            if (databases.isEmpty()) return@mapLatest null
+            withContext(Dispatchers.Default) {
+                val listing = listingOf(databases, Instant.now())
+                Prepared(listing, CustomIconImages(listing.vault.customIcons))
             }
         }
+        .onEach { it?.let { prepared -> recycleBin.settled(prepared.listing.ids) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /**
@@ -128,30 +140,76 @@ internal class EntryListViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
 
-    val state: StateFlow<ListUiState> = combine(unlocked, prepared, sections, recycleBin.leaving, databases.map(::nameIn).distinctUntilChanged()) { unlocked, prepared, sections, leaving, name ->
-        // A lock wipes the vault at once: nothing of it is shown while the screen fades out. A vault read again
-        // (a save, a sync) is listed while the one before stays on screen, so the list keeps its scroll position.
-        if (unlocked == null || prepared == null) {
-            return@combine ListUiState(name, preparing = unlocked != null)
+    private val names: Flow<String> = combine(open, databases) { open, databases ->
+        when {
+            open.isEmpty() -> databases.current?.displayName.orEmpty()
+            open.size == 1 -> open.single().mark.label.name
+            else -> DatabaseText.joined(open.map { it.mark.label.full })
         }
+    }.distinctUntilChanged()
+
+    val state: StateFlow<ListUiState> = combine(combine(app, open, ::Pair), prepared, sections, recycleBin.leaving, names) { (app, open), prepared, sections, leaving, name ->
+        // A lock wipes the vaults at once: nothing of them is shown while the screen fades out, nor the rows of one
+        // that locked alone while the others are listed again. A vault read again (a save, a sync) is listed while the
+        // one before stays on screen, so the list keeps its scroll position.
+        if (app !is SessionsState.Open || prepared == null) {
+            return@combine ListUiState(name, preparing = app is SessionsState.Open)
+        }
+        val openIds = app.vaults.mapTo(HashSet()) { it.id }
         ListUiState(
             databaseName = name,
             entryCount = prepared.listing.vault.entries.size,
-            sections = sections.without(leaving),
+            sections = sections.without(leaving).onlyOf(openIds),
             icons = prepared.icons,
-            conflictCopies = unlocked.conflictCopies,
-            reloadFailure = unlocked.reloadFailure,
+            banners = banners(open),
             preparing = false,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, ListUiState(nameIn(databases.value)))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, ListUiState(databases.value.current?.displayName.orEmpty()))
 
-    /** Its name as the list of databases has it (SPEC §3.1); the file's name for one not in the list. */
-    private fun nameIn(databases: Databases): String = databases.record(database.id)?.displayName ?: database.file.name
+    /** Each open database's conflict copies and failed reload, named while two or more are open. */
+    private fun banners(open: List<OpenDatabase>): List<ListBanner> = open.flatMap { database ->
+        val file = database.database.file
+        val named = open.size >= 2
+        listOfNotNull(
+            database.unlocked.conflictCopies.firstOrNull()?.let { newest ->
+                ListBanner(
+                    key = "conflict/${database.database.id}",
+                    title = "Syncthing found two versions",
+                    text = "Open: ${file.name}. The other one is from ${newest.createdAt.format(CONFLICT_TIME)} " +
+                        "(device ${newest.deviceId}) — merge it in KeePassXC (Database › Merge), then delete it.",
+                )
+            },
+            database.unlocked.reloadFailure?.let { failure ->
+                ListBanner(
+                    key = "reload/${database.database.id}",
+                    title = if (named) "${database.mark.label.name}: showing the version read before" else "Showing the version read before",
+                    text = failure.describe(file),
+                )
+            },
+        )
+    }
 
     init {
-        // The list is new after every unlock: say how long the key derivation took (measured on the phone).
+        // Each unlock (its key derived: not a reload) says once how long the key derivation took (measured on the phone),
+        // also when the list is built again over a database still open ([toldUnlocks]). One whose password was changed
+        // elsewhere locks alone, the others staying open: it says so.
         viewModelScope.launch {
-            unlocked.first { it != null }?.keyDerivation?.let { mutableNotices.send(Notice("Unlocked · key derivation ${it.seconds()}")) }
+            var listed: List<OpenDatabase> = emptyList()
+            open.collect { list ->
+                for (gone in listed) {
+                    if (list.isEmpty() || list.any { it.database === gone.database }) continue
+                    val locked = gone.database.session.state.value as? SessionState.Locked ?: continue
+                    if (locked.reason != LockReason.PasswordChanged) continue
+                    mutableNotices.send(Notice("${gone.mark.label.full} locked: its password was changed elsewhere", isProblem = true))
+                }
+                listed = list
+                for (database in list) {
+                    val derivation = database.unlocked.keyDerivation ?: continue
+                    if (!toldUnlocks.firstTime(ToldUnlocks.key(database.database.number, database.database.session.locks))) continue
+                    val what = if (list.size >= 2) "${database.mark.label.name} unlocked" else "Unlocked"
+                    mutableNotices.send(Notice("$what · key derivation ${derivation.seconds()}"))
+                }
+            }
         }
     }
 
@@ -190,17 +248,16 @@ internal class EntryListViewModel(
 
     /** The quick actions of a row; null when the entry has gone (deleted elsewhere, or locked). */
     fun quickActions(row: EntryRow): QuickActions? {
-        val vault = unlocked.value?.vault ?: return null
-        val inBin = vault.entries.none { it.id == row.id }
+        val listing = prepared.value?.listing ?: return null
         val entry = entry(row.id) ?: return null
         val url = OpenableUrl.of(entry.url)
-        return QuickActions(row.id, row, entry.username, url, url?.let { entry.urlHost ?: it }, inBin)
+        return QuickActions(row.id, row, entry.username, url, url?.let { entry.urlHost ?: it }, listing.inRecycleBin(row.id))
     }
 
-    /** Delete from the quick actions: as the card's (SPEC §6.2), into the bin at once, with Undo. */
+    /** Delete from the quick actions: as the card's (SPEC §6.2), into its own database's bin at once, with Undo. */
     fun moveToRecycleBin(id: String) {
-        val entry = unlocked.value?.vault?.entries?.firstOrNull { it.id == id } ?: return
-        recycleBin.moveToRecycleBin(database, entry)
+        val found = openEntry(EntryRef.of(id))?.takeIf { !it.inRecycleBin } ?: return
+        recycleBin.moveToRecycleBin(found.database, found.entry)
     }
 
     /** Opening the site from the quick actions counts as using the entry, as copying does. */
@@ -217,23 +274,23 @@ internal class EntryListViewModel(
         notice(Notice("Removed from Recent", undo = undo))
     }
 
-    /** Shown for the reload failure banner. */
-    fun describe(failure: OpenFailure): String = failure.describe(database.file)
-
+    /** The entry of a row, a copy whose id is its ref; null once its database is not open. */
     private fun entry(id: String): Entry? {
-        val vault = unlocked.value?.vault ?: return null
-        return vault.entries.firstOrNull { it.id == id } ?: vault.recycleBin.firstOrNull { it.id == id }
+        val database = EntryRef.of(id).database
+        if ((app.value as? SessionsState.Open)?.vaults?.any { it.id == database } != true) return null
+        return prepared.value?.listing?.entry(id)
     }
 
     private fun used(entry: Entry) {
-        val inRecycleBin = unlocked.value?.vault?.recycleBin.orEmpty().any { it.id == entry.id }
-        if (!inRecycleBin) recents.note(entry.id)
+        if (prepared.value?.listing?.inRecycleBin(entry.id) == false) recents.note(entry.id)
     }
 
     private fun notice(notice: Notice) {
         mutableNotices.trySend(notice)
     }
 }
+
+private val CONFLICT_TIME: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
 
 /** `1.4 s`, `850 ms`, the unit kept with its number on a line. */
 internal fun Duration.seconds(): String =

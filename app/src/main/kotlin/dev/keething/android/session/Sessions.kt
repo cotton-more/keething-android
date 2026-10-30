@@ -3,6 +3,9 @@ package dev.keething.android.session
 import android.os.SystemClock
 import android.util.Log
 import dev.keething.android.databases.CreatedDatabase
+import dev.keething.android.databases.DatabaseLabel
+import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.databases.marks
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import dev.keething.android.settings.AppSettings
@@ -16,7 +19,10 @@ import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.databases.CurrentDatabase
+import dev.keething.domain.vault.Entry
 import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.EntryRef
+import dev.keething.vault.databases.OpenEntry
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.databases.DatabaseSession
@@ -32,22 +38,42 @@ import kotlin.time.DurationUnit
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** One stay of the app in the foreground: [number] counts them; [beganLocked]: the vault was locked when it began. */
+/** One stay of the app in the foreground: [number] counts them; [beganLocked]: its lock screen showed when it began. */
 internal data class Visit(val number: Int, val beganLocked: Boolean)
 
 /**
- * Owns the databases' sessions for the whole app (screens, autofill, the code notification): the list of databases, a
- * session per database of the window and the app's state over them ([VaultSessions], plan AD8), and the current one
- * ([CurrentDatabase]; one open at a time from the screens until plan AD9). Tells the sessions when the app goes to the
- * background and comes back: one lock timeout for all (SPEC §4). Call it on the main thread.
+ * An open database as the vault's screens show it (plan AD9): its session, what it read last, and how it is called and
+ * coloured over the whole list (shown while two or more are open).
  */
+internal class OpenDatabase(val database: DatabaseSession, val unlocked: SessionState.Unlocked, val mark: DatabaseMark)
+
+/** The entries of [refs] as the open databases have them now, each a copy whose id is its ref; those not open are left out. */
+internal fun List<OpenDatabase>.entries(refs: List<String>): List<Entry> = refs.mapNotNull { text ->
+    val ref = EntryRef.of(text)
+    firstOrNull { it.database.id == ref.database }?.unlocked?.vault?.entries?.firstOrNull { it.id == ref.entry }?.copy(id = text)
+}
+
+/**
+ * Owns the databases' sessions for the whole app (screens, autofill, the code notification): the list of databases, a
+ * session per database of the window and the app's state over them ([VaultSessions], plan AD8), the current one (whose
+ * lock screen shows; [CurrentDatabase]) and the open ones the vault's screens list as one ([open], plan AD9). Tells the
+ * sessions when the app goes to the background and comes back: one lock timeout for all (SPEC §4). Call it on the main
+ * thread.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
 internal class Sessions(
     private val settings: AppSettings,
     private val settingsStore: SettingsStore,
@@ -61,6 +87,8 @@ internal class Sessions(
     /** One task at a time: the fingerprint's saves and deletes stay in order. */
     biometricIo: CoroutineDispatcher,
     private val lockAlarm: LockAlarm,
+    /** The shared storage's root: a database's label says its folder from there. */
+    private val storageRoot: String,
 ) : DefaultLifecycleObserver {
     /** The fingerprint's switch and days for the app, and each database's stored password (SPEC §5). */
     val biometric = BiometricSetup(biometricStores, list, settingsStore, AndroidClock, biometricIo)
@@ -79,6 +107,30 @@ internal class Sessions(
 
     /** What the screens show: nothing open (and why), a database opening, or the open vaults (SPEC §4). */
     val state: StateFlow<SessionsState> = vaults.state
+
+    /** A database's session, while it is in the window. */
+    fun session(id: DatabaseId): DatabaseSession? = vaults.session(id)
+
+    /** The entry of a ref in its own open database, with that database's session (keething-spec databases.one-list AC2). */
+    fun entry(ref: EntryRef): OpenEntry? = vaults.entry(ref)
+
+    /**
+     * The open databases in the window's order, each as it read its file last (its conflict copies, a failed reload) and
+     * with its mark: one list over them (keething-spec databases.one-list).
+     */
+    val open: StateFlow<List<OpenDatabase>> = state
+        .map { state -> (state as? SessionsState.Open)?.vaults?.mapNotNull { vaults.session(it.id) }.orEmpty() }
+        .distinctUntilChanged { a, b -> a.size == b.size && a.indices.all { a[it] === b[it] } }
+        .flatMapLatest { databases ->
+            if (databases.isEmpty()) return@flatMapLatest flowOf(emptyList())
+            combine(databases.map { database -> database.session.state.map { database to it } }) { it.toList() }
+        }
+        .combine(list.state.map { it.marks(storageRoot) }.distinctUntilChanged()) { states, marks ->
+            states.mapNotNull { (database, state) ->
+                (state as? SessionState.Unlocked)?.let { OpenDatabase(database, it, marks[database.id] ?: DatabaseMark(database.id, DatabaseLabel(database.file.name), 0)) }
+            }
+        }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     init {
         // Lock and the timeout, by any way it came: counted once each.
@@ -105,7 +157,10 @@ internal class Sessions(
 
     private val mutableVisit = MutableStateFlow(Visit(0, beganLocked = true))
 
-    /** The lock screen offers the fingerprint once in a visit that began locked (SPEC §5), not after the lock button. */
+    /**
+     * The lock screen offers the fingerprint once in a visit that began on it (SPEC §5; the current database not open,
+     * whatever else is), not after the lock button.
+     */
     val visit: StateFlow<Visit> = mutableVisit.asStateFlow()
 
     /** Whether the lock screen shown now asks for the fingerprint by itself ([FingerprintOffers]). */
@@ -149,7 +204,9 @@ internal class Sessions(
         locks.movedToForeground(settings.lockTimeout.value)
         lockAlarm.cancel()
         vaults.movedToForeground()
-        mutableVisit.value = Visit(visit.value.number + 1, beganLocked = state.value !is SessionsState.Open)
+        // Its lock screen showing: the current database not open, whatever else is (plan AD9).
+        val shown = current.value?.id
+        mutableVisit.value = Visit(visit.value.number + 1, beganLocked = (state.value as? SessionsState.Open)?.vaults?.none { it.id == shown } ?: true)
     }
 
     override fun onStop(owner: LifecycleOwner) {

@@ -120,7 +120,8 @@ import dev.keething.android.generator.PasswordGeneratorSheet
 import dev.keething.android.navigation.inTwoPanes
 import dev.keething.android.navigation.sharedIcon
 import dev.keething.android.navigation.sharedTitle
-import dev.keething.vault.databases.DatabaseSession
+import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.databases.databaseColors
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CodeRing
@@ -140,8 +141,6 @@ import dev.keething.domain.totp.TotpConfig
 import dev.keething.search.EntrySearch
 import java.text.NumberFormat
 import java.time.Instant
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 
@@ -156,7 +155,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 @Composable
 internal fun EntryListScreen(
     container: AppContainer,
-    database: DatabaseSession,
     query: TextFieldState,
     codesOnly: Boolean,
     selectedId: String?,
@@ -173,10 +171,14 @@ internal fun EntryListScreen(
     val selected = selectedId?.takeIf { inTwoPanes() }
     val holdRecent by rememberUpdatedState(selected != null)
     val requests by container.shareRequests.book.collectAsStateWithLifecycle()
-    val model = viewModel { EntryListViewModel(
-            database, container.recents, container.recycleBin, container.clipboard, query, codesOnly = { codes }, besideCard = { holdRecent },
-            databases = container.sessions.list.state,
-        ) }
+    val model = viewModel {
+        val sessions = container.sessions
+        EntryListViewModel(
+            sessions.open, sessions.state, sessions::entry, container.recents, container.toldUnlocks, container.recycleBin,
+            container.clipboard, query,
+            codesOnly = { codes }, besideCard = { holdRecent }, databases = sessions.list.state,
+        )
+    }
     val state by model.state.collectAsStateWithLifecycle()
     val chips by model.chips.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -275,20 +277,8 @@ internal fun EntryListScreen(
                 state = listState,
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
             ) {
-                if (state.conflictCopies.isNotEmpty()) {
-                    item(key = "conflict") {
-                        val newest = state.conflictCopies.first()
-                        Banner(
-                            title = "Syncthing found two versions",
-                            text = "Open: ${database.file.name}. The other one is from ${newest.createdAt.format(CONFLICT_TIME)} " +
-                                "(device ${newest.deviceId}) — merge it in KeePassXC (Database › Merge), then delete it.",
-                        )
-                    }
-                }
-                state.reloadFailure?.let { failure ->
-                    item(key = "reload") {
-                        Banner(title = "Showing the version read before", text = model.describe(failure))
-                    }
+                for (banner in state.banners) {
+                    item(key = banner.key) { Banner(title = banner.title, text = banner.text) }
                 }
                 if (state.preparing) {
                     item(key = "preparing") {
@@ -355,8 +345,6 @@ internal fun EntryListScreen(
         }
     }
 }
-
-private val CONFLICT_TIME: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
 
 internal fun ListSection.title(): String = when (kind) {
     ListSection.Kind.SUGGESTED -> "Suggested"
@@ -582,7 +570,10 @@ internal fun EntryRowView(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (row.group.isNotEmpty()) {
+            val mark = row.database
+            if (mark != null) {
+                DatabaseLine(mark, row.group)
+            } else if (row.group.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Rounded.Folder, contentDescription = "Group", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
                     Text(
@@ -604,6 +595,30 @@ internal fun EntryRowView(
             if (codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(top = 6.dp), height = 32.dp) }
         }
         if (!codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(start = 8.dp)) }
+    }
+}
+
+/**
+ * A row's database and group while two or more databases are open (keething-spec databases.name-colour AC6; the
+ * canvas's "Databases (AD3b)"): its dot, its name in its colour, what tells it apart from one named alike, then the
+ * group — "● Work › Engineering", the root group "● Work"; no folder icon.
+ */
+@Composable
+private fun DatabaseLine(mark: DatabaseMark, group: String) {
+    val colors = databaseColors(mark.colorIndex)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.padding(end = 6.dp).size(8.dp).clip(CircleShape).background(colors.dot))
+        Text(
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = colors.text)) { append(mark.label.name) }
+                mark.label.addition?.let { withStyle(SpanStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium)) { append(" · $it") } }
+                if (group.isNotEmpty()) append(" › $group")
+            },
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.outline,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

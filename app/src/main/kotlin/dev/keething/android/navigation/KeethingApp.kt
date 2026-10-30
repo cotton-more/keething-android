@@ -56,6 +56,7 @@ import dev.keething.android.databases.DatabasePageScreen
 import dev.keething.android.databases.NewDatabaseScreen
 import dev.keething.android.databases.WelcomeScreen
 import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.EntryRef
 import dev.keething.android.sharing.AnswerScreen
 import dev.keething.android.storage.CreationNote
 import dev.keething.android.sharing.AskScreen
@@ -72,21 +73,35 @@ import dev.keething.android.storageprobe.StorageProbeScreen
 import dev.keething.android.unlock.LockScreen
 import dev.keething.vault.databases.SessionsState
 
-/** The screens of the unlocked vault. */
+/**
+ * The screens of the open databases. An entry's screens name it by its ref ([EntryRef.text]: the same UUID in two
+ * databases is two entries) and act on it through its own database's session (keething-spec databases.one-list AC2).
+ */
 internal sealed interface Screen {
+    /** The entry this screen is about, by ref; null for the others. */
+    val ref: EntryRef? get() = null
+
     data object Entries : Screen
 
     /** [origin]: the list section the card was opened from, so the row it grows from is the right one. */
-    data class Card(val entryId: String, val origin: String) : Screen
+    data class Card(val entryId: String, val origin: String) : Screen {
+        override val ref: EntryRef get() = EntryRef.of(entryId)
+    }
 
-    /** A password full screen; the entry's id only (and a field's row id), the password is read from the vault. */
-    data class Password(val entryId: String, val view: PasswordView, val rowId: String? = null) : Screen
+    /** A password full screen; the entry's ref only (and a field's row id), the password is read from the vault. */
+    data class Password(val entryId: String, val view: PasswordView, val rowId: String? = null) : Screen {
+        override val ref: EntryRef get() = EntryRef.of(entryId)
+    }
 
     /** An entry's earlier versions. */
-    data class History(val entryId: String) : Screen
+    data class History(val entryId: String) : Screen {
+        override val ref: EntryRef get() = EntryRef.of(entryId)
+    }
 
-    /** The editor of an entry, or of a new one ([entryId] null) in [groupId]. */
-    data class Editor(val entryId: String?, val groupId: String? = null) : Screen
+    /** The editor of an entry, or of a new one ([entryId] null) in [groupId], which goes into the current database. */
+    data class Editor(val entryId: String?, val groupId: String? = null) : Screen {
+        override val ref: EntryRef? get() = entryId?.let(EntryRef::of)
+    }
 
     /** The group tree and the tags, each with its entries' count. */
     data object Groups : Screen
@@ -142,6 +157,47 @@ internal class NavigationState : ViewModel() {
 
     /** The database session the screens were last for ([DatabaseSession.number]): another one starts them afresh. */
     var sessionNumber by mutableIntStateOf(0)
+
+    /** The open databases' sessions ([DatabaseSession.number]) as the screens last saw them. */
+    private var openSessions: Map<DatabaseId, Int> = emptyMap()
+
+    /** The current database's session while its vault is shown; 0 while its lock screen is. */
+    var shownSession by mutableIntStateOf(0)
+        private set
+
+    /** The current database's session [number] is open, its vault shown. */
+    fun shown(number: Int) {
+        shownSession = number
+        lockBack = null
+    }
+
+    /**
+     * The current database, its vault shown with session [number], is open no more. Locked alone (its password changed
+     * elsewhere) while [open] stay open, the vault goes on with them: the current database's own screens (a new entry,
+     * Groups & tags, a received entry) go, the search and the others' screens stay, and the result is the open database
+     * to make current, the window's first. Null when it was not shown or nothing else is open: its lock screen shows.
+     */
+    fun lockedAlone(number: Int, open: Map<DatabaseId, Int>): DatabaseId? {
+        if (number != shownSession || open.isEmpty()) {
+            shownSession = 0
+            return null
+        }
+        val (next, nextNumber) = open.entries.first()
+        backStack.removeAll { it is Screen.Groups || it is Screen.ShareReceived || (it is Screen.Editor && it.entryId == null) }
+        sessionNumber = nextNumber
+        shownSession = nextNumber
+        return next
+    }
+
+    /**
+     * [open]: the open databases' sessions now. A database that locked alone (its password changed elsewhere), or whose
+     * session is another one now, takes its entries' screens with it; the others' stay.
+     */
+    fun keepOpen(open: Map<DatabaseId, Int>) {
+        val gone = openSessions.filter { (id, number) -> open[id] != number }.keys
+        openSessions = open
+        if (gone.isNotEmpty()) backStack.removeAll { it.ref?.database in gone }
+    }
 
     /** The "Codes" launcher shortcut: the list of entries with a code, from the top. */
     fun showCodes() {
@@ -224,10 +280,14 @@ internal fun KeethingApp(container: AppContainer) {
             return@Surface
         }
         val state by container.sessions.state.collectAsStateWithLifecycle()
+        val openIds = (state as? SessionsState.Open)?.vaults?.map { it.id }.orEmpty()
         // The app's state, not one session's: nothing open clears the screens, also while another database still opens
-        // (keething-spec databases.several-open AC10).
-        val unlocked = (state as? SessionsState.Open)?.vaults?.any { it.id == current.id } == true
-        LaunchedEffect(unlocked) { if (!unlocked) navigation.reset() else navigation.lockBack = null }
+        // (keething-spec databases.several-open AC10). The vault's screens show while the current database is open; its
+        // lock screen shows otherwise, the others staying open behind it.
+        val unlocked = current.id in openIds
+        val openSessions = openIds.mapNotNull { id -> container.sessions.session(id)?.let { id to it.number } }.toMap()
+        // The current database locked alone while its vault showed: the vault stays, on the open ones (below).
+        val stays = !unlocked && navigation.shownSession == current.number && openSessions.isNotEmpty()
         // Another database's session (a new database made from Settings opens at once, its lock never shown here):
         // nothing of the screens of before goes over to it.
         LaunchedEffect(current.number) {
@@ -236,11 +296,22 @@ internal fun KeethingApp(container: AppContainer) {
                 navigation.reset()
             }
         }
-        // Back to the database shown before, while it is in the list and another is shown.
-        val back = navigation.lockBack?.takeIf { it != current.id && list.record(it) != null }?.let { previous ->
+        LaunchedEffect(unlocked, openSessions, current.number) {
+            when {
+                unlocked -> navigation.shown(current.number)
+                else -> navigation.lockedAlone(current.number, openSessions)?.let(container.sessions.databases::choose) ?: navigation.reset()
+            }
+        }
+        // One database locked alone while others stay open: its entries' screens go.
+        LaunchedEffect(openSessions) { navigation.keepOpen(openSessions) }
+        // Back to the database shown before, while it is in the list and another is shown; else to the open ones.
+        val previous = navigation.lockBack?.takeIf { it != current.id && list.record(it) != null } ?: openIds.firstOrNull { it != current.id }
+        val back = previous?.let {
             {
                 navigation.lockBack = null
-                container.sessions.databases.choose(previous)
+                // The screens are this one's already (reset when its lock screen showed): no frame of the lock screen again.
+                container.sessions.session(it)?.let { session -> navigation.sessionNumber = session.number }
+                container.sessions.databases.choose(it)
             }
         }
         val enter = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
@@ -248,7 +319,7 @@ internal fun KeethingApp(container: AppContainer) {
         val exit = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
         AnimatedContent(
             // Not before the screens are reset for this session (above): never a frame of another database's.
-            targetState = unlocked && navigation.sessionNumber == current.number,
+            targetState = (unlocked || stays) && navigation.sessionNumber == current.number,
             transitionSpec = { (fadeIn(enter) + scaleIn(grow, initialScale = 0.94f)) togetherWith fadeOut(exit) },
             label = "lock",
         ) { showVault ->
@@ -281,9 +352,17 @@ private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit)
     )
 }
 
+/**
+ * The open databases' screens: one list over them; an entry's screens on its own database ([Screen.ref]); a new entry,
+ * Groups & tags, Settings and a received entry with the [current] database (plan AD9; AD11 chooses a new entry's).
+ */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
-private fun VaultScreens(container: AppContainer, database: DatabaseSession, navigation: NavigationState) {
+private fun VaultScreens(container: AppContainer, current: DatabaseSession, navigation: NavigationState) {
+    val sessions = container.sessions
+    val open by sessions.open.collectAsStateWithLifecycle()
+    // An entry's database by its ref; null once it is not open (its screens go: NavigationState.keepOpen).
+    val databaseOf = { ref: EntryRef -> sessions.session(ref.database) }
     // Codes another app handed over (SPEC §10) are read once the vault is open.
     val incoming by container.incomingCodes.collectAsStateWithLifecycle()
     LaunchedEffect(incoming) {
@@ -325,7 +404,6 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                         ListPane {
                             EntryListScreen(
                                 container = container,
-                                database = database,
                                 query = navigation.query,
                                 codesOnly = navigation.codesOnly,
                                 selectedId = navigation.cardBesideList,
@@ -341,13 +419,17 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                     }
                     // A card from Sharing ("received") is not beside the list: the list is not under it.
                     entry<Screen.Card>(metadata = { key -> if (key.origin == "received") emptyMap() else ListDetailSceneStrategy.detailPane() }) { key ->
+                        val database = databaseOf(key.ref) ?: return@entry
+                        // Its database's chip while two or more are open (keething-spec databases.name-colour AC6).
+                        val mark = open.takeIf { it.size >= 2 }?.firstOrNull { it.database.id == key.ref.database }?.mark
                         CardPane {
                             EntryCardScreen(
                                 container = container,
                                 database = database,
-                                entryId = key.entryId,
+                                ref = key.ref,
+                                mark = mark,
                                 origin = key.origin,
-                                onBack = navigation::back,
+                                onBack = { navigation.close(key) },
                                 onSearch = navigation::search,
                                 onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
                                 onShowAddress = { rowId -> navigation.open(Screen.Password(key.entryId, PasswordView.ADDRESS_QR, rowId)) },
@@ -363,31 +445,36 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                         }
                     }
                     entry<Screen.History> { key ->
-                        EntryHistoryScreen(database, key.entryId, onBack = navigation::back)
+                        val database = databaseOf(key.ref) ?: return@entry
+                        EntryHistoryScreen(database, key.ref.entry, onBack = { navigation.close(key) })
                     }
                     entry<Screen.Editor> { key ->
+                        val database = key.ref?.let { databaseOf(it) ?: return@entry } ?: current
                         EntryEditorScreen(
                             database = database,
-                            entryId = key.entryId,
+                            entryId = key.ref?.entry,
                             groupId = key.groupId,
                             generator = container::passwordGenerator,
-                            onClose = navigation::back,
+                            onClose = { navigation.close(key) },
                             onSaved = { id ->
                                 container.entrySaved()
-                                if (key.entryId == null) navigation.replace(Screen.Card(id, origin = "new")) else navigation.back()
+                                if (key.entryId == null) navigation.replace(Screen.Card(EntryRef(database.id, id).text, origin = "new")) else navigation.back()
                             },
                         )
                     }
                     entry<Screen.Password> { key ->
-                        PasswordScreen(database, key.entryId, key.view, key.rowId, container.clipboard, onBack = navigation::back)
+                        val database = databaseOf(key.ref) ?: return@entry
+                        PasswordScreen(database, key.ref.entry, key.view, key.rowId, container.clipboard, onBack = { navigation.close(key) })
                     }
                     entry<Screen.Groups> {
-                        GroupsScreen(database, onBack = navigation::back, onSearch = navigation::search)
+                        // The current database's: with two or more open its label says which.
+                        val label = open.takeIf { it.size >= 2 }?.firstOrNull { it.database.id == current.id }?.mark?.label?.full
+                        GroupsScreen(current, label, onBack = navigation::back, onSearch = navigation::search)
                     }
                     entry<Screen.Settings> {
                         SettingsScreen(
                             container = container,
-                            database = database,
+                            database = current,
                             onBack = navigation::back,
                             onDatabase = { id -> navigation.open(Screen.Database(id.value)) },
                             onStorageProbe = { navigation.open(Screen.StorageProbe) },
@@ -428,7 +515,6 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                     entry<Screen.ShareChoose> { key ->
                         ChooseEntriesScreen(
                             container = container,
-                            database = database,
                             id = key.id,
                             preselected = key.preselected,
                             onClose = { navigation.close(key) },
@@ -438,7 +524,6 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                     entry<Screen.ShareReview> { key ->
                         ReviewScreen(
                             container,
-                            database,
                             key.id,
                             key.entryIds,
                             onBack = { navigation.close(key) },
@@ -449,12 +534,13 @@ private fun VaultScreens(container: AppContainer, database: DatabaseSession, nav
                     entry<Screen.ShareSent> { key -> SentScreen(container, key.id, onDone = navigation::leaveSharing) }
                     entry<Screen.ShareAnswer> { key -> AnswerScreen(container, key.answer, onDone = navigation::leaveSharing) }
                     entry<Screen.ShareReceived> { key ->
+                        // A received entry goes into the current database (AD11 chooses).
                         ReceivedScreen(
                             container = container,
-                            database = database,
+                            database = current,
                             codeText = key.codeText,
                             onClose = navigation::back,
-                            onOpenEntry = { navigation.replace(Screen.Card(it, origin = "received")) },
+                            onOpenEntry = { navigation.replace(Screen.Card(EntryRef(current.id, it).text, origin = "received")) },
                         )
                     }
                 },

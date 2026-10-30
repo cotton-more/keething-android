@@ -162,13 +162,14 @@ class CurrentDatabaseTest {
     // Choosing another (the lock screen's sheet)
 
     @Test
-    fun anotherChosenIsShownLockedAndNothingIsSaidOfTheLastOne() = runTest {
+    fun anotherChosenJoinsTheWindowLockedAndTheOneShownBeforeStaysAsItWas() = runTest {
         val f = Fixture(this)
-        f.add("/a/Personal.kdbx")
+        val personal = f.add("/a/Personal.kdbx")
         val work = f.add("/b/Work.kdbx")
         val first = f.shown
         typed(f, "typo")
-        assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.WrongPassword)), first.state())
+        val wrong = SessionState.Locked(LockReason.UnlockFailed(OpenFailure.WrongPassword))
+        assertEquals(wrong, first.state())
 
         f.databases.choose(work.id)
 
@@ -176,27 +177,38 @@ class CurrentDatabaseTest {
         assertEquals(work.id, f.shown.id)
         assertEquals(2, f.shown.number)
         assertEquals(SessionState.Locked(LockReason.Initial), f.shown.state(), "the wrong password was the other one's")
-        assertNull(first.session.unlock(Secret.of("pw")), "the one shown before opens no more")
+        assertEquals(listOf(personal.id, work.id), f.sessions.windowIds, "both in the window")
+        assertEquals(wrong, first.state(), "Personal keeps its own reason")
+        assertFalse(first.session.isClosed)
 
         val same = f.shown
         f.databases.choose(work.id)
         assertSame(same, f.shown, "the same one again changes nothing")
         f.databases.choose(DatabaseId("not in the list"))
         assertSame(same, f.shown)
+        f.databases.choose(personal.id)
+        assertSame(first, f.shown, "back to the one before: its session of before")
     }
 
     @Test
-    fun anotherChosenWhileOpenLocksItFirst() = runTest {
+    fun anotherChosenWhileOneIsOpenClosesNothing() = runTest {
+        // keething-spec databases.list AC4, databases.several-open AC4.
         val f = Fixture(this)
-        f.add("/a/Personal.kdbx")
+        val personal = f.add("/a/Personal.kdbx")
         val work = f.add("/b/Work.kdbx")
         val first = f.shown
         typed(f, "pw")
-        assertIs<SessionState.Unlocked>(first.state())
+        advanceTimeBy(1.seconds)
+        val open = assertIs<SessionState.Unlocked>(first.state())
 
         f.databases.choose(work.id)
 
-        assertIs<SessionState.Locked>(first.state())
+        assertSame(open, first.state(), "Personal stays open")
+        assertEquals(work.id, f.shown.id)
+        assertEquals(SessionsState.Open(listOf(OpenVault(personal.id, open.vault))), f.sessions.state.value)
+        typed(f, "pw")
+        advanceTimeBy(1.seconds)
+        assertEquals(listOf(personal.id, work.id), f.sessions.openIds, "both open, in the window's order")
     }
 
     @Test
@@ -221,11 +233,13 @@ class CurrentDatabaseTest {
     }
 
     @Test
-    fun anotherChosenWhileTheFingerprintIsAskedOpensNothingAndDeletesNothing() = runTest {
+    fun anotherChosenWhileTheFingerprintIsAskedOpensTheFirstWithItsOwnAndNothingElse() = runTest {
+        // The Mac's D4 rule (never the first one's stored password on another) holds by itself now that choosing
+        // closes nothing: the fingerprint's unlock is its own database's, which stays in the window.
         val f = Fixture(this)
         val personal = f.add("/a/Personal.kdbx")
         val work = f.add("/b/Work.kdbx")
-        f.storedPassword("old-pw", personal.id)
+        f.storedPassword("pw", personal.id)
         val first = f.shown
         first.biometric.refresh()
         val finger = CompletableDeferred<Unit>()
@@ -236,10 +250,13 @@ class CurrentDatabaseTest {
         f.databases.choose(work.id)
         finger.complete(Unit)
 
-        assertEquals(FingerprintOutcome.Cancelled, asking.await())
-        assertEquals("old-pw", f.stored(personal.id), "never tried, so never rejected")
-        assertEquals(0, f.passwords.deletes)
+        assertEquals(FingerprintOutcome.Unlocked, asking.await())
+        advanceTimeBy(1.seconds)
+        assertIs<SessionState.Unlocked>(first.state())
         assertEquals(SessionState.Locked(LockReason.Initial), f.shown.state(), "Work is not opened with Personal's")
+        assertEquals(work.id, f.shown.id)
+        assertEquals("pw", f.stored(personal.id))
+        assertEquals(0, f.passwords.deletes)
     }
 
     // Opening a file
@@ -416,16 +433,25 @@ class CurrentDatabaseTest {
     }
 
     @Test
-    fun anUnlockEndedByChoosingAnotherOrWhoseKeyFileChangedMeanwhileTeachesNothing() = runTest {
-        // Choosing another closes the session, so that unlock ends Interrupted; the guard on the current database
-        // is for several open at once (plan AD8), where a database stops being shown without its session closing.
+    fun anUnlockInterruptedOrWhoseKeyFileChangedMeanwhileTeachesNothingAnotherChosenDoesNotStopIt() = runTest {
         val f = Fixture(this)
         val keys = f.add("/k/Keys.kdbx", bytes = keyFileBytes("keyfile-only.kdbx"), keyFile = "/k/keyx.keyx" to keyFileBytes("keyx.keyx"))
         val other = f.add("/o/Other.kdbx")
 
-        val typed = Secret.empty()
-        assertTrue(f.databases.unlock(f.shown, typed))
+        // Another chosen meanwhile: the unlock goes on in the window, and what it learns is its own database's.
+        val first = f.shown
+        assertTrue(f.databases.unlock(first, Secret.empty()))
         f.databases.choose(other.id)
+        runCurrent()
+        assertIs<SessionState.Unlocked>(first.state())
+        assertTrue(f.list.record(keys.id)!!.opensWithoutPassword)
+        first.session.lock()
+        f.list.update(keys.id) { it.copy(opensWithoutPassword = false) }
+
+        // Its file located meanwhile: a new session; the old one locked, so its unlock ended interrupted.
+        f.files["/k2/Keys.kdbx"] = FakeStore(keyFileBytes("keyfile-only.kdbx"))
+        assertTrue(f.databases.unlock(first, Secret.empty()))
+        assertNull(f.databases.locate(keys.id, "/k2/Keys.kdbx"))
         runCurrent()
         assertFalse(f.list.record(keys.id)!!.opensWithoutPassword)
 
@@ -624,9 +650,24 @@ class CurrentDatabaseTest {
         assertIs<SessionState.Unlocked>(f.shown.state())
         assertEquals("pw", f.stored(created.id), "a typed unlock: stored for the fingerprint")
         assertNotNull(f.settings.string(BiometricSetup.lastTypedKey(created.id)), "its days start")
-        assertTrue(before.session.isClosed, "one open at a time: the one shown before closes")
-        assertNotNull(f.list.record(personal.id), "and stays in the list")
+        assertFalse(before.session.isClosed, "nothing closes: the one shown before stays in the window")
+        assertEquals(listOf(personal.id, created.id), f.sessions.windowIds)
         assertNull(created.problem)
+    }
+
+    @Test
+    fun createdWhileAnotherIsOpenThatOneStaysOpen() = runTest {
+        val f = Fixture(this)
+        val personal = f.add("/a/Personal.kdbx")
+        val before = f.shown
+        typed(f, "pw")
+        advanceTimeBy(1.seconds)
+        val created = f.create("/a/New.kdbx")
+        runCurrent()
+        assertEquals(UnlockOutcome.Opened, created.opened?.await())
+        assertIs<SessionState.Unlocked>(before.state())
+        assertEquals(listOf(personal.id, created.id), f.sessions.openIds)
+        assertEquals(created.id, f.shown.id)
     }
 
     @Test

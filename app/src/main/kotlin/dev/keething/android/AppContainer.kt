@@ -20,6 +20,7 @@ import dev.keething.android.databases.NewDatabases
 import dev.keething.android.databases.PhoneNewDatabaseFiles
 import dev.keething.android.generator.PasswordGeneratorState
 import dev.keething.android.list.RecentEntries
+import dev.keething.android.list.ToldUnlocks
 import dev.keething.android.recyclebin.RecycleBinMoves
 import dev.keething.android.session.AndroidClock
 import dev.keething.android.session.LockAlarm
@@ -42,8 +43,11 @@ import dev.keething.android.ui.Notice
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.sharing.message.PartCollector
 import dev.keething.sharing.requests.ShareRequests
+import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
+import dev.keething.vault.databases.EntryRef
 import dev.keething.vault.databases.SessionsState
+import dev.keething.vault.databases.StoredEntryIds
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +55,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -75,6 +80,8 @@ internal class AppContainer(context: Context) {
 
     val recents = RecentEntries(settingsStore)
 
+    val toldUnlocks = ToldUnlocks()
+
     /** The fingerprint unlock's file and keystore work, one task at a time. */
     private val biometricIo = Dispatchers.IO.limitedParallelism(1)
 
@@ -86,7 +93,7 @@ internal class AppContainer(context: Context) {
      */
     val sessions = Sessions(
         settings, settingsStore, DatabaseList(settingsStore), databaseStoreAt, File(context.filesDir, "backups"),
-        ::PathKeyFileSource, biometricStores, appScope, biometricIo, LockAlarm(context),
+        ::PathKeyFileSource, biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path,
     )
 
     /** What a new database's Create is making (plan AD7): an ended process's leftovers go at the next start. */
@@ -184,6 +191,27 @@ internal class AppContainer(context: Context) {
         sessions.locks.onLock = newDatabases::locked
         clearOnLock()
         followTheLockWithTheRequests()
+        keepStoredEntries()
+    }
+
+    /**
+     * Recent and the declined type offers follow the open databases (keething-spec search.recent AC4, AC7): an entry
+     * gone from its open database is dropped (from Recent also into its bin, as the Mac's; a declined offer stays while
+     * the entry is in the bin), a database not open keeps its own unless it left the list, an id stored before several
+     * databases becomes the first open one's ref ([StoredEntryIds]). Only while something is open: an old id needs an
+     * open database to become a ref.
+     */
+    private fun keepStoredEntries() {
+        appScope.launch {
+            combine(sessions.state, sessions.list.state, ::Pair).collect { (state, databases) ->
+                val open = (state as? SessionsState.Open)?.vaults ?: return@collect
+                val ids = open.map { it.id }
+                val listed = databases.records.mapTo(HashSet()) { it.id }
+                recents.keep(StoredEntryIds(ids, open.flatMap { opened -> opened.vault.entries.map { EntryRef(opened.id, it.id) } }, listed))
+                val withBins = open.flatMap { opened -> (opened.vault.entries + opened.vault.recycleBin).map { EntryRef(opened.id, it.id) } }
+                settings.keepDeclined(StoredEntryIds(ids, withBins, listed))
+            }
+        }
     }
 
     /** The requests open with their key when a database opens, and are wiped when none is open. */
@@ -212,8 +240,13 @@ internal class AppContainer(context: Context) {
      */
     private fun clearOnLock() {
         appScope.launch {
+            // A database that locks alone while others stay open: its attachments opened elsewhere go.
+            var open = emptySet<DatabaseId>()
             sessions.state
                 .collect {
+                    val now = (it as? SessionsState.Open)?.vaults?.mapTo(HashSet()) { vault -> vault.id }.orEmpty()
+                    (open - now).forEach(attachmentFiles::clear)
+                    open = now
                     if (it !is SessionsState.Open) {
                         attachmentFiles.clear()
                         autofillEntries.clear()

@@ -159,11 +159,15 @@ public class DatabaseList(
         return record
     }
 
-    /** Out of the list; the file stays. The current one removed: the first left becomes current. */
+    /**
+     * Out of the list; the file stays. The current one removed: the window's first left becomes current (one the user
+     * closed stays closed), else the list's first (keething-spec databases.list AC6).
+     */
     public fun remove(id: DatabaseId) {
         if (record(id) == null) return
         val left = records.filter { it.id != id }
-        change(Databases(left, if (currentId == id) left.firstOrNull()?.id else currentId))
+        val next = if (currentId == id) (left.firstOrNull { it.inWindow } ?: left.firstOrNull())?.id else currentId
+        change(Databases(left, next))
     }
 
     public fun update(id: DatabaseId, change: (DatabaseRecord) -> DatabaseRecord) {

@@ -1,13 +1,18 @@
 package dev.keething.android.list
 
+import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.session.OpenDatabase
 import dev.keething.card.Deadline
 import dev.keething.card.DeadlineList
 import dev.keething.card.EntryAvatar
 import dev.keething.card.EntryFace
 import dev.keething.card.ExpiryHint
 import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.EntryRef
 import dev.keething.search.EntrySearch
 import dev.keething.search.SearchFacets
 import java.text.Collator
@@ -15,6 +20,7 @@ import java.time.Instant
 
 /** One row of the list (SPEC §6.2): title, username and site, the live code when there is one. */
 internal data class EntryRow(
+    /** The entry's ref ([EntryRef.text]): the same UUID in two databases is two rows. */
     val id: String,
     val title: String,
     /** `username · host`, either part left out when empty. */
@@ -31,6 +37,8 @@ internal data class EntryRow(
     val deadline: RowDeadline?,
     /** A payment card's or a Wi-Fi network's small face, drawn instead of the icon (SPEC §6.2). */
     val face: EntryFace? = null,
+    /** Its database, while two or more are open: the group line says it ("● Work › Engineering"). */
+    val database: DatabaseMark? = null,
 )
 
 /** The most pressing date an entry says something ends on, when it ended or ends within 90 days. */
@@ -58,14 +66,76 @@ internal fun List<ListSection>.without(ids: Set<String>): List<ListSection> {
     }
 }
 
+/** The sections with the rows of the databases [open] only (the others' locked meanwhile); a section left empty goes. */
+internal fun List<ListSection>.onlyOf(open: Set<DatabaseId>): List<ListSection> = mapNotNull { section ->
+    val rows = section.rows.filter { EntryRef.of(it.id).database in open }
+    when {
+        rows.size == section.rows.size -> section
+        rows.isEmpty() -> null
+        else -> section.copy(rows = rows)
+    }
+}
+
+/** An open database as the list lists it: [mark] while two or more are open (keething-spec databases.name-colour AC6). */
+internal class ListedDatabase(val id: DatabaseId, val vault: Vault, val mark: DatabaseMark? = null)
+
+/** The open databases listed as one, labelled while two or more are open. */
+internal fun listingOf(open: List<OpenDatabase>, now: Instant): VaultListing {
+    val labelled = open.size >= 2
+    return VaultListing(open.map { ListedDatabase(it.database.id, it.unlocked.vault, it.mark.takeIf { labelled }) }, now)
+}
+
+/** Whether [a] and [b] list the same: the same sessions, the same vaults read, the same marks. */
+internal fun sameListing(a: List<OpenDatabase>, b: List<OpenDatabase>): Boolean =
+    a.size == b.size && a.indices.all { a[it].database === b[it].database && a[it].unlocked.vault === b[it].unlocked.vault && a[it].mark == b[it].mark }
+
 /**
- * A vault prepared for the list: the search indexes and each entry's deadline are computed once per vault
- * (it takes a moment for ~2000 entries: build it off the main thread), then [sections] answers every query.
+ * The open databases prepared for the list, as one (plan AD9; keething-spec databases.one-list AC1): each entry is a
+ * copy whose id is its ref, so one index ranks them all and the same UUID in two databases is two rows; the search
+ * indexes and each entry's deadline are computed once per vault read (it takes a moment for ~2000 entries: build it
+ * off the main thread), then [sections] answers every query.
  */
-internal class VaultListing(val vault: Vault, now: Instant, private val collator: Collator = Collator.getInstance()) {
+internal class VaultListing(databases: List<ListedDatabase>, now: Instant, private val collator: Collator = Collator.getInstance()) {
+    /** One vault on its own, its entries' refs their own ids. */
+    constructor(vault: Vault, now: Instant, collator: Collator = Collator.getInstance()) :
+        this(listOf(ListedDatabase(DatabaseId(""), vault)), now, collator)
+
+    /**
+     * The open databases' entries as one vault, ids and custom icons by ref; its recycle bin is each database's in the
+     * window's order, each in its file's order (a file keeps no time of the move).
+     */
+    val vault: Vault
+
+    /** The bins' entries, latest deleted first in each database (keething-spec search.recycle-bin AC5). */
+    private val latestDeleted: List<Entry>
+
+    private val marks: Map<String, DatabaseMark>
+
+    init {
+        val entries = ArrayList<Entry>()
+        val bin = ArrayList<Entry>()
+        val deleted = ArrayList<Entry>()
+        val icons = HashMap<String, CustomIcon>()
+        val marked = HashMap<String, DatabaseMark>()
+        for (database in databases) {
+            fun ref(id: String) = EntryRef(database.id, id).text
+            fun copy(entry: Entry) = entry.copy(id = ref(entry.id), customIconId = entry.customIconId?.let(::ref))
+                .also { copied -> database.mark?.let { marked[copied.id] = it } }
+            database.vault.entries.mapTo(entries, ::copy)
+            val binned = database.vault.recycleBin.map(::copy)
+            bin += binned
+            deleted += binned.asReversed()
+            for ((id, icon) in database.vault.customIcons) icons[ref(id)] = icon
+        }
+        vault = Vault(entries = entries, recycleBin = bin, customIcons = icons)
+        latestDeleted = deleted
+        marks = marked
+    }
+
     private val index = EntrySearch.index(vault.entries, collator)
     private val binIndex = EntrySearch.index(vault.recycleBin, collator)
     private val byId: Map<String, Entry> = vault.entries.associateBy { it.id }
+    private val binById: Map<String, Entry> = vault.recycleBin.associateBy { it.id }
     private val deadlines: Map<String, RowDeadline> = DeadlineList.build(vault, now)
         .filter { it.hint.status != ExpiryHint.Status.VALID }
         .groupBy { it.entryId }
@@ -86,9 +156,10 @@ internal class VaultListing(val vault: Vault, now: Instant, private val collator
     val binFacets: SearchFacets by lazy { SearchFacets.of(vault.recycleBin.map { it.copy(groupPath = it.groupPath.drop(1)) }, collator) }
 
     /**
-     * Nothing typed: the recently used entries, then all by title. Typed: the matches, best first. A query
-     * starting with `-` lists the recycle bin (the latest deleted first) or searches it. [codesOnly]: only
-     * the entries with a one-time code; nothing typed lists them all by title.
+     * Nothing typed: the recently used entries (at most [RecentEntries.LIMIT], of the databases listed), then all by
+     * title. Typed: the matches, best first. A query starting with `-` lists the recycle bins (each database's latest
+     * deleted first) or searches them. [codesOnly]: only the entries with a one-time code; nothing typed lists them all
+     * by title.
      */
     fun sections(query: String, recentIds: List<String>, codesOnly: Boolean = false): List<ListSection> {
         if (codesOnly) {
@@ -97,17 +168,21 @@ internal class VaultListing(val vault: Vault, now: Instant, private val collator
             return listOfNotNull(section(kind, entries.filter { it.totp != null }))
         }
         EntrySearch.recycleBinQuery(query)?.let { binQuery ->
-            val entries = if (binQuery.isBlank()) vault.recycleBin.asReversed() else EntrySearch.filter(binIndex, binQuery)
+            val entries = if (binQuery.isBlank()) latestDeleted else EntrySearch.filter(binIndex, binQuery)
             return listOfNotNull(section(ListSection.Kind.RECYCLE_BIN, entries))
         }
         if (query.isNotBlank()) return listOfNotNull(section(ListSection.Kind.RESULTS, EntrySearch.filter(index, query)))
         return listOfNotNull(
-            section(ListSection.Kind.RECENT, recentIds.mapNotNull(byId::get)),
+            section(ListSection.Kind.RECENT, recentIds.mapNotNull(byId::get).take(RecentEntries.LIMIT)),
             section(ListSection.Kind.ALL, EntrySearch.filter(index, "")),
         )
     }
 
-    fun entry(id: String): Entry? = byId[id] ?: vault.recycleBin.firstOrNull { it.id == id }
+    /** The entry of [id] (a ref), a copy whose id is the ref; null when it is in none of the databases listed. */
+    fun entry(id: String): Entry? = byId[id] ?: binById[id]
+
+    /** Whether [id] is in a recycle bin. */
+    fun inRecycleBin(id: String): Boolean = id in binById
 
     fun section(kind: ListSection.Kind, entries: List<Entry>): ListSection? =
         if (entries.isEmpty()) null else ListSection(kind, entries.map(::row))
@@ -126,6 +201,7 @@ internal class VaultListing(val vault: Vault, now: Instant, private val collator
         totp = entry.totp,
         deadline = deadlines[entry.id],
         face = faces[entry.id],
+        database = marks[entry.id],
     )
 
     private fun rowDeadline(deadline: Deadline): RowDeadline {

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -80,6 +81,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -90,7 +94,10 @@ import dev.keething.android.attachment.SaveAttachment
 import dev.keething.android.navigation.inTwoPanes
 import dev.keething.android.navigation.sharedIcon
 import dev.keething.android.navigation.sharedTitle
+import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.databases.databaseColors
 import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.databases.EntryRef
 import dev.keething.android.sharing.SendToRequestSheet
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.EntryMark
@@ -125,8 +132,11 @@ import java.time.format.FormatStyle
 @Composable
 internal fun EntryCardScreen(
     container: AppContainer,
+    /** The entry's own database's session. */
     database: DatabaseSession,
-    entryId: String,
+    ref: EntryRef,
+    /** Its database's mark while two or more are open: the chip first among the group and tags. */
+    mark: DatabaseMark?,
     origin: String,
     onBack: () -> Unit,
     onSearch: (String) -> Unit,
@@ -142,7 +152,7 @@ internal fun EntryCardScreen(
 ) {
     val model = viewModel {
         EntryCardViewModel(
-            entryId, database, container.recents, container.clipboard, container.attachmentFiles, container.androidAttachments,
+            ref, database, container.recents, container.clipboard, container.attachmentFiles, container.androidAttachments,
             container.recycleBin, container.settings,
         )
     }
@@ -326,7 +336,7 @@ internal fun EntryCardScreen(
         ) {
             // On a wide screen the rows keep a width the eye follows; a face is narrower still (FACE_MAX_WIDTH).
             Column(Modifier.readableWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Header(content, sharedKey = "$origin/$entryId", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
+                Header(content, mark, sharedKey = "$origin/${ref.text}", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
                 Banners(content)
                 content.suggestion?.takeIf { !model.suggestionDismissed }?.let { suggestion ->
                     SuggestionBanner(suggestion, saving = model.suggesting, onAccept = model::acceptSuggestion, onDismiss = model::dismissSuggestion)
@@ -371,7 +381,7 @@ private fun CardMenu(inRecycleBin: Boolean, onHistory: () -> Unit, onSend: () ->
 }
 
 @Composable
-private fun Header(content: CardContent, sharedKey: String, onSearch: (String) -> Unit, onTitlePlaced: (bottom: Float) -> Unit) {
+private fun Header(content: CardContent, mark: DatabaseMark?, sharedKey: String, onSearch: (String) -> Unit, onTitlePlaced: (bottom: Float) -> Unit) {
     val card = content.card
     // Compact: the icon beside the title leaves the face and the fields in sight (SPEC §6.2).
     Row(
@@ -386,8 +396,9 @@ private fun Header(content: CardContent, sharedKey: String, onSearch: (String) -
                 Modifier.sharedTitle(sharedKey).onGloballyPositioned { onTitlePlaced(it.boundsInRoot().bottom) },
                 style = MaterialTheme.typography.headlineMedium,
             )
-            if (card.groupPath.isNotEmpty() || card.tags.isNotEmpty()) {
+            if (mark != null || card.groupPath.isNotEmpty() || card.tags.isNotEmpty()) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    mark?.let { DatabaseChip(it) }
                     if (card.groupPath.isNotEmpty()) {
                         Chip(
                             text = card.groupPath,
@@ -402,6 +413,31 @@ private fun Header(content: CardContent, sharedKey: String, onSearch: (String) -
                 }
             }
         }
+    }
+}
+
+/**
+ * The entry's database while two or more are open (keething-spec databases.name-colour AC6): its dot and label in its
+ * colour on a soft fill of it. A tap that keeps that database's entries (`!Work `) comes with the `!` filter (plan AD10).
+ */
+@Composable
+private fun DatabaseChip(mark: DatabaseMark) {
+    val colors = databaseColors(mark.colorIndex)
+    Row(
+        Modifier.height(32.dp).clip(RoundedCornerShape(10.dp)).background(colors.soft).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        Box(Modifier.size(9.dp).clip(CircleShape).background(colors.dot))
+        Text(
+            mark.label.full,
+            Modifier.semantics { contentDescription = "Database ${mark.label.full}" },
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.text,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+        )
     }
 }
 

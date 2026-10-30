@@ -68,7 +68,8 @@ stays open until the lock, autofill covers most logins, and it needs the notific
 only for frequent copying into apps autofill does not reach), Google Play (§8.1).
 
 Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
-databases side by side (the list is in, one open at a time, §3.1), key files (in, §4), creating a database (in,
+databases side by side (the list is in, and one list over several open, §3.1; the chooser and one fingerprint for
+several are to come), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
 3.1 (refused until then), moving entries between groups, merging conflicting copies (detected and shown only until
 then, §3.4).
@@ -176,15 +177,34 @@ setting `databases`: `{"current": <id>, "databases": [record…], "version": 1}`
 not JSON makes the list **unreadable**: it is kept under `databases.unreadable.<seconds>`, never overwritten, and the
 list starts empty; any other field missing reads as its default, unknown ones are ignored. The first database added
 is current: the one the lock screen shows. **The window** (`inWindow`, kept with the list) is the databases side by
-side, each with a session of its own (§4); the current one is always in it. **One is open at a time** from the screens
-until `plans/android-databases.md` AD9: the window holds the current database alone, and choosing another closes the
-one shown. There is **no default path and no migration**: the single path of before
+side, each with a session of its own (§4); the current one is always in it. **Opening or choosing another database
+closes nothing** (keething-spec databases.list AC4): it joins the window and becomes current, the databases already
+open stay open, and its lock screen shows with Back to them (the lock screen's sheet, Open a database…, New database;
+until the Databases menu and the line of those not open, `plans/android-databases.md` AD12, these are the ways in).
+There is **no default path and no migration**: the single path of before
 (`databasePath`) is left as it was and read no more, so the first start after the list shows the welcome (§6.2). A
 database is added by opening its file (the system picker, any file; the app keeps the document's path, which the
 phone's storage provider and the downloads provider's `raw:` ids give, and says when a place has none); Locate… gives
 a database whose file moved its new path (it keeps its id, its backups and its stored password; one open locks first;
 a path another database of the list has is refused: "That file is already in the list as “Personal”."); Remove from
-List forgets it with its stored password and leaves the file; the current one removed, the first left is current.
+List forgets it with its stored password and leaves the file; the current one removed, the window's first left is
+current (one not in the window stays out), else the list's first.
+
+**One list over the open databases** (keething-spec databases.one-list; the Mac's D6): an entry is its database's id
+and its own id together, its **ref** `<database id>:<entry id>` (`:` is in neither a KeePass UUID nor a database id),
+so the same UUID in two databases (a copy of a file keeps every UUID) is two rows, two cards and two places in Recent.
+The list works on copies whose id is the ref (one search ranks them all); the card, the editor, the history, a password
+full screen and a move to the bin or out of it act on the entry in its own database, through its session, saved into
+its file; a row's Delete follows its own database's recycle-bin setting. `-` lists every database's bin, the
+databases in the window's order, each with its latest deleted first (a file keeps no time of the move). **Recent**
+and the declined type offers (§6.3) are kept by ref: 8 are listed in all and 8 kept per database, so a locked
+database's entries are not pushed out by those used meanwhile; its entries are hidden while it is locked and come
+back when it opens; an entry gone from its open database is dropped, a database that left the list takes its refs
+with it, and an id stored before several databases becomes the ref of the first open database holding it, else it is
+dropped (no migration step). While **two or more are open** each row says its database ("● Work › Engineering", the
+root group "● Work") and the card's chips start with its database's (§6.2); with one open nothing of this shows. A new
+entry, Groups & tags, autofill and a received entry stay with the current database until AD11 (sending reads entries
+from any open one); the `!` filter is AD10.
 
 **A database's name and colour** (keething-spec databases.name-colour; the Mac's D7b): its name is its file's
 `Meta/DatabaseName` (outer spaces aside), else the file name without `.kdbx`; KeePassXC's default names "Passwords",
@@ -534,7 +554,9 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
   only. A session is made when its database joins the window, and dropped (locked, never opened again) when it leaves
   the window or the list or its file moves (Locate… starts a new one). The Lock button and the timeout lock every
   database at once; one can be locked or closed alone (the core only, the menu is AD12); a reload that finds one
-  database's password changed locks that one only, and each lock screen says its own database's reason. The **app's
+  database's password changed locks that one only (its entries' screens close, the others stay), and each lock screen
+  says its own database's reason. The vault's screens show while the current database is open; its lock screen shows
+  otherwise, with Back to the open ones. The **app's
   state** (nothing open and why, opening, the open vaults in the window's order) is told once per change, and the
   screens follow it: nothing open clears the list, the search, the card and the editor, the attachments opened
   elsewhere, autofill's matching and the sharing requests, also while another database is still opening.
@@ -606,8 +628,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
 
 Same idea as the Mac app's Touch ID (Mac SPEC §3.8), with the Keystore in place of the Secure Enclave; the
 rules are a port of the Mac's `TouchIDUnlock`: `BiometricSetup` (`core/vault`) for the whole app, `BiometricUnlock` for
-each database. Each database has its **own stored password** (`plans/android-databases.md` AD5); one database is open
-at a time from the screens (several are AD9; one fingerprint for several is AD13).
+each database. Each database has its **own stored password** (`plans/android-databases.md` AD5); several can be open
+side by side (§3.1), each opened from its own lock screen (one fingerprint for several is AD13).
 
 - **Two switches.** The app's, "Unlock with the fingerprint" in Settings, is **off** until turned on; each database
   has its own **Use fingerprint** besides (`useBiometric` in the list, §3.1), on its page in Settings and as "Use
@@ -831,9 +853,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Databases and a database's page, New database; with several open, rows saying their database, the databases not
   open as one line under the header (a tap: its lock screen; a long press: its whole say and menu), ⋮ › Databases
   (a row swiped left closes it, with Undo), `!` and narrowing in the search, the chooser and its run, a new entry's
-  Save into. One database at a time is built (AD4: the welcome, the lock screen's line, sheet and key file, not
+  Save into. Built: one database at a time (AD4: the welcome, the lock screen's line, sheet and key file, not
   found, Settings → Databases and a database's page), replacing Choose the database; names and colours (AD6: the
-  tile's colour, a name read from the file, names alike, §3.1); New database (AD7, above). The welcome's large icon is the app's
+  tile's colour, a name read from the file, names alike, §3.1); New database (AD7, above); one list over several
+  open (AD9: rows saying their database, the card's database chip, the header's names, opening another closing
+  nothing, §3.1). The welcome's large icon is the app's
   logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
   files.
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
@@ -842,8 +866,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the **sheet** "Databases": the list's databases (a dot in its colour and its label; a check on the one shown; its folder or "not found"; more than six
   scroll inside it, "9 databases · scroll for the rest"), Open other…, New database… and Remove “…” from list… (asked: "Remove
   “Work” from the list?", "Keething forgets it on this phone, with its stored password. The file stays where it
-  is.", Cancel / Remove). Another chosen there is shown locked with an empty field and nothing said of the last one,
-  with Back (and the system back) to the one before. Then the reason of the last lock; a key file not there is said
+  is.", Cancel / Remove). Another chosen there joins the others, open or not, and is shown locked with an empty field
+  and nothing said of the last one, with Back (and the system back) to the one before. A lock screen shown while other
+  databases are open (one opened from Settings, one whose password changed elsewhere) has Back to them. Then the reason of the last lock; a key file not there is said
   first (§4). The field's placeholder is "Master password", with a key file "Master password, if it has one"; Unlock
   is unavailable while the field is empty unless the database has a key file. Under the field the key file (key,
   name, folder or "not there · folder" in red, Change… or Choose…), or **Key file…** while it has none; a database
@@ -858,19 +883,24 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   database's is off, a "Use fingerprint next time" switch under the field turns it on for this database, so the
   password typed then sets it up. When the
   password is due (§5) the button is not there and the reason chip says so. A wrong password (or key file,
-  §4) shakes the field. The first list after an unlock says how long the key derivation took. On a screen less than 480 dp high
+  §4) shakes the field. The first list after an unlock says how long the key derivation took, once per unlock (the database's name before it
+  while two or more are open; Back to a database still open says nothing). On a screen less than 480 dp high
   (a phone in landscape) the logo, name and database are on the left and the field on the right; with the keyboard
   up only the database's line stays beside the field.
-- **List**: search results (empty query: recently used, then all by title); a row = title, username,
-  site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group, the
-  path inside the bin for an entry in it, as the Mac's rows). The header (large "Keething", the database's name (§3.1) and its
-  entries; Lock first and set apart, so that a tap meant for another icon does not lock, then Groups & tags,
+- **List**: search results (empty query: recently used, then all by title) over every open database (§3.1); a row =
+  title, username, site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group,
+  the path inside the bin for an entry in it, as the Mac's rows); while two or more databases are open the line says
+  its database instead of the folder: a dot in its colour, its name in its text colour (the addition of a label smaller),
+  then the group: "● Work › Engineering", the root group "● Work". The header (large "Keething", the database's name
+  (§3.1) and its entries; with two or more open their labels joined, "Personal and Work · 19 entries"; Lock first and set apart, so that a tap meant for another icon does not lock, then Groups & tags,
   Sharing (§10; a dot while requests wait for an answer) and ⋮ with "Generate a password" (the editor's wand) and
   Settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top; it collapses
   too as the search field takes the focus (the keyboard takes half the screen), and comes back when the field
   lets it go with the list at its top. On a screen less than 480 dp high (a phone in landscape) it is the compact
   bar from the start; beside the card (§6.1) that bar has the title only. Recently used: the last 8 entries whose card was opened or from which something was copied,
-  kept as ids only (they survive a lock and say nothing without the database).
+  kept as refs only (they survive a lock and say nothing without the database; 8 kept per database, §3.1). Syncthing's
+  conflict copies and a failed reload are each open database's own banner (the reload's named while two or more are
+  open).
   **Search field**: a magnifier and "Search"; while it has the focus, chips over the keyboard: `@ group`, `# tag`,
   `+ file`, `− bin` (the bin's toggles the recycle bin search; none in the Codes list). A tap on one adds its sign
   to the query, and then the chips are what the filter being typed can be, as the Mac's suggestions (Mac SPEC
@@ -903,7 +933,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   right, in reach of the thumb; the bar's ⋮ holds History, Send to a request (§10) and Move to the recycle bin
   (at once, the list offering Undo). In the recycle bin: Restore in the bar, History under ⋮, no Edit. Custom fields are read by their
   types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. The header
-  is compact: the icon (56 dp) beside the title, the group and tag chips under the title. Its bar (Back) is clear at the
+  is compact: the icon (56 dp) beside the title, the group and tag chips under the title, led while two or more
+  databases are open by the entry's database's chip (a dot and its label in its colour on a soft fill of it; a tap
+  keeping that database's entries comes with the `!` filter, AD10). Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
   title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
   brightness, black on white, for another phone to scan; nothing leaves the device; "Show the password"
@@ -1053,7 +1085,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   keeps its scroll position: the row fades out at once (not when the save is done) and the rows below close
   up; a failed save or Undo puts it back in its place. A vault read again (a save, a sync) is listed while
   the one before stays on screen, so no reload empties the list or scrolls it to the top.
-- **Groups & tags** (the folder in the list's header; the Mac's Groups & Tags window, §3.25 there, without
+- **Groups & tags** (the folder in the list's header; the current database's, its label under the title while two or
+  more are open; the Mac's Groups & Tags window, §3.25 there, without
   changing anything): **Groups** as segmented rows, "Top level" (the root group) first, then tree order
   (parents first, siblings by name, indented by depth), each with how many entries are in it and below it
   and, when some are in its groups, how many right in it ("3 here"); empty groups too. The counts are those
@@ -1096,7 +1129,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Change…, Forget; "Remembered here by its path, not its contents. It must be there at every unlock, the fingerprint
   too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
   **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
-  Under the list **Open a database…** (it becomes current: one open locks) and **New database…** (§6.2). Then the app's fingerprint switch (§5) and,
+  Under the list **Open a database…** (it becomes current; one open stays open, §3.1) and **New database…** (§6.2). Then the app's fingerprint switch (§5) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.
@@ -1150,8 +1183,8 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   "Recovery phrase", "Mnemonic", "Сид-фраза"… — when protected or when most of its words are a list's; an address or
   extended public key by its checksum, one without a checksum only under an address's name; then a passphrase
   beside a phrase and a derivation path, "Looks like a crypto wallet · Show as wallet"). The tap saves the types (an edit of the field types only, §3.3), so the face appears here (and the
-  Mac draws a card's and a network's view too); nothing is typed without it. "Not now" is remembered per entry (its id in the app's settings, as Recent keeps
-  ids); not offered in the recycle bin, nor for fields typed otherwise.
+  Mac draws a card's and a network's view too); nothing is typed without it. "Not now" is remembered per entry (its ref in the app's settings, as Recent keeps
+  refs, §3.1); not offered in the recycle bin, nor for fields typed otherwise.
 - **The editor**: the type chip under a field's value names the type it has ("Card expiry ▾"), or what its
   value is read as ("Text · auto ▾"), or a type not known here ("“x.y” ▾"); its menu: *Automatic (…)* (no type; what it is read as in brackets), Text, Date, Date until
   (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›*, *SSH ›*, *Crypto ›*, and a type not known

@@ -7,7 +7,9 @@ import androidx.lifecycle.viewModelScope
 import dev.keething.android.list.ListSection
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.list.VaultListing
+import dev.keething.android.list.ListedDatabase
 import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.databases.EntryRef
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.domain.vault.Entry
 import dev.keething.vault.session.SessionState
@@ -52,7 +54,10 @@ internal class AutofillPickerModel(
         .mapLatest { vault ->
             vault?.let {
                 withContext(Dispatchers.Default) {
-                    PreparedPicker(VaultListing(it, Instant.now()), entries.candidates(it, request.form).map { c -> c.entry }, CustomIconImages(it.customIcons))
+                    // The current database's entries, by ref as Recent keeps them (autofill across databases is plan AD11's).
+                    val listing = VaultListing(listOf(ListedDatabase(database.id, it)), Instant.now())
+                    val matched = entries.candidates(it, request.form).mapNotNull { c -> listing.entry(EntryRef(database.id, c.entry.id).text) }
+                    PreparedPicker(listing, matched, CustomIconImages(listing.vault.customIcons))
                 }
             }
         }

@@ -156,6 +156,23 @@ class DatabaseListTest {
     }
 
     @Test
+    fun removingTheCurrentOneMakesTheWindowsFirstCurrentOneNotInTheWindowStaysOut() {
+        // keething-spec databases.list AC6: a database the user closed stays closed.
+        val list = list(MapSettings())
+        val a = list.add("/a.kdbx")
+        val b = list.add("/b.kdbx")
+        val c = list.add("/c.kdbx")
+        list.setInWindow(c.id, true)
+        list.setInWindow(b.id, true)
+        list.setCurrent(b.id)
+
+        list.remove(b.id)
+
+        assertEquals(c.id, list.currentId, "the window's first, not the list's (a is not in the window)")
+        assertEquals(a.id, list.records.first().id)
+    }
+
+    @Test
     fun locatingAndTheKeyFileChangeTheRecordNotItsIdAndAreSavedAtOnce() {
         val store = MapSettings()
         val list = list(store)
