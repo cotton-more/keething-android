@@ -1,10 +1,12 @@
 package dev.keething.android.biometric
 
+import dev.keething.domain.biometric.SeveralOpening
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.security.PrivateKey
 import java.security.PublicKey
 import javax.crypto.Cipher
 
@@ -43,6 +45,22 @@ internal class KeyringFiles(private val folder: File, private val key: Fingerpri
         class Answer(val opening: StoredPasswordOpening) : Prepared
     }
 
+    /** Before one prompt for several databases (plan AD13): the cipher to show it for, or why none can open. */
+    sealed interface PreparedKeyring {
+        class Ask internal constructor(val cipher: Cipher, internal val keyring: Keyring) : PreparedKeyring
+
+        class Answer(val opening: SeveralOpening) : PreparedKeyring
+    }
+
+    /**
+     * The keyring opened after the fingerprint: each database's password, read in turn ([open]), then dropped. A cipher
+     * per database: one that failed on another keyring's copy may refuse the next until it is reset (found by AD13's review).
+     */
+    class OpenKeyring internal constructor(private val privateKey: PrivateKey, private val files: KeyringFiles) {
+        /** [database]'s stored password; throws [IOException] when its file cannot be read. */
+        fun open(database: String): StoredPasswordOpening = files.openPassword(database, Keyring.opening(privateKey))
+    }
+
     fun hasPassword(database: String): Boolean = File(databasesFolder, database).exists()
 
     fun save(database: String, password: Secret) {
@@ -70,19 +88,53 @@ internal class KeyringFiles(private val folder: File, private val key: Fingerpri
      * (it may be for a moment): [IOException].
      */
     fun open(ask: Prepared.Ask): StoredPasswordOpening {
-        val privateKey = try {
-            ask.keyring.privateKey(ask.cipher)
-        } catch (refused: UnwrapRefusedException) {
-            throw IOException("the Keystore did not open the keyring (${refused.cause?.javaClass?.simpleName})", refused)
+        val privateKey = privateKey(ask.keyring, ask.cipher) ?: return StoredPasswordOpening.KeyInvalidated
+        return opened(ask.sealed, Keyring.opening(privateKey))
+    }
+
+    /**
+     * Before one prompt for several databases: the cipher to show it for. A fingerprint change, a keyring made for a
+     * key since replaced, a damaged keyring or none at all: nothing stored can open, every database's is lost
+     * ([SeveralOpening.KeyInvalidated]). The Keystore failing to give its key: [IOException].
+     */
+    fun prepareKeyring(): PreparedKeyring {
+        val keyring = try {
+            readKeyring()
         } catch (damaged: UnreadableSealException) {
-            return StoredPasswordOpening.KeyInvalidated
-        }
-        return try {
-            StoredPasswordOpening.Opened(SealedPassword.open(ask.sealed, Keyring.opening(privateKey)))
-        } catch (unreadable: UnreadableSealException) {
-            // Sealed for another keyring, or changed: this database's alone can never open.
-            StoredPasswordOpening.CopyInvalidated
-        }
+            null
+        } ?: return PreparedKeyring.Answer(SeveralOpening.KeyInvalidated)
+        val cipher = key.decryptingCipher() ?: return PreparedKeyring.Answer(SeveralOpening.KeyInvalidated)
+        val current = key.publicKey()
+        if (current == null || !keyring.isFor(current)) return PreparedKeyring.Answer(SeveralOpening.KeyInvalidated)
+        return PreparedKeyring.Ask(cipher, keyring)
+    }
+
+    /**
+     * After the fingerprint: the keyring [ask] prepared, open for each database's password; null when its private key
+     * does not open (every database's is lost). The Keystore refusing is said and costs nothing: [IOException].
+     */
+    fun openKeyring(ask: PreparedKeyring.Ask): OpenKeyring? = privateKey(ask.keyring, ask.cipher)?.let { OpenKeyring(it, this) }
+
+    /** [database]'s password with the keyring's [opening] cipher. */
+    private fun openPassword(database: String, opening: Cipher): StoredPasswordOpening {
+        val sealed = File(databasesFolder, database).takeIf(File::exists)?.readBytes() ?: return StoredPasswordOpening.NothingStored
+        return opened(sealed, opening)
+    }
+
+    /** The keyring's private key, opened with [cipher]; null when it does not open. */
+    private fun privateKey(keyring: Keyring, cipher: Cipher): PrivateKey? = try {
+        keyring.privateKey(cipher)
+    } catch (refused: UnwrapRefusedException) {
+        throw IOException("the Keystore did not open the keyring (${refused.cause?.javaClass?.simpleName})", refused)
+    } catch (damaged: UnreadableSealException) {
+        null
+    }
+
+    private fun opened(sealed: ByteArray, opening: Cipher): StoredPasswordOpening = try {
+        StoredPasswordOpening.Opened(SealedPassword.open(sealed, opening))
+    } catch (unreadable: UnreadableSealException) {
+        // Sealed for another keyring, or changed: this database's alone can never open.
+        StoredPasswordOpening.CopyInvalidated
     }
 
     /** True when there was one to delete. */

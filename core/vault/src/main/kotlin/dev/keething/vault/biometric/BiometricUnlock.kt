@@ -120,7 +120,9 @@ public sealed interface FingerprintOutcome {
  * - No fingerprint is asked while its file or its key file is not there.
  *
  * Call it from the main thread. [scope] is the app's (storing a typed password outlives the screen); [states] ends with
- * the session (it follows the switches and the list for [state]).
+ * the session (it follows the switches and the list for [state]); [appLocks] is the app's lock count
+ * ([dev.keething.vault.databases.VaultSessions.lockCount]): a Lock that found this database locked already does not change
+ * its own.
  */
 public class BiometricUnlock(
     private val id: DatabaseId,
@@ -130,6 +132,7 @@ public class BiometricUnlock(
     private val scope: CoroutineScope,
     states: CoroutineScope,
     private val fileExists: (String) -> Boolean = { File(it).isFile },
+    private val appLocks: () -> Int = { 0 },
 ) {
     private var prompting = false
     private var opening = false
@@ -213,10 +216,13 @@ public class BiometricUnlock(
         }
     }
 
-    /** Asks for the fingerprint and unlocks with this database's stored password (or its key file alone). One at a time. */
+    /**
+     * Asks for the fingerprint and unlocks with this database's stored password (or its key file alone), this database
+     * alone (keething-spec databases.several-open AC8). One at a time for the app.
+     */
     public suspend fun unlockWithFingerprint(): FingerprintOutcome {
         if (session.isClosed) return FingerprintOutcome.Cancelled
-        if (prompting || session.state.value !is SessionState.Locked) return FingerprintOutcome.InProgress
+        if (prompting || setup.asking || session.state.value !is SessionState.Locked) return FingerprintOutcome.InProgress
         val record = list.record(id) ?: return FingerprintOutcome.Cancelled
         if (!setup.state.value.enabled) return FingerprintOutcome.NotAvailable("it is turned off in Settings")
         if (!record.useBiometric) return FingerprintOutcome.NotAvailable("it is turned off for this database")
@@ -228,9 +234,12 @@ public class BiometricUnlock(
             return FingerprintOutcome.PasswordDue
         }
         prompting = true
+        setup.asking = true
         publish()
-        // A lock from here on (the button, the timeout, sleep) opens nothing (keething-spec unlock.biometric-invalidation AC6).
+        // A lock from here on (the button, the timeout, sleep) opens nothing (keething-spec unlock.biometric-invalidation AC6):
+        // its own, or the app's, which leaves a database locked already as it was (found by AD8's review).
         val locks = session.locks
+        val appLocked = appLocks()
         try {
             val availability = setup.availability()
             if (availability is BiometricAvailability.Unavailable) return FingerprintOutcome.NotAvailable(availability.reason)
@@ -247,12 +256,12 @@ public class BiometricUnlock(
                 return FingerprintOutcome.StorageError(failure.message ?: failure.javaClass.simpleName)
             }
             // Locked while the stored password was read (StrongBox takes a moment): nothing opens, nothing is deleted.
-            if (session.locks != locks) {
+            if (session.locks != locks || appLocks() != appLocked) {
                 (opened as? StoredPasswordOpening.Opened)?.password?.wipe()
                 return FingerprintOutcome.Cancelled
             }
             return when (opened) {
-                is StoredPasswordOpening.Opened -> unlockWithStored(opened.password, record)
+                is StoredPasswordOpening.Opened -> openStored(opened.password, record)
                 StoredPasswordOpening.Cancelled -> FingerprintOutcome.Cancelled
                 is StoredPasswordOpening.Failed -> FingerprintOutcome.AuthenticationFailed(opened.reason)
                 StoredPasswordOpening.KeyInvalidated -> {
@@ -272,12 +281,17 @@ public class BiometricUnlock(
         } finally {
             prompting = false
             opening = false
+            setup.asking = false
             publish()
         }
     }
 
-    /** [password] (empty: the key file alone) opens the vault, and the outcome is judged for this database alone. */
-    private suspend fun unlockWithStored(password: Secret, record: DatabaseRecord): FingerprintOutcome {
+    /**
+     * [password] (empty: the key file alone), opened after a fingerprint, opens the vault, and the outcome is judged for
+     * this database alone as soon as its attempt ends (keething-spec unlock.biometric-several AC2): a lock meanwhile is
+     * no verdict. The password is wiped.
+     */
+    internal suspend fun openStored(password: Secret, record: DatabaseRecord): FingerprintOutcome {
         val outcome = try {
             session.unlock(password)
         } finally {

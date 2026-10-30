@@ -69,8 +69,8 @@ stays open until the lock, autofill covers most logins, and it needs the notific
 only for frequent copying into apps autofill does not reach), Google Play (§8.1).
 
 Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
-databases side by side (the list is in, and one list over several open, §3.1; the chooser and one fingerprint for
-several are to come), key files (in, §4), creating a database (in,
+databases side by side (the list is in, one list over several open, the chooser and one fingerprint for several,
+§3.1, §5), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
 3.1 (refused until then), moving entries between groups, merging conflicting copies (detected and shown only until
 then, §3.4).
@@ -185,7 +185,7 @@ a chip of the line of those not open, ⋮ › Databases). **Close** (keething-sp
 databases.not-open AC4) takes a database out of the window, locked, still in the list with its stored password (Recent
 in ⋮ › Databases); the window keeps one, so its last is not closed ("The last one stays"); the current one closed, the
 window's first open one becomes current, so the vault stays; Undo puts it back, locked (closing the only open one,
-the next one's lock screen shows and there is no Undo: it is under Recent). **Lock** one locks it alone,
+the chooser shows, or the window's last one's lock screen, and there is no Undo: it is under Recent). **Lock** one locks it alone,
 the others staying open.
 
 **The databases of the window not open** (keething-spec databases.not-open; the Mac's D6b) are one line of chips
@@ -194,13 +194,38 @@ two, scrolling sideways. Each chip says its database (dot, label) and its state,
 (`NotOpenDatabases.state`, the Mac's order): Opening… while it opens; Not found, Needs its key file (by the files as they
 are now, so an old failure goes once the file is back); what typing cannot fix (its key file cannot be used, Cannot be
 read); the fingerprint's verdict (Fingerprint to set up again: the fingerprints changed, or its stored password was not
-accepted; kept per database until one is stored again, `BiometricState.setUpAgain`); Skipped (the chooser's run, AD13);
+accepted; kept per database until one is stored again, `BiometricState.setUpAgain`); Skipped (by the chooser's run, below);
 Wrong password; Password changed; Fingerprint paused (its password due) or Fingerprint to set up (nothing stored yet);
 Locked. The states follow the sessions and the fingerprint at once, and the files whenever those change or the list
 comes back. A tap shows its lock screen with Back, the search kept for when it opens (its entries join the list, its
 chip goes); Lock all clears it as ever. A long press opens its sheet: its whole say ("Locked · tap to type its
 password", "Not found at Sync/Crypto.kdbx", …), Unlock… (not while not found or unreadable), Locate… (not found),
 Choose key file… (it has one), Close.
+
+**The chooser and its run** (keething-spec databases.chooser; the Mac's D6b, D7; plan AD13). With nothing open the app
+shows the lone database's lock screen, or with several in the window the **chooser**, "Open your databases": each
+database of the window with how it opens (Fingerprint, Password, Password + its key file, Key file alone, Fingerprint
+paused · 14 days, Fingerprint to set up, Fingerprint to set up again; `ChooserRows`); what typing cannot open (not
+found, its key file not there or unusable, cannot be read) has no check and says why, with Locate… for one not found;
+the others are checked as at the last unlock (`checkedInChooser`, kept at once). Past five rows the list scrolls (four
+and a half show, "9 databases · scroll for the rest"). **Unlock N databases** starts the **run** (`UnlockRun`,
+`CurrentDatabase.run`): the checked ones asked one after another, each on its own lock screen with "Unlocking 2 of 3"
+over it (a segment per database, what opened, Stop), its line, its key file and Use fingerprint next time, no
+fingerprint button, and Skip; a password goes to that database only (its typed path: stored for the fingerprint when
+that is on for it); a wrong one stays to be typed again ("Wrong password — or this database needs a key file. Type it
+again, or skip it."); one typing cannot open (not found, its key file not there, closed meanwhile — looked at when the
+run reaches it — or a try that fails so) is skipped by itself, and one opened meanwhile counts as opened. At the end
+"2 of 3 open · Family Shared: skipped · Crypto: not found" over the list, which shows on the first one opened, or over
+the chooser when none opened; the skipped ones say Skipped on their chips until they do something else or another run
+starts. A lock ends the run with nothing said, also one with nothing open yet (the app away past its timeout), and
+nothing typed after it opens anything; Stop (and Back) ends it where it is. **Unlock with the fingerprint** (while it
+would open one) and, once in a visit that began locked, the chooser by itself ask one fingerprint for every database
+that can (§5): the list then shows on the first one opened; when it opens none the chooser says why ("The fingerprint
+was cancelled.", "The fingerprint failed: ….", "The fingerprints on this phone changed: type the passwords to set up the
+fingerprint again.", "Could not read the stored passwords: …."), and only there. **Open other…** and **New database…**
+as on the lock screen: a lock screen asked for with nothing open (there, or from a lock screen's sheet) shows in place
+of the chooser with Back to it, and a lock forgets it; a new database opening with nothing else open shows its own lock
+screen ("Opening …"). Lock all leads to the chooser, with no fingerprint by itself.
 There is **no default path and no migration**: the single path of before
 (`databasePath`) is left as it was and read no more, so the first start after the list shows the welcome (§6.2). A
 database is added by opening its file (the system picker, any file; the app keeps the document's path, which the
@@ -656,7 +681,7 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
 Same idea as the Mac app's Touch ID (Mac SPEC §3.8), with the Keystore in place of the Secure Enclave; the
 rules are a port of the Mac's `TouchIDUnlock`: `BiometricSetup` (`core/vault`) for the whole app, `BiometricUnlock` for
 each database. Each database has its **own stored password** (`plans/android-databases.md` AD5); several can be open
-side by side (§3.1), each opened from its own lock screen (one fingerprint for several is AD13).
+side by side (§3.1): one fingerprint opens every one that can (below), a database's own lock screen opens it alone.
 
 - **Two switches.** The app's, "Unlock with the fingerprint" in Settings, is **off** until turned on; each database
   has its own **Use fingerprint** besides (`useBiometric` in the list, §3.1), on its page in Settings and as "Use
@@ -700,7 +725,7 @@ side by side (§3.1), each opened from its own lock screen (one fingerprint for 
   key), so one made for a key since replaced is known before any prompt. Files in `noBackupFilesDir/biometric/`:
   `keyring` and `databases/<id>`, never backed up nor moved to another phone, where no key could open them. One prompt
   opens the keyring's private key (0.32 s in StrongBox) and it the database's password (milliseconds): the same one
-  prompt will open several databases' (AD13). The one stored password of before (`noBackupFilesDir/biometric-password`)
+  prompt opens several databases' (`KeyringFiles.openKeyring`, `BiometricPasswordStores.openSeveral`; plan AD13). The one stored password of before (`noBackupFilesDir/biometric-password`)
   is deleted at the first start of the build with the keyring, typed once more; the Keystore key keeps its name of
   before. The switch of before stays the app's, and only the then current database's own is turned on with it (the
   switch was that database's: it went off whenever another became current). An AES-GCM key in the Keystore would need a fingerprint to encrypt too: every typed unlock would ask for
@@ -723,6 +748,24 @@ side by side (§3.1), each opened from its own lock screen (one fingerprint for 
   never due; one that its key file alone no longer opens gets its field back, and nothing is deleted. No prompt while
   the database's file or its key file is not there. A lock (the button, the timeout, sleep) after the fingerprint,
   also while the stored password is read, opens nothing and deletes nothing.
+- **One fingerprint for several** (keething-spec unlock.biometric-several, databases.several-open AC7; `WindowFingerprint`,
+  the Mac's `unlockWithTouchID()`; plan AD13): the chooser's (§3.1) opens every database of the window that can — locked,
+  both switches on, its file and key file there, its password not due, and stored, or it opens with its key file alone
+  — each with its own stored password; the others are not read and say why on their rows and chips. It is asked only
+  when one would open, decided without reading anything. One prompt (with a `CryptoObject` for the Keystore's key) opens
+  the keyring's private key, and it each stored password, read one after another; the private key is dropped before any
+  key is derived. Only databases that open with their key file alone: a prompt without a `CryptoObject`. They then open
+  side by side, each judged by its own attempt as soon as it ends (a rejected stored password deleted then, its own).
+  A lock after the prompt — of the app (`VaultSessions.lockCount`, which counts a Lock that found every database locked
+  as well) or the database's own — opens none of them, also while the stored passwords are read; one locked or closed
+  alone meanwhile is not opened and gets no verdict. The fingerprints changed (the Keystore key invalidated, a keyring
+  made for another key, a damaged or missing keyring) → nothing opens and every stored password goes; one database's
+  sealed copy the keyring does not open → its own goes; the Keystore refusing the keyring after the prompt → said,
+  nothing lost. What is said: the list when any opened; else the prompt's own answer over the chooser; each database's
+  verdict on its row, its chip and its lock screen ("Fingerprint to set up again" and why). One fingerprint at a time
+  for the app, the window's or a database's own lock screen's (`BiometricSetup.asking`). The app's lock count guards a
+  database's own fingerprint unlock too (found by AD8's review: Lock all leaves a database already locked as it was, so
+  its own count did not change while its stored password was read).
 - **Discarding**: a fingerprint added or all removed, or the screen lock removed (the Keystore key is invalidated,
   found before any prompt is shown), a keyring made for a key since replaced, or a damaged keyring → every database's
   stored password, the keyring and the key are deleted and the lock screen says to type the password. A database's
@@ -764,7 +807,10 @@ side by side (§3.1), each opened from its own lock screen (one fingerprint for 
   that job here). Unlike the Mac, the key is bound to the app: the Keystore keeps it per app (UID).
 - Checked: the rules with a fake store per database (JVM tests, the Mac's `TouchIDTests` for several databases), the
   files and what each failure costs with a software key (`KeyringFilesTest`), the formats (`SealedPasswordTest`,
-  `KeyringTest`), the offer once per visit (`FingerprintOffersTest`). On the Android 17 emulator with a simulated
+  `KeyringTest`), the offer once per visit (`FingerprintOffersTest`); one fingerprint for several (`WindowFingerprintTest`,
+  the Mac's several-database `TouchIDTests`; `KeyringFilesTest` for one keyring opening for several), the app's lock
+  count (`VaultSessionsTest`, `CurrentDatabaseTest`), the chooser and its run (`UnlockRunTest`, `ChooserRowsTest`,
+  `WindowChooserTest`, `NavigationStateTest`). On the Android 17 emulator with a simulated
   finger, before AD5, every path of the one stored password. On the test phone (Pixel 6, release build), with AD5:
   two databases each with its own stored password, choosing between them keeping both, each opened by the fingerprint
   with its own (0.33 s in StrongBox); one that opens with its key file alone opened after the fingerprint with nothing
@@ -889,7 +935,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   this, which types `!Label `, Lock it, Close), Not open (its state and whole say; a tap: its lock screen), Recent (the
   databases out of the window, the last opened first; a tap puts it back and shows its lock screen), New database…,
   Open database…; a row of the first two swiped left closes it with "Closed “Crypto”: still under ⋮ › Databases" and
-  Undo; ⋮ says how many are open. The welcome's large icon is the app's
+  Undo; ⋮ says how many are open; the chooser and its run (AD13, §3.1, below). The welcome's large icon is the app's
   logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
   files.
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
@@ -899,9 +945,14 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   scroll inside it, "9 databases · scroll for the rest"), Open other…, New database… and Remove “…” from list… (asked: "Remove
   “Work” from the list?", "Keething forgets it on this phone, with its stored password. The file stays where it
   is.", Cancel / Remove). Another chosen there joins the others, open or not, and is shown locked with an empty field
-  and nothing said of the last one, with Back (and the system back) to the one before. A lock screen shown while other
+  and nothing said of the last one, with Back (and the system back) to the one before while it is open, else with
+  nothing open to the chooser (§3.1). A lock screen shown while other
   databases are open (one opened from Settings, one whose password changed elsewhere) has Back to them. Then the reason of the last lock; a key file not there is said
-  first (§4). The field's placeholder is "Master password", with a key file "Master password, if it has one"; Unlock
+  first (§4); a stored password that went says why ("The fingerprints on this phone changed. Type the password to set
+  up the fingerprint again.", "The database password was changed. Type the new one; the fingerprint will use it."),
+  also when one fingerprint for several found it (§5), in place of the wrong password it left until one is typed here.
+  In the chooser's run (§3.1) the lock screen has "Unlocking 2 of 3" over it with Stop, no fingerprint button and no
+  sheet, a wrong password said over the field, and Skip under it. The field's placeholder is "Master password", with a key file "Master password, if it has one"; Unlock
   is unavailable while the field is empty unless the database has a key file. Under the field the key file (key,
   name, folder or "not there · folder" in red, Change… or Choose…), or **Key file…** while it has none; a database
   that opens with its key file alone has "It opens with its key file alone: nothing to type." and Unlock instead of

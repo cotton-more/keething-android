@@ -6,7 +6,9 @@ import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.EntryRef
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The screens over several open databases (plan AD9): one locking alone takes its entries' screens with it, the others'
@@ -98,5 +100,136 @@ class NavigationStateTest {
         navigation.ask(3)
         navigation.lockScreen(3, anyOpen = false)
         assertEquals("", navigation.query.text.toString(), "Lock all meanwhile: nothing lingers")
+    }
+
+    // What the app shows over its databases (plan AD13; the Mac's WindowScreenTests)
+
+    private val family = DatabaseId("F")
+
+    // spec: databases.chooser/AC1
+    // spec: databases.chooser/AC2
+    @Test
+    fun severalInTheWindowNothingOpenTheChooserOneOpenTheVaultAllLockedTheChooserAgain() {
+        val navigation = NavigationState()
+        assertEquals(Shown.CHOOSER, navigation.screenFor(personal, 1, open = emptyList(), windowSize = 2))
+        navigation.showing(Shown.CHOOSER)
+        assertEquals(Shown.VAULT, navigation.screenFor(personal, 1, open = listOf(personal), windowSize = 2))
+        navigation.shown(1)
+        navigation.showing(Shown.VAULT)
+
+        navigation.locked()
+        navigation.lockScreen(1, anyOpen = false)
+        assertEquals(Shown.CHOOSER, navigation.screenFor(personal, 1, open = emptyList(), windowSize = 2), "Lock all: the chooser")
+    }
+
+    // spec: databases.chooser/AC2
+    @Test
+    fun oneDatabaseInTheWindowWithNothingOpenShowsItsLockScreenWithoutBack() {
+        val navigation = NavigationState()
+        assertEquals(Shown.LOCK_SCREEN, navigation.screenFor(personal, 1, open = emptyList(), windowSize = 1))
+        assertNull(navigation.lockScreenBack(personal, open = emptyList(), windowSize = 1))
+    }
+
+    @Test
+    fun aLockScreenAskedForWithNothingOpenAndSeveralInTheWindowGoesBackToTheChooser() {
+        // The lock screen's sheet, Open other… on it or in the chooser: the Mac's "Back to the chooser".
+        val navigation = NavigationState()
+        navigation.lockAsked = work
+        assertEquals(Shown.LOCK_SCREEN, navigation.screenFor(work, 2, open = emptyList(), windowSize = 2))
+        assertEquals(LockBack.CHOOSER, navigation.lockScreenBack(work, open = emptyList(), windowSize = 2))
+
+        navigation.backToChooser()
+        assertEquals(Shown.CHOOSER, navigation.screenFor(work, 2, open = emptyList(), windowSize = 2))
+
+        navigation.lockAsked = work
+        assertEquals(Shown.CHOOSER, navigation.screenFor(personal, 1, open = emptyList(), windowSize = 2), "another made current since")
+        navigation.locked()
+        assertEquals(Shown.CHOOSER, navigation.screenFor(work, 2, open = emptyList(), windowSize = 2), "a lock forgets the lock screen asked")
+    }
+
+    @Test
+    fun aLockScreenWithOthersOpenGoesBackToThemAsBefore() {
+        val navigation = NavigationState()
+        navigation.showing(Shown.VAULT)
+        assertEquals(Shown.LOCK_SCREEN, navigation.screenFor(work, 2, open = listOf(personal), windowSize = 2))
+        assertEquals(LockBack.VAULT, navigation.lockScreenBack(work, open = listOf(personal), windowSize = 2))
+        navigation.showing(Shown.LOCK_SCREEN)
+        assertNull(navigation.openedToShow(work, open = listOf(personal)), "asked for: it stays")
+    }
+
+    // spec: databases.chooser/AC5
+    @Test
+    fun theRunShowsWhileItGoesAlsoOverWhatItOpened() {
+        val navigation = NavigationState()
+        assertEquals(Shown.RUN, navigation.screenFor(personal, 1, open = emptyList(), windowSize = 3, running = true))
+        assertEquals(Shown.RUN, navigation.screenFor(personal, 1, open = listOf(personal), windowSize = 3, running = true))
+    }
+
+    // spec: databases.chooser/AC1
+    @Test
+    fun afterTheChooserOrTheRunTheVaultShowsOnTheFirstDatabaseThatOpened() {
+        val navigation = NavigationState()
+        navigation.showing(Shown.CHOOSER)
+        assertEquals(Shown.CHOOSER, navigation.screenFor(personal, 1, open = listOf(work, family), windowSize = 3), "until it is current")
+        assertEquals(work, navigation.openedToShow(personal, open = listOf(work, family)))
+        assertEquals(Shown.VAULT, navigation.screenFor(work, 2, open = listOf(work, family), windowSize = 3))
+
+        navigation.showing(Shown.RUN)
+        assertEquals(family, navigation.openedToShow(personal, open = listOf(family)))
+        assertNull(navigation.openedToShow(family, open = listOf(family)), "the current one is open")
+    }
+
+    @Test
+    fun aDatabaseOpeningWithNothingElseOpenShowsItsLockScreenButNotWhileTheFingerprintOpensSeveral() {
+        // A new database made from the chooser opens at once: its lock screen says "Opening…".
+        val navigation = NavigationState()
+        assertEquals(Shown.LOCK_SCREEN, navigation.screenFor(personal, 1, open = emptyList(), windowSize = 2, currentOpening = true))
+        assertEquals(
+            Shown.CHOOSER,
+            navigation.screenFor(personal, 1, open = emptyList(), windowSize = 2, currentOpening = true, fingerprintRunning = true),
+        )
+    }
+
+    @Test
+    fun theCurrentDatabaseLockedAloneWhileItsVaultShowedLeavesTheVaultAsBefore() {
+        val navigation = NavigationState()
+        navigation.shown(1)
+        navigation.showing(Shown.VAULT)
+        assertEquals(Shown.VAULT, navigation.screenFor(personal, 1, open = listOf(work), windowSize = 2))
+    }
+
+    // Found by AD13's review
+
+    @Test
+    fun theLockScreenAskedGoesOnceItsDatabaseOpensSoLockingItAloneLaterShowsTheChooser() {
+        val navigation = NavigationState()
+        navigation.lockAsked = work
+        navigation.showing(Shown.VAULT)
+        assertNull(navigation.lockAsked)
+        assertEquals(Shown.CHOOSER, navigation.screenFor(work, 2, open = emptyList(), windowSize = 2))
+    }
+
+    @Test
+    fun aDatabaseOpeningByItselfHasNoBackOnlyALockScreenAskedForHas() {
+        // A new database made from the chooser says "Opening …" for a moment: Back would go nowhere.
+        val navigation = NavigationState()
+        assertNull(navigation.lockScreenBack(personal, open = emptyList(), windowSize = 2))
+        navigation.lockAsked = personal
+        assertEquals(LockBack.CHOOSER, navigation.lockScreenBack(personal, open = emptyList(), windowSize = 2))
+    }
+
+    @Test
+    fun afterTheChooserOrTheRunTheVaultShowsAtOnceWithoutAFrameOfALockScreen() {
+        // The screens were reset at the lock that brought the chooser: nothing of another database's is left to show.
+        val navigation = NavigationState()
+        navigation.sessionNumber = 1
+        navigation.showing(Shown.VAULT)
+        assertFalse(navigation.vaultReady(2), "another database's screens: reset first")
+        navigation.showing(Shown.CHOOSER)
+        assertTrue(navigation.vaultReady(2))
+        navigation.showing(Shown.RUN)
+        assertTrue(navigation.vaultReady(2))
+        navigation.showing(Shown.LOCK_SCREEN)
+        assertTrue(navigation.vaultReady(1))
     }
 }

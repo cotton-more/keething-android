@@ -27,6 +27,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -82,6 +84,12 @@ import dev.keething.android.ui.Notice
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import dev.keething.android.databases.ChooserScreen
+import dev.keething.android.databases.rememberFilePicker
+import dev.keething.vault.session.SessionState
+import java.io.File
 
 /**
  * The screens of the open databases. An entry's screens name it by its ref ([EntryRef.text]: the same UUID in two
@@ -158,6 +166,24 @@ internal sealed interface Screen {
     data class ShareReceived(val codeText: String) : Screen
 }
 
+/** What the app shows over its databases (plan AD13; the Mac's `WindowScreen`); the welcome and New database aside. */
+internal enum class Shown {
+    /** Some database open: the list (with the chips of those not open) and the screens over it. */
+    VAULT,
+
+    /** The current database's lock screen. */
+    LOCK_SCREEN,
+
+    /** Nothing open and several in the window: which to open (keething-spec databases.chooser). */
+    CHOOSER,
+
+    /** The chooser's run: one checked database after another. */
+    RUN,
+}
+
+/** Where a lock screen's Back goes: to the open databases, or to the chooser (nothing open, several in the window). */
+internal enum class LockBack { VAULT, CHOOSER }
+
 /** What survives a rotation: where the user is. Never a secret; reset by every lock. */
 internal class NavigationState : ViewModel() {
     val backStack = mutableStateListOf<Screen>(Screen.Entries)
@@ -167,6 +193,90 @@ internal class NavigationState : ViewModel() {
 
     /** The database shown before another was chosen on the lock screen: its Back shows it again. */
     var lockBack by mutableStateOf<DatabaseId?>(null)
+
+    /**
+     * A lock screen asked for while nothing is open (the lock screen's sheet, Open other… there or in the chooser): it
+     * shows in place of the chooser while its database is current, with Back to the chooser (plan AD13). A lock forgets it.
+     */
+    var lockAsked by mutableStateOf<DatabaseId?>(null)
+
+    /** What showed last ([showing]): after the chooser or the run, the vault shows on the first database that opened. */
+    var lastShown = Shown.LOCK_SCREEN
+        private set
+
+    fun showing(shown: Shown) {
+        lastShown = shown
+        // Its database opened: locked alone later with nothing else open, the chooser shows, not its lock screen.
+        if (shown == Shown.VAULT) lockAsked = null
+    }
+
+    /**
+     * The vault may show for the current database's session [currentNumber]: the screens are its own already, or the
+     * chooser or the run showed before (the lock that brought them reset everything): no frame of a lock screen between.
+     */
+    fun vaultReady(currentNumber: Int): Boolean = sessionNumber == currentNumber || lastShown == Shown.CHOOSER || lastShown == Shown.RUN
+
+    /** A lock (the button, the timeout, a stay away past it): the plain chooser or lock screen comes, not one asked before. */
+    fun locked() {
+        lockAsked = null
+    }
+
+    /** The app's lock count as last seen: a screen made again (a rotation) is no lock. */
+    private var seenLocks = -1
+
+    /** The app's lock [count] now: [locked] when it changed. */
+    fun followLocks(count: Int) {
+        if (count == seenLocks) return
+        seenLocks = count
+        locked()
+    }
+
+    /** Back from a lock screen asked for with nothing open. */
+    fun backToChooser() {
+        lockAsked = null
+    }
+
+    /**
+     * What shows (plan AD13; the Mac's `WindowScreenModel.workOut`): the run while it goes; the vault while [current] is
+     * open, or while it locked alone with its vault shown and others open; with others open after the chooser or the run
+     * the chooser stays until the first open one is current ([openedToShow]), else [current]'s lock screen; with nothing
+     * open and several in the window ([windowSize]) the chooser, unless [current]'s lock screen was asked for or it is
+     * opening by itself (a new database made: "Opening…"; not while the fingerprint opens several,
+     * [fingerprintRunning]); else its lock screen. [open]: the open databases in the window's order.
+     */
+    fun screenFor(
+        current: DatabaseId,
+        currentNumber: Int,
+        open: List<DatabaseId>,
+        windowSize: Int,
+        running: Boolean = false,
+        currentOpening: Boolean = false,
+        fingerprintRunning: Boolean = false,
+    ): Shown = when {
+        running -> Shown.RUN
+        current in open -> Shown.VAULT
+        open.isNotEmpty() -> when {
+            shownSession == currentNumber -> Shown.VAULT
+            lastShown == Shown.CHOOSER || lastShown == Shown.RUN -> Shown.CHOOSER
+            else -> Shown.LOCK_SCREEN
+        }
+        windowSize >= 2 && lockAsked != current && !(currentOpening && !fingerprintRunning) -> Shown.CHOOSER
+        else -> Shown.LOCK_SCREEN
+    }
+
+    /** The open database to make current after the chooser or the run, so the vault shows on it; null: none to. */
+    fun openedToShow(current: DatabaseId, open: List<DatabaseId>): DatabaseId? =
+        open.firstOrNull()?.takeIf { current !in open && (lastShown == Shown.CHOOSER || lastShown == Shown.RUN) }
+
+    /**
+     * Where [current]'s lock screen goes Back to; null: nowhere (the window's only database with nothing open, or one
+     * opening by itself, a new database made: it opens in a moment).
+     */
+    fun lockScreenBack(current: DatabaseId, open: List<DatabaseId>, windowSize: Int): LockBack? = when {
+        open.any { it != current } -> LockBack.VAULT
+        windowSize >= 2 && lockAsked == current -> LockBack.CHOOSER
+        else -> null
+    }
 
     /** The "Codes" shortcut's list (SPEC §6.2). A lock keeps it: the shortcut opens the lock screen first. */
     var codesOnly by mutableStateOf(false)
@@ -320,13 +430,40 @@ internal fun KeethingApp(container: AppContainer) {
         }
         val state by container.sessions.state.collectAsStateWithLifecycle()
         val openIds = (state as? SessionsState.Open)?.vaults?.map { it.id }.orEmpty()
+        val run by container.chooser.run.collectAsStateWithLifecycle()
+        val asked by container.chooser.asked.collectAsStateWithLifecycle()
+        val visit by container.sessions.visit.collectAsStateWithLifecycle()
+        val fingerprintRunning by container.sessions.windowFingerprint.running.collectAsStateWithLifecycle()
+        val currentState by current.session.state.collectAsStateWithLifecycle()
+        val lockCount by container.sessions.locks.counted.collectAsStateWithLifecycle()
+        // A lock forgets the lock screen asked: the plain chooser or lock screen comes.
+        LaunchedEffect(lockCount) { navigation.followLocks(lockCount) }
         // The app's state, not one session's: nothing open clears the screens, also while another database still opens
         // (keething-spec databases.several-open AC10). The vault's screens show while the current database is open; its
-        // lock screen shows otherwise, the others staying open behind it.
+        // lock screen shows otherwise, the others staying open behind it; with nothing open and several in the window,
+        // the chooser, and its run while it goes (plan AD13).
         val unlocked = current.id in openIds
         val openSessions = openIds.mapNotNull { id -> container.sessions.session(id)?.let { id to it.number } }.toMap()
-        // The current database locked alone while its vault showed: the vault stays, on the open ones (below).
-        val stays = !unlocked && navigation.shownSession == current.number && openSessions.isNotEmpty()
+        val shown = navigation.screenFor(
+            current = current.id,
+            currentNumber = current.number,
+            open = openIds,
+            windowSize = list.window.size,
+            running = run != null,
+            currentOpening = currentState == SessionState.Unlocking,
+            fingerprintRunning = fingerprintRunning,
+        )
+        LaunchedEffect(shown) { navigation.showing(shown) }
+        // A visit that begins on the run uses its one fingerprint offer: Lock all or the run's end brings no prompt.
+        LaunchedEffect(visit, shown == Shown.RUN) { if (shown == Shown.RUN) container.chooser.showingRun(visit) }
+        // The chooser's fingerprint, once in a visit that began locked, while the chooser is what shows: decided here,
+        // not by the chooser's screen, which stays a moment while it animates away (back from Open other…'s picker,
+        // a new visit, its file shows its lock screen in the chooser's place: found on the phone).
+        LaunchedEffect(visit, shown == Shown.CHOOSER) {
+            if (shown == Shown.CHOOSER) container.chooser.offer(visit) else container.chooser.left()
+        }
+        // After the chooser or the run: the vault on the first database that opened.
+        LaunchedEffect(shown, openIds) { navigation.openedToShow(current.id, openIds)?.let(container.sessions.databases::choose) }
         // Another database's session (a new database made from Settings opens at once, its lock never shown here):
         // nothing of the screens of before goes over to it.
         LaunchedEffect(current.number) {
@@ -344,32 +481,95 @@ internal fun KeethingApp(container: AppContainer) {
         }
         // One database locked alone while others stay open: its entries' screens go.
         LaunchedEffect(openSessions) { navigation.keepOpen(openSessions) }
-        // Back to the database shown before, while it is in the list and another is shown; else to the open ones.
-        val previous = navigation.lockBack?.takeIf { it != current.id && list.record(it) != null } ?: openIds.firstOrNull { it != current.id }
-        val back = previous?.let {
-            {
-                navigation.lockBack = null
-                // The screens are this one's already (reset when its lock screen showed): no frame of the lock screen again.
-                container.sessions.session(it)?.let { session -> navigation.sessionNumber = session.number }
-                container.sessions.databases.choose(it)
+        // Back to the open databases (the one shown before while it is open), or to the chooser.
+        val back = when (navigation.lockScreenBack(current.id, openIds, list.window.size)) {
+            LockBack.VAULT -> {
+                val previous = navigation.lockBack?.takeIf { it != current.id && it in openIds } ?: openIds.first { it != current.id }
+                val going = {
+                    navigation.lockBack = null
+                    // The screens are this one's already (reset when its lock screen showed): no frame of the lock screen again.
+                    container.sessions.session(previous)?.let { session -> navigation.sessionNumber = session.number }
+                    container.sessions.databases.choose(previous)
+                }
+                going
             }
+            LockBack.CHOOSER -> navigation::backToChooser
+            null -> null
         }
         val enter = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
         val grow = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
         val exit = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
         AnimatedContent(
             // Not before the screens are reset for this session (above): never a frame of another database's.
-            targetState = (unlocked || stays) && navigation.sessionNumber == current.number,
+            targetState = if (shown == Shown.VAULT && !navigation.vaultReady(current.number)) Shown.LOCK_SCREEN else shown,
             transitionSpec = { (fadeIn(enter) + scaleIn(grow, initialScale = 0.94f)) togetherWith fadeOut(exit) },
             label = "lock",
-        ) { showVault ->
-            if (showVault) {
-                VaultScreens(container, current, navigation)
-            } else {
-                LockScreen(container, current, onBack = back, onChose = { shown -> if (navigation.lockBack == null) navigation.lockBack = shown })
+        ) { showing ->
+            when (showing) {
+                Shown.VAULT -> VaultScreens(container, current, navigation)
+                Shown.LOCK_SCREEN -> LockScreen(
+                    container = container,
+                    database = current,
+                    onBack = back,
+                    onChose = { shown ->
+                        // Nothing open: its lock screen in place of the chooser, Back to it; else Back to the one before.
+                        if (openIds.isEmpty()) {
+                            navigation.lockAsked = container.sessions.list.currentId
+                        } else if (navigation.lockBack == null) {
+                            navigation.lockBack = shown
+                        }
+                    },
+                )
+                Shown.CHOOSER -> Chooser(container, navigation)
+                // The database the run asks, followed as it moves on (a Skip), with that run; each its own screen.
+                Shown.RUN -> asked?.let { (askedRun, id) ->
+                    container.sessions.session(id)?.let { database ->
+                        key(database.number) { LockScreen(container, database, onBack = null, onChose = {}, run = askedRun) }
+                    }
+                }
             }
         }
     }
+}
+
+/** The chooser with its sheets: the system picker for Open other… and Locate…, New database (plan AD13). */
+@Composable
+private fun Chooser(container: AppContainer, navigation: NavigationState) {
+    val sessions = container.sessions
+    val chooser = container.chooser
+    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, chooser.skipped) }
+    val rows by windowModel.chooser.collectAsStateWithLifecycle()
+    val note by chooser.note.collectAsStateWithLifecycle()
+    val busy by chooser.busy.collectAsStateWithLifecycle()
+    val refreshes = rememberCoroutineScope()
+    LifecycleResumeEffect(Unit) {
+        windowModel.refresh()
+        refreshes.launch { sessions.refreshWindowFingerprints() }
+        onPauseOrDispose {}
+    }
+    val context = LocalContext.current
+    val folder = { id: DatabaseId? -> id?.let(sessions.list::record)?.let { File(it.path).parentFile } }
+    // Its lock screen in place of the chooser, Back to it.
+    val openOther = rememberFilePicker { file -> navigation.lockAsked = sessions.databases.open(file.path) }
+    // Kept across a rotation while the picker is up.
+    var locating by rememberSaveable { mutableStateOf<String?>(null) }
+    val locate = rememberFilePicker { file ->
+        locating?.let { id -> sessions.databases.locate(DatabaseId(id), file.path)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
+    }
+    ChooserScreen(
+        rows = rows,
+        note = note,
+        busy = busy,
+        onToggle = chooser::toggle,
+        onLocate = { id ->
+            locating = id.value
+            locate(folder(id))
+        },
+        onUnlock = chooser::start,
+        onFingerprint = chooser::unlockWithFingerprint,
+        onOpenOther = { openOther(folder(sessions.list.currentId)) },
+        onNewDatabase = container.newDatabases::open,
+    )
 }
 
 /** What a process that ended while creating left was removed at this start (plan AD7). */
@@ -403,7 +603,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
     val sessions = container.sessions
     val open by sessions.open.collectAsStateWithLifecycle()
     // The window's databases not open and ⋮ › Databases (plan AD12).
-    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window) }
+    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, container.chooser.skipped) }
     val overview by windowModel.overview.collectAsStateWithLifecycle()
     val refreshes = rememberCoroutineScope()
     LifecycleResumeEffect(Unit) {

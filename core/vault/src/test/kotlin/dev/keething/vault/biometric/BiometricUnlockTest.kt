@@ -2,6 +2,7 @@ package dev.keething.vault.biometric
 
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
+import dev.keething.domain.biometric.SeveralOpening
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.settings.SettingsStore
@@ -1124,13 +1125,30 @@ internal class MapSettings : SettingsStore {
 /**
  * The Keystore and the keyring in memory, a password per database's name. Like the real one it keeps copies: what it
  * was given may be wiped by the caller, and what it hands out is the caller's to wipe. [prompt] is what the fingerprint
- * prompt does (null: the finger is recognised); with [gate] it waits for a finger until the gate completes.
+ * prompt does (null: the finger is recognised); with [gate] it waits for a finger until the gate completes. [several] is
+ * what one prompt for several databases does instead (null: recognised, the keyring opened).
  */
 internal class FakePasswordStores : BiometricPasswordStores {
     var availability: BiometricAvailability = BiometricAvailability.Available
     val stored = mutableMapOf<String, Secret>()
     var prompt: StoredPasswordOpening? = null
+    var several: SeveralOpening? = null
     var gate: CompletableDeferred<Unit>? = null
+
+    /** The databases whose stored copy the keyring does not open, and those that cannot be read (by name). */
+    val copyInvalidated = mutableSetOf<String>()
+    val unreadable = mutableSetOf<String>()
+
+    /** Runs before each database's stored password is read under one prompt for several. */
+    var beforeRead: (String) -> Unit = {}
+
+    /** The databases each prompt for several was asked for, and those whose stored password it then read, in order. */
+    val severals = mutableListOf<List<String>>()
+    val read = mutableListOf<String>()
+
+    /** The keyring's private key is open: from the accepted finger until the stored passwords are read. */
+    var keyringOpen = false
+        private set
 
     /** With it the recognised finger's password waits to be opened (StrongBox is slow) until it completes. */
     var decrypting: CompletableDeferred<Unit>? = null
@@ -1153,7 +1171,7 @@ internal class FakePasswordStores : BiometricPasswordStores {
         private set
 
     /** Every fingerprint prompt. */
-    val prompts: Int get() = opened.size + confirms
+    val prompts: Int get() = opened.size + confirms + severals.size
 
     override fun availability(): BiometricAvailability = availability
 
@@ -1176,6 +1194,33 @@ internal class FakePasswordStores : BiometricPasswordStores {
         onRecognised()
         decrypting?.await()
         return StoredPasswordOpening.Opened(kept.copy().also { handedOut += it })
+    }
+
+    override suspend fun openSeveral(databases: List<String>, onRecognised: () -> Unit, stillWanted: (String) -> Boolean): SeveralOpening {
+        severals += databases
+        gate?.await()
+        several?.let { return it }
+        onRecognised()
+        openError?.let { throw it }
+        keyringOpen = true
+        try {
+            val each = linkedMapOf<String, StoredPasswordOpening>()
+            val failures = linkedMapOf<String, String>()
+            for (database in databases) {
+                if (!stillWanted(database)) continue
+                beforeRead(database)
+                read += database
+                when (database) {
+                    in unreadable -> failures[database] = "could not read it"
+                    in copyInvalidated -> each[database] = StoredPasswordOpening.CopyInvalidated
+                    else -> each[database] = stored[database]?.let { StoredPasswordOpening.Opened(it.copy().also { copy -> handedOut += copy }) }
+                        ?: StoredPasswordOpening.NothingStored
+                }
+            }
+            return SeveralOpening.Opened(each, failures)
+        } finally {
+            keyringOpen = false
+        }
     }
 
     override suspend fun confirm(onRecognised: () -> Unit): StoredPasswordOpening {

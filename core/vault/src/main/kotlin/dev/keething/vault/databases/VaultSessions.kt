@@ -114,6 +114,14 @@ public class VaultSessions(
     /** The session of the list's current database: the one the lock screen shows. */
     public val current: StateFlow<DatabaseSession?> = mutableCurrent.asStateFlow()
 
+    /**
+     * How many times every database was locked (Lock, the timeout; the Mac's `lockCount`), also when none was open: what
+     * began before it (a stored password read after the fingerprint) opens nothing. One locked or closed alone is not
+     * counted: [lockAll] skips those already locked, whose own count ([VaultSession.locks]) does not change then.
+     */
+    public var lockCount: Int = 0
+        private set
+
     /** Why the last database that locked did so: the app's reason while nothing is open. */
     private var lastReason: LockReason = LockReason.Initial
 
@@ -188,6 +196,7 @@ public class VaultSessions(
 
     /** Locks every database open or opening (Lock, the timeout); told to [observeLocks] also when none was. */
     public fun lockAll(reason: LockReason = LockReason.Manual) {
+        lockCount++
         val locking = sessions.values.map { it.database.session }.filter { it.state.value !is SessionState.Locked }
         batching = true
         try {

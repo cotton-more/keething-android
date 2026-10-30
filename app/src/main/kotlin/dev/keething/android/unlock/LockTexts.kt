@@ -1,6 +1,7 @@
 package dev.keething.android.unlock
 
 import dev.keething.vault.biometric.FingerprintOutcome
+import dev.keething.vault.biometric.SetUpAgain
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.session.LockReason
 import java.io.File
@@ -31,6 +32,15 @@ internal fun FingerprintOutcome.notice(): LockNotice? = when (this) {
     is FingerprintOutcome.StorageError -> LockNotice("The stored password could not be read ($reason).", isProblem = true)
     FingerprintOutcome.PasswordDue -> null
 }
+
+/**
+ * Why a database's stored password went (keething-spec databases.not-open AC1): its lock screen says it as its chip does,
+ * also when one fingerprint for several said it (plan AD13; unlock.biometric-several AC4).
+ */
+internal fun SetUpAgain.notice(): LockNotice = when (this) {
+    SetUpAgain.FINGERPRINTS_CHANGED -> FingerprintOutcome.KeyInvalidated.notice()
+    SetUpAgain.PASSWORD_REJECTED -> FingerprintOutcome.StoredPasswordRejected.notice()
+}!!
 
 /** The fingerprint waits while the password is due (SPEC §5): the screen says why it is not offered. */
 internal fun passwordDueNotice(days: Int): LockNotice =

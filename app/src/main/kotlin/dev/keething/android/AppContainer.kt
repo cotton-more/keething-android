@@ -15,10 +15,12 @@ import dev.keething.android.clipboard.AndroidSystemClipboard
 import dev.keething.android.clipboard.ClipboardClearAlarm
 import dev.keething.android.clipboard.SensitiveClipboard
 import dev.keething.android.databases.CreatingService
+import dev.keething.android.databases.DatabaseText
 import dev.keething.android.databases.FileDatabaseMaking
 import dev.keething.android.databases.NewDatabaseModel
 import dev.keething.android.databases.NewDatabases
 import dev.keething.android.databases.PhoneNewDatabaseFiles
+import dev.keething.android.databases.WindowChooser
 import dev.keething.android.generator.PasswordGeneratorState
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.list.ToldUnlocks
@@ -188,8 +190,30 @@ internal class AppContainer(context: Context) {
     /** Codes another app handed over (a picture or a text shared to Keething), until the unlocked vault reads them. */
     val incomingCodes = MutableStateFlow<List<String>?>(null)
 
-    /** What a database's Close says, with its Undo, and what Locate… refused: on the screen showing (the list, Databases). */
+    /**
+     * What a database's Close says, with its Undo, what Locate… refused and what the chooser's run did: on the screen
+     * showing (the list, Databases).
+     */
     val windowNotices = Channel<Notice>(Channel.BUFFERED)
+
+    /** The chooser, its run and the fingerprint for every database that can (plan AD13): kept across screens. */
+    val chooser = WindowChooser(
+        list = sessions.list,
+        startRun = sessions::run,
+        fingerprint = sessions.windowFingerprint::unlock,
+        canUnlockAny = sessions.windowFingerprint::canUnlockAny,
+        offers = sessions.fingerprintOffers::offer,
+        label = { id ->
+            val records = sessions.list.records
+            DatabaseText.labels(records, Environment.getExternalStorageDirectory().path)[id]?.full ?: records.firstOrNull { it.id == id }?.displayName.orEmpty()
+        },
+        showOpened = sessions::showOpened,
+        tell = { windowNotices.trySend(Notice(it)) },
+        sessionState = { sessions.session(it)?.session?.state?.value },
+        scope = appScope,
+        window = sessions.window,
+        lockCount = sessions.locks.counted,
+    )
 
     /**
      * The parts of a large answer read so far (SPEC §10), for the whole app: a messenger hands its pictures over one at a

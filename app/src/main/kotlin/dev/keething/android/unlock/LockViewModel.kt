@@ -49,6 +49,10 @@ internal class LockViewModel(
     var lastAttemptByFingerprint = false
         private set
 
+    /** A password was typed here since its fingerprint was last tried: what the database said is of the typing. */
+    var typedHere = false
+        private set
+
     private val mutablePasswordWanted = MutableStateFlow(0)
 
     /** Counts the times the fingerprint prompt was closed without a fingerprint: the password field takes the focus. */
@@ -93,6 +97,7 @@ internal class LockViewModel(
     private suspend fun fingerprint() {
         val before = lastAttemptByFingerprint
         lastAttemptByFingerprint = true
+        typedHere = false
         val outcome = database.biometric.unlockWithFingerprint()
         Log.i(TAG, "fingerprint: $outcome")
         if (outcome == FingerprintOutcome.InProgress) lastAttemptByFingerprint = before
@@ -102,15 +107,21 @@ internal class LockViewModel(
 
     /**
      * The typed password, stored for the fingerprint when that is on (SPEC §5). Nothing typed opens a database with a
-     * key file (its key file alone, then with the empty password); without one it does nothing.
+     * key file (its key file alone, then with the empty password); without one it does nothing. [through]: the chooser's
+     * run takes it (plan AD13), and wipes it after its try.
      */
-    fun unlock() {
+    fun unlock(through: ((Secret) -> Unit)? = null) {
         if (password.text.isEmpty() && list.record(database.id)?.keyFilePath == null) return
         val secret = Secret.of(password.text.toString())
         lastAttemptByFingerprint = false
+        typedHere = true
         mutableFingerprintNotice.value = null
-        databases.unlock(database, secret)
-        secret.wipe()
+        if (through != null) {
+            through(secret)
+        } else {
+            databases.unlock(database, secret)
+            secret.wipe()
+        }
         password.clearText()
     }
 

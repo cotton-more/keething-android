@@ -1,5 +1,6 @@
 package dev.keething.android.biometric
 
+import dev.keething.domain.biometric.SeveralOpening
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
 import java.io.File
@@ -15,6 +16,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -204,6 +207,98 @@ class KeyringFilesTest {
         assertFalse(File(folder, "keyring").exists())
         assertEquals(null, key.pair, "the key goes too")
         files.deleteAll()
+    }
+
+    // One prompt for several databases (plan AD13)
+
+    /** What one prompt for several opens: each of [databases] in turn with the keyring it opened once; null: none could. */
+    private fun openedTogether(vararg databases: String): Map<String, StoredPasswordOpening>? {
+        val ask = files.prepareKeyring() as? KeyringFiles.PreparedKeyring.Ask ?: return null
+        val keyring = files.openKeyring(ask) ?: return null
+        return databases.associateWith(keyring::open)
+    }
+
+    // spec: unlock.biometric-several/AC1
+    @Test
+    fun theKeyringOpenedOnceOpensEveryDatabasesPasswordEachItsOwn() {
+        files.save("personal", Secret.of("personal-pw"))
+        files.save("work", Secret.of("work-pw"))
+
+        val opened = assertNotNull(openedTogether("personal", "work", "family"))
+
+        assertEquals("personal-pw", opened.getValue("personal").text())
+        assertEquals("work-pw", opened.getValue("work").text())
+        assertEquals(StoredPasswordOpening.NothingStored, opened.getValue("family"))
+    }
+
+    @Test
+    fun beforeOnePromptForSeveralAFingerprintChangeAKeyringOfAnotherKeyOrNoneCostsEveryDatabase() {
+        files.save("personal", Secret.of("pw"))
+        key.invalidated = true
+        assertEquals(SeveralOpening.KeyInvalidated, assertIs<KeyringFiles.PreparedKeyring.Answer>(files.prepareKeyring()).opening)
+
+        key.invalidated = false
+        key.create()
+        assertEquals(SeveralOpening.KeyInvalidated, assertIs<KeyringFiles.PreparedKeyring.Answer>(files.prepareKeyring()).opening, "made for a key since replaced")
+
+        files.save("personal", Secret.of("pw"))
+        File(folder, "keyring").writeBytes("not a keyring".encodeToByteArray())
+        assertEquals(SeveralOpening.KeyInvalidated, assertIs<KeyringFiles.PreparedKeyring.Answer>(files.prepareKeyring()).opening, "damaged")
+
+        File(folder, "keyring").delete()
+        assertEquals(SeveralOpening.KeyInvalidated, assertIs<KeyringFiles.PreparedKeyring.Answer>(files.prepareKeyring()).opening, "none: nothing stored opens")
+
+        files.save("personal", Secret.of("pw"))
+        key.failing = true
+        assertFailsWith<IOException>("the Keystore failing to give the key costs nothing") { files.prepareKeyring() }
+    }
+
+    @Test
+    fun theKeystoreRefusingTheKeyringForSeveralIsReportedAndCostsNothing() {
+        files.save("personal", Secret.of("pw"))
+        key.refusing = true
+
+        val ask = assertIs<KeyringFiles.PreparedKeyring.Ask>(files.prepareKeyring())
+        assertFailsWith<IOException> { files.openKeyring(ask) }
+
+        key.refusing = false
+        assertEquals("pw", assertNotNull(openedTogether("personal")).getValue("personal").text(), "kept")
+    }
+
+    @Test
+    fun aKeyringWhosePrivateKeyNoLongerOpensOpensNoneOfSeveral() {
+        files.save("personal", Secret.of("pw"))
+        val keyring = File(folder, "keyring")
+        keyring.writeBytes(keyring.readBytes().also { it[it.size - 1] = (it[it.size - 1].toInt() xor 1).toByte() })
+
+        assertNull(files.openKeyring(assertIs(files.prepareKeyring())))
+    }
+
+    @Test
+    fun oneDatabasesDamagedFileAmongSeveralCostsItsOwnOnly() {
+        files.save("personal", Secret.of("pw"))
+        files.save("work", Secret.of("work-pw"))
+        val work = File(folder, "databases/work")
+        work.writeBytes(work.readBytes().also { it[it.size - 1] = (it[it.size - 1].toInt() xor 1).toByte() })
+
+        val opened = assertNotNull(openedTogether("personal", "work"))
+
+        assertEquals(StoredPasswordOpening.CopyInvalidated, opened.getValue("work"))
+        assertEquals("pw", opened.getValue("personal").text())
+    }
+
+    @Test
+    fun aCopySealedForAKeyringOfBeforeReadFirstCostsNoLaterDatabasesPassword() {
+        // Found by AD13's review: after a fingerprint change Work's copy is the keyring of before's; Personal, typed
+        // since, is the new one's. One RSA failure must not spoil the next database's (a cipher per database).
+        files.save("work", Secret.of("work-pw"))
+        key.invalidated = true
+        files.save("personal", Secret.of("pw"))
+
+        val opened = assertNotNull(openedTogether("work", "personal"))
+
+        assertEquals(StoredPasswordOpening.CopyInvalidated, opened.getValue("work"))
+        assertEquals("pw", opened.getValue("personal").text())
     }
 
     private companion object {

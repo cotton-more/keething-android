@@ -46,6 +46,8 @@ internal data class ExtraColors(
     /** Rows of the segmented groups on the list and the card. */
     val row: Color,
     val warn: Color,
+    /** The fingerprint opens it, and what the chooser's run opened (the agreed mock-up's green). */
+    val good: Color,
     val warnContainer: Color,
     val onWarnContainer: Color,
     /** A shown password's digits and symbols (letters keep the text colour), as 1Password does. */
@@ -67,6 +69,7 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
     ExtraColors(
         row = scheme.surfaceContainer,
         warn = Color(0xFFF2BE72),
+        good = Color(0xFF83D494),
         warnContainer = Color(0xFF4A3510),
         onWarnContainer = Color(0xFFFFE3BC),
         digit = Color(0xFF9EC2FF),
@@ -84,6 +87,7 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
     ExtraColors(
         row = scheme.surfaceContainerLowest,
         warn = Color(0xFF8F5410),
+        good = Color(0xFF005F21),
         warnContainer = Color(0xFFFBE4C4),
         onWarnContainer = Color(0xFF5C3A0E),
         digit = Color(0xFF2659C0),

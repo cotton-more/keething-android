@@ -7,6 +7,7 @@ import dev.keething.vault.creating.DerivedKey
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.StateFlow
@@ -160,13 +161,13 @@ public class CurrentDatabase(
      * password it does not, and nothing typed rejected it does not (a password was added elsewhere). A key file not
      * there teaches nothing, nor does an unlock whose key file changed meanwhile (one whose session went, its file
      * located say, ends interrupted); another database chosen meanwhile does not stop it. The caller may wipe
-     * [password] as soon as this returns. False when nothing was started.
+     * [password] as soon as this returns. How it ends; null when nothing was started (the vault was not locked).
      */
-    public fun unlock(database: DatabaseSession, password: Secret): Boolean {
+    public fun unlock(database: DatabaseSession, password: Secret): Deferred<UnlockOutcome>? {
         val keyFile = list.record(database.id)?.keyFilePath
         val nothingTyped = password.isEmpty()
-        val outcome = database.biometric.unlock(password) ?: return false
-        if (keyFile == null) return true
+        val outcome = database.biometric.unlock(password) ?: return null
+        if (keyFile == null) return outcome
         scope.launch {
             val ended = outcome.await()
             if (list.record(database.id)?.keyFilePath != keyFile) return@launch
@@ -176,6 +177,46 @@ public class CurrentDatabase(
                     list.update(database.id) { it.copy(opensWithoutPassword = false) }
             }
         }
-        return true
+        return outcome
+    }
+
+    /**
+     * The chooser's run over the checked [ids] (plan AD13; keething-spec databases.chooser AC5–AC8): each asked in turn
+     * with the typed path ([unlock]: its password stored for the fingerprint when that is on for it). [locks] is the
+     * app's lock count, read now: a lock since ends the run, and nothing typed after it opens anything. Typing cannot
+     * open a database out of the window or the list, one opening already, nor one whose file or key file is not there
+     * ([fileExists]), looked at when the run reaches it.
+     */
+    public fun run(ids: List<DatabaseId>, locks: () -> Int, fileExists: (String) -> Boolean): UnlockRun {
+        val began = locks()
+        return UnlockRun(
+            ids = ids,
+            cannotOpen = { id -> whyTypingCannotOpen(id, fileExists) },
+            isOpen = { id -> sessions.session(id)?.session?.state?.value is SessionState.Unlocked },
+        ) { id, password ->
+            if (locks() != began) return@UnlockRun UnlockRun.Attempt.Stopped
+            val database = sessions.session(id) ?: return@UnlockRun UnlockRun.Attempt.CannotOpen("closed")
+            // The session keeps its own copy: the typed one goes at once, not after the key derivation.
+            val outcome = unlock(database, password).also { password.wipe() }
+                ?: return@UnlockRun if (database.session.state.value is SessionState.Unlocked) UnlockRun.Attempt.Opened else UnlockRun.Attempt.CannotOpen("opening")
+            val ended = outcome.await()
+            when {
+                locks() != began -> UnlockRun.Attempt.Stopped
+                sessions.session(id) !== database -> UnlockRun.Attempt.CannotOpen("closed")
+                ended == UnlockOutcome.Opened -> UnlockRun.Attempt.Opened
+                ended is UnlockOutcome.Failed -> UnlockRun.Attempt.Failed(ended.failure)
+                else -> UnlockRun.Attempt.Stopped
+            }
+        }
+    }
+
+    /** Why typing cannot open [id] now: it is skipped by itself in the run; null: it can be asked. */
+    private fun whyTypingCannotOpen(id: DatabaseId, fileExists: (String) -> Boolean): String? {
+        val record = list.record(id) ?: return "not in the list"
+        if (!record.inWindow) return "closed"
+        if (sessions.session(id)?.session?.state?.value == SessionState.Unlocking) return "opening"
+        if (!fileExists(record.path)) return "not found"
+        record.keyFilePath?.takeUnless(fileExists)?.let { return "${File(it).name} not there" }
+        return null
     }
 }

@@ -297,6 +297,25 @@ class VaultSessionsTest {
     }
 
     @Test
+    fun theAppsLocksAreCountedAlsoOneThatFoundNothingToLockButNotOneDatabaseLockedAlone() = runTest {
+        // The Mac's VaultSessions.lockCount: what was begun before a Lock (a stored password read) opens nothing after it.
+        val f = Fixture(this)
+        val p = f.add("/a/p.kdbx")
+        val w = f.add("/a/w.kdbx")
+        assertEquals(0, f.sessions.lockCount)
+
+        f.sessions.lockAll()
+        assertEquals(1, f.sessions.lockCount, "nothing open: a lock all the same")
+        unlock(f, p)
+        unlock(f, w)
+        f.sessions.lock(p.id)
+        f.sessions.close(w.id)
+        assertEquals(1, f.sessions.lockCount, "one locked or closed alone is not the app's lock")
+        f.sessions.lockAll(LockReason.Timeout)
+        assertEquals(2, f.sessions.lockCount)
+    }
+
+    @Test
     fun oneDatabaseLockedAloneItsSecretsGoTheOthersStayAndTheAppStaysOpen() = runTest {
         val f = Fixture(this)
         val p = f.add("/a/p.kdbx")

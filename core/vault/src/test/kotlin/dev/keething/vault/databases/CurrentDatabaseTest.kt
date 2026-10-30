@@ -77,7 +77,9 @@ class CurrentDatabaseTest {
                 io = io,
                 keyFile = { keyFilePath()?.let { keyFiles.getOrPut(it) { FakeKeyFile(null, File(it).name) } } },
             )
-            val biometric = BiometricUnlock(record.id, session, setup, list, scope.backgroundScope, watching, fileExists = { true })
+            val biometric = BiometricUnlock(
+                record.id, session, setup, list, scope.backgroundScope, watching, fileExists = { true }, appLocks = { sessions.lockCount },
+            )
             DatabaseSession(number, record.id, File(record.path), store, session, biometric)
         }
 
@@ -112,7 +114,7 @@ class CurrentDatabaseTest {
         val started = f.databases.unlock(database, typed)
         typed.wipe()
         runCurrent()
-        return started
+        return started != null
     }
 
     private fun DatabaseSession.state(): SessionState = session.state.value
@@ -272,6 +274,30 @@ class CurrentDatabaseTest {
         assertEquals("pw", f.stored(work.id))
         assertEquals(listOf(work.id.fileName), f.passwords.opened)
         assertEquals(0, f.passwords.deletes + f.passwords.deleteAlls)
+    }
+
+    @Test
+    fun aLockOfAllWhileALockedDatabasesStoredPasswordIsReadOpensNothing() = runTest {
+        // Found by AD8's review: Lock all skips the databases already locked, so their own lock count does not change;
+        // the app's is counted too (the Mac's VaultSessions.lockCount).
+        val f = Fixture(this)
+        val personal = f.add("/a/Personal.kdbx")
+        f.add("/b/Work.kdbx")
+        f.storedPassword("pw")
+        f.shown.biometric.refresh()
+        val decrypted = CompletableDeferred<Unit>()
+        f.passwords.decrypting = decrypted
+        val asking = async { f.shown.biometric.unlockWithFingerprint() }
+        runCurrent()
+        assertTrue(f.shown.biometric.state.value.opening, "the finger was accepted")
+
+        f.sessions.lockAll()
+        decrypted.complete(Unit)
+
+        assertEquals(FingerprintOutcome.Cancelled, asking.await())
+        runCurrent()
+        assertEquals(SessionState.Locked(LockReason.Initial), f.shown.state())
+        assertEquals("pw", f.stored(personal.id))
     }
 
     @Test
@@ -482,7 +508,7 @@ class CurrentDatabaseTest {
 
         // Another chosen meanwhile: the unlock goes on in the window, and what it learns is its own database's.
         val first = f.shown
-        assertTrue(f.databases.unlock(first, Secret.empty()))
+        assertNotNull(f.databases.unlock(first, Secret.empty()))
         f.databases.choose(other.id)
         runCurrent()
         assertIs<SessionState.Unlocked>(first.state())
@@ -492,13 +518,13 @@ class CurrentDatabaseTest {
 
         // Its file located meanwhile: a new session; the old one locked, so its unlock ended interrupted.
         f.files["/k2/Keys.kdbx"] = FakeStore(keyFileBytes("keyfile-only.kdbx"))
-        assertTrue(f.databases.unlock(first, Secret.empty()))
+        assertNotNull(f.databases.unlock(first, Secret.empty()))
         assertNull(f.databases.locate(keys.id, "/k2/Keys.kdbx"))
         runCurrent()
         assertFalse(f.list.record(keys.id)!!.opensWithoutPassword)
 
         f.databases.choose(keys.id)
-        assertTrue(f.databases.unlock(f.shown, Secret.empty()))
+        assertNotNull(f.databases.unlock(f.shown, Secret.empty()))
         f.keyFiles["/k/same.keyx"] = FakeKeyFile(keyFileBytes("keyx.keyx"), "same.keyx")
         f.databases.setKeyFile(keys.id, "/k/same.keyx")
         runCurrent()
@@ -514,7 +540,7 @@ class CurrentDatabaseTest {
         assertTrue(typed(f, "pw"))
 
         assertFalse(f.list.record(personal.id)!!.opensWithoutPassword)
-        assertFalse(f.databases.unlock(f.shown, Secret.of("pw")), "open already: nothing started")
+        assertNull(f.databases.unlock(f.shown, Secret.of("pw")), "open already: nothing started")
     }
 
     @Test

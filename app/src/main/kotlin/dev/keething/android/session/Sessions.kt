@@ -12,6 +12,7 @@ import dev.keething.android.databases.marks
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import dev.keething.android.settings.AppSettings
+import dev.keething.android.storage.AllFilesAccess
 import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
@@ -21,6 +22,7 @@ import dev.keething.domain.storage.KeyFileSource
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.BiometricUnlock
+import dev.keething.vault.biometric.WindowFingerprint
 import dev.keething.vault.databases.CurrentDatabase
 import dev.keething.domain.vault.Entry
 import dev.keething.vault.databases.DatabaseId
@@ -30,6 +32,7 @@ import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.SessionsState
+import dev.keething.vault.databases.UnlockRun
 import dev.keething.vault.databases.VaultSessions
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
@@ -104,6 +107,12 @@ internal class Sessions(
 
     /** Another database chosen, a file opened or located, a key file, Remove from List. */
     val databases = CurrentDatabase(list, scope, vaults, biometric)
+
+    /**
+     * One fingerprint for every database of the window that can (plan AD13): the chooser's. Without all-files access no
+     * file can be seen, so none is asked for.
+     */
+    val windowFingerprint = WindowFingerprint(vaults, biometric, list)
 
     /** The current database's session: the one the lock screen shows. */
     val current: StateFlow<DatabaseSession?> = databases.current
@@ -229,7 +238,23 @@ internal class Sessions(
     /** The Lock button: every database. */
     fun lock() = vaults.lockAll(LockReason.Manual)
 
-    /** How many times the app locked so far ([locks]). */
+    /**
+     * The chooser's run over [ids] (plan AD13): the app's locks end it ([locks]: a stay away past the timeout with nothing
+     * open counts too).
+     */
+    fun run(ids: List<DatabaseId>): UnlockRun = databases.run(ids, locks = { locks.count }, fileExists = ::isThere)
+
+    /** The vault on the window's first open database, unless the current one is open: after the chooser or its run. */
+    fun showOpened() {
+        val open = (state.value as? SessionsState.Open)?.vaults?.map { it.id }.orEmpty()
+        if (list.currentId !in open) open.firstOrNull()?.let(databases::choose)
+    }
+
+    /**
+     * How many times the app locked so far ([locks]): every Lock and timeout, and a stay away past the timeout with
+     * nothing open, which [VaultSessions.lockCount] does not count (it guards the fingerprint, whose prompt the system
+     * closes in the background anyway); a new database and the chooser's run go by this one.
+     */
     val lockCount: Int get() = locks.count
 
     /**
@@ -281,13 +306,17 @@ internal class Sessions(
         )
         // Which states the session went through (names only, never data): how a lock came about.
         watching.launch { session.state.collect { Log.i(TAG, "${record.id.fileName.take(8)} ${it.describe()}") } }
-        val fingerprint = BiometricUnlock(record.id, session, biometric, list, scope, watching)
+        // The app's lock count: a Lock that finds this database locked already leaves its own as it was.
+        val fingerprint = BiometricUnlock(record.id, session, biometric, list, scope, watching, appLocks = { vaults.lockCount })
         watching.launch { fingerprint.refresh() }
         watching.launch {
             fingerprint.state.map { it.copy(prompting = false, opening = false) }.distinctUntilChanged().collect { Log.i(TAG, it.describe()) }
         }
         return DatabaseSession(number, record.id, file, store, session, fingerprint)
     }
+
+    /** A file is there; without all-files access nothing can be known: the run asks, and its lock screen says to allow it. */
+    private fun isThere(path: String): Boolean = !AllFilesAccess.isGranted() || File(path).isFile
 
     private fun BiometricState.describe(): String = "fingerprint: " + listOfNotNull(
         if (appEnabled) "on" else "off",

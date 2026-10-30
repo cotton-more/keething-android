@@ -2,6 +2,7 @@ package dev.keething.vault.biometric
 
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
+import dev.keething.domain.biometric.SeveralOpening
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.settings.SettingsStore
@@ -57,6 +58,12 @@ public class BiometricSetup(
 ) {
     private val mutableState = MutableStateFlow(BiometricSetupState(enabled = settings.string(ENABLED) == ON, reminderDays = reminderDays()))
     public val state: StateFlow<BiometricSetupState> = mutableState.asStateFlow()
+
+    /**
+     * A fingerprint unlock runs, a database's own ([BiometricUnlock]) or the window's ([WindowFingerprint]): one at a
+     * time for the app (SPEC §5), from the prompt until what it opened has opened.
+     */
+    internal var asking: Boolean = false
 
     init {
         leaveTheOneOfBefore()
@@ -201,6 +208,11 @@ public class BiometricSetup(
     internal suspend fun open(id: DatabaseId, onRecognised: () -> Unit): StoredPasswordOpening = stores.open(id.fileName, onRecognised)
 
     internal suspend fun confirm(onRecognised: () -> Unit): StoredPasswordOpening = stores.confirm(onRecognised)
+
+    internal suspend fun openSeveral(ids: List<DatabaseId>, onRecognised: () -> Unit, stillWanted: (DatabaseId) -> Boolean): SeveralOpening {
+        val byName = ids.associateBy { it.fileName }
+        return stores.openSeveral(ids.map { it.fileName }, onRecognised) { name -> byName[name]?.let(stillWanted) == true }
+    }
 
     /** [id]'s stored password; returns why that failed, or null. */
     internal suspend fun delete(id: DatabaseId): String? {

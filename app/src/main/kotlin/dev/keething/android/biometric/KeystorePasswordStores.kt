@@ -13,6 +13,7 @@ import android.security.keystore.StrongBoxUnavailableException
 import android.util.Log
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
+import dev.keething.domain.biometric.SeveralOpening
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
 import java.io.File
@@ -82,6 +83,46 @@ internal class KeystorePasswordStores(
                     val started = SystemClock.elapsedRealtime()
                     files.open(ask).also { Log.i(TAG, "${it.describe()} in ${SystemClock.elapsedRealtime() - started} ms") }
                 }
+            }
+        }
+    }
+
+    override suspend fun openSeveral(databases: List<String>, onRecognised: () -> Unit, stillWanted: (String) -> Boolean): SeveralOpening {
+        val ask = when (val prepared = withContext(io) { files.prepareKeyring() }) {
+            is KeyringFiles.PreparedKeyring.Answer -> return prepared.opening.also { Log.w(TAG, "not asked for ${databases.size}: the key or the keyring is gone") }
+            is KeyringFiles.PreparedKeyring.Ask -> prepared
+        }
+        return when (val answer = prompt.authenticate(ask.cipher)) {
+            FingerprintPrompt.Answer.Cancelled -> SeveralOpening.Cancelled
+            is FingerprintPrompt.Answer.Failed -> SeveralOpening.Failed(answer.reason)
+            FingerprintPrompt.Answer.Recognised -> {
+                onRecognised()
+                val started = SystemClock.elapsedRealtime()
+                // The keyring's private key in StrongBox is the slow part; it is dropped when this returns, before any
+                // database derives its key.
+                val keyring = withContext(io) { files.openKeyring(ask) } ?: return SeveralOpening.KeyInvalidated.also { Log.w(TAG, "the keyring did not open") }
+                val each = linkedMapOf<String, StoredPasswordOpening>()
+                val unreadable = linkedMapOf<String, String>()
+                try {
+                    for (database in databases) {
+                        // A lock or its closing since: nothing more of it is read.
+                        if (!stillWanted(database)) continue
+                        // Kept as it is read: a password read there is never dropped unwiped with the result.
+                        withContext(io) {
+                            try {
+                                each[database] = keyring.open(database)
+                            } catch (failure: IOException) {
+                                unreadable[database] = failure.message ?: failure.javaClass.simpleName
+                            }
+                        }
+                    }
+                } catch (failure: Throwable) {
+                    // What was read goes with the failure: nobody else would wipe it.
+                    each.values.forEach { (it as? StoredPasswordOpening.Opened)?.password?.wipe() }
+                    throw failure
+                }
+                Log.i(TAG, "${each.values.count { it is StoredPasswordOpening.Opened }} of ${databases.size} opened in ${SystemClock.elapsedRealtime() - started} ms")
+                SeveralOpening.Opened(each, unreadable)
             }
         }
     }
