@@ -30,6 +30,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -74,6 +76,12 @@ import dev.keething.android.storageprobe.StorageProbeScreen
 import dev.keething.android.unlock.LockScreen
 import dev.keething.vault.databases.SessionsState
 import dev.keething.android.editor.NewEntryDatabases
+import dev.keething.android.databases.WindowDatabasesModel
+import dev.keething.android.databases.WindowDatabasesScreen
+import dev.keething.android.ui.Notice
+import dev.keething.search.FilterCompletion
+import dev.keething.search.FilterKind
+import androidx.lifecycle.compose.LifecycleResumeEffect
 
 /**
  * The screens of the open databases. An entry's screens name it by its ref ([EntryRef.text]: the same UUID in two
@@ -115,6 +123,9 @@ internal sealed interface Screen {
 
     /** A database's page in Settings › Databases, by its id. */
     data class Database(val id: String) : Screen
+
+    /** ⋮ › Databases: the open ones, those not open, Recent (plan AD12). */
+    data object WindowDatabases : Screen
 
     data object StorageProbe : Screen
 
@@ -174,6 +185,28 @@ internal class NavigationState : ViewModel() {
     fun shown(number: Int) {
         shownSession = number
         lockBack = null
+        asked = 0
+    }
+
+    /** The session whose lock screen was asked for from the vault (a chip, ⋮ › Databases); 0: none. */
+    private var asked = 0
+
+    /**
+     * A database's lock screen asked for from the vault while others stay open (keething-spec databases.not-open AC3):
+     * the screens are its session's ([number]) already, the list under its lock screen, the search kept for when it
+     * opens (its entries join the list).
+     */
+    fun ask(number: Int) {
+        asked = number
+        sessionNumber = number
+        backStack.retainAll { it == Screen.Entries }
+    }
+
+    /** The current database's lock screen shows, session [number]: the screens reset, unless it was asked for and some stay open. */
+    fun lockScreen(number: Int, anyOpen: Boolean) {
+        if (number == asked && anyOpen) return
+        asked = 0
+        reset()
     }
 
     /**
@@ -305,7 +338,8 @@ internal fun KeethingApp(container: AppContainer) {
         LaunchedEffect(unlocked, openSessions, current.number) {
             when {
                 unlocked -> navigation.shown(current.number)
-                else -> navigation.lockedAlone(current.number, openSessions)?.let(container.sessions.databases::choose) ?: navigation.reset()
+                else -> navigation.lockedAlone(current.number, openSessions)?.let(container.sessions.databases::choose)
+                    ?: navigation.lockScreen(current.number, anyOpen = openSessions.isNotEmpty())
             }
         }
         // One database locked alone while others stay open: its entries' screens go.
@@ -368,6 +402,33 @@ private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit)
 private fun VaultScreens(container: AppContainer, current: DatabaseSession, navigation: NavigationState) {
     val sessions = container.sessions
     val open by sessions.open.collectAsStateWithLifecycle()
+    // The window's databases not open and ⋮ › Databases (plan AD12).
+    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window) }
+    val overview by windowModel.overview.collectAsStateWithLifecycle()
+    val refreshes = rememberCoroutineScope()
+    LifecycleResumeEffect(Unit) {
+        windowModel.refresh()
+        refreshes.launch { sessions.refreshWindowFingerprints() }
+        onPauseOrDispose {}
+    }
+    val databases = sessions.databases
+    // A database's lock screen with Back, the search kept for when it opens (keething-spec databases.not-open AC3).
+    val showLockScreen = { id: DatabaseId ->
+        sessions.session(id)?.let { session ->
+            navigation.lockBack = current.id
+            navigation.ask(session.number)
+            databases.choose(id)
+        }
+    }
+    // Close (keething-spec databases.not-open AC4, several-open AC4): its Undo puts it back, locked. The current one
+    // closed, the next open one is shown without resetting the screens.
+    val closeDatabase = { id: DatabaseId ->
+        val label = overview?.let { o -> (o.open.firstOrNull { it.id == id } ?: o.notOpen.firstOrNull { it.id == id }?.line)?.label?.full }
+        if (databases.close(id)) {
+            sessions.current.value?.takeIf { id == current.id }?.let { navigation.sessionNumber = it.number }
+            container.windowNotices.trySend(Notice("Closed “${label ?: "it"}”: still under ⋮ › Databases", undo = { databases.putBack(id) }))
+        }
+    }
     // An entry's database by its ref; null once it is not open (its screens go: NavigationState.keepOpen).
     val databaseOf = { ref: EntryRef -> sessions.session(ref.database) }
     // Codes another app handed over (SPEC §10) are read once the vault is open.
@@ -419,6 +480,12 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 onSettings = { navigation.open(Screen.Settings) },
                                 onGroups = { navigation.open(Screen.Groups) },
                                 onLeaveCodes = { navigation.codesOnly = false },
+                                notOpen = overview?.notOpen.orEmpty(),
+                                openCount = open.size,
+                                canClose = overview?.canClose == true,
+                                onLockScreen = { showLockScreen(it) },
+                                onCloseDatabase = { closeDatabase(it) },
+                                onDatabases = { navigation.open(Screen.WindowDatabases) },
                                 onNewEntry = {
                                     // The database the search names, else the card beside the list's, else the last new entry's.
                                     val start = NewEntryDatabases.start(
@@ -497,6 +564,22 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                             onBack = navigation::back,
                             onDatabase = { id -> navigation.open(Screen.Database(id.value)) },
                             onStorageProbe = { navigation.open(Screen.StorageProbe) },
+                        )
+                    }
+                    entry<Screen.WindowDatabases> {
+                        WindowDatabasesScreen(
+                            container = container,
+                            overview = overview,
+                            onBack = navigation::back,
+                            onLockScreen = { showLockScreen(it) },
+                            onClose = { closeDatabase(it) },
+                            onShowOnly = { label -> navigation.search(FilterCompletion.token(FilterKind.DATABASE, label) + " ") },
+                            onOpened = { id ->
+                                sessions.session(id)?.let {
+                                    navigation.lockBack = current.id
+                                    navigation.ask(it.number)
+                                }
+                            },
                         )
                     }
                     entry<Screen.Database> { key ->

@@ -211,6 +211,48 @@ class CurrentDatabaseTest {
         assertEquals(listOf(personal.id, work.id), f.sessions.openIds, "both open, in the window's order")
     }
 
+    // spec: databases.several-open/AC4
+    // spec: databases.not-open/AC4
+    @Test
+    fun closingOneTakesItOutOfTheWindowLockedTheWindowKeepsOneAndPutBackReturnsIt() = runTest {
+        val f = Fixture(this)
+        val personal = f.add("/a/Personal.kdbx")
+        val work = f.add("/b/Work.kdbx")
+        val crypto = f.add("/c/Crypto.kdbx")
+        f.storedPassword("pw", work.id)
+        typed(f, "pw")
+        f.databases.choose(work.id)
+        typed(f, "pw")
+        f.databases.choose(crypto.id)
+        advanceTimeBy(1.seconds)
+        assertEquals(listOf(personal.id, work.id), f.sessions.openIds)
+        assertEquals(crypto.id, f.list.currentId)
+
+        // The current one closed: the window's first open one is current, it leaves the window locked and stays listed.
+        assertTrue(f.databases.close(crypto.id))
+        assertEquals(personal.id, f.list.currentId, "an open one, so the vault stays")
+        assertEquals(listOf(personal.id, work.id), f.list.window.map { it.id })
+        assertNotNull(f.list.record(crypto.id))
+
+        // An open one closed: it locks and leaves; its stored password stays.
+        assertTrue(f.databases.close(work.id))
+        assertEquals(listOf(personal.id), f.sessions.openIds)
+        assertNull(f.sessions.session(work.id))
+        assertEquals("pw", f.stored(work.id), "its stored password stays with it in the list")
+
+        // The window's last one stays.
+        assertFalse(f.databases.close(personal.id))
+        assertEquals(listOf(personal.id), f.list.window.map { it.id })
+        assertIs<SessionState.Unlocked>(f.shown.state())
+
+        // Undo: back into the window, locked; the open one stays open and current.
+        f.databases.putBack(work.id)
+        assertEquals(listOf(personal.id, work.id), f.list.window.map { it.id })
+        assertEquals(SessionState.Locked(LockReason.Initial), assertNotNull(f.sessions.session(work.id)).state())
+        assertEquals(personal.id, f.list.currentId)
+        assertEquals(listOf(personal.id), f.sessions.openIds)
+    }
+
     @Test
     fun anotherChosenKeepsEachOnesStoredPasswordAndEachIsUsedForItsOwn() = runTest {
         val f = Fixture(this)

@@ -188,6 +188,9 @@ internal class AppContainer(context: Context) {
     /** Codes another app handed over (a picture or a text shared to Keething), until the unlocked vault reads them. */
     val incomingCodes = MutableStateFlow<List<String>?>(null)
 
+    /** What a database's Close says, with its Undo, and what Locate… refused: on the screen showing (the list, Databases). */
+    val windowNotices = Channel<Notice>(Channel.BUFFERED)
+
     /**
      * The parts of a large answer read so far (SPEC §10), for the whole app: a messenger hands its pictures over one at a
      * time. Pieces of a sealed answer, nothing secret.
@@ -264,6 +267,8 @@ internal class AppContainer(context: Context) {
                     if (it !is SessionsState.Open) {
                         attachmentFiles.clear()
                         autofillEntries.clear()
+                        // A Close's Undo said to a vault that gave way to a lock screen: not said later, stale.
+                        while (windowNotices.tryReceive().isSuccess) Unit
                         recycleBin.forget()
                         answerParts.clear()
                     }

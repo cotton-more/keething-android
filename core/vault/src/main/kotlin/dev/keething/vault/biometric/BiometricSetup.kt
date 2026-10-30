@@ -30,6 +30,8 @@ public data class BiometricSetupState(
     val stored: Set<DatabaseId> = emptySet(),
     /** Why a database's last typed unlock could not store its password; gone once one did. */
     val setupFailures: Map<DatabaseId, String> = emptyMap(),
+    /** Why a database's stored password went (the fingerprints changed, it was not accepted); gone once one is stored. */
+    val setUpAgain: Map<DatabaseId, SetUpAgain> = emptyMap(),
 )
 
 /**
@@ -88,7 +90,7 @@ public class BiometricSetup(
         }
         // Off: nothing is stored whose key file could have changed, nor is anything to be set up.
         list.records.forEach { settings.setString(keyFileChangedKey(it.id), null) }
-        mutableState.update { it.copy(setupFailures = emptyMap()) }
+        mutableState.update { it.copy(setupFailures = emptyMap(), setUpAgain = emptyMap()) }
         return deleteAll()
     }
 
@@ -113,7 +115,7 @@ public class BiometricSetup(
             return null
         }
         settings.setString(lastTypedKey(id), null)
-        mutableState.update { it.copy(setupFailures = it.setupFailures - id) }
+        mutableState.update { it.copy(setupFailures = it.setupFailures - id, setUpAgain = it.setUpAgain - id) }
         return delete(id)
     }
 
@@ -121,7 +123,7 @@ public class BiometricSetup(
     public suspend fun forget(id: DatabaseId): String? {
         settings.setString(lastTypedKey(id), null)
         settings.setString(keyFileChangedKey(id), null)
-        mutableState.update { it.copy(setupFailures = it.setupFailures - id) }
+        mutableState.update { it.copy(setupFailures = it.setupFailures - id, setUpAgain = it.setUpAgain - id) }
         return delete(id)
     }
 
@@ -229,7 +231,12 @@ public class BiometricSetup(
     }
 
     private fun noteStored(id: DatabaseId, stored: Boolean) {
-        mutableState.update { it.copy(stored = if (stored) it.stored + id else it.stored - id) }
+        mutableState.update { it.copy(stored = if (stored) it.stored + id else it.stored - id, setUpAgain = if (stored) it.setUpAgain - id else it.setUpAgain) }
+    }
+
+    /** [ids]' stored passwords went for [why]: their lines say so until one is stored again. */
+    internal fun setUpAgain(ids: Set<DatabaseId>, why: SetUpAgain) {
+        mutableState.update { it.copy(setUpAgain = it.setUpAgain + ids.associateWith { why }) }
     }
 
     /** A stored value that is not one of the choices reads as the default (keething-spec unlock.password-reminder AC1). */

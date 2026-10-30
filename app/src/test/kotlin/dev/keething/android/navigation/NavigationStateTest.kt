@@ -76,4 +76,27 @@ class NavigationStateTest {
         assertNull(navigation.lockedAlone(2, mapOf(personal to 1)), "another database chosen: its own lock screen shows")
         assertNull(navigation.lockedAlone(1, emptyMap()), "nothing else open: the lock screen")
     }
+
+    // spec: databases.not-open/AC3
+    @Test
+    fun aLockScreenAskedForFromTheVaultKeepsTheSearchForWhenItOpensUnlessEverythingLocks() {
+        val navigation = NavigationState()
+        navigation.shown(1)
+        navigation.query.setTextAndPlaceCursorAtEnd("git")
+        navigation.open(Screen.Card(p("same"), "RESULTS"))
+
+        navigation.ask(2)
+        assertEquals(2, navigation.sessionNumber, "the screens are Work's already: nothing resets when it becomes current")
+        assertEquals(listOf(Screen.Entries), navigation.backStack.toList(), "its lock screen over the list")
+        navigation.lockScreen(2, anyOpen = true)
+        assertEquals("git", navigation.query.text.toString(), "the search stays for when it opens (Not searched → its entries)")
+        navigation.shown(2)
+        navigation.lockScreen(2, anyOpen = true)
+        assertEquals("", navigation.query.text.toString(), "once shown it is no longer asked for: its next lock screen resets")
+
+        navigation.query.setTextAndPlaceCursorAtEnd("git")
+        navigation.ask(3)
+        navigation.lockScreen(3, anyOpen = false)
+        assertEquals("", navigation.query.text.toString(), "Lock all meanwhile: nothing lingers")
+    }
 }

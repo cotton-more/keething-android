@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
+/** Why a database's stored password went: its line says "Fingerprint to set up again" and why (the Mac's outcomes). */
+public enum class SetUpAgain { FINGERPRINTS_CHANGED, PASSWORD_REJECTED }
+
 /** What the fingerprint unlock can do now for one database: its lock screen's button and switch, its page in Settings. */
 public data class BiometricState(
     /** The app's switch (Settings); off until it is turned on (SPEC §5). */
@@ -45,6 +48,8 @@ public data class BiometricState(
     val reminderDays: Int? = DEFAULT_REMINDER_DAYS,
     /** [reminderDays] have passed since this database's last typed unlock: the fingerprint waits until it is typed. */
     val passwordDue: Boolean = false,
+    /** Why its stored password went, while nothing is stored again (keething-spec databases.not-open AC1). */
+    val setUpAgain: SetUpAgain? = null,
 ) {
     /** The fingerprint opens this database: the app's switch and its own. */
     public val enabled: Boolean get() = appEnabled && databaseEnabled
@@ -152,6 +157,7 @@ public class BiometricUnlock(
             opening = opening,
             reminderDays = setupState.reminderDays,
             passwordDue = record != null && setup.isDue(record),
+            setUpAgain = setupState.setUpAgain[id],
         )
     }
 
@@ -251,11 +257,14 @@ public class BiometricUnlock(
                 is StoredPasswordOpening.Failed -> FingerprintOutcome.AuthenticationFailed(opened.reason)
                 StoredPasswordOpening.KeyInvalidated -> {
                     // Every stored password depended on the fingerprints that were enrolled.
+                    val had = setup.state.value.stored + id
                     setup.deleteAll()
+                    setup.setUpAgain(had, SetUpAgain.FINGERPRINTS_CHANGED)
                     FingerprintOutcome.KeyInvalidated
                 }
                 StoredPasswordOpening.CopyInvalidated -> {
                     setup.delete(id)
+                    setup.setUpAgain(setOf(id), SetUpAgain.FINGERPRINTS_CHANGED)
                     FingerprintOutcome.KeyInvalidated
                 }
                 StoredPasswordOpening.NothingStored -> nothingStored()
@@ -288,6 +297,7 @@ public class BiometricUnlock(
                 // With a key file the database cannot say which part it rejected (WrongPasswordOrKeyFile): kept.
                 ended.failure == OpenFailure.WrongPassword && !setup.keyFileChangedSinceOpened(id) -> {
                     setup.delete(id)
+                    setup.setUpAgain(setOf(id), SetUpAgain.PASSWORD_REJECTED)
                     FingerprintOutcome.StoredPasswordRejected
                 }
                 else -> FingerprintOutcome.UnlockFailed(ended.failure)

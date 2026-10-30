@@ -6,6 +6,7 @@ import dev.keething.android.databases.CreatedDatabase
 import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseMark
 import dev.keething.android.databases.DatabaseText
+import dev.keething.android.databases.WindowDatabase
 import dev.keething.android.editor.NewEntryDatabase
 import dev.keething.android.databases.marks
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -146,6 +147,29 @@ internal class Sessions(
             val unlocked = database.session.state.value as? SessionState.Unlocked ?: return@mapNotNull null
             OpenDatabase(database, unlocked, marks[id] ?: DatabaseMark(id, DatabaseLabel(database.file.name), 0))
         }
+    }
+
+    /**
+     * Each database of the window, in its order, as its session and its fingerprint have it now (plan AD12): those not
+     * open say their state (keething-spec databases.not-open AC1, AC7: the fingerprint's changes followed at once).
+     */
+    val window: StateFlow<List<WindowDatabase>> = list.state
+        .map { databases -> databases.window.map { it.id } }
+        .combine(state) { ids, _ -> ids.mapNotNull(vaults::session) }
+        .distinctUntilChanged { a, b -> a.size == b.size && a.indices.all { a[it] === b[it] } }
+        .flatMapLatest { databases ->
+            if (databases.isEmpty()) return@flatMapLatest flowOf(emptyList())
+            combine(databases.map { database -> combine(database.session.state, database.biometric.state) { session, fingerprint -> WindowDatabase(database.id, session, fingerprint) } }) { it.toList() }
+        }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Each database of the window asks again whether the fingerprint can open it and whether its password is due: the
+     * line of those not open says so after a stay away (fingerprints removed in the phone's settings, the days passed).
+     */
+    suspend fun refreshWindowFingerprints() {
+        biometric.refresh()
+        list.window.mapNotNull { vaults.session(it.id) }.forEach { it.biometric.refresh() }
     }
 
     /** The [open] databases as a new entry sees them: where it can go (keething-spec databases.one-list AC4, AC5). */

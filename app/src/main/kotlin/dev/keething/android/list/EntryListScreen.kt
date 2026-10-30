@@ -131,6 +131,12 @@ import dev.keething.android.ui.EntryMark
 import dev.keething.android.ui.FitText
 import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.Notice
+import dev.keething.android.databases.NotOpenDatabase
+import dev.keething.android.databases.NotOpenLine
+import dev.keething.android.databases.NotOpenSheet
+import dev.keething.android.databases.rememberFilePicker
+import dev.keething.vault.databases.DatabaseId
+import androidx.compose.material.icons.rounded.Storage
 import dev.keething.android.ui.NoticeEffect
 import dev.keething.android.ui.NoticeHost
 import dev.keething.android.ui.SegmentGap
@@ -166,6 +172,14 @@ internal fun EntryListScreen(
     onLeaveCodes: () -> Unit,
     onNewEntry: () -> Unit,
     onSharing: () -> Unit,
+    /** The window's databases not open (keething-spec databases.not-open), and how many are open. */
+    notOpen: List<NotOpenDatabase> = emptyList(),
+    openCount: Int = 1,
+    canClose: Boolean = false,
+    /** A database's lock screen, with Back (a chip's tap, Unlock… in its sheet). */
+    onLockScreen: (DatabaseId) -> Unit = {},
+    onCloseDatabase: (DatabaseId) -> Unit = {},
+    onDatabases: () -> Unit = {},
 ) {
     val codes by rememberUpdatedState(codesOnly)
     // Beside the card (two panes), the open entry's rows are marked.
@@ -188,6 +202,35 @@ internal fun EntryListScreen(
     NoticeEffect(model.notices, snackbar)
     NoticeEffect(container.recycleBin.notices, snackbar)
     NoticeEffect(remember { problems.receiveAsFlow() }, snackbar)
+    NoticeEffect(remember { container.windowNotices.receiveAsFlow() }, snackbar)
+    // A chip's long press: its sheet (keething-spec databases.not-open AC5).
+    var sheetOf by rememberSaveable { mutableStateOf<String?>(null) }
+    val databases = container.sessions.databases
+    val locate = rememberFilePicker { file ->
+        sheetOf?.let { id -> databases.locate(DatabaseId(id), file.path)?.let { container.windowNotices.trySend(Notice(it, isProblem = true)) } }
+        sheetOf = null
+    }
+    val chooseKeyFile = rememberFilePicker { file ->
+        sheetOf?.let { id -> databases.setKeyFile(DatabaseId(id), file.path) }
+        sheetOf = null
+    }
+    notOpen.firstOrNull { it.id.value == sheetOf }?.let { database ->
+        NotOpenSheet(
+            database,
+            canClose = canClose,
+            onUnlock = {
+                sheetOf = null
+                onLockScreen(database.id)
+            },
+            onLocate = { locate(java.io.File(database.line.path).parentFile) },
+            onChooseKeyFile = { chooseKeyFile(database.line.keyFile?.path?.let { java.io.File(it).parentFile }) },
+            onClose = {
+                sheetOf = null
+                onCloseDatabase(database.id)
+            },
+            onDismiss = { sheetOf = null },
+        )
+    }
     // While the keyboard is open, Back closes it first, as everywhere on Android; then it clears the search.
     BackHandler(enabled = (query.text.isNotEmpty() || codesOnly) && !WindowInsets.isImeVisible) {
         if (query.text.isNotEmpty()) query.clearText() else onLeaveCodes()
@@ -255,10 +298,15 @@ internal fun EntryListScreen(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            Header(
-                state, scroll, codesOnly, compactHeader, onLock = container.sessions::lock, onGenerator = { generating = true }, onGroups = onGroups,
-                onSettings = onSettings, onLeaveCodes = onLeaveCodes, onSharing = onSharing, toAnswer = requests?.theirs?.size ?: 0,
-            )
+            Column {
+                Header(
+                    state, scroll, codesOnly, compactHeader, onLock = container.sessions::lock, onGenerator = { generating = true }, onGroups = onGroups,
+                    onSettings = onSettings, onLeaveCodes = onLeaveCodes, onSharing = onSharing, toAnswer = requests?.theirs?.size ?: 0,
+                    onDatabases = onDatabases, openCount = openCount,
+                )
+                // Pinned under the header: a search never silently misses a locked database (keething-spec databases.not-open).
+                NotOpenLine(notOpen, typing = query.text.isNotEmpty(), onTap = onLockScreen, onLongPress = { sheetOf = it.value })
+            }
         },
         bottomBar = {
             SearchField(
@@ -399,6 +447,8 @@ private fun Header(
     onSharing: () -> Unit,
     /** Requests waiting for an answer (SPEC §10): a dot on Sharing. */
     toAnswer: Int,
+    onDatabases: () -> Unit,
+    openCount: Int,
 ) {
     val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
     val title = @Composable { Text(if (codesOnly) "Codes" else "Keething", maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -419,7 +469,7 @@ private fun Header(
                 }
             }
         }
-        MoreMenu(onGenerator, onSettings)
+        MoreMenu(onGenerator, onSettings, onDatabases, openCount)
     }
     val colors = TopAppBarDefaults.topAppBarColors(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -455,9 +505,9 @@ private fun Header(
     }
 }
 
-/** ⋮ in the header: the password generator (the editor's wand) and Settings. */
+/** ⋮ in the header: the password generator (the editor's wand), Databases (how many are open) and Settings. */
 @Composable
-private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit) {
+private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit, onDatabases: () -> Unit, openCount: Int) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More") }
@@ -468,6 +518,15 @@ private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit) {
                 onClick = {
                     open = false
                     onGenerator()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Databases") },
+                leadingIcon = { Icon(Icons.Rounded.Storage, contentDescription = null) },
+                trailingIcon = { Text("$openCount open", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                onClick = {
+                    open = false
+                    onDatabases()
                 },
             )
             DropdownMenuItem(

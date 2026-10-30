@@ -467,6 +467,59 @@ class BiometricUnlockTest {
         assertFalse(state(f).stored)
     }
 
+    // spec: databases.not-open/AC7
+    @Test
+    fun whyAStoredPasswordWentIsKeptPerDatabaseUntilOneIsStoredAgain() = runTest {
+        val f = storedPassword("pw")
+        val work = f.add("/db/Work.kdbx")
+        val club = f.add("/db/Club.kdbx")
+        f.store("work-pw", work.id)
+        work.biometric.refresh()
+        assertNull(state(f).setUpAgain)
+
+        f.stores.prompt = StoredPasswordOpening.KeyInvalidated
+        f.biometric.unlockWithFingerprint()
+        runCurrent()
+        assertEquals(SetUpAgain.FINGERPRINTS_CHANGED, f.biometric.state.value.setUpAgain)
+        assertEquals(SetUpAgain.FINGERPRINTS_CHANGED, work.biometric.state.value.setUpAgain, "every stored one went")
+        assertNull(club.biometric.state.value.setUpAgain, "nothing was stored for it: nothing to set up again")
+
+        // A typed unlock that stores the password again: set up.
+        f.stores.prompt = null
+        assertTrue(f.typed("pw"))
+        runCurrent()
+        assertTrue(state(f).stored)
+        assertNull(f.biometric.state.value.setUpAgain)
+        assertEquals(SetUpAgain.FINGERPRINTS_CHANGED, work.biometric.state.value.setUpAgain, "the other one still")
+
+        // Its own switch off: nothing is to be set up for it any more.
+        f.setup.setUseBiometric(work.id, false)
+        runCurrent()
+        assertNull(work.biometric.state.value.setUpAgain)
+        f.setup.setUpAgain(setOf(club.id), SetUpAgain.FINGERPRINTS_CHANGED)
+        f.setup.forget(club.id)
+        runCurrent()
+        assertNull(club.biometric.state.value.setUpAgain, "forgotten with the database")
+        f.setup.setUpAgain(setOf(work.id), SetUpAgain.FINGERPRINTS_CHANGED)
+
+        // The switch off and on: nothing is said any more (its stored passwords went with the switch).
+        f.setup.setEnabled(false)
+        f.setup.setEnabled(true)
+        runCurrent()
+        assertNull(work.biometric.state.value.setUpAgain)
+    }
+
+    @Test
+    fun aStoredPasswordTheDatabaseRejectedIsSaidUntilOneIsStoredAgain() = runTest {
+        val f = storedPassword("old-pw")
+        assertEquals(FingerprintOutcome.StoredPasswordRejected, f.biometric.unlockWithFingerprint())
+        assertEquals(SetUpAgain.PASSWORD_REJECTED, state(f).setUpAgain)
+        f.session.lock(LockReason.Manual)
+        assertTrue(f.typed("pw"))
+        runCurrent()
+        assertNull(state(f).setUpAgain)
+    }
+
     @Test
     fun aStoredPasswordRejectedWithAKeyFileIsKeptTheKeyFileMayBeTheWrongPart() = runTest {
         val keyFile = FakeKeyFile(keyFileBytes("raw32.key"))

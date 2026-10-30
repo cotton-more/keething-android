@@ -180,8 +180,27 @@ list starts empty; any other field missing reads as its default, unknown ones ar
 is current: the one the lock screen shows. **The window** (`inWindow`, kept with the list) is the databases side by
 side, each with a session of its own (§4); the current one is always in it. **Opening or choosing another database
 closes nothing** (keething-spec databases.list AC4): it joins the window and becomes current, the databases already
-open stay open, and its lock screen shows with Back to them (the lock screen's sheet, Open a database…, New database;
-until the Databases menu and the line of those not open, `plans/android-databases.md` AD12, these are the ways in).
+open stay open, and its lock screen shows with Back to them (the lock screen's sheet, Open a database…, New database,
+a chip of the line of those not open, ⋮ › Databases). **Close** (keething-spec databases.several-open AC4,
+databases.not-open AC4) takes a database out of the window, locked, still in the list with its stored password (Recent
+in ⋮ › Databases); the window keeps one, so its last is not closed ("The last one stays"); the current one closed, the
+window's first open one becomes current, so the vault stays; Undo puts it back, locked (closing the only open one,
+the next one's lock screen shows and there is no Undo: it is under Recent). **Lock** one locks it alone,
+the others staying open.
+
+**The databases of the window not open** (keething-spec databases.not-open; the Mac's D6b) are one line of chips
+pinned under the list's header while some are open: "Not open", "Not searched" while a search is typed, the count past
+two, scrolling sideways. Each chip says its database (dot, label) and its state, the first that applies
+(`NotOpenDatabases.state`, the Mac's order): Opening… while it opens; Not found, Needs its key file (by the files as they
+are now, so an old failure goes once the file is back); what typing cannot fix (its key file cannot be used, Cannot be
+read); the fingerprint's verdict (Fingerprint to set up again: the fingerprints changed, or its stored password was not
+accepted; kept per database until one is stored again, `BiometricState.setUpAgain`); Skipped (the chooser's run, AD13);
+Wrong password; Password changed; Fingerprint paused (its password due) or Fingerprint to set up (nothing stored yet);
+Locked. The states follow the sessions and the fingerprint at once, and the files whenever those change or the list
+comes back. A tap shows its lock screen with Back, the search kept for when it opens (its entries join the list, its
+chip goes); Lock all clears it as ever. A long press opens its sheet: its whole say ("Locked · tap to type its
+password", "Not found at Sync/Crypto.kdbx", …), Unlock… (not while not found or unreadable), Locate… (not found),
+Choose key file… (it has one), Close.
 There is **no default path and no migration**: the single path of before
 (`databasePath`) is left as it was and read no more, so the first start after the list shows the welcome (§6.2). A
 database is added by opening its file (the system picker, any file; the app keeps the document's path, which the
@@ -866,7 +885,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   tile's colour, a name read from the file, names alike, §3.1); New database (AD7, above); one list over several
   open (AD9: rows saying their database, the card's database chip, the header's names, opening another closing
   nothing, §3.1); `!` and narrowing in the search (AD10, below); a new entry's Save into (AD11, §3.1, the editor
-  below). The welcome's large icon is the app's
+  below); the line of the databases not open with its sheet, and ⋮ › Databases (AD12, §3.1): Open (a tap: Show only
+  this, which types `!Label `, Lock it, Close), Not open (its state and whole say; a tap: its lock screen), Recent (the
+  databases out of the window, the last opened first; a tap puts it back and shows its lock screen), New database…,
+  Open database…; a row of the first two swiped left closes it with "Closed “Crypto”: still under ⋮ › Databases" and
+  Undo; ⋮ says how many are open. The welcome's large icon is the app's
   logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
   files.
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's

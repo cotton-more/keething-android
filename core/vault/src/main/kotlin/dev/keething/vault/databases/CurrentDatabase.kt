@@ -48,6 +48,34 @@ public class CurrentDatabase(
         return record.id
     }
 
+    /**
+     * Close (keething-spec databases.several-open AC4, databases.not-open AC4): out of the window, locked, still in the
+     * list with its stored password. The window keeps one: its last is not closed (false). The current one closed, the
+     * window's first open one becomes current (the vault stays), else its first left.
+     */
+    public fun close(id: DatabaseId): Boolean {
+        val window = list.window
+        if (window.none { it.id == id } || window.size <= 1) return false
+        if (list.currentId == id) {
+            val left = window.filter { it.id != id }
+            val next = left.firstOrNull { sessions.session(it.id)?.session?.state?.value is SessionState.Unlocked } ?: left.first()
+            list.setCurrent(next.id)
+        }
+        sessions.close(id)
+        return true
+    }
+
+    /** Undo of a Close, or a database of Recent: back into the window, locked; nothing else changes. */
+    public fun putBack(id: DatabaseId) {
+        if (list.record(id) == null) return
+        sessions.addToWindow(id)
+    }
+
+    /** Lock one alone; the others stay open (keething-spec databases.several-open AC4). */
+    public fun lock(id: DatabaseId) {
+        sessions.lock(id)
+    }
+
     /** Into the window, current. */
     private fun show(id: DatabaseId) {
         sessions.addToWindow(id)
