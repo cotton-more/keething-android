@@ -31,7 +31,8 @@ does not serve those.
 ## 1. Goals / non-goals
 
 Goals (v1)
-- Open the database from the Syncthing folder; notice new versions; never lose track of the file.
+- Open databases from the Syncthing folder, several side by side (§3.1); notice new versions; never lose track of
+  a file.
 - Unlock with the master password, then with the fingerprint (§5).
 - Search (as the Mac app: terms, fuzzy, `@group`, `#tag`, `+attachment`, `!database`, `-` for the recycle bin;
   narrowing from the last word typed).
@@ -69,7 +70,7 @@ stays open until the lock, autofill covers most logins, and it needs the notific
 only for frequent copying into apps autofill does not reach), Google Play (§8.1).
 
 Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
-databases side by side (the list is in, one list over several open, the chooser and one fingerprint for several,
+databases side by side (in: the list, one list over several open, the chooser and one fingerprint for several,
 §3.1, §5), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
 3.1 (refused until then), moving entries between groups, merging conflicting copies (detected and shown only until
@@ -86,7 +87,7 @@ dependency directions are the module dependencies, so the compiler enforces them
 ```
 core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attachment, TOTPConfig,
               EntryChanges, VaultEdit, the secret value type, and the ports (DatabaseStore §3.1,
-              DatabaseBackups §3.3, Clock, BiometricPasswordStore §5, SettingsStore, …).
+              DatabaseBackups §3.3, Clock, BiometricPasswordStores §5, SettingsStore, …).
               Depends on nothing.
 core/totp     one-time codes: otpauth links, KeePassXC's and KeePass's formats, code generation → domain
 core/search   search rules, ranking, site matching with the public suffix list (a resource,
@@ -204,8 +205,8 @@ Choose key file… (it has one), Close.
 
 **The chooser and its run** (keething-spec databases.chooser; the Mac's D6b, D7; plan AD13). With nothing open the app
 shows the lone database's lock screen, or with several in the window the **chooser**, "Open your databases": each
-database of the window with how it opens (Fingerprint, Password, Password + its key file, Key file alone, Fingerprint
-paused · 14 days, Fingerprint to set up, Fingerprint to set up again; `ChooserRows`); what typing cannot open (not
+database of the window with how it opens (Fingerprint, Password, Password + work.keyx, Key file work.keyx, Fingerprint
+paused · 14 days, Fingerprint to set up, Fingerprint to set up again; one open or opening says Open or Opening…, unchecked; `ChooserRows`); what typing cannot open (not
 found, its key file not there or unusable, cannot be read) has no check and says why, with Locate… for one not found;
 the others are checked as at the last unlock (`checkedInChooser`, kept at once). Past five rows the list scrolls (four
 and a half show, "9 databases · scroll for the rest"). **Unlock N databases** starts the **run** (`UnlockRun`,
@@ -440,7 +441,7 @@ test folder's fictitious databases it found what an older Keething wrote — `de
 
 The session saves one change at a time with the key in memory (`VaultSession.save`); the vault is then the
 written file as read back, and the app's own write is not read again. Refused because the entry changed or went
-elsewhere, the vault is read again; refused because the password changed elsewhere, the app locks. Reloads and
+elsewhere, the vault is read again; refused because the password changed elsewhere, that database locks (the others stay open, §4). Reloads and
 saves take turns, so an older read never replaces a newer save. On the Mac's JVM a save of the fictitious
 1,894-entry demo database took about 0.3 s, no key derivation; on the test phone (Pixel 6, release build,
 the same database with the real KDF parameters) 0.66–0.75 s from Save to "Saved and checked", and about
@@ -468,14 +469,15 @@ decrypted content, the tree, the new file and its reading back at once.
 
 ### 3.4 Conflicts
 
-- A `*.sync-conflict-*` copy of the database next to it is shown as a banner ("Syncthing found two versions:
+- A `*.sync-conflict-*` copy of a database next to it is shown as a banner of that database (named while two or
+  more are open; "Syncthing found two versions:
   …") with its date. v1 does not merge: it says which one is open and that the other should be merged in
   KeePassXC (Database → Merge). Later: merge in the app.
 
 ### 3.5 New database files
 
 The core of making a database (keething-spec `kdbx.new-file`, `kdbx.new-key-file`, `kdbx.kdf-calibration`; the Mac's
-SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/android-databases.md` AD7).
+SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/done/android-databases.md` AD7).
 - **The file** (`core/kdbx` `NewDatabase`): an ordinary KeePass file. KDBX 4.0, gzip, AES-256 or ChaCha20 (Twofish never
   written), Argon2d, Argon2id or AES-KDF with a fresh 32-byte salt (AES-KDF: seed) from `SecureRandom`; the KDF
   parameters as KeePass writes them (`$UUID`; Argon2 `V` 0x13, `S`, `P`, `M` in bytes, `I`; AES-KDF under KeePass's own
@@ -580,8 +582,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
   **Nothing typed** with a key file: Unlock works with the field empty. A database that opened so is remembered
   (`opensWithoutPassword`): its lock screen shows no field, only "It opens with its key file alone: nothing to type."
   and Unlock; nothing typed rejected brings the field back (a password was added elsewhere), a typed password that
-  opens it forgets it, a key file not there teaches nothing, nor does an unlock whose database stopped being current
-  or whose key file changed meanwhile. A changed key file forgets it too. Nothing typed is never stored for the
+  opens it forgets it, a key file not there teaches nothing, nor does an unlock whose key file changed meanwhile or whose
+  session went (its file located); another database chosen meanwhile does not stop it. A changed key file forgets it too. Nothing typed is never stored for the
   fingerprint (§5). A key file not there is said on the lock screen before anything is typed ("Work needs its key
   file: work.keyx is not in Documents/Keys.") and no fingerprint is asked for.
 - Unlock time, measured on the test phone (Pixel 6, Android 17, release build) with a fictitious database
@@ -605,10 +607,13 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
   attachments, folder watcher, reloads and saves) and wiped at its own lock; a typed password goes to its own database
   only. A session is made when its database joins the window, and dropped (locked, never opened again) when it leaves
   the window or the list or its file moves (Locate… starts a new one). The Lock button and the timeout lock every
-  database at once; one can be locked or closed alone (the core only, the menu is AD12); a reload that finds one
+  database at once; one can be locked or closed alone (⋮ › Databases, a chip's sheet; §3.1); a reload that finds one
   database's password changed locks that one only (its entries' screens close, the others stay), and each lock screen
-  says its own database's reason. The vault's screens show while the current database is open; its lock screen shows
-  otherwise, with Back to the open ones. The **app's
+  says its own database's reason. The vault's screens show while the current database is open. The current one locked
+  alone while others stay open: the vault goes on with the window's first open one, which becomes current, the
+  search kept ("Work locked: its password was changed elsewhere" when that was why). A lock screen asked for (a
+  chip, ⋮ › Databases, Settings) has Back to the open ones. With nothing open: the current one's lock screen, or with
+  several in the window the chooser (§3.1). The **app's
   state** (nothing open and why, opening, the open vaults in the window's order) is told once per change, and the
   screens follow it: nothing open clears the list, the search, the card and the editor, the attachments opened
   elsewhere, autofill's matching and the sharing requests, also while another database is still opening.
@@ -643,10 +648,10 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
   the system log), clearing is not.
 - Attachments (card rows "Open in another app" and "Save to a folder"; Mac SPEC §3.18):
   - **Open**: another app can only read a file, so the attachment is written to
-    `cacheDir/attachments/<uuid>/<name>` (the name made safe: no `/` or `:`, no control characters, at
+    `cacheDir/attachments/<database id>/<uuid>/<name>` (the name made safe: no `/` or `:`, no control characters, at
     most 255 bytes with the extension kept) and handed over as a read-only `FileProvider` URI with
-    `ACTION_VIEW`; the system asks which app when more than one can. Those files are removed on every lock
-    (the timeout too) and when the app starts (a process that died); a write that a lock overtook writes
+    `ACTION_VIEW`; the system asks which app when more than one can. Those files are removed when their database locks
+    (alone too), at every lock of all (the timeout too) and when the app starts (a process that died); a write that a lock overtook writes
     nothing. The one place where an attachment is on the phone's storage outside the database, as the Mac's
     Quick Look and KeePassXC's "Open" do it; the cache is app-private and in the phone's credential-encrypted
     storage. Removing the file does not take back what the other app already read (a PDF viewer keeps the
@@ -680,14 +685,14 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/an
 
 Same idea as the Mac app's Touch ID (Mac SPEC §3.8), with the Keystore in place of the Secure Enclave; the
 rules are a port of the Mac's `TouchIDUnlock`: `BiometricSetup` (`core/vault`) for the whole app, `BiometricUnlock` for
-each database. Each database has its **own stored password** (`plans/android-databases.md` AD5); several can be open
+each database. Each database has its **own stored password** (`plans/done/android-databases.md` AD5); several can be open
 side by side (§3.1): one fingerprint opens every one that can (below), a database's own lock screen opens it alone.
 
 - **Two switches.** The app's, "Unlock with the fingerprint" in Settings, is **off** until turned on; each database
   has its own **Use fingerprint** besides (`useBiometric` in the list, §3.1), on its page in Settings and as "Use
   fingerprint next time" under its lock screen's field. The fingerprint opens a database while both are on. The
   app's switch **allows** a database's to be turned on and turns none on itself; a database's never turns the app's
-  on (the owner at `plans/android-databases.md` AD5). A database new to the list starts with its own **off**,
+  on (the owner at `plans/done/android-databases.md` AD5). A database new to the list starts with its own **off**,
   whatever the app's switch: no password is stored for a database nobody turned the fingerprint on for (the Mac's
   rule, a new database taking the app's switch, stored a new database's first typed password unasked). A database
   made on the New database screen (§6.2) has its own as chosen there: "Unlock it with the fingerprint" is shown only
@@ -709,10 +714,11 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   only ever handed to that database: choosing another database keeps each one's (before AD5 the one stored password
   was deleted and the switch turned off then). Its own switch off, or Remove from List, deletes its stored password
   and its days, nobody else's; the app's switch off deletes every one (a delete that fails is said; the switch still
-  goes off). The session of a database that is no longer current is closed: a fingerprint prompt still up for it ends
-  as cancelled, and its stored password is never tried, so never rejected.
+  goes off). The session of a database closed, removed from the list or located again ends: a fingerprint prompt still up
+  for it ends as cancelled, and its stored password is never tried, so never rejected. Another becoming current
+  changes nothing.
 - **How it is kept** (`KeystorePasswordStores`, `KeyringFiles`, `Keyring`; the keyring was chosen by the owner after a
-  spike on the Pixel 6, `plans/android-databases.md` AD5). One RSA-2048 key pair in the Android Keystore, in StrongBox
+  spike on the Pixel 6, `plans/done/android-databases.md` AD5). One RSA-2048 key pair in the Android Keystore, in StrongBox
   (Titan M2) when the phone has one, created with `setUserAuthenticationRequired(true)`,
   `setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` (no time window: each use is one operation that the
   prompt unlocks) and `setInvalidatedByBiometricEnrollment(true)`; making it took 14.6 s in StrongBox on the Pixel 6
@@ -743,7 +749,8 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   The opened password goes to the normal unlock of its database, as if typed, and is wiped right after. One prompt at
   a time. The lock screen offers it by itself once when the app comes to the foreground locked (a start, a
   return after the timeout), for the database shown then: not after the lock button, nor for another database chosen
-  meanwhile (`FingerprintOffers`). A database that opens with its key file alone (§4) opens
+  meanwhile (`FingerprintOffers`). With nothing open and several in the window the chooser takes that one offer,
+  for all of them (§3.1, below). A database that opens with its key file alone (§4) opens
   after a prompt without a `CryptoObject` (nothing is stored: the fingerprint is the check that it is the user) and is
   never due; one that its key file alone no longer opens gets its field back, and nothing is deleted. No prompt while
   the database's file or its key file is not there. A lock (the button, the timeout, sleep) after the fingerprint,
@@ -920,8 +927,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   phone has not enough memory for 1024 MiB: choose less on the Encryption page."). Made, the screen goes and the new
   database's empty list shows (§3.5).
 - **Databases** (agreed on the canvas, rows "Databases" for one database at a time and "Databases (AD3b, pass 2)",
-  "Search across databases", "⋮ › Databases, the chooser and its run" for several open; being built, keething-spec
-  `plans/android-databases.md` AD4–AD13, whose AD3b lists the phone's own choices): the welcome at the first start,
+  "Search across databases", "⋮ › Databases, the chooser and its run" for several open; built in keething-spec
+  `plans/done/android-databases.md` AD4–AD13, whose AD3b lists the phone's own choices): the welcome at the first start,
   the lock screen's database line and its sheet, a key file under the field, a database not found, Settings →
   Databases and a database's page, New database; with several open, rows saying their database, the databases not
   open as one line under the header (a tap: its lock screen; a long press: its whole say and menu), ⋮ › Databases
@@ -944,10 +951,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the **sheet** "Databases": the list's databases (a dot in its colour and its label; a check on the one shown; its folder or "not found"; more than six
   scroll inside it, "9 databases · scroll for the rest"), Open other…, New database… and Remove “…” from list… (asked: "Remove
   “Work” from the list?", "Keething forgets it on this phone, with its stored password. The file stays where it
-  is.", Cancel / Remove). Another chosen there joins the others, open or not, and is shown locked with an empty field
+  is.", Cancel / Remove). Another chosen there joins the others and becomes current: one open shows its vault; one locked is shown with an empty field
   and nothing said of the last one, with Back (and the system back) to the one before while it is open, else with
   nothing open to the chooser (§3.1). A lock screen shown while other
-  databases are open (one opened from Settings, one whose password changed elsewhere) has Back to them. Then the reason of the last lock; a key file not there is said
+  databases are open (a chip's tap, ⋮ › Databases, Settings) has Back to them. Then the reason of the last lock; a key file not there is said
   first (§4); a stored password that went says why ("The fingerprints on this phone changed. Type the password to set
   up the fingerprint again.", "The database password was changed. Type the new one; the fingerprint will use it."),
   also when one fingerprint for several found it (§5), in place of the wrong password it left until one is typed here.
@@ -976,8 +983,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   its database instead of the folder: a dot in its colour, its name in its text colour (the addition of a label smaller),
   then the group: "● Work › Engineering", the root group "● Work". The header (large "Keething", the database's name
   (§3.1) and its entries; with two or more open their labels joined, "Personal and Work · 19 entries"; Lock first and set apart, so that a tap meant for another icon does not lock, then Groups & tags,
-  Sharing (§10; a dot while requests wait for an answer) and ⋮ with "Generate a password" (the editor's wand) and
-  Settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top; it collapses
+  Sharing (§10; a dot while requests wait for an answer) and ⋮ with "Generate a password" (the editor's wand),
+  Databases ("2 open", §3.1) and Settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top; it collapses
   too as the search field takes the focus (the keyboard takes half the screen), and comes back when the field
   lets it go with the list at its top. On a screen less than 480 dp high (a phone in landscape) it is the compact
   bar from the start; beside the card (§6.1) that bar has the title only. Recently used: the last 8 entries whose card was opened or from which something was copied,
@@ -1193,8 +1200,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   more are open; the Mac's Groups & Tags window, §3.25 there, without
   changing anything): **Groups** as segmented rows, "Top level" (the root group) first, then tree order
   (parents first, siblings by name, indented by depth), each with how many entries are in it and below it
-  and, when some are in its groups, how many right in it ("3 here"); empty groups too. The counts are those
-  of the list (the Mac app's settings entry left out). Then the **Recycle bin** with its count, when it has
+  and, when some are in its groups, how many right in it ("3 here"); empty groups too. The counts are the
+  current database's (the Mac app's settings entry left out); with two or more open, a tap's search lists the
+  other open databases' entries of that name too. Then the **Recycle bin** with its count, when it has
   entries. **Tags**: every tag outside the bin by name with its count, spellings differing only in case or
   diacritics as one ("also bank, Bänk"). A tap goes back to the list searching for it, as the card's chips
   do: `@Work`, `#bank`, `-` for the bin, "Top level" the whole list; Back clears the search. The search
@@ -1215,7 +1223,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   and **Copy next unused · 4** copies it (its notice offers Mark as used, as any code's does). The editor shows
   the value as it is stored. The Mac app's side:
   `~/Projects/keepass-bar/HANDOVER-used-recovery-codes.md`.
-- **History** (the clock in the card's bar, for an entry in the bin too; Mac SPEC §3.22 without restoring):
+- **History** (the card's ⋮, for an entry in the bin too; Mac SPEC §3.22 without restoring):
   "Reading the file…", then the versions newest first, each dated by its modification time, the current one
   marked, each with what it changed from the one before (`card/history`, the Mac's `EntryVersionDiff`):
   title, username, password, URL, notes, custom fields (added / removed / changed, a change of protection
@@ -1448,7 +1456,7 @@ that time. A donation link, if any, comes only with the Play release.
 
 `fixtures/` holds fictitious databases copied from the Mac project (password `pw`): KDBX 4 with AES + AES-KDF,
 AES + Argon2d, ChaCha20 + Argon2id, a KDBX 3 one (must be refused as unsupported), `kdbx4-export.xml` (keepassxc-cli's XML export of
-another fictitious database: two entries with attachments; KDBX 4 exports carry no `Meta/Binaries`), `sample.xml` (hand-made, the real structure) and KeePass's `KDBX_XML.xsd` as published (§3.3). The core's tests use them
+another fictitious database: two entries with attachments; KDBX 4 exports carry no `Meta/Binaries`), `sample.xml` (hand-made, the real structure) and KeePass's `KDBX_XML.xsd` as published, its source in `KDBX_XML.source.txt` (§3.3). The core's tests use them
 the way the Mac tests do (an export's `Meta/Binaries` are not read: KDBX 4 keeps attachments in the file's
 inner header). `fixtures/keyfiles/` (the Mac's `Fixtures/keyfiles`, made by keepassxc-cli 2.7.12 from
 `kdbx4-aes-argon2d.kdbx`): `keyfile-keyx.kdbx` (`pw` + `keyx.keyx`, XML 2.0), `keyfile-v1.kdbx` (`pw` + `v1.key`, XML
