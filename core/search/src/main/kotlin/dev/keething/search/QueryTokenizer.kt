@@ -1,10 +1,11 @@
 package dev.keething.search
 
-/** What a filter in the query narrows by: `@group`, `#tag` or `+attachment`. */
+/** What a filter in the query narrows by: `@group`, `#tag`, `+attachment` or `!database`. */
 public enum class FilterKind(public val sigil: Char) {
     GROUP('@'),
     TAG('#'),
     ATTACHMENT('+'),
+    DATABASE('!'),
     ;
 
     internal companion object {
@@ -21,8 +22,8 @@ internal data class Token(val content: Content, val start: Int, val end: Int) {
 }
 
 /**
- * Splits a query into whitespace-separated tokens (Mac `QueryTokenizer`). A token starting with `@` or `#` is
- * a filter; its value may be quoted (`@"Family Shared"`) so that a name with spaces stays one token. So is a
+ * Splits a query into whitespace-separated tokens (Mac `QueryTokenizer`). A token starting with `@`, `#` or `!`
+ * is a filter (only at a token's start: `hi!` is a term); its value may be quoted (`@"Family Shared"`) so that a name with spaces stays one token. So is a
  * `+` token, except before a digit: `+49 30…` stays a term (a phone number).
  */
 internal object QueryTokenizer {
@@ -93,6 +94,26 @@ public object FilterCompletion {
     public fun complete(query: String, name: String): String {
         val active = activeFilter(query) ?: return query
         return query.substring(0, active.start) + token(active.kind, name) + " "
+    }
+
+    /**
+     * The query without the filter being typed at its end: what is offered after a sign is counted over the entries
+     * that pass the other filters (keething-spec search.suggestions AC6). Nothing active: the query as it is.
+     */
+    public fun withoutActiveFilter(query: String): String {
+        val active = activeFilter(query) ?: return query
+        return query.substring(0, active.start)
+    }
+
+    /**
+     * Applies a narrowing (keething-spec search.narrowing AC5): the query's last word (and the blanks after it) becomes
+     * the filter, quoted when needed, and a space, ready for the search to go on inside it (`github fin` →
+     * `github @Finanzen `). No word last: unchanged.
+     */
+    public fun narrow(query: String, kind: FilterKind, name: String): String {
+        val last = QueryTokenizer.tokens(query).lastOrNull() ?: return query
+        if (last.content !is Token.Content.Term) return query
+        return query.substring(0, last.start) + token(kind, name) + " "
     }
 
     /** The text of a filter for a name: quoted when it contains whitespace. */

@@ -264,4 +264,53 @@ class VaultListingTest {
         assertNotNull(rows.getValue(p("same")).deadline)
         assertNull(rows.getValue(w("same")).deadline, "Work's copy does not expire")
     }
+
+    @Test
+    fun bareSignsAloneListNothingTheBinsStillList() {
+        val listing = both()
+
+        for (query in listOf("@", "!", "# ", "@ # !")) {
+            assertEquals(emptyList(), listing.sections(query, emptyList()), "“$query”: never the whole vault")
+            assertEquals(emptyList(), listing.sections(query, emptyList(), codesOnly = true), "“$query” in the Codes list")
+        }
+        assertEquals(3, listing.sections("-", emptyList()).single().rows.size)
+        assertEquals(3, listing.sections("- @", emptyList()).single().rows.size, "the bins' search: a bare sign keeps them all")
+    }
+
+    @Test
+    fun aBangKeepsOneDatabasesEntriesAWholeLabelThatDatabaseOnly() {
+        val listing = both()
+
+        assertEquals(listOf(w("wbank"), w("same")), listing.sections("!Work", emptyList()).single().rows.map { it.id })
+        assertEquals(listOf(w("same")), listing.sections("!work git", emptyList()).single().rows.map { it.id })
+        assertEquals(emptyList(), listing.sections("!Work !Personal", emptyList()))
+        assertEquals(listOf(p("oldP1"), p("oldP2")), listing.sections("- !Pers", emptyList()).single().rows.map { it.id }.sorted(), "in the bins too")
+        val alone = VaultListing(listOf(ListedDatabase(personalId, personal, label = "Personal")), now, Collator.getInstance(Locale.ENGLISH))
+        assertEquals(3, alone.sections("!Personal", emptyList()).single().rows.size, "one database open: its label typed by hand still filters")
+        assertEquals(emptyList(), alone.sections("!Work", emptyList()))
+    }
+
+    @Test
+    fun aWholeLabelKeepsThatDatabaseOnlyAlsoWhenItsBinIsEmpty() {
+        val workshop = DatabaseMark(DatabaseId("S"), DatabaseLabel("Workshop"), 2)
+        val listing = VaultListing(
+            listOf(ListedDatabase(workId, Vault(entries = work.entries), workMark), ListedDatabase(workshop.id, work, workshop)),
+            now,
+            Collator.getInstance(Locale.ENGLISH),
+        )
+
+        assertEquals(emptyList(), listing.sections("- !Work", emptyList()), "Work's bin is empty: Workshop's is not Work's")
+        assertEquals(1, listing.sections("- !Wor", emptyList()).single().rows.size)
+    }
+
+    @Test
+    fun theFacetsAreKeptUntilTheOtherFiltersChange() {
+        val listing = both()
+        val first = listing.facets("!Work ", inBin = false)
+
+        assertTrue(first === listing.facets("!Work ", inBin = false))
+        assertEquals(listOf("Engineering", "Finanzen"), first.groups.map { it.name })
+        assertEquals(listOf("Media"), listing.facets("!Personal ", inBin = true).groups.map { it.name }, "the bin's, its own group left out")
+        assertEquals(listOf("Engineering", "Finanzen", "Banken", "Media").sorted(), listing.facets("", inBin = false).groups.map { it.name }.sorted())
+    }
 }

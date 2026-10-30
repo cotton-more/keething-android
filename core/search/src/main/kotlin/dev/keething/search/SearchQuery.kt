@@ -28,7 +28,7 @@ internal enum class SearchRank {
 
 /**
  * A parsed, normalised query (Mac `SearchQuery`): whitespace-separated terms that must all match an entry,
- * and `@group` / `#tag` / `+attachment` filters that narrow the entries first.
+ * and `@group` / `#tag` / `+attachment` / `!database` filters that narrow the entries first.
  */
 internal class SearchQuery(raw: String) {
     val terms: List<String>
@@ -43,11 +43,21 @@ internal class SearchQuery(raw: String) {
     /** Attachment-name prefixes; an empty one (a bare `+`) asks for any attachment. */
     val attachmentFilters: List<String>
 
+    /** Prefixes of the database's label; a bare `!` is dropped. */
+    val databaseFilters: List<String>
+
+    /**
+     * The database filters that are a whole label of the index ([resolving]): those keep that database only, so a
+     * label chosen from the suggestions or the card's chip does not also keep one it starts ("Work", "Workshop").
+     */
+    private var exactDatabases: Set<String> = emptySet()
+
     init {
         val terms = mutableListOf<String>()
         val groups = mutableListOf<String>()
         val tags = mutableListOf<String>()
         val attachments = mutableListOf<String>()
+        val databases = mutableListOf<String>()
         val tokens = QueryTokenizer.tokens(raw)
         for (token in tokens) {
             when (val content = token.content) {
@@ -58,7 +68,8 @@ internal class SearchQuery(raw: String) {
                         content.kind == FilterKind.ATTACHMENT -> attachments += value
                         value.isEmpty() -> {}
                         content.kind == FilterKind.GROUP -> groups += value
-                        else -> tags += value
+                        content.kind == FilterKind.TAG -> tags += value
+                        else -> databases += value
                     }
                 }
             }
@@ -67,21 +78,36 @@ internal class SearchQuery(raw: String) {
         groupFilters = groups
         tagFilters = tags
         attachmentFilters = attachments
+        databaseFilters = databases
         val hasFilters = tokens.any { it.content is Token.Content.Filter }
         phrase = if (hasFilters) terms.joinToString(" ") else SearchNormalizer.normalize(raw.trim())
     }
 
+    /** Nothing to search for: only blanks and bare signs (`@`, `#`, `!`), which filter nothing. */
     val isEmpty: Boolean
-        get() = terms.isEmpty() && groupFilters.isEmpty() && tagFilters.isEmpty() && attachmentFilters.isEmpty()
+        get() = terms.isEmpty() && !hasFilters
+
+    val hasFilters: Boolean
+        get() = groupFilters.isNotEmpty() || tagFilters.isNotEmpty() || attachmentFilters.isNotEmpty() || databaseFilters.isNotEmpty()
+
+    /** The query against the index's database labels (folded). */
+    fun resolving(labels: Set<String>): SearchQuery = apply { exactDatabases = databaseFilters.filterTo(HashSet()) { it in labels } }
+
+    /** Whether a database of this [label] (folded) passes every database filter: its start, or it when it is a whole label. */
+    fun passesDatabase(label: String): Boolean =
+        databaseFilters.all { f -> if (f in exactDatabases) label == f else label.startsWith(f) }
 
     /**
      * Every group filter must start one of the entry's group names (any level, so a group includes its
-     * subgroups), every tag filter one of its tags, every attachment filter one of its file names.
+     * subgroups), every tag filter one of its tags, every attachment filter one of its file names, and every
+     * database filter its database's label — or be that label, when it is a whole one (an entry indexed without
+     * one passes none).
      */
     fun passesFilters(item: SearchIndex.Item): Boolean =
         groupFilters.all { f -> item.groups.any { it.startsWith(f) } } &&
             tagFilters.all { f -> item.tags.any { it.startsWith(f) } } &&
-            attachmentFilters.all { f -> item.attachments.any { it.startsWith(f) } }
+            attachmentFilters.all { f -> item.attachments.any { it.startsWith(f) } } &&
+            (databaseFilters.isEmpty() || item.normalizedDatabase?.let(::passesDatabase) == true)
 
     /** Each term must occur exactly in the entry's searchable text, or fuzzily in one of its short fields. */
     fun match(item: SearchIndex.Item): SearchMatch? {

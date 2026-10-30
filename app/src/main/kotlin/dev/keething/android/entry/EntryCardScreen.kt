@@ -398,7 +398,7 @@ private fun Header(content: CardContent, mark: DatabaseMark?, sharedKey: String,
             )
             if (mark != null || card.groupPath.isNotEmpty() || card.tags.isNotEmpty()) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    mark?.let { DatabaseChip(it) }
+                    mark?.let { DatabaseChip(it) { onSearch(FilterCompletion.token(FilterKind.DATABASE, it.label.full) + " ") } }
                     if (card.groupPath.isNotEmpty()) {
                         Chip(
                             text = card.groupPath,
@@ -418,13 +418,14 @@ private fun Header(content: CardContent, mark: DatabaseMark?, sharedKey: String,
 
 /**
  * The entry's database while two or more are open (keething-spec databases.name-colour AC6): its dot and label in its
- * colour on a soft fill of it. A tap that keeps that database's entries (`!Work `) comes with the `!` filter (plan AD10).
+ * colour on a soft fill of it. A tap searches that database's entries (`!Work `, search.database-filter).
  */
 @Composable
-private fun DatabaseChip(mark: DatabaseMark) {
+private fun DatabaseChip(mark: DatabaseMark, onClick: () -> Unit) {
     val colors = databaseColors(mark.colorIndex)
     Row(
-        Modifier.height(32.dp).clip(RoundedCornerShape(10.dp)).background(colors.soft).padding(horizontal = 12.dp),
+        Modifier.height(32.dp).clip(RoundedCornerShape(10.dp)).background(colors.soft)
+            .clickable(onClickLabel = "Search ${mark.label.full}", onClick = onClick).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {

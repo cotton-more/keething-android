@@ -14,7 +14,9 @@ import dev.keething.domain.vault.Vault
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.EntryRef
 import dev.keething.search.EntrySearch
+import dev.keething.search.Narrowing
 import dev.keething.search.SearchFacets
+import dev.keething.search.narrowing
 import java.text.Collator
 import java.time.Instant
 
@@ -76,13 +78,16 @@ internal fun List<ListSection>.onlyOf(open: Set<DatabaseId>): List<ListSection> 
     }
 }
 
-/** An open database as the list lists it: [mark] while two or more are open (keething-spec databases.name-colour AC6). */
-internal class ListedDatabase(val id: DatabaseId, val vault: Vault, val mark: DatabaseMark? = null)
+/**
+ * An open database as the list lists it: [mark] while two or more are open (keething-spec databases.name-colour AC6);
+ * [label] for the search's `!` filter, also with one open (search.database-filter AC1), null for a vault on its own.
+ */
+internal class ListedDatabase(val id: DatabaseId, val vault: Vault, val mark: DatabaseMark? = null, val label: String? = mark?.label?.full)
 
 /** The open databases listed as one, labelled while two or more are open. */
 internal fun listingOf(open: List<OpenDatabase>, now: Instant): VaultListing {
     val labelled = open.size >= 2
-    return VaultListing(open.map { ListedDatabase(it.database.id, it.unlocked.vault, it.mark.takeIf { labelled }) }, now)
+    return VaultListing(open.map { ListedDatabase(it.database.id, it.unlocked.vault, it.mark.takeIf { labelled }, it.mark.label.full) }, now)
 }
 
 /** Whether [a] and [b] list the same: the same sessions, the same vaults read, the same marks. */
@@ -111,18 +116,33 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
 
     private val marks: Map<String, DatabaseMark>
 
+    /** Each entry's and each binned entry's database label, for the `!` filter; null for a vault on its own. */
+    private val labels: List<String>?
+    private val binLabels: List<String>?
+
+    /** Every listed database's label, one without entries (an empty bin) too: a whole label keeps that database only. */
+    private val allLabels: List<String> = databases.mapNotNull { it.label }
+
+    /** The databases by label while two or more are open: the `!` suggestions and the counts per database. */
+    val databaseMarks: Map<String, DatabaseMark> = databases.mapNotNull { it.mark }.associateBy { it.label.full }
+
     init {
         val entries = ArrayList<Entry>()
         val bin = ArrayList<Entry>()
         val deleted = ArrayList<Entry>()
         val icons = HashMap<String, CustomIcon>()
         val marked = HashMap<String, DatabaseMark>()
+        val labelled = databases.all { it.label != null }
+        val entryLabels = ArrayList<String>()
+        val binnedLabels = ArrayList<String>()
         for (database in databases) {
             fun ref(id: String) = EntryRef(database.id, id).text
             fun copy(entry: Entry) = entry.copy(id = ref(entry.id), customIconId = entry.customIconId?.let(::ref))
                 .also { copied -> database.mark?.let { marked[copied.id] = it } }
             database.vault.entries.mapTo(entries, ::copy)
+            database.label?.let { label -> repeat(database.vault.entries.size) { entryLabels += label } }
             val binned = database.vault.recycleBin.map(::copy)
+            database.label?.let { label -> repeat(binned.size) { binnedLabels += label } }
             bin += binned
             deleted += binned.asReversed()
             for ((id, icon) in database.vault.customIcons) icons[ref(id)] = icon
@@ -130,10 +150,15 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
         vault = Vault(entries = entries, recycleBin = bin, customIcons = icons)
         latestDeleted = deleted
         marks = marked
+        labels = entryLabels.takeIf { labelled }
+        binLabels = binnedLabels.takeIf { labelled }
     }
 
-    private val index = EntrySearch.index(vault.entries, collator)
-    private val binIndex = EntrySearch.index(vault.recycleBin, collator)
+    private val index = EntrySearch.index(vault.entries, collator, labels, allLabels)
+    private val binIndex = EntrySearch.index(vault.recycleBin, collator, binLabels, allLabels)
+
+    /** The bins' entries with the bin's own group left out of their paths (as their rows show them), for the suggestions. */
+    private val binFacetIndex by lazy { EntrySearch.index(vault.recycleBin.map { it.copy(groupPath = it.groupPath.drop(1)) }, collator, binLabels, allLabels) }
     private val byId: Map<String, Entry> = vault.entries.associateBy { it.id }
     private val binById: Map<String, Entry> = vault.recycleBin.associateBy { it.id }
     private val deadlines: Map<String, RowDeadline> = DeadlineList.build(vault, now)
@@ -149,20 +174,34 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
 
     val ids: Set<String> get() = byId.keys
 
-    /** The groups, tags and file names for the chips over the keyboard (SPEC §6.2); only the list asks for them. */
-    val facets: SearchFacets by lazy { SearchFacets.of(vault.entries, collator) }
+    private class Facets(val filters: String, val inBin: Boolean, val facets: SearchFacets)
 
-    /** The same inside the recycle bin, the bin's own group left out of the paths (as its rows show them). */
-    val binFacets: SearchFacets by lazy { SearchFacets.of(vault.recycleBin.map { it.copy(groupPath = it.groupPath.drop(1)) }, collator) }
+    /** The facets the last suggestions were made from: typing after a sign changes only the filter being typed. */
+    @Volatile private var lastFacets: Facets? = null
+
+    /**
+     * The groups, tags, file names and databases of the entries (or the bins' entries) passing [filters]' filters, for
+     * the chips over the keyboard (SPEC §6.2; keething-spec search.suggestions AC6); kept until the filters change.
+     */
+    fun facets(filters: String, inBin: Boolean): SearchFacets {
+        lastFacets?.takeIf { it.filters == filters && it.inBin == inBin }?.let { return it.facets }
+        return EntrySearch.facets(if (inBin) binFacetIndex else index, filters).also { lastFacets = Facets(filters, inBin, it) }
+    }
+
+    /** The names the query's last word may narrow it to (keething-spec search.narrowing). */
+    fun narrowing(query: String): List<Narrowing> = EntrySearch.narrowing(index, query)
 
     /**
      * Nothing typed: the recently used entries (at most [RecentEntries.LIMIT], of the databases listed), then all by
-     * title. Typed: the matches, best first. A query starting with `-` lists the recycle bins (each database's latest
-     * deleted first) or searches them. [codesOnly]: only the entries with a one-time code; nothing typed lists them all
-     * by title.
+     * title. Typed: the matches, best first; bare signs alone (`@`, `!`) nothing. A query starting with `-` lists the
+     * recycle bins (each database's latest deleted first) or searches them. [codesOnly]: only the entries with a
+     * one-time code; nothing typed lists them all by title.
      */
     fun sections(query: String, recentIds: List<String>, codesOnly: Boolean = false): List<ListSection> {
+        // Bare signs filter nothing: nothing to list, never the whole vault (keething-spec search.database-filter AC2).
+        val bareSigns = query.isNotBlank() && EntrySearch.isEmpty(query)
         if (codesOnly) {
+            if (bareSigns) return emptyList()
             val entries = EntrySearch.filter(index, query)
             val kind = if (query.isBlank()) ListSection.Kind.CODES else ListSection.Kind.RESULTS
             return listOfNotNull(section(kind, entries.filter { it.totp != null }))
@@ -171,6 +210,7 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
             val entries = if (binQuery.isBlank()) latestDeleted else EntrySearch.filter(binIndex, binQuery)
             return listOfNotNull(section(ListSection.Kind.RECYCLE_BIN, entries))
         }
+        if (bareSigns) return emptyList()
         if (query.isNotBlank()) return listOfNotNull(section(ListSection.Kind.RESULTS, EntrySearch.filter(index, query)))
         return listOfNotNull(
             section(ListSection.Kind.RECENT, recentIds.mapNotNull(byId::get).take(RecentEntries.LIMIT)),

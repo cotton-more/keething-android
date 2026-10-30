@@ -33,7 +33,8 @@ does not serve those.
 Goals (v1)
 - Open the database from the Syncthing folder; notice new versions; never lose track of the file.
 - Unlock with the master password, then with the fingerprint (§5).
-- Search (as the Mac app: terms, fuzzy, `@group`, `#tag`, `+attachment`, `-` for the recycle bin).
+- Search (as the Mac app: terms, fuzzy, `@group`, `#tag`, `+attachment`, `!database`, `-` for the recycle bin;
+  narrowing from the last word typed).
 - Entry card: title, group path, username, password (masked), URLs, one-time codes live with a
   countdown, notes, custom fields in file order with the Mac app's layout rules (sections, lists of codes,
   dates, links), attachments.
@@ -204,7 +205,8 @@ with it, and an id stored before several databases becomes the ref of the first 
 dropped (no migration step). While **two or more are open** each row says its database ("● Work › Engineering", the
 root group "● Work") and the card's chips start with its database's (§6.2); with one open nothing of this shows. A new
 entry, Groups & tags, autofill and a received entry stay with the current database until AD11 (sending reads entries
-from any open one); the `!` filter is AD10.
+from any open one). The search's **`!` filter** keeps one database's entries (§6.2): the index has each entry's
+database label, also with one open (`!Personal` typed by hand still filters), none for autofill's single vault.
 
 **A database's name and colour** (keething-spec databases.name-colour; the Mac's D7b): its name is its file's
 `Meta/DatabaseName` (outer spaces aside), else the file name without `.kdbx`; KeePassXC's default names "Passwords",
@@ -857,7 +859,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   found, Settings → Databases and a database's page), replacing Choose the database; names and colours (AD6: the
   tile's colour, a name read from the file, names alike, §3.1); New database (AD7, above); one list over several
   open (AD9: rows saying their database, the card's database chip, the header's names, opening another closing
-  nothing, §3.1). The welcome's large icon is the app's
+  nothing, §3.1); `!` and narrowing in the search (AD10, below). The welcome's large icon is the app's
   logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
   files.
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
@@ -901,13 +903,32 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   kept as refs only (they survive a lock and say nothing without the database; 8 kept per database, §3.1). Syncthing's
   conflict copies and a failed reload are each open database's own banner (the reload's named while two or more are
   open).
-  **Search field**: a magnifier and "Search"; while it has the focus, chips over the keyboard: `@ group`, `# tag`,
-  `+ file`, `− bin` (the bin's toggles the recycle bin search; none in the Codes list). A tap on one adds its sign
-  to the query, and then the chips are what the filter being typed can be, as the Mac's suggestions (Mac SPEC
-  §3.6, `FilterCompletion`, `SearchFacets`): the groups by path in tree order, the tags, the file names (a bare `+`
-  first "Any file"), each with its entry count; inside the bin search its own groups and tags. A tap puts the name
-  in (quoted when it has a space) with a space after it; none matching, no chips. Closing the keyboard ends the
-  focus and the chips. Back closes the keyboard first, then clears the search, then leaves the Codes list.
+  **Search field**: a magnifier and "Search"; while it has the focus, chips over the keyboard (one line, sideways):
+  `@ group`, `# tag`, `! database` (only while two or more databases are open), `+ file`, `− bin` (the bin's toggles
+  the recycle bin search; none in the Codes list). A tap on one adds its sign to the query, and then the chips are
+  what the filter being typed can be, as the Mac's suggestions (Mac SPEC §3.6, `FilterCompletion`, `SearchFacets`):
+  the groups by path in tree order, the tags, the file names (a bare `+` first "Any file"), the open databases after
+  `!` (a dot, the label in its colour; none with one open), each with its entry count. What is offered follows the
+  rest of the query (keething-spec search.suggestions AC6, for one database too): counted over the entries passing
+  its other filters (terms aside, the filter being typed left out), so a name that would leave nothing (an empty
+  group too) is not offered (`!Work @` offers Work's groups); typed by hand such a filter still filters. A name whose
+  entries are in two or more databases is one chip with a dot and a count for each (AC8). Inside the bin search its
+  own groups and tags. A tap puts the name in (a database's whole label; quoted when it has a space) with a space
+  after it; none matching, no chips. `!x` keeps the open databases whose label starts with `x` (folded as the
+  search), and a whole label that database only ("Work" does not keep "Workshop"); two different ones keep nothing;
+  only at a token's start (`hi!` is a term). A query of bare signs alone (`@`, `!`, `@ #`) lists nothing and says
+  nothing — never the whole vault; the bin search still lists its bins. **Narrowing** (keething-spec
+  search.narrowing; the Mac's D11): when the last word typed (two letters or more, a space after it or not) names a
+  database, group or tag well — its start, or its initials from the name's first letter (`fs` → Family Shared, `gh` →
+  GitHub), never a loose fuzzy match nor notes or values — the chips are "Narrow to" and up to four of them
+  (databases with their dot and label, then `@group`, then `#tag`; in each, starts before initials, then by count;
+  each kind's best before a second of another), counted over what the rest of the query keeps, words included; one
+  that would keep none or all of those is not offered (so no database with one open, none while a `!` filter is
+  typed), nor a name with a `"`. A tap replaces the word with the filter and a space (`github fin` → `github
+  @Finanzen `); with no ⇥ on a phone keyboard the first chip is not special, and the list stays as typed until a chip
+  is tapped. Not while a filter is being typed (its suggestions show), not in the bin search, not in the Codes list
+  (its counts would count entries without codes). Closing the keyboard ends the focus and the chips. Back closes the
+  keyboard first, then clears the search, then leaves the Codes list.
   **Gestures**: a row swiped right copies the password, swiped left the username; past 88 dp what is under the row
   turns solid with a tick, and let go the row springs back (a side with nothing to copy says "No password" / "No
   username" and does nothing; both are accessibility actions too). A long press opens the **quick actions**:
@@ -935,7 +956,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. The header
   is compact: the icon (56 dp) beside the title, the group and tag chips under the title, led while two or more
   databases are open by the entry's database's chip (a dot and its label in its colour on a soft fill of it; a tap
-  keeping that database's entries comes with the `!` filter, AD10). Its bar (Back) is clear at the
+  searches that database, `!Work `, as the group and tag chips do). Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
   title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
   brightness, black on white, for another phone to scan; nothing leaves the device; "Show the password"

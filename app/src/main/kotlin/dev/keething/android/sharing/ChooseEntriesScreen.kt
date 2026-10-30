@@ -61,6 +61,7 @@ import dev.keething.android.list.title
 import dev.keething.android.list.listingOf
 import dev.keething.android.list.sameListing
 import dev.keething.android.session.OpenDatabase
+import dev.keething.search.EntrySearch
 import dev.keething.vault.databases.EntryRef
 import kotlinx.coroutines.launch
 import dev.keething.android.theme.extraColors
@@ -189,7 +190,8 @@ internal fun ChooseEntriesScreen(
                 }
                 item(key = "gap/${section.kind}") { Spacer(Modifier.height(18.dp)) }
             }
-            if (!state.preparing && state.sections.isEmpty()) {
+            // Bare signs alone (`@`, `!`) list nothing and say nothing (SPEC §6.2).
+            if (!state.preparing && state.sections.isEmpty() && !EntrySearch.isEmpty(model.query.text.toString())) {
                 item(key = "nothing") { Explanation("Nothing matches", "Search for another title, user name or site.") }
             }
         }

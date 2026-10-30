@@ -96,6 +96,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -326,7 +327,9 @@ internal fun EntryListScreen(
                         )
                     }
                 }
-                if (!state.preparing && state.sections.isEmpty() && query.text.isNotBlank()) {
+                // Bare signs alone (`@`, `!`) list nothing and say nothing: the chips offer what they can be.
+                val searched = !EntrySearch.isEmpty(query.text.toString())
+                if (!state.preparing && state.sections.isEmpty() && searched) {
                     item(key = "nothing") {
                         val emptyBin = EntrySearch.recycleBinQuery(query.text.toString())?.isBlank() == true
                         Text(
@@ -658,41 +661,87 @@ private fun NewEntryButton(onClick: () -> Unit) {
     ) { Icon(Icons.Rounded.Add, contentDescription = "New entry") }
 }
 
-/** The chips over the keyboard (SPEC §6.2); a tap puts its query in the field, the cursor at its end. */
+/**
+ * The chips over the keyboard (SPEC §6.2), "Narrow to" before them when they narrow the search; a tap puts its query in
+ * the field, the cursor at its end.
+ */
 @Composable
-private fun SearchChipRow(chips: List<SearchChip>, onPick: (String) -> Unit) {
-    if (chips.isEmpty()) return
+private fun SearchChipRow(line: ChipLine, onPick: (String) -> Unit) {
+    if (line.chips.isEmpty()) return
     LazyRow(
         Modifier.fillMaxWidth().padding(top = 8.dp),
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(chips, key = { it.label + "/" + it.query }) { chip ->
+        if (line.narrowing) {
+            item(key = "narrow to") {
+                Text(
+                    "Narrow to",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        items(line.chips, key = { it.label + "/" + it.query }) { chip ->
             FilterChip(
                 selected = chip.selected,
                 onClick = { onPick(chip.query) },
-                label = {
-                    Text(
-                        buildAnnotatedString {
-                            chip.sigil?.let { sigil ->
-                                withStyle(SpanStyle(fontFamily = MonospaceFamily, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
-                                    append(if (sigil == '-') "−" else sigil.toString())
-                                }
-                                append(" ")
-                            }
-                            append(chip.label)
-                            chip.count?.let { count ->
-                                append("  ")
-                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)) { append(count.toString()) }
-                            }
-                        },
-                        maxLines = 1,
-                    )
-                },
+                label = { SearchChipLabel(chip) },
+                leadingIcon = chip.database?.let { mark -> { DatabaseDot(mark, 9.dp) } },
                 colors = FilterChipDefaults.filterChipColors(containerColor = MaterialTheme.extraColors.row),
             )
         }
     }
+}
+
+/**
+ * A chip's sign, its name (a database's in its colour) and its count, or its count in each database by its dot when its
+ * entries are in two or more (keething-spec search.suggestions AC8); said as "Finanzen: Personal 1, Work 1".
+ */
+@Composable
+private fun SearchChipLabel(chip: SearchChip) {
+    val said = when {
+        chip.shares.isNotEmpty() -> chip.label + ": " + chip.shares.joinToString { "${it.database.label.full} ${it.count}" }
+        chip.database != null -> "Database ${chip.label}" + (chip.count?.let { ", $it" } ?: "")
+        else -> null
+    }
+    Row(
+        if (said != null) Modifier.clearAndSetSemantics { contentDescription = said } else Modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            buildAnnotatedString {
+                chip.sigil?.let { sigil ->
+                    withStyle(SpanStyle(fontFamily = MonospaceFamily, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+                        append(if (sigil == '-') "−" else sigil.toString())
+                    }
+                    append(" ")
+                }
+                val name = chip.database?.let { SpanStyle(color = databaseColors(it.colorIndex).text) }
+                if (name != null) withStyle(name) { append(chip.label) } else append(chip.label)
+                if (chip.shares.isEmpty()) {
+                    chip.count?.let { count ->
+                        append("  ")
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)) { append(count.toString()) }
+                    }
+                }
+            },
+            maxLines = 1,
+        )
+        for (share in chip.shares) {
+            Spacer(Modifier.width(8.dp))
+            DatabaseDot(share.database, 7.dp)
+            Spacer(Modifier.width(3.dp))
+            Text(share.count.toString(), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun DatabaseDot(mark: DatabaseMark, size: Dp) {
+    Box(Modifier.size(size).clip(CircleShape).background(databaseColors(mark.colorIndex).dot))
 }
 
 /**

@@ -42,6 +42,7 @@ import dev.keething.android.list.EntryRowView
 import dev.keething.android.list.SearchField
 import dev.keething.android.list.SectionTitle
 import dev.keething.android.list.title
+import dev.keething.search.EntrySearch
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.Notice
@@ -163,7 +164,8 @@ private fun EntryPicker(
                 }
                 item(key = "gap/${section.kind}", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
             }
-            if (!state.preparing && state.sections.isEmpty()) {
+            // Bare signs alone (`@`) list nothing and say nothing (SPEC §6.2).
+            if (!state.preparing && state.sections.isEmpty() && !EntrySearch.isEmpty(model.query.text.toString())) {
                 item(key = "nothing") {
                     Text(
                         "Nothing matches “${model.query.text}”.",

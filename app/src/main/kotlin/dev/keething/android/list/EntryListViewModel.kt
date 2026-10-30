@@ -132,13 +132,13 @@ internal class EntryListViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** The chips over the keyboard for the query (SPEC §6.2); built from the vault the first time they are asked for. */
-    val chips: StateFlow<List<SearchChip>> =
+    /** The chips over the keyboard for the query (SPEC §6.2): the filters, the names a filter can be, or narrowing. */
+    val chips: StateFlow<ChipLine> =
         combine(prepared, snapshotFlow { query.text.toString() to codesOnly() }) { prepared, (text, codes) -> Triple(prepared, text, codes) }
             .mapLatest { (prepared, text, codes) ->
-                prepared?.let { withContext(Dispatchers.Default) { searchChips(text, it.listing.facets, it.listing.binFacets, codes) } }.orEmpty()
+                prepared?.let { withContext(Dispatchers.Default) { searchChips(text, it.listing, codes) } } ?: ChipLine(emptyList())
             }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), ChipLine(emptyList()))
 
     private val names: Flow<String> = combine(open, databases) { open, databases ->
         when {
