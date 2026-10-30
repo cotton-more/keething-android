@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -72,6 +73,7 @@ import dev.keething.android.sharing.TheirRequestScreen
 import dev.keething.android.storageprobe.StorageProbeScreen
 import dev.keething.android.unlock.LockScreen
 import dev.keething.vault.databases.SessionsState
+import dev.keething.android.editor.NewEntryDatabases
 
 /**
  * The screens of the open databases. An entry's screens name it by its ref ([EntryRef.text]: the same UUID in two
@@ -98,8 +100,11 @@ internal sealed interface Screen {
         override val ref: EntryRef get() = EntryRef.of(entryId)
     }
 
-    /** The editor of an entry, or of a new one ([entryId] null) in [groupId], which goes into the current database. */
-    data class Editor(val entryId: String?, val groupId: String? = null) : Screen {
+    /**
+     * The editor of an entry, or of a new one ([entryId] null) in [groupId], starting in the open [database] (its id;
+     * keething-spec databases.one-list AC4): its editor may move it to another (Save into) and closes when its own locks.
+     */
+    data class Editor(val entryId: String?, val groupId: String? = null, val database: String? = null) : Screen {
         override val ref: EntryRef? get() = entryId?.let(EntryRef::of)
     }
 
@@ -173,9 +178,10 @@ internal class NavigationState : ViewModel() {
 
     /**
      * The current database, its vault shown with session [number], is open no more. Locked alone (its password changed
-     * elsewhere) while [open] stay open, the vault goes on with them: the current database's own screens (a new entry,
-     * Groups & tags, a received entry) go, the search and the others' screens stay, and the result is the open database
-     * to make current, the window's first. Null when it was not shown or nothing else is open: its lock screen shows.
+     * elsewhere) while [open] stay open, the vault goes on with them: the current database's own screen (Groups & tags)
+     * goes, the search and the others' screens stay (a new entry and a received one follow their own database, plan
+     * AD11), and the result is the open database to make current, the window's first. Null when it was not shown or
+     * nothing else is open: its lock screen shows.
      */
     fun lockedAlone(number: Int, open: Map<DatabaseId, Int>): DatabaseId? {
         if (number != shownSession || open.isEmpty()) {
@@ -183,7 +189,7 @@ internal class NavigationState : ViewModel() {
             return null
         }
         val (next, nextNumber) = open.entries.first()
-        backStack.removeAll { it is Screen.Groups || it is Screen.ShareReceived || (it is Screen.Editor && it.entryId == null) }
+        backStack.removeAll { it is Screen.Groups }
         sessionNumber = nextNumber
         shownSession = nextNumber
         return next
@@ -353,8 +359,9 @@ private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit)
 }
 
 /**
- * The open databases' screens: one list over them; an entry's screens on its own database ([Screen.ref]); a new entry,
- * Groups & tags, Settings and a received entry with the [current] database (plan AD9; AD11 chooses a new entry's).
+ * The open databases' screens: one list over them; an entry's screens on its own database ([Screen.ref]); a new entry
+ * and a received one in the open database chosen for them (plan AD11); Groups & tags and Settings with the [current]
+ * database.
  */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -412,7 +419,16 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 onSettings = { navigation.open(Screen.Settings) },
                                 onGroups = { navigation.open(Screen.Groups) },
                                 onLeaveCodes = { navigation.codesOnly = false },
-                                onNewEntry = { navigation.open(Screen.Editor(entryId = null)) },
+                                onNewEntry = {
+                                    // The database the search names, else the card beside the list's, else the last new entry's.
+                                    val start = NewEntryDatabases.start(
+                                        sessions.newEntryDatabases(open),
+                                        navigation.query.text.toString(),
+                                        navigation.cardBesideList?.let(EntryRef::of),
+                                        container.settings.lastNewEntryDatabase,
+                                    )
+                                    navigation.open(Screen.Editor(entryId = null, database = (start ?: current.id).value))
+                                },
                                 onSharing = { navigation.open(Screen.Sharing) },
                             )
                         }
@@ -449,17 +465,20 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                         EntryHistoryScreen(database, key.ref.entry, onBack = { navigation.close(key) })
                     }
                     entry<Screen.Editor> { key ->
-                        val database = key.ref?.let { databaseOf(it) ?: return@entry } ?: current
+                        val database = key.ref?.let { databaseOf(it) ?: return@entry }
+                            ?: key.database?.let { sessions.session(DatabaseId(it)) }
+                            ?: current
                         EntryEditorScreen(
                             database = database,
                             entryId = key.ref?.entry,
                             groupId = key.groupId,
                             generator = container::passwordGenerator,
                             onClose = { navigation.close(key) },
-                            onSaved = { id ->
+                            onSaved = { ref ->
                                 container.entrySaved()
-                                if (key.entryId == null) navigation.replace(Screen.Card(EntryRef(database.id, id).text, origin = "new")) else navigation.back()
+                                if (key.entryId == null) navigation.replace(Screen.Card(ref.text, origin = "new")) else navigation.back()
                             },
+                            places = if (key.entryId == null) remember { container.newEntryPlaces() } else null,
                         )
                     }
                     entry<Screen.Password> { key ->
@@ -534,13 +553,12 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                     entry<Screen.ShareSent> { key -> SentScreen(container, key.id, onDone = navigation::leaveSharing) }
                     entry<Screen.ShareAnswer> { key -> AnswerScreen(container, key.answer, onDone = navigation::leaveSharing) }
                     entry<Screen.ShareReceived> { key ->
-                        // A received entry goes into the current database (AD11 chooses).
+                        // The entries go into the database chosen there (keething-spec sharing.receiving AC8).
                         ReceivedScreen(
                             container = container,
-                            database = current,
                             codeText = key.codeText,
                             onClose = navigation::back,
-                            onOpenEntry = { navigation.replace(Screen.Card(EntryRef(current.id, it).text, origin = "received")) },
+                            onOpenEntry = { ref -> navigation.replace(Screen.Card(ref.text, origin = "received")) },
                         )
                     }
                 },

@@ -47,4 +47,12 @@ class AppSettingsTest {
         settings.keepDeclined(StoredEntryIds(listOf(personal), emptyList()))
         assertNull(store.string("dismissedTypeSuggestions"), "none left")
     }
+
+    // spec: databases.one-list/AC4
+    @Test
+    fun theDatabaseTheLastNewEntryWentIntoIsKept() {
+        assertNull(AppSettings(store).lastNewEntryDatabase)
+        AppSettings(store).lastNewEntryDatabase = work
+        assertEquals(work, AppSettings(store).lastNewEntryDatabase, "kept across starts: the process may end between two")
+    }
 }

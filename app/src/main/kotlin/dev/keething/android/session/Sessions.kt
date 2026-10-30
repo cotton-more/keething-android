@@ -5,6 +5,8 @@ import android.util.Log
 import dev.keething.android.databases.CreatedDatabase
 import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.databases.DatabaseText
+import dev.keething.android.editor.NewEntryDatabase
 import dev.keething.android.databases.marks
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -131,6 +133,32 @@ internal class Sessions(
             }
         }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * The open databases as they are this moment, in the window's order ([open] follows them a moment later): autofill
+     * answers the system at once.
+     */
+    fun openNow(): List<OpenDatabase> {
+        val ids = (state.value as? SessionsState.Open)?.vaults?.map { it.id } ?: return emptyList()
+        val marks = list.state.value.marks(storageRoot)
+        return ids.mapNotNull { id ->
+            val database = vaults.session(id) ?: return@mapNotNull null
+            val unlocked = database.session.state.value as? SessionState.Unlocked ?: return@mapNotNull null
+            OpenDatabase(database, unlocked, marks[id] ?: DatabaseMark(id, DatabaseLabel(database.file.name), 0))
+        }
+    }
+
+    /** The [open] databases as a new entry sees them: where it can go (keething-spec databases.one-list AC4, AC5). */
+    fun newEntryDatabases(open: List<OpenDatabase>): List<NewEntryDatabase> = open.map {
+        NewEntryDatabase(it.database.id, it.database.number, it.unlocked.vault, it.mark, DatabaseText.folder(it.database.file.path, storageRoot))
+    }
+
+    /** The window's databases as the screens name them, in the window's order: Save into names those not open. */
+    fun windowMarks(): List<DatabaseMark> {
+        val databases = list.state.value
+        val marks = databases.marks(storageRoot)
+        return databases.window.mapNotNull { marks[it.id] }
+    }
 
     init {
         // Lock and the timeout, by any way it came: counted once each.

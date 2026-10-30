@@ -1,5 +1,6 @@
 package dev.keething.android
 
+import dev.keething.android.editor.NewEntryPlaces
 import android.content.Context
 import android.os.Environment
 import android.util.Log
@@ -139,6 +140,16 @@ internal class AppContainer(context: Context) {
     /** "Saved and checked" from the editor, said by the card it goes back to (SPEC §6.2). */
     val savedNotices: Flow<Notice> = saves.receiveAsFlow()
 
+    /** What a new entry's editor needs of the open databases: Save into, and where the last new entry went. */
+    fun newEntryPlaces(): NewEntryPlaces =
+        NewEntryPlaces(
+            open = sessions.open.map(sessions::newEntryDatabases),
+            session = sessions::session,
+            window = sessions::windowMarks,
+            last = { settings.lastNewEntryDatabase },
+            created = { settings.lastNewEntryDatabase = it },
+        )
+
     fun entrySaved() {
         saves.trySend(Notice("Saved and checked"))
     }
@@ -240,12 +251,15 @@ internal class AppContainer(context: Context) {
      */
     private fun clearOnLock() {
         appScope.launch {
-            // A database that locks alone while others stay open: its attachments opened elsewhere go.
+            // A database that locks alone while others stay open: its attachments opened elsewhere go, and autofill's
+            // matcher, which holds its entries' copies.
             var open = emptySet<DatabaseId>()
             sessions.state
                 .collect {
                     val now = (it as? SessionsState.Open)?.vaults?.mapTo(HashSet()) { vault -> vault.id }.orEmpty()
-                    (open - now).forEach(attachmentFiles::clear)
+                    val locked = open - now
+                    locked.forEach(attachmentFiles::clear)
+                    if (locked.isNotEmpty()) autofillEntries.clear()
                     open = now
                     if (it !is SessionsState.Open) {
                         attachmentFiles.clear()

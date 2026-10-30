@@ -156,6 +156,20 @@ public class EntryEditor private constructor(
         )
     }
 
+    /**
+     * A new entry moved into another database's [vault] (keething-spec databases.one-list AC5; the Mac's
+     * `moveNewEntry`): the editor is that database's, the same new entry; the draft's group goes to its root (another
+     * database's groups) and its username to its default unless it was changed; what else was typed stays. Nothing
+     * typed: the other database's start, still nothing to discard. An existing entry stays where it is.
+     */
+    public fun movedTo(vault: Vault, draft: EntryDraft): Pair<EntryEditor, EntryDraft> {
+        if (!isNew) return this to draft
+        val root = vault.groups.firstOrNull { it.isRoot } ?: vault.groups.firstOrNull()
+        val moved = EntryEditor(original, isNew = true, start = start.copy(username = vault.defaultUsername, groupId = root?.id.orEmpty()), groups = vault.groups)
+        val username = if (draft.username == start.username) vault.defaultUsername else draft.username
+        return moved to draft.copy(username = username, groupId = moved.start.groupId)
+    }
+
     /** The change to save: a new entry in its group, or the entry's fields as loaded. */
     public fun edit(draft: EntryDraft): VaultEdit =
         if (isNew) VaultEdit.Create(original.id, draft.groupId, changes(draft)) else VaultEdit.Update(original.id, original.lastModified, changes(draft))

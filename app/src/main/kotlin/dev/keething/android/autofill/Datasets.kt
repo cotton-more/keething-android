@@ -13,7 +13,6 @@ import dev.keething.android.R
 import dev.keething.android.session.Sessions
 import dev.keething.autofill.form.AutofillForm
 import dev.keething.domain.vault.Entry
-import dev.keething.vault.session.SessionState
 
 /** A dataset that fills [entry]'s values into [form]'s fields ([ids]); null when the entry has nothing for them. */
 internal fun filledDataset(form: AutofillForm, ids: Map<Int, AutofillId>, entry: Entry, code: String?, presentations: Presentations): Dataset? {
@@ -28,19 +27,21 @@ internal fun filledDataset(form: AutofillForm, ids: Map<Int, AutofillId>, entry:
 }
 
 /**
- * The answer to a fill request (SPEC §7): the matching entries (or "Unlock Keething"), "Generate a password"
- * for a new-password field, and the save offer for the password typed.
+ * The answer to a fill request (SPEC §7): the matching entries of every open database (or "Unlock Keething" while none
+ * is open; keething-spec autofill.fill AC6), "Generate a password" for a new-password field, and the save offer for the
+ * password typed.
  */
 internal class FillResponses(private val context: Context, private val sessions: Sessions, private val entries: AutofillEntries) {
     fun response(screen: ScreenFields, form: AutofillForm, inline: InlineSuggestionsRequest?): FillResponse? {
-        val database = sessions.current.value ?: return null
+        // No database chosen yet: nothing to offer.
+        sessions.current.value ?: return null
         // The lock alarm may be late: a fill request checks the time too (SPEC §4).
         sessions.checkBackgroundTime()
         val presentations = AutofillPresentations(context, inline)
         val ids = form.allFields.associateWith(screen.ids::get)
         val response = FillResponse.Builder()
         // A sign-up gets nothing of an entry: only a new password, and the offer to save it.
-        if (!form.isSignUp) addEntries(response, database.session.state.value, form, ids, presentations)
+        if (!form.isSignUp) addEntries(response, sessions.openNow().map { OpenVault(it.database.id, it.unlocked.vault) }, form, ids, presentations)
         if (form.newPasswords.isNotEmpty()) {
             val generate = AutofillRequest(AutofillMode.GENERATE, form, ids)
             val presentation = presentations.action("Generate a password", "Keething", R.drawable.ic_autofill_generate, 0, pinned = false)
@@ -50,15 +51,15 @@ internal class FillResponses(private val context: Context, private val sessions:
         return response.build()
     }
 
-    private fun addEntries(response: FillResponse.Builder, state: SessionState, form: AutofillForm, ids: Map<Int, AutofillId>, presentations: AutofillPresentations) {
+    private fun addEntries(response: FillResponse.Builder, open: List<OpenVault>, form: AutofillForm, ids: Map<Int, AutofillId>, presentations: AutofillPresentations) {
         val label = entries.label(form.target)
-        val unlocked = state as? SessionState.Unlocked
-        if (unlocked == null) {
+        if (open.isEmpty()) {
             val unlock = AutofillRequest(AutofillMode.UNLOCK, form, ids)
             response.addDataset(authenticated(unlock, form.fields, presentations.action("Unlock Keething", "to fill $label", R.drawable.ic_autofill_lock, 0, pinned = false)))
             return
         }
-        val candidates = entries.candidates(unlocked.vault, form).take(MAX_SUGGESTIONS)
+        // Each entry by its ref: the screen a dataset opens finds it in its own database.
+        val candidates = entries.candidates(open, form).take(MAX_SUGGESTIONS)
         var shown = 0
         for (candidate in candidates) {
             val entry = candidate.entry

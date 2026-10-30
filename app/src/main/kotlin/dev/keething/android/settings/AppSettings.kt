@@ -3,6 +3,7 @@ package dev.keething.android.settings
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import dev.keething.domain.settings.SettingsStore
+import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.StoredEntryIds
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
@@ -55,6 +56,14 @@ internal class AppSettings(private val store: SettingsStore) {
         set(value) = store.setString(REQUEST_NAME, value.trim().ifEmpty { null })
 
     /**
+     * The database the last new entry went into (keething-spec databases.one-list AC4): the next one starts there when
+     * nothing else says where. Kept across starts, as the process may end between two.
+     */
+    var lastNewEntryDatabase: DatabaseId?
+        get() = store.string(LAST_NEW_ENTRY_DATABASE)?.let(::DatabaseId)
+        set(value) = store.setString(LAST_NEW_ENTRY_DATABASE, value?.value)
+
+    /**
      * Entries whose card was told "Not now" to its offer to type their fields (SPEC §6.3), by ref
      * ([dev.keething.vault.databases.EntryRef]): the offer is not made again, and the same UUID in another database is
      * another entry. Refs only, as Recent keeps them: they say nothing without the database.
@@ -91,5 +100,6 @@ internal class AppSettings(private val store: SettingsStore) {
         private const val REQUEST_VALIDITY_DAYS = "requestValidityDays"
         private const val REQUEST_NAME = "requestName"
         private const val DISMISSED_SUGGESTIONS = "dismissedTypeSuggestions"
+        private const val LAST_NEW_ENTRY_DATABASE = "lastNewEntryDatabase"
     }
 }

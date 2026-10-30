@@ -26,17 +26,26 @@ class NavigationStateTest {
         navigation.open(Screen.Card(p("same"), "ALL"))
         navigation.open(Screen.History(w("same")))
         navigation.open(Screen.Editor(w("x")))
+        navigation.open(Screen.Editor(entryId = null, database = work.value))
         navigation.open(Screen.Password(p("same"), PasswordView.QR_CODE))
         navigation.open(Screen.Settings)
 
         navigation.keepOpen(mapOf(personal to 1))
 
         assertEquals(
-            listOf(Screen.Entries, Screen.Card(p("same"), "ALL"), Screen.Password(p("same"), PasswordView.QR_CODE), Screen.Settings),
+            listOf(
+                Screen.Entries, Screen.Card(p("same"), "ALL"), Screen.Editor(entryId = null, database = work.value),
+                Screen.Password(p("same"), PasswordView.QR_CODE), Screen.Settings,
+            ),
             navigation.backStack.toList(),
+            "a new entry's draft is its editor's to close: it may have moved to another database (databases.one-list AC6)",
         )
         navigation.keepOpen(mapOf(personal to 3))
-        assertEquals(listOf(Screen.Entries, Screen.Settings), navigation.backStack.toList(), "another session of Personal: its screens go too")
+        assertEquals(
+            listOf(Screen.Entries, Screen.Editor(entryId = null, database = work.value), Screen.Settings),
+            navigation.backStack.toList(),
+            "another session of Personal: its screens go too",
+        )
     }
 
     @Test
@@ -46,11 +55,16 @@ class NavigationStateTest {
         navigation.query.setTextAndPlaceCursorAtEnd("git")
         navigation.open(Screen.Card(p("same"), "RESULTS"))
         navigation.open(Screen.Groups)
-        navigation.open(Screen.Editor(entryId = null))
+        navigation.open(Screen.ShareReceived("code"))
+        navigation.open(Screen.Editor(entryId = null, database = personal.value))
 
         assertEquals(personal, navigation.lockedAlone(2, mapOf(personal to 1)), "Work (session 2, shown) locked: Personal")
 
-        assertEquals(listOf(Screen.Entries, Screen.Card(p("same"), "RESULTS")), navigation.backStack.toList(), "the current one's new entry and groups go")
+        assertEquals(
+            listOf(Screen.Entries, Screen.Card(p("same"), "RESULTS"), Screen.ShareReceived("code"), Screen.Editor(entryId = null, database = personal.value)),
+            navigation.backStack.toList(),
+            "the current one's groups go; a new entry and a received one follow their own database (plan AD11)",
+        )
         assertEquals("git", navigation.query.text.toString(), "the search stays")
         assertEquals(1, navigation.sessionNumber, "the screens are Personal's now")
     }

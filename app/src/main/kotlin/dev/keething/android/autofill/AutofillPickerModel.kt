@@ -7,12 +7,11 @@ import androidx.lifecycle.viewModelScope
 import dev.keething.android.list.ListSection
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.list.VaultListing
-import dev.keething.android.list.ListedDatabase
-import dev.keething.vault.databases.DatabaseSession
-import dev.keething.vault.databases.EntryRef
+import dev.keething.android.list.listingOf
+import dev.keething.android.list.sameListing
+import dev.keething.android.session.OpenDatabase
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.domain.vault.Entry
-import dev.keething.vault.session.SessionState
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,7 +19,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
@@ -36,11 +34,11 @@ private class PreparedPicker(val listing: VaultListing, val suggested: List<Entr
 
 /**
  * Autofill's entry picker (SPEC §7): nothing typed shows the matched entries, then the recently used ones
- * and all; typing searches the whole vault as the list does.
+ * and all; typing searches every open database as the list does (keething-spec autofill.fill AC6), each entry by ref.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class AutofillPickerModel(
-    database: DatabaseSession,
+    open: StateFlow<List<OpenDatabase>>,
     recents: RecentEntries,
     entries: AutofillEntries,
     request: AutofillRequest,
@@ -48,17 +46,15 @@ internal class AutofillPickerModel(
     /** What is typed: not a secret, but kept here as the list keeps its own. */
     val query = TextFieldState()
 
-    private val prepared: StateFlow<PreparedPicker?> = database.session.state
-        .map { (it as? SessionState.Unlocked)?.vault }
-        .distinctUntilChanged { a, b -> a === b }
-        .mapLatest { vault ->
-            vault?.let {
-                withContext(Dispatchers.Default) {
-                    // The current database's entries, by ref as Recent keeps them (autofill across databases is plan AD11's).
-                    val listing = VaultListing(listOf(ListedDatabase(database.id, it)), Instant.now())
-                    val matched = entries.candidates(it, request.form).mapNotNull { c -> listing.entry(EntryRef(database.id, c.entry.id).text) }
-                    PreparedPicker(listing, matched, CustomIconImages(listing.vault.customIcons))
-                }
+    private val prepared: StateFlow<PreparedPicker?> = open
+        .distinctUntilChanged(::sameListing)
+        .mapLatest { databases ->
+            if (databases.isEmpty()) return@mapLatest null
+            withContext(Dispatchers.Default) {
+                val listing = listingOf(databases, Instant.now())
+                val matched = entries.candidates(databases.map { OpenVault(it.database.id, it.unlocked.vault) }, request.form)
+                    .mapNotNull { listing.entry(it.entry.id) }
+                PreparedPicker(listing, matched, CustomIconImages(listing.vault.customIcons))
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)

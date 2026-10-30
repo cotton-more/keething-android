@@ -137,6 +137,14 @@ import dev.keething.android.generator.GeneratorUse
 import dev.keething.android.generator.PasswordGeneratorSheet
 import dev.keething.android.generator.PasswordGeneratorState
 import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.EntryRef
+import dev.keething.android.databases.DatabaseDot
+import dev.keething.android.databases.databaseColors
+import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.segmentShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ModalBottomSheet
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.SecretTextMenu
@@ -169,18 +177,24 @@ internal fun EntryEditorScreen(
     groupId: String?,
     generator: () -> PasswordGeneratorState,
     onClose: () -> Unit,
-    onSaved: (entryId: String) -> Unit,
+    /** The entry saved, in its database (a new one's may have moved: Save into). */
+    onSaved: (EntryRef) -> Unit,
     prefill: ((EntryDraft) -> EntryDraft)? = null,
     /** What the editor is for, above the fields (the save offer of autofill). */
     banner: (@Composable () -> Unit)? = null,
+    /** A new entry's other open databases (Save into; keething-spec databases.one-list AC5, AC6). */
+    places: NewEntryPlaces? = null,
+    /** Another showing of the same screen (after a lock and an unlock): a fresh editor, not the one whose draft went. */
+    showing: Int = 0,
 ) {
-    val model = viewModel(key = "editor/${database.number}/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill) }
+    // A new entry's editor is its own whichever database it started in: it may have moved to another (Save into).
+    val model = viewModel(key = if (entryId == null) "editor/new/$showing" else "editor/${database.number}/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill, places) }
     val editor = model.editor
     LaunchedEffect(editor == null) { if (editor == null) onClose() }
     if (editor == null) return
     val draft = model.draft
     val phase = model.phase
-    LaunchedEffect(phase) { if (phase is SavePhase.Saved) onSaved(phase.entryId) }
+    LaunchedEffect(phase) { if (phase is SavePhase.Saved) onSaved(phase.ref) }
     var confirmingDiscard by rememberSaveable { mutableStateOf(false) }
     val close = { if (editor.isDirty(draft)) confirmingDiscard = true else onClose() }
     BackHandler {
@@ -247,7 +261,11 @@ internal fun EntryEditorScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     banner?.invoke()
-                    EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags)
+                    val into = model.chosen?.takeIf { model.offered.isNotEmpty() }
+                    val saveInto: (@Composable () -> Unit)? = into?.let {
+                        { SaveInto(it, model.offered, model.notOpen, enabled = phase == SavePhase.Editing, onChoose = model::saveInto) }
+                    }
+                    EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto)
                 }
             }
         }
@@ -263,8 +281,15 @@ private fun EditorForm(
     addCodes: (text: String, prefix: String) -> String?,
     generator: () -> PasswordGeneratorState,
     knownTags: List<String>,
+    /** A new entry's database over its group, the two as one block (while two or more are open). */
+    saveInto: (@Composable () -> Unit)?,
 ) {
-    if (editor.isNew) GroupChoice(editor.groups, draft.groupId) { update(draft.copy(groupId = it)) }
+    if (editor.isNew) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            saveInto?.invoke()
+            GroupChoice(editor.groups, draft.groupId, joined = saveInto != null) { update(draft.copy(groupId = it)) }
+        }
+    }
     EditorField("Title", draft.title, { update(draft.copy(title = it)) }, highlighted = true, capitalization = KeyboardCapitalization.Sentences)
     EditorField("Username", draft.username, { update(draft.copy(username = it)) }, keyboardType = KeyboardType.Email)
     var passwordShown by remember { mutableStateOf(false) }
@@ -497,10 +522,115 @@ private fun ExpiryRow(draft: EntryDraft, update: (EntryDraft) -> Unit) {
     }
 }
 
-/** A new entry's group (SPEC §3.3: an existing one stays where it is). */
+/**
+ * A new entry's database while two or more are open (keething-spec databases.one-list AC5; the agreed mock-up): its
+ * dot, label and folder over the group; a tap opens the sheet of the open databases, those not open named under them.
+ * Another one moves the draft.
+ */
+@Composable
+private fun SaveInto(chosen: NewEntryDatabase, offered: List<NewEntryDatabase>, notOpen: String?, enabled: Boolean, onChoose: (DatabaseId) -> Unit) {
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    val colors = databaseColors(chosen.mark.colorIndex)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(enabled = enabled, onClickLabel = "Choose the database") { choosing = true }
+            .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Save into", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(colors.dot))
+                Text(
+                    chosen.mark.label.full,
+                    Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis,
+                )
+                chosen.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            }
+        }
+        Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (choosing) {
+        SaveIntoSheet(
+            offered = offered,
+            chosen = chosen.id,
+            notOpen = notOpen,
+            onChoose = {
+                choosing = false
+                onChoose(it)
+            },
+            onDismiss = { choosing = false },
+        )
+    }
+}
+
+/** Save into's sheet: the open databases (dot, label, folder; a check on the chosen one), those not open under them. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GroupChoice(groups: List<VaultGroup>, chosen: String, onChoose: (String) -> Unit) {
+private fun SaveIntoSheet(offered: List<NewEntryDatabase>, chosen: DatabaseId, notOpen: String?, onChoose: (DatabaseId) -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(horizontal = 8.dp)) {
+                Text("Save into", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "The group, tags and username follow the database chosen.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(Modifier.heightIn(max = 362.dp).clip(RoundedCornerShape(20.dp)).verticalScroll(rememberScrollState())) {
+                offered.forEachIndexed { index, database ->
+                    val colors = databaseColors(database.mark.colorIndex)
+                    Row(
+                        Modifier
+                            .padding(bottom = SegmentGap)
+                            .fillMaxWidth()
+                            .heightIn(min = 64.dp)
+                            .clip(segmentShape(index, offered.size))
+                            .background(MaterialTheme.extraColors.row)
+                            .clickable { onChoose(database.id) }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        DatabaseDot(database.mark.colorIndex)
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                database.mark.label.full,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.text,
+                                maxLines = 1,
+                                overflow = TextOverflow.MiddleEllipsis,
+                            )
+                            database.detail?.let {
+                                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                        if (database.id == chosen) Icon(Icons.Rounded.Check, contentDescription = "Chosen", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+            notOpen?.let {
+                Text(it, Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** A new entry's group (SPEC §3.3: an existing one stays where it is); [joined]: under Save into, as one block. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GroupChoice(groups: List<VaultGroup>, chosen: String, joined: Boolean, onChoose: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val label = { group: VaultGroup -> if (group.isRoot) "Top level" else GroupPathFormatter.text(group.path) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
@@ -511,7 +641,7 @@ private fun GroupChoice(groups: List<VaultGroup>, chosen: String, onChoose: (Str
             singleLine = true,
             label = { Text("Group") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            shape = RoundedCornerShape(18.dp),
+            shape = if (joined) RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp) else RoundedCornerShape(18.dp),
             colors = editorFieldColors(MaterialTheme.colorScheme.surfaceContainerHigh),
             modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
         )

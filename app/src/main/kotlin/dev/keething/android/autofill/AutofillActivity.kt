@@ -18,14 +18,12 @@ import dev.keething.android.generator.PasswordGeneratorSheet
 import dev.keething.android.theme.KeethingTheme
 import dev.keething.android.ui.secureWindow
 import dev.keething.domain.vault.Entry
-import dev.keething.domain.vault.Vault
 import dev.keething.totp.TotpGenerator
-import dev.keething.vault.session.SessionState
 import java.time.Instant
 
 /**
- * The screen autofill opens over the app being filled (SPEC §7): the unlock when the vault is locked, then
- * the entry to fill. Its answer is the dataset to fill; closing it fills nothing. An entry with a one-time
+ * The screen autofill opens over the app being filled (SPEC §7): the unlock while no database is open, then
+ * the entry to fill, from every open one (keething-spec autofill.fill AC6; a dataset names its entry by ref). Its answer is the dataset to fill; closing it fills nothing. An entry with a one-time
  * code comes here too, without a screen while the vault is open, so the code is the current one: filled
  * into the code field, or copied when the form has none (the next page asks for it). A new-password field
  * comes here for the password generator.
@@ -49,8 +47,8 @@ class AutofillActivity : ComponentActivity() {
             }
             return
         }
-        val unlocked = container.sessions.current.value?.session?.state?.value as? SessionState.Unlocked
-        if (savedInstanceState == null && unlocked != null && answerAtOnce(unlocked.vault)) return
+        val open = container.sessions.openNow().map { OpenVault(it.database.id, it.unlocked.vault) }
+        if (savedInstanceState == null && open.isNotEmpty() && answerAtOnce(open)) return
         enableEdgeToEdge()
         val target = container.autofillEntries.label(request.form.target)
         setContent {
@@ -64,8 +62,8 @@ class AutofillActivity : ComponentActivity() {
      * What needs no choice: the entry of a code, or the one entry that matches after an unlock. False when
      * the user chooses.
      */
-    private fun answerAtOnce(vault: Vault): Boolean {
-        val candidates = container.autofillEntries.candidates(vault, request.form).map { it.entry }
+    private fun answerAtOnce(open: List<OpenVault>): Boolean {
+        val candidates = container.autofillEntries.candidates(open, request.form).map { it.entry }
         val entry = when (request.mode) {
             AutofillMode.CODE -> candidates.firstOrNull { it.id == request.entryId }
             AutofillMode.UNLOCK -> candidates.singleOrNull()

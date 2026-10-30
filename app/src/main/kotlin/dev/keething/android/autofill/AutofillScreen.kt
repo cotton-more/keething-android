@@ -43,7 +43,6 @@ import dev.keething.android.list.SearchField
 import dev.keething.android.list.SectionTitle
 import dev.keething.android.list.title
 import dev.keething.search.EntrySearch
-import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.Notice
 import dev.keething.android.ui.NoticeEffect
@@ -53,8 +52,6 @@ import dev.keething.android.ui.rememberSecondsNow
 import dev.keething.android.ui.segmentShape
 import dev.keething.android.unlock.LockScreen
 import dev.keething.domain.vault.Entry
-import dev.keething.domain.vault.Vault
-import dev.keething.vault.session.SessionState
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 
@@ -64,21 +61,23 @@ internal fun AutofillScreen(
     container: AppContainer,
     request: AutofillRequest,
     target: String,
-    answerAtOnce: (Vault) -> Boolean,
+    answerAtOnce: (List<OpenVault>) -> Boolean,
     onFill: (Entry) -> Boolean,
     onClose: () -> Unit,
 ) {
     val database by container.sessions.current.collectAsStateWithLifecycle()
+    val open by container.sessions.open.collectAsStateWithLifecycle()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         val current = database ?: return@Surface NoDatabase(onClose)
-        val state by current.session.state.collectAsStateWithLifecycle()
-        val vault = (state as? SessionState.Unlocked)?.vault
         // After the unlock: the one matching entry is filled at once; otherwise, or once picking, the user chooses.
         var picking by rememberSaveable { mutableStateOf(request.mode == AutofillMode.PICK) }
-        LaunchedEffect(vault) { if (vault != null && !picking && !answerAtOnce(vault)) picking = true }
+        LaunchedEffect(open) {
+            if (open.isNotEmpty() && !picking && !answerAtOnce(open.map { OpenVault(it.database.id, it.unlocked.vault) })) picking = true
+        }
         when {
-            vault == null -> LockScreen(container, current, onBack = null, onChose = {})
-            picking -> EntryPicker(container, current, request, target, onFill, onClose)
+            // None open: the current database's lock screen; any open one fills (keething-spec autofill.fill AC6).
+            open.isEmpty() -> LockScreen(container, current, onBack = null, onChose = {})
+            picking -> EntryPicker(container, request, target, onFill, onClose)
             else -> Box(Modifier.fillMaxSize())
         }
     }
@@ -106,14 +105,13 @@ private fun NoDatabase(onClose: () -> Unit) {
 @Composable
 private fun EntryPicker(
     container: AppContainer,
-    database: DatabaseSession,
     request: AutofillRequest,
     target: String,
     onFill: (Entry) -> Boolean,
     onClose: () -> Unit,
 ) {
-    val model = viewModel(key = "picker:${database.number}") {
-        AutofillPickerModel(database, container.recents, container.autofillEntries, request)
+    val model = viewModel(key = "picker") {
+        AutofillPickerModel(container.sessions.open, container.recents, container.autofillEntries, request)
     }
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }

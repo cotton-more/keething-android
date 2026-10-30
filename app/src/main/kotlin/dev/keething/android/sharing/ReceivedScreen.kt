@@ -60,7 +60,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
-import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.EntryRef
+import dev.keething.android.databases.DatabaseDot
+import dev.keething.android.databases.databaseColors
+import dev.keething.android.editor.NewEntryDatabase
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.ButtonLabel
@@ -88,12 +92,11 @@ import dev.keething.vault.session.SessionState
 @Composable
 internal fun ReceivedScreen(
     container: AppContainer,
-    database: DatabaseSession,
     codeText: String,
     onClose: () -> Unit,
-    onOpenEntry: (id: String) -> Unit,
+    onOpenEntry: (EntryRef) -> Unit,
 ) {
-    val model = viewModel { ReceivedModel(database, container.shareRequests, container.clipboard, codeText) }
+    val model = viewModel { ReceivedModel(container.newEntryPlaces(), container.shareRequests, container.clipboard, codeText) }
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
@@ -131,9 +134,9 @@ internal fun ReceivedScreen(
             BottomActions {
                 when (val saving = model.saving) {
                     is ReceivedModel.Saving.Saved -> {
-                        saving.entryIds.firstOrNull()?.let { first ->
+                        saving.refs.firstOrNull()?.let { first ->
                             Button(onClick = { onOpenEntry(first) }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                                Text(if (saving.entryIds.size == 1) "Open the entry" else "Open the first entry")
+                                Text(if (saving.refs.size == 1) "Open the entry" else "Open the first entry")
                             }
                         }
                         TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Done") }
@@ -187,7 +190,7 @@ internal fun ReceivedScreen(
                 is ReceivedModel.Opening.Sealed -> EnvelopePictures(model, opening)
                 is ReceivedModel.Opening.Opened -> when (val saving = model.saving) {
                     is ReceivedModel.Saving.Saved -> Saved(saving, fromRequest = opening.request != null)
-                    else -> Opened(database, model, opening)
+                    else -> Opened(model, opening)
                 }
             }
         }
@@ -211,7 +214,7 @@ internal fun ReceivedScreen(
 }
 
 @Composable
-private fun Opened(database: DatabaseSession, model: ReceivedModel, opened: ReceivedModel.Opening.Opened) {
+private fun Opened(model: ReceivedModel, opened: ReceivedModel.Opening.Opened) {
     val payload = opened.payload
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 4.dp),
@@ -238,7 +241,7 @@ private fun Opened(database: DatabaseSession, model: ReceivedModel, opened: Rece
         // An address in an answer may be anyone's who saw the request; an envelope's comes from whoever gave its pictures.
         val sender = payload.from.takeIf { request != null }
         payload.entries.forEachIndexed { index, entry -> EntryView(index, entry, model, sender) }
-        GroupChoice(database, model)
+        GroupChoice(model)
     }
 }
 
@@ -383,15 +386,20 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, send
     }
 }
 
-/** The group the entries are saved into: the top level to start with, any group outside the recycle bin. */
+/**
+ * Where the entries are saved: while two or more are open, the database (the last new entry's to start with,
+ * keething-spec sharing.receiving AC8), then its group (the top level to start with, any group outside the recycle bin).
+ */
 @Composable
-private fun GroupChoice(database: DatabaseSession, model: ReceivedModel) {
-    val session by database.session.state.collectAsStateWithLifecycle()
-    val groups = (session as? SessionState.Unlocked)?.vault?.groups.orEmpty()
+private fun GroupChoice(model: ReceivedModel) {
+    val groups = model.database?.vault?.groups.orEmpty()
     var open by remember { mutableStateOf(false) }
     val chosen = groups.firstOrNull { it.id == model.groupId }
+    val offered = model.offered
+    val into = model.database?.takeIf { offered.isNotEmpty() }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Save into", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        if (into != null) DatabaseChoice(into, offered, model.notOpen, model::saveInto)
         Box {
             Surface(onClick = { open = true }, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -415,6 +423,49 @@ private fun GroupChoice(database: DatabaseSession, model: ReceivedModel) {
     }
 }
 
+/** The open databases to save into (dot, label, folder), those not open named under them. */
+@Composable
+private fun DatabaseChoice(chosen: NewEntryDatabase, offered: List<NewEntryDatabase>, notOpen: String?, onChoose: (DatabaseId) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Surface(onClick = { open = true }, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DatabaseDot(chosen.mark.colorIndex)
+                DatabaseName(chosen, Modifier.weight(1f))
+                Icon(Icons.Rounded.ExpandMore, contentDescription = null)
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            offered.forEach { database ->
+                DropdownMenuItem(
+                    leadingIcon = { DatabaseDot(database.mark.colorIndex) },
+                    text = { DatabaseName(database) },
+                    trailingIcon = if (database.id == chosen.id) ({ Icon(Icons.Rounded.Check, contentDescription = "Chosen") }) else null,
+                    onClick = {
+                        onChoose(database.id)
+                        open = false
+                    },
+                )
+            }
+            notOpen?.let { DropdownMenuItem(text = { Text(it, style = MaterialTheme.typography.bodySmall) }, onClick = {}, enabled = false) }
+        }
+    }
+}
+
+@Composable
+private fun DatabaseName(database: NewEntryDatabase, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(
+            database.mark.label.full,
+            color = databaseColors(database.mark.colorIndex).text,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+        )
+        database.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    }
+}
+
 @Composable
 private fun Saved(saved: ReceivedModel.Saving.Saved, fromRequest: Boolean) {
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -425,11 +476,11 @@ private fun Saved(saved: ReceivedModel.Saving.Saved, fromRequest: Boolean) {
         Text("Saved and checked", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         Text(
-            (if (saved.entryIds.size == 1) "The entry is" else "The ${saved.entryIds.size} entries are") + " in ${saved.group}, tagged " +
+            (if (saved.refs.size == 1) "The entry is" else "The ${saved.refs.size} entries are") + " in ${saved.group}, tagged " +
                 "#${Receiving.TAG}. " + if (fromRequest) {
                     "The request is closed: this phone has forgotten its key, so the code can't be opened again."
                 } else {
-                    "This phone will not save ${if (saved.entryIds.size == 1) "it" else "them"} again from the same code."
+                    "This phone will not save ${if (saved.refs.size == 1) "it" else "them"} again from the same code."
                 },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

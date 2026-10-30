@@ -203,9 +203,15 @@ database's entries are not pushed out by those used meanwhile; its entries are h
 back when it opens; an entry gone from its open database is dropped, a database that left the list takes its refs
 with it, and an id stored before several databases becomes the ref of the first open database holding it, else it is
 dropped (no migration step). While **two or more are open** each row says its database ("● Work › Engineering", the
-root group "● Work") and the card's chips start with its database's (§6.2); with one open nothing of this shows. A new
-entry, Groups & tags, autofill and a received entry stay with the current database until AD11 (sending reads entries
-from any open one). The search's **`!` filter** keeps one database's entries (§6.2): the index has each entry's
+root group "● Work") and the card's chips start with its database's (§6.2); with one open nothing of this shows.
+**A new entry** (keething-spec databases.one-list AC4–AC6) goes into the database the search names (`!Work`), else the
+open card's beside the list (two panes), else the one the last new entry went into (kept across starts), else the
+window's first open one, among those with a group; while two or more are open the editor's **Save into** chooses among
+the open ones (those of the window not open are named under them, not offered), and another choice moves the draft:
+the group goes to that database's top level, the tags offered are its, and the username becomes its default unless it
+was changed. A new entry's draft goes when its own database locks; another database locking leaves it (a save in
+flight keeps its sheet). Autofill fills and saves from every open database, and received entries choose theirs too
+(§7, §10). Groups & tags stays with the current database; sending reads entries from any open one. The search's **`!` filter** keeps one database's entries (§6.2): the index has each entry's
 database label, also with one open (`!Personal` typed by hand still filters), none for autofill's single vault.
 
 **A database's name and colour** (keething-spec databases.name-colour; the Mac's D7b): its name is its file's
@@ -859,7 +865,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   found, Settings → Databases and a database's page), replacing Choose the database; names and colours (AD6: the
   tile's colour, a name read from the file, names alike, §3.1); New database (AD7, above); one list over several
   open (AD9: rows saying their database, the card's database chip, the header's names, opening another closing
-  nothing, §3.1); `!` and narrowing in the search (AD10, below). The welcome's large icon is the app's
+  nothing, §3.1); `!` and narrowing in the search (AD10, below); a new entry's Save into (AD11, §3.1, the editor
+  below). The welcome's large icon is the app's
   logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
   files.
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
@@ -1087,7 +1094,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
   one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
   entry needs a title or a website and goes into the group chosen ("Top level", the root group, to start
-  with; an existing entry is not moved). Save shows "Saving and checking…"; saved, the editor goes back to the
+  with; an existing entry is not moved); while two or more databases are open, **Save into** (its dot, label and
+  folder) sits over the group as one block, and its sheet ("The group, tags and username follow the database
+  chosen.") lists the open ones with a check on the chosen one, "Not open: …" under them (§3.1). Save shows "Saving and checking…"; saved, the editor goes back to the
   card (a new entry's card) at once, which says "Saved and checked" in a snackbar; not saved, the sheet says
   why, with "Back to editing" (save from autofill: a toast, and back to the app). ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields.
 - **Password generator** (Mac SPEC §3.20, `core/generator`): a sheet from the wand in the editor's password
@@ -1255,6 +1264,12 @@ service, the screen it opens and the system's view structure are in `app/autofil
   the iPhone. That needs `QUERY_ALL_PACKAGES`: the system shows an app's verified websites only to an app
   that can see it, a fill request does not make the app being filled visible (checked on the test phone),
   and the apps cannot be named in advance. The app has no network, so what it sees stays on the phone.
+- **Several databases** (keething-spec autofill.fill AC6, autofill.save AC7): the matching entries, the picker and the
+  save offer's matching come from every open database, each entry named by its ref (`<database id>:<entry id>`, as
+  the list's) in the dataset and the picker, so the same UUID in two databases is two entries; "Unlock Keething"
+  only while none is open (the current database's lock screen opens), otherwise the open ones fill. An update goes
+  into the entry's own database; a new login goes into the database the last new entry went into, else the first
+  open one, with the editor's Save into while two or more are open.
 - **Unlocked**: up to 6 matching entries, best first (title, username), as the keyboard's chips (inline
   suggestions, Gboard) or the dropdown under the field; their username and password go into the response,
   so a tap fills at once. Then "Search Keething" ("Another entry" when entries were offered), pinned at
@@ -1433,7 +1448,12 @@ needed each time, come later (ROADMAP).
   but anyone who saw your request could have made it, and the name is theirs to choose". Under a wallet's address
   (typed `crypto.address`, or read as one): "Check it with <name> another way before paying to it"; an envelope's
   come from whoever gave its pictures, without the note. Save makes each entry a
-  new one in the group chosen (the top level to start with), each its own checked save (§3.3), a one-time code in the
+  new one in the group chosen (the top level to start with), while two or more databases are open in the database
+  chosen above it (the one the last new entry went into, else the first open one; another puts the group at its top
+  level; once a save was tried the rest go into the same one, waiting for it while it is locked, an entry whose
+  interrupted write landed counted as saved, not saved twice; another database locking before that says where they
+  go now; keething-spec
+  sharing.receiving AC8), each its own checked save (§3.3), a one-time code in the
   format the database's codes use (§3.3; KeePassXC's `otp` link when it has none), tagged `received` besides the sender's tags (once,
   in any case): what came from outside is found with `#received`, and taking the tag off says it was looked at.
   When all are saved the request is closed: its key goes and the answer can no longer be opened. A save that

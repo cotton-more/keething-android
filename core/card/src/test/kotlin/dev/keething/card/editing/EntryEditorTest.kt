@@ -180,6 +180,49 @@ class EntryEditorTest {
         assertFalse(editor.canSave(lost))
     }
 
+    // spec: databases.one-list/AC5
+    @Test
+    fun aNewEntryMovedToAnotherDatabaseTakesItsGroupsRootAndDefaultUsernameKeepingWhatWasTyped() {
+        val personal = Vault(
+            entries = emptyList(),
+            groups = listOf(VaultGroup("p-root", "Personal", emptyList()), VaultGroup("p-bank", "Bank", listOf("Bank"))),
+            defaultUsername = "alex",
+        )
+        val work = Vault(
+            entries = emptyList(),
+            groups = listOf(VaultGroup("w-root", "Work", emptyList()), VaultGroup("w-eng", "Engineering", listOf("Engineering"))),
+            defaultUsername = "alex.morgan@acme.io",
+        )
+        val editor = EntryEditor.create(personal, groupId = "p-bank", now = now, id = "new")
+
+        // Nothing typed: the other database's start, still nothing to discard.
+        val (untouched, start) = editor.movedTo(work, editor.start)
+        assertTrue(untouched.isNew)
+        assertEquals(work.groups, untouched.groups)
+        assertEquals("w-root", start.groupId, "the group goes to its root")
+        assertEquals("alex.morgan@acme.io", start.username, "its default username")
+        assertFalse(untouched.isDirty(start))
+        assertEquals("new", (untouched.edit(start.copy(title = "VPN")) as VaultEdit.Create).entryId, "the same new entry")
+
+        // Typed: kept, the username too once changed; the group still goes to the root (another database's groups).
+        val typed = editor.start.copy(title = "VPN", password = "pw", tags = listOf("vpn"), groupId = "p-bank")
+        val (moved, draft) = editor.movedTo(work, typed)
+        assertEquals(typed.copy(username = "alex.morgan@acme.io", groupId = "w-root"), draft)
+        assertTrue(moved.isDirty(draft))
+        assertTrue(moved.canSave(draft))
+        val changedName = typed.copy(username = "someone")
+        assertEquals("someone", editor.movedTo(work, changedName).second.username, "a username typed stays")
+
+        // And back: the first database's default again, its root.
+        val (back, backDraft) = moved.movedTo(personal, draft)
+        assertEquals(typed.copy(groupId = "p-root"), backDraft)
+        assertEquals(personal.groups, back.groups)
+
+        // An existing entry is not moved.
+        val existing = EntryEditor.edit(entry, now)
+        assertEquals(existing to existing.start, existing.movedTo(work, existing.start))
+    }
+
     @Test
     fun aBlockOfCodesBecomesNumberedProtectedFieldsThatTheCardListsAsCodes() {
         assertEquals(listOf("1234 5678", "abcd-efgh", "zz99", "04711"), EntryEditor.codes("1. 1234 5678\n2) abcd-efgh\n\n• zz99\n  04711  \n"))
