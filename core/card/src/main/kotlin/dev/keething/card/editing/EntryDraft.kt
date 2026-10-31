@@ -42,9 +42,17 @@ public data class EntryDraft(
     val expires: Boolean = false,
     /** When the entry expires, while [expires]: the entry's own time, else a year from when the editor opened. */
     val expiryTime: Instant = Instant.EPOCH,
-    /** A new entry's group; an existing entry stays where it is (moving it is left to the Mac). */
+    /** The group the entry goes into: an existing entry's own until another is chosen (a move with the save). */
     val groupId: String = "",
+    /** New groups made in [groupId] with the save, each inside the one before (keething-spec groups.new-groups AC4). */
+    val newGroups: List<String> = emptyList(),
 ) {
+    /** Where the entry goes, as the group picker says it. */
+    val group: GroupChoice get() = GroupChoice(groupId, newGroups)
+
+    /** Another group chosen in the picker. */
+    public fun choosing(group: GroupChoice): EntryDraft = copy(groupId = group.groupId, newGroups = group.newNames)
+
     /**
      * A field at the end, of [type]: named after the type at once ("CVC", "CVC 2"; the phone names every type, so
      * the value can be typed first), or without a type and a name, for the user to name (several may wait

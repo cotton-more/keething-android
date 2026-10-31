@@ -80,6 +80,28 @@ public data class EntryAvatar(val initial: String, val colorIndex: Int) {
 /** A group path as the screens show it: `Finanzen › Banken` (empty for the root group). */
 public object GroupPathFormatter {
     public fun text(path: List<String>): String = path.joinToString(" › ")
+
+    /**
+     * [path] shorter and shorter, for one line (the owner, 2026-10-31, as fish shell writes a directory): the last
+     * level, the group's own name, always whole; the levels above it cut to their first letter, one at a time from the
+     * left; then "… › " and the last level alone. The first that fits is shown (a database's name before it is never
+     * cut).
+     */
+    public fun shortenings(path: List<String>): List<String> {
+        if (path.size < 2) return listOf(text(path))
+        val above = path.dropLast(1)
+        val result = LinkedHashSet<String>()
+        result += text(path)
+        for (cut in 1..above.size) result += text(above.mapIndexed { i, name -> if (i < cut) initial(name) else name } + path.last())
+        result += text(listOf("…", path.last()))
+        return result.toList()
+    }
+
+    /** A level cut to its first letter (its first character, a letter of any script or a digit). */
+    private fun initial(name: String): String {
+        val trimmed = name.trim()
+        return if (trimmed.isEmpty()) name else trimmed.substring(0, trimmed.offsetByCodePoints(0, 1))
+    }
 }
 
 /** What a one-time code row shows at a moment: the code, its grouped form and the countdown (Mac `TOTPDisplay`). */

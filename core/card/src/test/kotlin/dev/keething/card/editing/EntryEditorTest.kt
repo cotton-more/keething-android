@@ -68,7 +68,7 @@ class EntryEditorTest {
         val editor = EntryEditor.edit(entry, now)
         var draft = editor.start.addField().rename(2, " ").value(2, "v")
         assertEquals("Give the field a name: KeePass cannot keep a value without one.", editor.fieldProblem(draft, draft.fields[2]))
-        assertTrue(editor.problems(draft).isEmpty() && editor.hasFieldProblems(draft) && !editor.canSave(draft), "said at the field")
+        assertTrue(editor.hasFieldProblems(draft) && !editor.canSave(draft), "said at the field")
         draft = draft.rename(2, "PIN")
         assertEquals(listOf("Another field has this name.", null, "Another field has this name."), draft.fields.map { editor.fieldProblem(draft, it) })
         draft = draft.rename(2, "otp")
@@ -176,9 +176,65 @@ class EntryEditorTest {
         assertEquals("web", EntryEditor.create(vault, groupId = "web", now = now).start.groupId)
         assertEquals("root", EntryEditor.create(vault, groupId = "gone", now = now).start.groupId)
 
-        val lost = draft.copy(groupId = "gone")
-        assertEquals(listOf("Choose a group."), editor.problems(lost))
-        assertFalse(editor.canSave(lost))
+        // A path always names somewhere: a group gone by the save is the save's to refuse (SaveFailure.GroupNotFound).
+        assertTrue(editor.canSave(draft.copy(groupId = "gone")))
+    }
+
+    // spec: groups.entry-group/AC2
+    // spec: groups.entry-group/AC4
+    @Test
+    fun anotherGroupChosenMovesAnExistingEntryWithTheSaveWithAnEditOrAlone() {
+        val editor = EntryEditor.edit(entry.copy(groupId = "work"), now)
+        assertEquals("work", editor.originalGroupId)
+        assertEquals(GroupChoice("work"), editor.start.group, "its own group to start with")
+        assertNull(editor.destination(editor.start))
+        assertFalse(editor.isMoved(editor.start))
+
+        val moved = editor.start.choosing(GroupChoice("privat"))
+        assertTrue(editor.isMoved(moved) && editor.isDirty(moved) && editor.canSave(moved), "a move alone is a change to save")
+        assertEquals(GroupDestination("privat"), editor.destination(moved))
+        assertEquals(VaultEdit.Update("e", Instant.ofEpochSecond(100), EntryChanges(group = GroupDestination("privat"))), editor.edit(moved))
+
+        val edited = moved.copy(title = "Webmail")
+        assertEquals(EntryChanges(title = "Webmail", group = GroupDestination("privat")), (editor.edit(edited) as VaultEdit.Update).changes, "one save")
+
+        val back = moved.choosing(GroupChoice("work"))
+        assertEquals(editor.start, back)
+        assertFalse(editor.isMoved(back) || editor.isDirty(back), "back where it was")
+        assertEquals(EntryChanges(title = "Webmail"), (editor.edit(back.copy(title = "Webmail")) as VaultEdit.Update).changes)
+    }
+
+    // spec: groups.new-groups/AC4
+    @Test
+    fun newGroupsGetTheirIdsOnceForTheEditorAndTheEntryGoesIntoTheLast() {
+        val editor = EntryEditor.edit(entry.copy(groupId = "work"), now)
+        val draft = editor.start.choosing(GroupChoice("work", listOf("Servers", "Prod")))
+        assertTrue(editor.isMoved(draft), "into new groups in its own")
+        val destination = editor.destination(draft)!!
+        assertEquals("work", destination.groupId)
+        assertEquals(listOf("Servers", "Prod"), destination.newGroups.map { it.name })
+        assertEquals(2, destination.newGroups.map { it.id }.toSet().size)
+        assertEquals(destination.newGroups.last().id, destination.finalGroupId)
+        assertEquals(destination, editor.destination(draft), "the same ids while the draft is edited")
+        val shorter = editor.destination(draft.choosing(GroupChoice("work", listOf("Servers"))))!!
+        assertEquals(destination.newGroups.take(1), shorter.newGroups)
+
+        val groups = listOf(VaultGroup("root", "Root", emptyList()), VaultGroup("web", "Web", listOf("Web")))
+        val vault = Vault(entries = emptyList(), groups = groups)
+        val new = EntryEditor.create(vault, groupId = "web", now = now, id = "new")
+        assertEquals(GroupDestination("web"), new.destination(new.start), "a new entry always has one")
+        assertFalse(new.isMoved(new.start.choosing(GroupChoice("root"))), "a new entry is not moved")
+        val inNew = new.start.copy(title = "VPN").choosing(GroupChoice("web", listOf("Zed")))
+        assertTrue(new.isDirty(new.start.choosing(GroupChoice("web", listOf("Zed")))))
+        val create = new.edit(inNew) as VaultEdit.Create
+        assertEquals("web", create.group.groupId)
+        assertEquals(listOf("Zed"), create.group.newGroups.map { it.name })
+        assertEquals(new.destination(inNew), create.group)
+
+        // Another database: its top level, the new levels dropped with the group (plans/android-groups.md G8).
+        val other = Vault(entries = emptyList(), groups = listOf(VaultGroup("w-root", "Work", emptyList())))
+        val (_, there) = new.movedTo(other, inNew)
+        assertEquals(GroupChoice("w-root"), there.group)
     }
 
     // spec: databases.one-list/AC5

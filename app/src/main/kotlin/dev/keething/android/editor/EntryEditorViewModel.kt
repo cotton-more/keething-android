@@ -15,6 +15,17 @@ import kotlinx.coroutines.flow.Flow
 import dev.keething.card.editing.AddedCodes
 import dev.keething.card.editing.EntryDraft
 import dev.keething.card.editing.EntryEditor
+import dev.keething.card.editing.GroupChoice
+import dev.keething.card.editing.GroupTree
+import dev.keething.domain.vault.VaultGroup
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.withContext
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.vault.session.SaveOutcome
 import dev.keething.search.SearchFacets
@@ -29,8 +40,8 @@ internal sealed interface SavePhase {
 
     data object Saving : SavePhase
 
-    /** [ref]: the entry in its database (a new one's id). */
-    data class Saved(val ref: EntryRef) : SavePhase
+    /** [ref]: the entry in its database (a new one's id); [deletedGroups]: the empty groups a move deleted. */
+    data class Saved(val ref: EntryRef, val deletedGroups: List<VaultGroup> = emptyList()) : SavePhase
 
     data class Failed(val problem: String) : SavePhase
 }
@@ -53,6 +64,7 @@ internal class NewEntryPlaces(
  * as the text fields hold them; they go with the editor (and a lock closes it). A new entry with [places] may move to
  * another open database (Save into); its draft goes when its database locks, not when another does.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 internal class EntryEditorViewModel(
     database: DatabaseSession,
     entryId: String?,
@@ -81,6 +93,10 @@ internal class EntryEditorViewModel(
     var draft: EntryDraft by mutableStateOf(editor?.start?.let { prefill?.invoke(it) ?: it } ?: EntryDraft())
         private set
 
+    /** The database's groups as they are now (read again after a save or a sync): the group row and its picker. */
+    var groups: GroupTree? by mutableStateOf((database.session.state.value as? SessionState.Unlocked)?.vault?.let(GroupTree::of))
+        private set
+
     /** The open databases as a new entry sees them; empty for an entry being edited. */
     private var open: List<NewEntryDatabase> by mutableStateOf(emptyList())
 
@@ -100,6 +116,14 @@ internal class EntryEditorViewModel(
     private val follower = DraftFollower()
 
     init {
+        viewModelScope.launch {
+            snapshotFlow { this@EntryEditorViewModel.database }
+                .flatMapLatest { it.session.state }
+                .map { (it as? SessionState.Unlocked)?.vault }
+                .distinctUntilChanged { a, b -> a === b }
+                .mapLatest { vault -> vault?.let { withContext(Dispatchers.Default) { GroupTree.of(it) } } }
+                .collect { tree -> tree?.let { groups = it } }
+        }
         val places = places
         if (entryId == null && places != null) {
             viewModelScope.launch {
@@ -116,6 +140,9 @@ internal class EntryEditorViewModel(
         if (phase == SavePhase.Saving) return
         this.draft = draft
     }
+
+    /** Another group chosen in the picker: a new entry's, or a move of an existing one with the save. */
+    fun choose(group: GroupChoice) = update(draft.choosing(group))
 
     /** Adds a block of codes; the problem when none could be added. */
     fun addCodes(text: String, prefix: String): String? {
@@ -154,7 +181,8 @@ internal class EntryEditorViewModel(
             Log.i(TAG, "$how after ${started.elapsedNow()}")
             val problem = outcome.problem(database.file)
             if (problem == null && editor.isNew) places?.created?.invoke(database.id)
-            phase = problem?.let(SavePhase::Failed) ?: SavePhase.Saved(EntryRef(database.id, editor.entryId))
+            phase = problem?.let(SavePhase::Failed)
+                ?: SavePhase.Saved(EntryRef(database.id, editor.entryId), (outcome as? SaveOutcome.Saved)?.deletedGroups.orEmpty())
         }
     }
 
@@ -173,6 +201,7 @@ internal class EntryEditorViewModel(
         this.editor = moved
         draft = movedDraft
         knownTags = tagsOf(target.vault)
+        groups = GroupTree.of(target.vault)
     }
 
     /** Back from a failed save to the draft, to change it or leave. */

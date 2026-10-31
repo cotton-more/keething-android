@@ -27,8 +27,8 @@ internal data class EntryRow(
     val title: String,
     /** `username · host`, either part left out when empty. */
     val subtitle: String,
-    /** The group's path, `Finanzen › Banken` (inside the recycle bin for an entry in it); empty for the root group. */
-    val group: String,
+    /** The group's path, `Finanzen`, `Banken` (inside the recycle bin for an entry in it); empty for the root group. */
+    val group: List<String>,
     val avatar: EntryAvatar,
     val customIconId: String?,
     val hasAttachments: Boolean,
@@ -232,7 +232,7 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
         title = entry.displayTitle,
         // A card or a network says which it is ("Visa •• 4242 · 12/26"); other entries their username and site.
         subtitle = faces[entry.id]?.subtitle ?: listOf(entry.username, entry.urlHost.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
-        group = (if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1)).joinToString(" › "),
+        group = if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1),
         avatar = EntryAvatar.of(entry.displayTitle),
         customIconId = entry.customIconId?.takeIf { it in vault.customIcons },
         hasAttachments = entry.attachments.isNotEmpty(),

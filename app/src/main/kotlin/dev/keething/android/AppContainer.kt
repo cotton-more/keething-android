@@ -1,6 +1,8 @@
 package dev.keething.android
 
 import dev.keething.android.editor.NewEntryPlaces
+import dev.keething.android.editor.savedText
+import dev.keething.domain.vault.VaultGroup
 import android.content.Context
 import android.os.Environment
 import android.util.Log
@@ -139,7 +141,7 @@ internal class AppContainer(context: Context) {
 
     private val saves = Channel<Notice>(Channel.CONFLATED)
 
-    /** "Saved and checked" from the editor, said by the card it goes back to (SPEC §6.2). */
+    /** "Saved and checked" from the editor, said by the card it goes back to (SPEC §6.2), with the empty groups a move deleted. */
     val savedNotices: Flow<Notice> = saves.receiveAsFlow()
 
     /** What a new entry's editor needs of the open databases: Save into, and where the last new entry went. */
@@ -152,8 +154,8 @@ internal class AppContainer(context: Context) {
             created = { settings.lastNewEntryDatabase = it },
         )
 
-    fun entrySaved() {
-        saves.trySend(Notice("Saved and checked"))
+    fun entrySaved(deletedGroups: List<VaultGroup>) {
+        saves.trySend(Notice(savedText(deletedGroups)))
     }
 
     /** A new generator: its options are remembered, its passwords are not. */

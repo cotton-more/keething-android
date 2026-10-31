@@ -42,7 +42,7 @@ class EntryCardTest {
         val card = build(richEntry())
 
         assertEquals("GitHub", card.title)
-        assertEquals("Work › Git", card.groupPath)
+        assertEquals(listOf("Work", "Git"), card.groupPath)
         assertEquals("Git", card.groupName)
         assertEquals(
             listOf("username", "password", "url", "totp", "notes", "custom-0", "custom-1", "custom-2", "attachment-0", "attachment-1"),

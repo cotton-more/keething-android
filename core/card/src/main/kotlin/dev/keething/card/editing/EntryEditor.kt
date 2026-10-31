@@ -17,6 +17,7 @@ import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
@@ -125,23 +126,39 @@ public class EntryEditor private constructor(
 
     public fun hasFieldProblems(draft: EntryDraft): Boolean = draft.fields.any { fieldProblem(draft, it) != null }
 
-    /** What else keeps the draft from being saved; empty when nothing does. */
-    public fun problems(draft: EntryDraft): List<String> =
-        if (isNew && groups.none { it.id == draft.groupId }) listOf("Choose a group.") else emptyList()
+    /** The group the entry is in as loaded (a new entry's: where it started). */
+    public val originalGroupId: String get() = if (isNew) start.groupId else original.groupId
+
+    /** An existing entry going into another group with the save (keething-spec groups.entry-group AC2). */
+    public fun isMoved(draft: EntryDraft): Boolean = !isNew && draft.group != GroupChoice(original.groupId)
+
+    /** The ids of the new groups, made once for this editor, so the draft's changes stay the same while it is edited. */
+    private val newGroupIds = ArrayList<String>()
+
+    /**
+     * Where the entry goes, its new groups' ids made once for this editor (the Mac's `destination`); null when an
+     * existing entry stays where it is. A path always names somewhere: a group gone meanwhile is the save's to refuse.
+     */
+    public fun destination(draft: EntryDraft): GroupDestination? {
+        if (!isNew && !isMoved(draft)) return null
+        while (newGroupIds.size < draft.newGroups.size) newGroupIds += Entry.newId()
+        return GroupDestination(draft.groupId, newGroupIds.zip(draft.newGroups, ::NewGroup))
+    }
 
     /** A new entry needs a title or a website (not a problem to list: every new entry starts without). */
     public fun hasName(draft: EntryDraft): Boolean = draft.title.isNotBlank() || draft.url.isNotBlank()
 
-    /** Something to lose when the editor closes. */
-    public fun isDirty(draft: EntryDraft): Boolean =
-        shape(draft) != shape(start) || (isNew && draft.groupId != start.groupId)
+    /** Something to lose when the editor closes: a group chosen too, for a new entry as for a move. */
+    public fun isDirty(draft: EntryDraft): Boolean = shape(draft) != shape(start) || draft.group != start.group
 
-    public fun canSave(draft: EntryDraft): Boolean =
-        (if (isNew) hasName(draft) else isDirty(draft)) && problems(draft).isEmpty() && !hasFieldProblems(draft)
+    public fun canSave(draft: EntryDraft): Boolean = (if (isNew) hasName(draft) else isDirty(draft)) && !hasFieldProblems(draft)
 
     // Saving
 
-    /** Only what differs from the entry as loaded. Its secrets are new: wipe them once the save is done. */
+    /**
+     * Only what differs from the entry as loaded, an existing entry's move too. Its secrets are new: wipe them once
+     * the save is done.
+     */
     public fun changes(draft: EntryDraft): EntryChanges {
         val shape = shape(draft)
         return EntryChanges(
@@ -154,6 +171,7 @@ public class EntryEditor private constructor(
             fieldTypes = shape.fieldTypes,
             tags = shape.tags,
             expiry = shape.expiry,
+            group = if (isNew) null else destination(draft),
         )
     }
 
@@ -166,15 +184,15 @@ public class EntryEditor private constructor(
     public fun movedTo(vault: Vault, draft: EntryDraft): Pair<EntryEditor, EntryDraft> {
         if (!isNew) return this to draft
         val root = vault.groups.firstOrNull { it.isRoot } ?: vault.groups.firstOrNull()
-        val moved = EntryEditor(original, isNew = true, start = start.copy(username = vault.defaultUsername, groupId = root?.id.orEmpty()), groups = vault.groups)
+        val moved = EntryEditor(original, isNew = true, start = start.copy(username = vault.defaultUsername, groupId = root?.id.orEmpty(), newGroups = emptyList()), groups = vault.groups)
         val username = if (draft.username == start.username) vault.defaultUsername else draft.username
-        return moved to draft.copy(username = username, groupId = moved.start.groupId)
+        return moved to draft.copy(username = username, groupId = moved.start.groupId, newGroups = emptyList())
     }
 
     /** The change to save: a new entry in its group, or the entry's fields as loaded. */
     public fun edit(draft: EntryDraft): VaultEdit.EntryEdit =
         if (isNew) {
-            VaultEdit.Create(original.id, GroupDestination(draft.groupId), changes(draft))
+            VaultEdit.Create(original.id, destination(draft)!!, changes(draft))
         } else {
             VaultEdit.Update(original.id, original.lastModified, changes(draft))
         }

@@ -56,7 +56,8 @@ public sealed interface EntryExpiry {
 public data class EntryCard(
     val id: String,
     val title: String,
-    val groupPath: String,
+    /** The group's path from the top-level group; empty in the root group. */
+    val groupPath: List<String>,
     /** The innermost group (what the group chip filters by); empty in the root group. */
     val groupName: String,
     val tags: List<String>,
@@ -152,7 +153,7 @@ public object EntryCardBuilder {
         return EntryCard(
             id = entry.id,
             title = entry.displayTitle,
-            groupPath = GroupPathFormatter.text(entry.groupPath),
+            groupPath = entry.groupPath,
             groupName = entry.groupPath.lastOrNull() ?: "",
             tags = entry.tags,
             rows = sections.flatMap { it.rows },

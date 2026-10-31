@@ -47,6 +47,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.keething.android.AppContainer
 import dev.keething.android.KeethingApplication
 import dev.keething.android.editor.EntryEditorScreen
+import dev.keething.android.editor.deletedGroupsNote
 import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.session.OpenDatabase
 import dev.keething.vault.databases.DatabaseSession
@@ -148,7 +149,7 @@ private fun SaveLoginScreen(
                 groupId = null,
                 generator = container::passwordGenerator,
                 onClose = onClose,
-                onSaved = { onDone("Password updated in Keething") },
+                onSaved = { _, deleted -> onDone(listOfNotNull("Password updated in Keething", deletedGroupsNote(deleted)).joinToString(". ")) },
                 prefill = { it.copy(password = password) },
                 banner = {
                     Banner(
@@ -164,7 +165,7 @@ private fun SaveLoginScreen(
                 groupId = null,
                 generator = container::passwordGenerator,
                 onClose = onClose,
-                onSaved = { onDone("Saved to Keething") },
+                onSaved = { _, _ -> onDone("Saved to Keething") },
                 prefill = { it.copy(title = plan.title, url = plan.url, username = save.username.ifEmpty { it.username }, password = password) },
                 banner = { Banner("Save the login typed in $label", "A new entry; check its name and group.") },
                 places = remember { container.newEntryPlaces() },

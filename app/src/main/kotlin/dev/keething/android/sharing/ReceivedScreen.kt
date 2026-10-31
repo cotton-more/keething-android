@@ -24,6 +24,11 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.ChevronRight
+import dev.keething.android.groups.GroupPickerSheet
+import dev.keething.android.groups.GroupTexts
+import dev.keething.android.ui.PathText
+import dev.keething.card.editing.GroupTree
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -150,7 +155,7 @@ internal fun ReceivedScreen(
                             )
                         }
                         val busy = saving as? ReceivedModel.Saving.Busy
-                        Button(onClick = model::save, enabled = busy == null && model.groupId != null, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                        Button(onClick = model::save, enabled = busy == null && model.group != null, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                             if (busy != null) {
                                 LoadingIndicator(Modifier.size(28.dp))
                                 Spacer(Modifier.size(10.dp))
@@ -392,34 +397,46 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, send
  */
 @Composable
 private fun GroupChoice(model: ReceivedModel) {
-    val groups = model.database?.vault?.groups.orEmpty()
+    val vault = model.database?.vault
+    val tree = remember(vault) { vault?.let(GroupTree::of) }
     var open by remember { mutableStateOf(false) }
-    val chosen = groups.firstOrNull { it.id == model.groupId }
+    val chosen = model.group
     val offered = model.offered
     val into = model.database?.takeIf { offered.isNotEmpty() }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Save into", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         if (into != null) DatabaseChoice(into, offered, model.notOpen, model::saveInto)
-        Box {
-            Surface(onClick = { open = true }, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Rounded.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(chosen?.let { if (it.isRoot) "Top level" else it.path.joinToString(" › ") } ?: "Choose a group", Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Icon(Icons.Rounded.ExpandMore, contentDescription = null)
+        Surface(onClick = { open = true }, enabled = tree != null && model.groupChangeable, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 16.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Rounded.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.weight(1f)) {
+                    val levels = chosen?.let { tree?.levels(it) }?.map { it.name }
+                    when {
+                        levels == null -> Text("Choose a group", maxLines = 1)
+                        levels.isEmpty() -> Text(GroupTexts.TOP_LEVEL, maxLines = 1)
+                        else -> PathText(levels)
+                    }
+                    if (tree != null && chosen != null) {
+                        GroupTexts.note(tree, chosen, movedFrom = null, saved = "the entries are saved")?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
-            }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                groups.forEach { group ->
-                    DropdownMenuItem(
-                        text = { Text(if (group.isRoot) "Top level" else group.path.joinToString(" › ")) },
-                        onClick = {
-                            model.groupId = group.id
-                            open = false
-                        },
-                    )
-                }
+                Icon(Icons.Rounded.ChevronRight, contentDescription = null)
             }
         }
+    }
+    if (open && tree != null) {
+        GroupPickerSheet(
+            tree = tree,
+            chosen = chosen,
+            made = "made when the entries are saved",
+            onChoose = {
+                open = false
+                model.chooseGroup(it)
+            },
+            onDismiss = { open = false },
+        )
     }
 }
 

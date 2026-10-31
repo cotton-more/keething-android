@@ -74,8 +74,8 @@ databases side by side (in: the list, one list over several open, the chooser an
 §3.1, §5), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
 3.1 (refused until then), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
-the owner on 2026-10-31; keething-spec `plans/android-groups.md`): an entry's group changed in the editor and from its
-card (a move), new groups made from the editor's group picker, groups renamed, made, moved and deleted when empty from
+the owner on 2026-10-31; keething-spec `plans/android-groups.md`): an entry's group changed in the editor (in, §6.2)
+and from its card (a move), new groups made from the editor's group picker (in), groups renamed, made, moved and deleted when empty from
 Groups & tags, and Groups & tags over every open database, a block each; renaming tags and the recycle bin's groups
 stay with the Mac.
 
@@ -252,7 +252,7 @@ database's entries are not pushed out by those used meanwhile; its entries are h
 back when it opens; an entry gone from its open database is dropped, a database that left the list takes its refs
 with it, and an id stored before several databases becomes the ref of the first open database holding it, else it is
 dropped (no migration step). While **two or more are open** each row says its database ("● Work › Engineering", the
-root group "● Work") and the card's chips start with its database's (§6.2); with one open nothing of this shows.
+root group "● Work") and the card's place chip starts with its database (§6.2); with one open nothing of this shows.
 **A new entry** (keething-spec databases.one-list AC4–AC6) goes into the database the search names (`!Work`), else the
 open card's beside the list (two panes), else the one the last new entry went into (kept across starts), else the
 window's first open one, among those with a group; while two or more are open the editor's **Save into** chooses among
@@ -337,8 +337,9 @@ their types, tags, expiry), a new entry at the end of a group's entries, an entr
 Deleting for good, history, attachments, one-time codes (but that of an entry received, §10), renaming tags and the
 recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
 `VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
-made, moved, deleted when empty; keething-spec `plans/android-groups.md` AG1, AG2); no screen makes them yet (AG4,
-AG6).
+made, moved, deleted when empty; keething-spec `plans/android-groups.md` AG1, AG2). The editor makes an entry's move
+and its new groups (the group picker, §6.2; AG4), the received entries' screen new groups (§10); Groups & tags' changes
+and the card's Move to group… come with AG6.
 
 A one-time code written (`EntryEditing`, the Mac's alike) first removes every code field of the entry (the ten of
 §3.2), so one entry never holds two formats; a save that does not change the code leaves its fields as they are. The
@@ -472,7 +473,7 @@ The session saves one change at a time with the key in memory (`VaultSession.sav
 written file as read back, and the app's own write is not read again; the outcome names the groups the save deleted
 (`SaveOutcome.Saved`, as they were, innermost first: what the file lost, not a guess beforehand) for the snackbar
 "Saved and checked. The empty group “Work › Old” was deleted." (two or more: "The empty groups “…” and “…” were
-deleted."; shown from AG4). Refused because the entry changed or went elsewhere, or the file's groups refuse the
+deleted."), which the card says after the editor's save. Refused because the entry changed or went elsewhere, or the file's groups refuse the
 change (a group gone, also a new entry's, a name taken, a group not empty or not to be changed so), the vault is read
 again; refused because the password changed elsewhere, that database locks (the others stay open, §4). Reloads and
 saves take turns, so an older read never replaces a newer save. On the Mac's JVM a save of the fictitious
@@ -881,7 +882,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - The canvas also has a code pinned to the notification shade; it was dropped (§1).
 - Groups (keething-spec `plans/android-groups.md` AG3, agreed 2026-10-31) have a canvas of their own:
   https://claude.ai/artifact/P3Vn7ihTPMN3yrTA9LmPeE (the group picker, the editor's group row, Groups & tags over
-  every open database, a group's sheet and name dialog, Move to…, the card's Move to group…).
+  every open database, a group's sheet and name dialog, Move to…, the card's Move to group…). Changed by the owner at
+  AG4: the picker shows one level at a time instead of its drawn tree, the new levels one NEW (the editor, above).
 
 ### 6.1 Look and feel
 
@@ -1015,7 +1017,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   up only the database's line stays beside the field.
 - **List**: search results (empty query: recently used, then all by title) over every open database (§3.1); a row =
   title, username, site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group,
-  the path inside the bin for an entry in it, as the Mac's rows); while two or more databases are open the line says
+  the path inside the bin for an entry in it, as the Mac's rows; on one line, a path too long is cut as fish shell
+  writes a directory, the owner 2026-10-31: the group's own name always whole, the levels above it cut to their first
+  letter from the left as far as needed, `A › 2 › C › I › Read only`, then `… › Read only`; TalkBack reads it whole); while two or more databases are open the line says
   its database instead of the folder: a dot in its colour, its name in its text colour (the addition of a label smaller),
   then the group: "● Work › Engineering", the root group "● Work". The header (large "Keething", the database's name
   (§3.1) and its entries; with two or more open their labels joined, "Personal and Work · 19 entries"; Lock first and set apart, so that a tap meant for another icon does not lock, then Groups & tags,
@@ -1078,9 +1082,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   right, in reach of the thumb; the bar's ⋮ holds History, Send to a request (§10) and Move to the recycle bin
   (at once, the list offering Undo). In the recycle bin: Restore in the bar, History under ⋮, no Edit. Custom fields are read by their
   types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. The header
-  is compact: the icon (56 dp) beside the title, the group and tag chips under the title, led while two or more
-  databases are open by the entry's database's chip (a dot and its label in its colour on a soft fill of it; a tap
-  searches that database, `!Work `, as the group and tag chips do). Its bar (Back) is clear at the
+  is compact: the icon (56 dp) beside the title, under the title one place chip (the owner, 2026-10-31): while two or more databases are open the entry's database
+  first (a dot and its label in its colour on a soft fill of it), then the group's path, on one line cut as the list
+  cuts it (the database's name never cut); with one open a folder and the path; a tap searches there (`!Work @Mail `,
+  `@Mail `, `!Work `). The tag chips always on a line of their own under it; a tap searches the tag. Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
   title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
   brightness, black on white, for another phone to scan; nothing leaves the device; "Show the password"
@@ -1210,9 +1215,25 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   until tapped. The Mac editor's rules (`card/editing`): only what differs
   from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
   one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
-  entry needs a title or a website and goes into the group chosen ("Top level", the root group, to start
-  with; an existing entry is not moved); while two or more databases are open, **Save into** (its dot, label and
-  folder) sits over the group as one block, and its sheet ("The group, tags and username follow the database
+  entry needs a title or a website. **Group** (keething-spec groups.entry-group, groups.new-groups;
+  `plans/android-groups.md` G2, G3), at the top for a new and an existing entry: a folder and the path from the top,
+  wrapped ("Top level" for the root group, a new entry's to start with), the levels made with the save in their own
+  colour with one NEW after the last; under it "“Zed” is made when the entry is saved" ("“A” and “B” are…", from three
+  on "3 new groups are…"), or for an existing entry moved "Moves here from Travel › Japan when saved". A tap opens the
+  **group picker**, a full-height sheet: "Find or make a group" over one level at a time (the owner, 2026-10-31,
+  instead of the whole tree, so a deep group keeps the row's width): the top level first ("Top level", then its
+  groups by name), each row with its entries in it and below, "2 groups" when it has groups inside, "Now in …" when
+  the entry's group is below it, ⚠ "Another group beside it has this name" for two of a name; a row's tap chooses
+  that group (by its id) and closes, its › goes into it (that group first, then its groups; ‹ and its path, cut as
+  the list cuts it, above the rows go back up). Typing searches below the level at any depth for a part of a name,
+  case and diacritics folded, each found group by its whole path (cut to fit), the part matched bold, those directly
+  inside first (`qu`: Qux, Foo › Bar › Qux); a path can be typed with `/` (`Foo / Bar / qu`), its levels any case and
+  accent, a group with `/` in its name spanning them. Last, while the levels typed are not all groups, "+ New group
+  “qu”" / "+ New groups “Baz › Zed”" "in Foo · made when the entry is saved"; the keyboard's Done takes what is typed
+  as it is (a group directly inside of that name, else new groups). Nothing is made until the entry is saved; a level
+  another app made meanwhile is taken (§3.3). An existing entry moved goes with the save, alone or with an edit, and
+  the snackbar names the empty groups the move deleted. While two or more databases are open, **Save into** (its dot,
+  label and folder) sits over the group as one block (another database: its top level, new levels typed dropped), and its sheet ("The group, tags and username follow the database
   chosen.") lists the open ones with a check on the chosen one, "Not open: …" under them (§3.1). Save shows "Saving and checking…"; saved, the editor goes back to the
   card (a new entry's card) at once, which says "Saved and checked" in a snackbar; not saved, the sheet says
   why, with "Back to editing" (save from autofill: a toast, and back to the app). ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields.
@@ -1566,7 +1587,8 @@ needed each time, come later (ROADMAP).
   but anyone who saw your request could have made it, and the name is theirs to choose". Under a wallet's address
   (typed `crypto.address`, or read as one): "Check it with <name> another way before paying to it"; an envelope's
   come from whoever gave its pictures, without the note. Save makes each entry a
-  new one in the group chosen (the top level to start with), while two or more databases are open in the database
+  new one in the group chosen on the group picker (the editor's, above; the top level to start with; new groups typed
+  are made with the first entry, the rest go into them), while two or more databases are open in the database
   chosen above it (the one the last new entry went into, else the first open one; another puts the group at its top
   level; once a save was tried the rest go into the same one, waiting for it while it is locked, an entry whose
   interrupted write landed counted as saved, not saved twice; another database locking before that says where they

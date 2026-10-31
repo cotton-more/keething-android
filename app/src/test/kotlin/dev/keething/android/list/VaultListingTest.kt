@@ -140,11 +140,11 @@ class VaultListingTest {
         val listing = VaultListing(Vault(entries = listOf(inGroup, bahn), recycleBin = listOf(binned, binnedAlone)), now, Collator.getInstance(Locale.ENGLISH))
 
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
-        assertEquals("Finanzen › Banken", rows.getValue("g").group)
-        assertEquals("", rows.getValue("db").group, "the root group is not named")
+        assertEquals(listOf("Finanzen", "Banken"), rows.getValue("g").group)
+        assertEquals(emptyList(), rows.getValue("db").group, "the root group is not named")
         val bin = listing.sections("-", emptyList()).single().rows.associateBy { it.id }
-        assertEquals("Work", bin.getValue("b").group)
-        assertEquals("", bin.getValue("c").group)
+        assertEquals(listOf("Work"), bin.getValue("b").group)
+        assertEquals(emptyList(), bin.getValue("c").group)
     }
 
     // Several databases open (plan AD9; the Mac's D6 `DatabasesWindowTests`)
@@ -226,7 +226,7 @@ class VaultListingTest {
 
         assertEquals(ListSection.Kind.RECYCLE_BIN, bin.kind)
         assertEquals(listOf(p("oldP2"), p("oldP1"), w("oldW")), bin.rows.map { it.id })
-        assertEquals(listOf("", "Media", "Engineering"), bin.rows.map { it.group }, "the bin's own group left out")
+        assertEquals(listOf(emptyList(), listOf("Media"), listOf("Engineering")), bin.rows.map { it.group }, "the bin's own group left out")
         assertEquals(listOf("Personal", "Personal", "Work"), bin.rows.map { it.database?.label?.name })
         assertEquals(listOf(w("oldW")), listing.sections("- old work", emptyList()).single().rows.map { it.id })
         assertNull(listing.sections("", emptyList()).flatMap { it.rows }.firstOrNull { it.id == w("oldW") }, "never in the ordinary list")

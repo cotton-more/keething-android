@@ -13,6 +13,12 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import dev.keething.android.groups.GroupPickerSheet
+import dev.keething.android.groups.GroupTexts
+import dev.keething.card.editing.GroupChoice
+import dev.keething.card.editing.GroupTree
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
@@ -85,10 +91,6 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.ExposedDropdownMenu
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -151,7 +153,6 @@ import dev.keething.android.ui.SecretTextMenu
 import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.colouredSecret
 import dev.keething.android.ui.readableInset
-import dev.keething.card.GroupPathFormatter
 import dev.keething.card.RevealState
 import dev.keething.card.editing.CodeList
 import dev.keething.card.editing.EntryDraft
@@ -177,8 +178,8 @@ internal fun EntryEditorScreen(
     groupId: String?,
     generator: () -> PasswordGeneratorState,
     onClose: () -> Unit,
-    /** The entry saved, in its database (a new one's may have moved: Save into). */
-    onSaved: (EntryRef) -> Unit,
+    /** The entry saved, in its database (a new one's may have moved: Save into), and the empty groups a move deleted. */
+    onSaved: (EntryRef, List<VaultGroup>) -> Unit,
     prefill: ((EntryDraft) -> EntryDraft)? = null,
     /** What the editor is for, above the fields (the save offer of autofill). */
     banner: (@Composable () -> Unit)? = null,
@@ -194,7 +195,7 @@ internal fun EntryEditorScreen(
     if (editor == null) return
     val draft = model.draft
     val phase = model.phase
-    LaunchedEffect(phase) { if (phase is SavePhase.Saved) onSaved(phase.ref) }
+    LaunchedEffect(phase) { if (phase is SavePhase.Saved) onSaved(phase.ref, phase.deletedGroups) }
     var confirmingDiscard by rememberSaveable { mutableStateOf(false) }
     val close = { if (editor.isDirty(draft)) confirmingDiscard = true else onClose() }
     BackHandler {
@@ -265,7 +266,7 @@ internal fun EntryEditorScreen(
                     val saveInto: (@Composable () -> Unit)? = into?.let {
                         { SaveInto(it, model.offered, model.notOpen, enabled = phase == SavePhase.Editing, onChoose = model::saveInto) }
                     }
-                    EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto)
+                    EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto, model.groups, model::choose)
                 }
             }
         }
@@ -283,12 +284,12 @@ private fun EditorForm(
     knownTags: List<String>,
     /** A new entry's database over its group, the two as one block (while two or more are open). */
     saveInto: (@Composable () -> Unit)?,
+    groups: GroupTree?,
+    onGroup: (GroupChoice) -> Unit,
 ) {
-    if (editor.isNew) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            saveInto?.invoke()
-            GroupChoice(editor.groups, draft.groupId, joined = saveInto != null) { update(draft.copy(groupId = it)) }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        saveInto?.invoke()
+        if (groups != null) GroupRow(groups, editor, draft, joined = saveInto != null, onChoose = onGroup)
     }
     EditorField("Title", draft.title, { update(draft.copy(title = it)) }, highlighted = true, capitalization = KeyboardCapitalization.Sentences)
     EditorField("Username", draft.username, { update(draft.copy(username = it)) }, keyboardType = KeyboardType.Email)
@@ -338,7 +339,7 @@ private fun EditorForm(
     )
     if (addingCodes) AddCodesDialog(onAdd = addCodes, onDone = { addingCodes = false })
 
-    val problems = (draft.fields.mapNotNull { editor.fieldProblem(draft, it) } + editor.problems(draft)).distinct()
+    val problems = draft.fields.mapNotNull { editor.fieldProblem(draft, it) }.distinct()
     AnimatedVisibility(problems.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
         Row(
             Modifier
@@ -627,36 +628,84 @@ private fun SaveIntoSheet(offered: List<NewEntryDatabase>, chosen: DatabaseId, n
     }
 }
 
-/** A new entry's group (SPEC §3.3: an existing one stays where it is); [joined]: under Save into, as one block. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The entry's group (keething-spec groups.entry-group AC1; plans/android-groups.md G3, the agreed mock-up), for a new
+ * and an existing entry: its path from the top, wrapped, the new levels marked; under it what the save makes, or where a
+ * moved entry comes from. A tap opens the group picker. [joined]: under Save into, as one block.
+ */
 @Composable
-private fun GroupChoice(groups: List<VaultGroup>, chosen: String, joined: Boolean, onChoose: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    val label = { group: VaultGroup -> if (group.isRoot) "Top level" else GroupPathFormatter.text(group.path) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        TextField(
-            value = groups.firstOrNull { it.id == chosen }?.let(label).orEmpty(),
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            label = { Text("Group") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            shape = if (joined) RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp) else RoundedCornerShape(18.dp),
-            colors = editorFieldColors(MaterialTheme.colorScheme.surfaceContainerHigh),
-            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            for (group in groups) {
-                DropdownMenuItem(
-                    text = { Text(label(group), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    onClick = {
-                        onChoose(group.id)
-                        expanded = false
-                    },
-                )
+private fun GroupRow(tree: GroupTree, editor: EntryEditor, draft: EntryDraft, joined: Boolean, onChoose: (GroupChoice) -> Unit) {
+    var picking by rememberSaveable { mutableStateOf(false) }
+    val levels = tree.levels(draft.group)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(if (joined) RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp) else RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClickLabel = "Choose the group") { picking = true }
+            .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Group", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Rounded.Folder, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                when {
+                    levels == null -> Text("No longer in the file: choose another", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+                    levels.isEmpty() -> Text(GroupTexts.TOP_LEVEL, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    else -> FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                        // New levels in their own colour, one NEW after the last: one badge a level is too many on a long path.
+                        levels.forEachIndexed { index, level ->
+                            if (index > 0) Text(" › ", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                level.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (level.isNew) FontWeight.SemiBold else FontWeight.Medium,
+                                color = if (level.isNew) MaterialTheme.colorScheme.tertiary else Color.Unspecified,
+                            )
+                        }
+                        if (levels.last().isNew) NewBadge()
+                    }
+                }
+            }
+            GroupTexts.note(tree, draft.group, editor.originalGroupId.takeIf { editor.isMoved(draft) })?.let {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
+        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+    if (picking) {
+        GroupPickerSheet(
+            tree = tree,
+            chosen = draft.group,
+            made = "made when the entry is saved",
+            onChoose = {
+                picking = false
+                onChoose(it)
+            },
+            onDismiss = { picking = false },
+        )
+    }
+}
+
+/** A level made with the save. */
+@Composable
+private fun NewBadge() {
+    Text(
+        "NEW",
+        Modifier
+            .padding(start = 6.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .padding(horizontal = 7.dp, vertical = 1.dp),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onTertiaryContainer,
+    )
 }
 
 /** The custom fields in file order; a list of codes folded into one row until it is opened (or has a problem). */

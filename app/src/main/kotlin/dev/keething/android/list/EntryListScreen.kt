@@ -130,6 +130,8 @@ import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.EntryMark
 import dev.keething.android.ui.FitText
 import dev.keething.android.ui.NoLearningKeyboard
+import dev.keething.android.ui.PathText
+import androidx.compose.ui.text.AnnotatedString
 import dev.keething.android.ui.Notice
 import dev.keething.android.databases.NotOpenDatabase
 import dev.keething.android.databases.NotOpenLine
@@ -638,13 +640,7 @@ internal fun EntryRowView(
             } else if (row.group.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Rounded.Folder, contentDescription = "Group", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
-                    Text(
-                        row.group,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.outline,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    PathText(row.group, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
                 }
             }
             row.deadline?.let { deadline ->
@@ -666,21 +662,20 @@ internal fun EntryRowView(
  * group — "● Work › Engineering", the root group "● Work"; no folder icon.
  */
 @Composable
-private fun DatabaseLine(mark: DatabaseMark, group: String) {
+private fun DatabaseLine(mark: DatabaseMark, group: List<String>) {
     val colors = databaseColors(mark.colorIndex)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.padding(end = 6.dp).size(8.dp).clip(CircleShape).background(colors.dot))
-        Text(
-            buildAnnotatedString {
-                withStyle(SpanStyle(color = colors.text)) { append(mark.label.name) }
-                mark.label.addition?.let { withStyle(SpanStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium)) { append(" · $it") } }
-                if (group.isNotEmpty()) append(" › $group")
-            },
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.outline,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        val label = buildAnnotatedString {
+            withStyle(SpanStyle(color = colors.text)) { append(mark.label.name) }
+            mark.label.addition?.let { withStyle(SpanStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium)) { append(" · $it") } }
+        }
+        if (group.isEmpty()) {
+            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        } else {
+            // The group's path cut to fit after the label, the label whole.
+            PathText(group, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline, lead = label + AnnotatedString(" › "))
+        }
     }
 }
 

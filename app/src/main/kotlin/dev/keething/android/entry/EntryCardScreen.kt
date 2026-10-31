@@ -84,6 +84,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -100,6 +103,7 @@ import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.EntryRef
 import dev.keething.android.sharing.SendToRequestSheet
 import dev.keething.android.theme.extraColors
+import dev.keething.android.ui.PathText
 import dev.keething.android.ui.EntryMark
 import dev.keething.android.ui.NoticeEffect
 import dev.keething.android.ui.NoticeHost
@@ -397,18 +401,21 @@ private fun Header(content: CardContent, mark: DatabaseMark?, sharedKey: String,
                 style = MaterialTheme.typography.headlineMedium,
             )
             if (mark != null || card.groupPath.isNotEmpty() || card.tags.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    mark?.let { DatabaseChip(it) { onSearch(FilterCompletion.token(FilterKind.DATABASE, it.label.full) + " ") } }
-                    if (card.groupPath.isNotEmpty()) {
-                        Chip(
-                            text = card.groupPath,
-                            filled = true,
-                            leading = { Icon(Icons.Rounded.Folder, contentDescription = null, Modifier.size(16.dp)) },
-                            onClick = { onSearch(FilterCompletion.token(FilterKind.GROUP, card.groupName) + " ") },
-                        )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (mark != null || card.groupPath.isNotEmpty()) {
+                        val search = listOfNotNull(
+                            mark?.let { FilterCompletion.token(FilterKind.DATABASE, it.label.full) },
+                            card.groupName.takeIf { it.isNotEmpty() }?.let { FilterCompletion.token(FilterKind.GROUP, it) },
+                        ).joinToString(" ") + " "
+                        PlaceChip(mark, card.groupPath, onClick = { onSearch(search) })
                     }
-                    for (tag in card.tags) {
-                        Chip(text = "#$tag", filled = false, onClick = { onSearch(FilterCompletion.token(FilterKind.TAG, tag) + " ") })
+                    // The tags always on a line of their own (the owner, 2026-10-31).
+                    if (card.tags.isNotEmpty()) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (tag in card.tags) {
+                                Chip(text = "#$tag", filled = false, onClick = { onSearch(FilterCompletion.token(FilterKind.TAG, tag) + " ") })
+                            }
+                        }
                     }
                 }
             }
@@ -417,28 +424,37 @@ private fun Header(content: CardContent, mark: DatabaseMark?, sharedKey: String,
 }
 
 /**
- * The entry's database while two or more are open (keething-spec databases.name-colour AC6): its dot and label in its
- * colour on a soft fill of it. A tap searches that database's entries (`!Work `, search.database-filter).
+ * Where the entry is, as one chip (the owner, 2026-10-31): while two or more databases are open its database first
+ * (keething-spec databases.name-colour AC6: its dot and label in its colour on a soft fill of it), then the group's
+ * path on one line, cut as the list cuts it (the group's own name and the database's always whole); with one open, a
+ * folder and the path. A tap searches there: `!Work @Mail `, `@Mail `, `!Work ` (search.database-filter).
  */
 @Composable
-private fun DatabaseChip(mark: DatabaseMark, onClick: () -> Unit) {
-    val colors = databaseColors(mark.colorIndex)
+private fun PlaceChip(mark: DatabaseMark?, path: List<String>, onClick: () -> Unit) {
+    val colors = mark?.let { databaseColors(it.colorIndex) }
     Row(
-        Modifier.height(32.dp).clip(RoundedCornerShape(10.dp)).background(colors.soft)
-            .clickable(onClickLabel = "Search ${mark.label.full}", onClick = onClick).padding(horizontal = 12.dp),
+        Modifier.height(32.dp).clip(RoundedCornerShape(10.dp)).background(colors?.soft ?: MaterialTheme.colorScheme.secondaryContainer)
+            .clickable(onClickLabel = "Search there", onClick = onClick).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Box(Modifier.size(9.dp).clip(CircleShape).background(colors.dot))
-        Text(
-            mark.label.full,
-            Modifier.semantics { contentDescription = "Database ${mark.label.full}" },
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.text,
-            maxLines = 1,
-            overflow = TextOverflow.MiddleEllipsis,
-        )
+        if (colors != null) {
+            Box(Modifier.size(9.dp).clip(CircleShape).background(colors.dot))
+        } else {
+            Icon(Icons.Rounded.Folder, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        }
+        val lead = mark?.let {
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = colors!!.text, fontWeight = FontWeight.SemiBold)) { append(it.label.full) }
+                if (path.isNotEmpty()) append(" › ")
+            }
+        }
+        val color = if (mark != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer
+        if (path.isEmpty()) {
+            Text(lead!!, Modifier.semantics { contentDescription = "Database ${mark.label.full}" }, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        } else {
+            PathText(path, style = MaterialTheme.typography.labelLarge, color = color, lead = lead)
+        }
     }
 }
 
@@ -526,7 +542,7 @@ private fun sshApp(context: android.content.Context, uri: String, problem: (Stri
 }
 
 @Composable
-private fun Chip(text: String, filled: Boolean, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
+private fun Chip(text: String, filled: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
@@ -539,7 +555,6 @@ private fun Chip(text: String, filled: Boolean, onClick: () -> Unit, leading: (@
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            leading?.invoke()
             Text(text, style = MaterialTheme.typography.labelLarge)
         }
     }

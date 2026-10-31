@@ -19,6 +19,9 @@ import dev.keething.android.editor.NewEntryPlaces
 import dev.keething.android.ui.Notice
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.NewGroup
+import dev.keething.card.editing.GroupChoice
+import dev.keething.card.editing.GroupTree
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.sharing.message.MalformedShareException
 import dev.keething.sharing.message.ShareCode
@@ -115,7 +118,15 @@ internal class ReceivedModel(
     var database: NewEntryDatabase? by mutableStateOf(null)
         private set
 
-    var groupId by mutableStateOf<String?>(null)
+    /** Where the entries go in [database]: a group, perhaps with new groups made in it (the group picker). */
+    var group by mutableStateOf<GroupChoice?>(null)
+        private set
+
+    /**
+     * [group] with its new groups' ids, made once: every entry's save names the same ones; the first makes them, the
+     * rest find them where it made them (keething-spec groups.new-groups AC3).
+     */
+    private var destination: GroupDestination? = null
 
     /** Save into's databases while two or more are open and nothing is saved yet; empty otherwise. */
     val offered: List<NewEntryDatabase> get() = if (!tried && saving !is Saving.Busy) NewEntryDatabases.offered(open) else emptyList()
@@ -169,7 +180,7 @@ internal class ReceivedModel(
                     mutableNotices.trySend(Notice("${before.mark.label.full} locked: the entries go into ${next.mark.label.full} now"))
                 }
                 // Another database: its top level; the same one read again keeps the group while it is there.
-                if (next?.id != before?.id || next?.vault?.groups?.none { it.id == groupId } == true) groupId = next?.let(::rootGroupId)
+                if (next?.id != before?.id || next?.vault?.groups?.none { it.id == group?.groupId } == true) putGroup(next?.let(::rootGroupId)?.let(::GroupChoice))
             }
         }
     }
@@ -179,7 +190,20 @@ internal class ReceivedModel(
         if (id == database?.id) return
         val target = offered.firstOrNull { it.id == id } ?: return
         database = target
-        groupId = rootGroupId(target)
+        putGroup(rootGroupId(target)?.let(::GroupChoice))
+    }
+
+    /** The group can be chosen until a save is tried: the rest then go where the first went, as with Save into. */
+    val groupChangeable: Boolean get() = !tried && saving !is Saving.Busy
+
+    /** A group from the picker. */
+    fun chooseGroup(choice: GroupChoice) {
+        if (groupChangeable) putGroup(choice)
+    }
+
+    private fun putGroup(choice: GroupChoice?) {
+        group = choice
+        destination = choice?.let { GroupDestination(it.groupId, it.newNames.map { name -> NewGroup(Entry.newId(), name) }) }
     }
 
     private fun rootGroupId(database: NewEntryDatabase): String? =
@@ -263,7 +287,7 @@ internal class ReceivedModel(
      */
     fun save() {
         val opened = opening as? Opening.Opened ?: return
-        val group = groupId ?: return
+        val destination = destination ?: return
         val place = database ?: return
         if (saving is Saving.Busy || saving is Saving.Saved) return
         val entries = opened.payload.entries
@@ -284,7 +308,7 @@ internal class ReceivedModel(
                     savedIds += id
                     continue
                 }
-                val edit = VaultEdit.Create(id, GroupDestination(group), Receiving.changes(entries[index]))
+                val edit = VaultEdit.Create(id, destination, Receiving.changes(entries[index]))
                 val pending = startSave(database, edit)
                 if (pending == null) {
                     edit.fields.wipe()
@@ -302,7 +326,7 @@ internal class ReceivedModel(
             }
             opened.request?.let { requests.delete(it.request.id) } ?: envelope?.let(requests::saved)
             places.created(place.id)
-            saving = Saving.Saved(savedIds.map { EntryRef(place.id, it) }, groupName(place, group))
+            saving = Saving.Saved(savedIds.map { EntryRef(place.id, it) }, groupName(place, GroupChoice(destination.groupId, destination.newGroups.map { it.name })))
         }
     }
 
@@ -324,12 +348,13 @@ internal class ReceivedModel(
         opened.request?.let { requests.delete(it.request.id) }
     }
 
-    private fun groupName(database: NewEntryDatabase, id: String): String {
-        val group = (places.session(database.id)?.session?.state?.value as? SessionState.Unlocked)?.vault?.groups?.firstOrNull { it.id == id }
+    private fun groupName(database: NewEntryDatabase, choice: GroupChoice): String {
+        val vault = (places.session(database.id)?.session?.state?.value as? SessionState.Unlocked)?.vault
+        val levels = vault?.let { GroupTree.of(it).levels(choice) }
         return when {
-            group == null -> "the database"
-            group.isRoot -> "the top level"
-            else -> group.path.joinToString(" › ")
+            levels == null -> "the database"
+            levels.isEmpty() -> "the top level"
+            else -> levels.joinToString(" › ") { it.name }
         }
     }
 
