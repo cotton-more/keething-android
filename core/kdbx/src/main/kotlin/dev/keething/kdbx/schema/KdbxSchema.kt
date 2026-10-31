@@ -52,8 +52,8 @@ internal object KdbxSchema {
     // Placing
 
     /**
-     * Puts [child] into [parent] (a `Group` or an `Entry`) where the schema's sequence has it: before the first
-     * element that comes after it. Elements the schema does not know are passed over.
+     * Puts [child] into [parent] (a `Group`, an `Entry` or `Root`) where the schema's sequence has it: before the
+     * first element that comes after it. Elements the schema does not know are passed over.
      */
     fun insert(child: XElement, parent: XElement) {
         val model = sequence(parent.name)
@@ -105,6 +105,7 @@ internal object KdbxSchema {
     private fun sequence(name: String): Model? = when (name) {
         "Group" -> model(Complex.GROUP)
         "Entry" -> model(Complex.ENTRY)
+        "Root" -> model(Complex.ROOT)
         else -> null
     }
 

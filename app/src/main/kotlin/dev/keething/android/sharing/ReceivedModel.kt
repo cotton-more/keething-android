@@ -18,6 +18,7 @@ import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.editor.NewEntryPlaces
 import dev.keething.android.ui.Notice
 import dev.keething.domain.vault.Entry
+import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.sharing.message.MalformedShareException
 import dev.keething.sharing.message.ShareCode
@@ -283,7 +284,7 @@ internal class ReceivedModel(
                     savedIds += id
                     continue
                 }
-                val edit = VaultEdit.Create(id, group, Receiving.changes(entries[index]))
+                val edit = VaultEdit.Create(id, GroupDestination(group), Receiving.changes(entries[index]))
                 val pending = startSave(database, edit)
                 if (pending == null) {
                     edit.fields.wipe()
@@ -309,7 +310,7 @@ internal class ReceivedModel(
      * The session takes one save at a time and is free again only a moment after the last one told its outcome
      * (this screen resumes at once): it is asked again for a short while before giving up.
      */
-    private suspend fun startSave(database: DatabaseSession, edit: VaultEdit): Deferred<SaveOutcome>? {
+    private suspend fun startSave(database: DatabaseSession, edit: VaultEdit.EntryEdit): Deferred<SaveOutcome>? {
         repeat(BUSY_TRIES) {
             database.session.save(edit)?.let { return it }
             delay(BUSY_WAIT)

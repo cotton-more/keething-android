@@ -76,7 +76,7 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
         if (problem != null) mutableNotices.trySend(Notice(problem, isProblem = true))
     }
 
-    private fun save(database: DatabaseSession, edit: VaultEdit, done: (problem: String?) -> Unit) {
+    private fun save(database: DatabaseSession, edit: VaultEdit.EntryEdit, done: (problem: String?) -> Unit) {
         val pending = database.session.save(edit) ?: return done(SAVE_BUSY)
         scope.launch { done(pending.await().problem(database.file)) }
     }

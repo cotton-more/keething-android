@@ -2,6 +2,7 @@ package dev.keething.kdbx.schema
 
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.Fixtures
 import dev.keething.kdbx.editing.EditException
@@ -360,7 +361,7 @@ class KdbxSchemaTest {
         group.insertAfter(XElement("CustomIconUUID", uuid), group.first("IconID"))
         val editable = open(EditingFixtures.write(old))
 
-        editable.apply(VaultEdit.Create(Entry.newId(), EntryLifecycle.uuidText(top(editable.root)), EntryChanges(title = "New")), now)
+        editable.apply(VaultEdit.Create(Entry.newId(), GroupDestination(EntryLifecycle.uuidText(top(editable.root))), EntryChanges(title = "New")), now)
 
         val refused = assertFailsWith<EditException.BreaksFormat> { editable.write(key) }
         assertEquals("an entry's CustomIconUUID: no such custom icon", refused.what)

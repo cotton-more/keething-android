@@ -4,6 +4,8 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
@@ -24,10 +26,10 @@ class SaveCheckTest {
     private val b = Entry("b", title = "B", groupPath = listOf("Work"), groupId = "W")
     private val before = Vault(entries = listOf(a, b), groups = listOf(root, work))
 
-    private fun check(after: Vault, edit: VaultEdit, applied: AppliedEdit = AppliedEdit(null)) =
+    private fun check(after: Vault, edit: VaultEdit.EntryEdit, applied: AppliedEdit = AppliedEdit(null)) =
         SaveCheck.verify(before, after, edit, applied, now)
 
-    private fun fails(detail: String, after: Vault, edit: VaultEdit, applied: AppliedEdit = AppliedEdit(null)) {
+    private fun fails(detail: String, after: Vault, edit: VaultEdit.EntryEdit, applied: AppliedEdit = AppliedEdit(null)) {
         val failure = assertFailsWith<SaveCheck.Failed> { check(after, edit, applied) }
         assertEquals(detail, failure.detail)
     }
@@ -74,11 +76,19 @@ class SaveCheckTest {
             "n", title = "New", username = "me", password = Secret.of("pw1"), groupPath = listOf("Work"), groupId = "W",
             expiryTime = seconds, created = seconds, lastModified = seconds,
         )
-        val edit = VaultEdit.Create("n", "W", fields)
+        val edit = VaultEdit.Create("n", GroupDestination("W"), fields)
 
         check(before.copy(entries = listOf(a, b, created)), edit, AppliedEdit("W"))
         fails("the new entry did not come out as asked", before.copy(entries = listOf(a, b, created.copy(groupId = "R", groupPath = emptyList()))), edit, AppliedEdit("W"))
         fails("the new entry is missing", before, edit, AppliedEdit("W"))
+    }
+
+    @Test
+    fun aNewEntryWhoseNewLevelAnotherAppMadeMeanwhileIsInThatGroup() {
+        val created = Entry("n", title = "New", groupPath = listOf("Work"), groupId = "W", expiryTime = seconds, created = seconds, lastModified = seconds)
+        val edit = VaultEdit.Create("n", GroupDestination("R", listOf(NewGroup("X", "work"))), EntryChanges(title = "New"))
+
+        check(before.copy(entries = listOf(a, b, created)), edit, AppliedEdit("W", destination = GroupDestination("W")))
     }
 
     @Test

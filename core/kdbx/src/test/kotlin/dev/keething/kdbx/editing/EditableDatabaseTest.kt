@@ -4,6 +4,8 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.FieldValue
+import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.Fixtures
 import dev.keething.kdbx.editing.EditingFixtures.document
@@ -45,9 +47,9 @@ class EditableDatabaseTest {
         EntryLifecycle.group(group, editable.root)!!.last().apply { insertAfter(XElement("CustomIconUUID", icon), first("IconID")) }
         val id = Entry.newId()
 
-        val applied = editable.apply(VaultEdit.Create(id, group, EntryChanges(title = "New", password = Secret.of("pw1"))), now)
+        val applied = editable.apply(VaultEdit.Create(id, GroupDestination(group), EntryChanges(title = "New", password = Secret.of("pw1"))), now)
 
-        assertEquals(AppliedEdit(expectedGroupId = group, customIconId = icon), applied)
+        assertEquals(AppliedEdit(expectedGroupId = group, customIconId = icon, destination = GroupDestination(group)), applied)
         val written = KdbxReader.open(editable.write(key).file, key).document
         assertEquals(protected("pw1"), written.entries.single { it.uuid == id }.field("Password"))
     }
@@ -69,7 +71,127 @@ class EditableDatabaseTest {
         val editable = open("kdbx4-aes-aeskdf")
 
         assertFailsWith<EditException.EntryNotFound> { editable.apply(VaultEdit.Update("gone", null, EntryChanges(notes = "x")), now) }
-        assertFailsWith<EditException.GroupNotFound> { editable.apply(VaultEdit.Create(Entry.newId(), "gone", EntryChanges()), now) }
+        assertFailsWith<EditException.GroupNotFound> { editable.apply(VaultEdit.Create(Entry.newId(), GroupDestination("gone"), EntryChanges()), now) }
+    }
+
+    private fun top(editable: EditableDatabase): String = EntryLifecycle.uuidText(EntryLifecycle.topGroup(editable.root)!!)
+
+    private fun history(editable: EditableDatabase, id: String): Int =
+        EntryLifecycle.locate(id, editable.root)!!.entry.first("History")?.all("Entry")?.size ?: 0
+
+    private fun deleted(editable: EditableDatabase): List<String?> =
+        editable.root.first("Root")?.first("DeletedObjects")?.all("DeletedObject").orEmpty().map { it.first("UUID")?.text }
+
+    private fun newGroup(name: String) = NewGroup(Entry.newId(), name)
+
+    @Test
+    fun anEditAndAMoveMakeOneHistorySnapshotAMoveAloneNone() {
+        val before = document("kdbx4-aes-aeskdf")
+        val one = before.entry("Entry <one> ü")
+        val web = one.ancestorGroupUuids.last()
+        val editable = open("kdbx4-aes-aeskdf")
+        val snapshots = history(editable, one.uuid)
+        val archive = newGroup("Archive")
+
+        val edited = editable.apply(
+            VaultEdit.Update(one.uuid, one.lastModified, EntryChanges(username = "moved", group = GroupDestination(top(editable), listOf(archive)))),
+            now,
+        )
+
+        assertEquals(
+            AppliedEdit(expectedGroupId = archive.id, createdGroupIds = listOf(archive.id), destination = GroupDestination(top(editable), listOf(archive))),
+            edited,
+        )
+        assertEquals(snapshots + 1, history(editable, one.uuid), "one snapshot, for the edit")
+
+        val moved = editable.apply(VaultEdit.Update(one.uuid, now, EntryChanges(group = GroupDestination(web))), now)
+
+        assertEquals(AppliedEdit(expectedGroupId = web, destination = GroupDestination(web), deletedGroupIds = listOf(archive.id)), moved)
+        assertEquals(snapshots + 1, history(editable, one.uuid), "none for a move")
+        val after = KdbxReader.open(editable.write(key).file, key).document
+        assertEquals(before.groups, after.groups, "Archive, left empty, went")
+        assertEquals(plain("moved"), after.entries.single { it.uuid == one.uuid }.field("UserName"))
+        assertEquals(listOf("Web & Mail"), after.entries.single { it.uuid == one.uuid }.groupPath)
+    }
+
+    @Test
+    fun aMoveDeletesTheGroupsItLeavesEmptyInnermostFirstNeverTheOneItGoesIntoOrAbove() {
+        val editable = open("kdbx4-aes-aeskdf")
+        val top = top(editable)
+        val web = document("kdbx4-aes-aeskdf").groups.single { it.name == "Web & Mail" }.uuid
+        val old = newGroup("Old")
+        val deep = newGroup("Deep")
+        val keep = newGroup("Keep")
+        val kept = newGroup("Kept")
+        val sub = newGroup("Sub")
+        val a = Entry.newId()
+        val b = Entry.newId()
+        val c = Entry.newId()
+        // Old › Deep holds A alone; Keep holds B and the group Kept, which holds C.
+        val created = editable.apply(VaultEdit.Create(a, GroupDestination(top, listOf(old, deep)), EntryChanges(title = "A")), now)
+        assertEquals(AppliedEdit(expectedGroupId = deep.id, createdGroupIds = listOf(old.id, deep.id), destination = GroupDestination(top, listOf(old, deep))), created)
+        editable.apply(VaultEdit.Create(b, GroupDestination(top, listOf(keep)), EntryChanges(title = "B")), now)
+        editable.apply(VaultEdit.Create(c, GroupDestination(keep.id, listOf(kept)), EntryChanges(title = "C")), now)
+        fun move(id: String, destination: GroupDestination) = editable.apply(VaultEdit.Update(id, null, EntryChanges(group = destination)), now).deletedGroupIds
+
+        assertEquals(listOf(deep.id, old.id), move(a, GroupDestination(web)))
+        assertEquals(listOf(deep.id, old.id), deleted(editable))
+        assertEquals(listOf(kept.id), move(c, GroupDestination(top)), "Keep still holds B")
+        assertEquals(emptyList(), move(b, GroupDestination(keep.id, listOf(sub))), "B goes below Keep")
+        assertEquals(listOf(sub.id), move(b, GroupDestination(keep.id)), "not Keep, which it goes into")
+        assertEquals(emptyList(), move(b, GroupDestination(keep.id)), "where it is")
+
+        val unmoved = editable.apply(VaultEdit.Update(b, null, EntryChanges(title = "B2")), now)
+
+        assertEquals(AppliedEdit(expectedGroupId = null), unmoved)
+        assertEquals(listOf(deep.id, old.id, kept.id, sub.id), deleted(editable), "an edit without a move deletes nothing")
+        val after = KdbxReader.open(editable.write(key).file, key).document
+        assertEquals(listOf("Web & Mail"), after.entries.single { it.uuid == a }.groupPath)
+        assertEquals(listOf("Keep"), after.entries.single { it.uuid == b }.groupPath)
+        assertEquals(emptyList(), after.entries.single { it.uuid == c }.groupPath)
+        assertEquals(listOf(listOf(), listOf("Web & Mail"), listOf("Keep")), after.groups.map { it.path })
+    }
+
+    @Test
+    fun newLevelsMeetTheFileAsItIsALevelMadeElsewhereSinceTheReadIsTaken() {
+        val editable = open("kdbx4-aes-aeskdf")
+        val top = top(editable)
+        // Another app made Inbox after the editor was opened.
+        val inbox = newGroup("Inbox")
+        GroupLifecycle.create(listOf(inbox), top, editable.root, now)
+        val notes = newGroup("Notes")
+        val id = Entry.newId()
+
+        val applied = editable.apply(VaultEdit.Create(id, GroupDestination(top, listOf(newGroup("inbox"), notes)), EntryChanges(title = "N")), now)
+
+        assertEquals(AppliedEdit(expectedGroupId = notes.id, createdGroupIds = listOf(notes.id), destination = GroupDestination(inbox.id, listOf(notes))), applied)
+        val after = KdbxReader.open(editable.write(key).file, key).document
+        assertEquals(listOf("Inbox", "Notes"), after.entries.single { it.uuid == id }.groupPath)
+        assertEquals(1, after.groups.count { it.name.equals("inbox", ignoreCase = true) })
+    }
+
+    @Test
+    fun aGroupsEditsSayWhatTheyMadeAndDeletedAndTheirRefusalsComeThrough() {
+        val before = document("kdbx4-aes-aeskdf")
+        val editable = open("kdbx4-aes-aeskdf")
+        val top = top(editable)
+        val web = before.groups.single { it.name == "Web & Mail" }.uuid
+        val archive = newGroup(" Archive ")
+        val empty = newGroup("Empty")
+
+        assertEquals(AppliedEdit(expectedGroupId = null, createdGroupIds = listOf(archive.id)), editable.apply(VaultEdit.CreateGroup(top, archive), now))
+        assertEquals(AppliedEdit(expectedGroupId = null), editable.apply(VaultEdit.MoveGroup(web, archive.id), now))
+        assertEquals(AppliedEdit(expectedGroupId = null), editable.apply(VaultEdit.RenameGroup(web, "Mail"), now))
+        editable.apply(VaultEdit.CreateGroup(top, empty), now)
+        assertEquals(AppliedEdit(expectedGroupId = null, deletedGroupIds = listOf(empty.id)), editable.apply(VaultEdit.DeleteEmptyGroup(empty.id), now))
+
+        assertFailsWith<EditException.GroupNameTaken> { editable.apply(VaultEdit.CreateGroup(top, newGroup("ARCHIVE")), now) }
+        assertFailsWith<EditException.InvalidName> { editable.apply(VaultEdit.RenameGroup(web, " "), now) }
+        assertFailsWith<EditException.GroupNotChangeable> { editable.apply(VaultEdit.MoveGroup(archive.id, web), now) }
+        assertFailsWith<EditException.GroupNotEmpty> { editable.apply(VaultEdit.DeleteEmptyGroup(archive.id), now) }
+        val after = KdbxReader.open(editable.write(key).file, key).document
+        assertEquals(listOf(listOf(), listOf("Archive"), listOf("Archive", "Mail")), after.groups.map { it.path })
+        assertEquals(before.entries.map { it.copy(groupPath = listOf("Archive", "Mail"), ancestorGroupUuids = listOf(top, archive.id, web)) }, after.entries)
     }
 
     @Test

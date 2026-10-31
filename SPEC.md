@@ -89,7 +89,8 @@ dependency directions are the module dependencies, so the compiler enforces them
 
 ```
 core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attachment, TOTPConfig,
-              EntryChanges, VaultEdit, the secret value type, and the ports (DatabaseStore §3.1,
+              EntryChanges, VaultEdit, the secret value type, the app's one text folding
+              (TextFolding: search, field names, a group path's levels), and the ports (DatabaseStore §3.1,
               DatabaseBackups §3.3, Clock, BiometricPasswordStores §5, SettingsStore, …).
               Depends on nothing.
 core/totp     one-time codes: otpauth links, KeePassXC's and KeePass's formats, code generation → domain

@@ -4,6 +4,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.NewGroup
 import dev.keething.kdbx.KeePassXcCli
 import dev.keething.kdbx.editing.EditingFixtures.document
 import dev.keething.kdbx.editing.EditingFixtures.open
@@ -19,6 +20,7 @@ import java.nio.file.Files
 import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -188,6 +190,63 @@ class EntryLifecycleTest {
         val after = reread(editable)
         assertEquals(listOf("Web & Mail"), after.entries.single { it.uuid == one.uuid }.groupPath)
         assertEquals(listOf("Web & Mail"), after.entries.single { it.uuid == second.uuid }.groupPath)
+    }
+
+    @Test
+    fun aMoveIsKeePassXcsSetGroupNoSnapshotTheGroupItLeftRememberedAfterTheNewGroupsEntries() {
+        val before = document("kdbx4-aes-aeskdf")
+        val one = before.entry("Entry <one> ü")
+        val web = groupId("Web & Mail")
+        val editable = open("kdbx4-aes-aeskdf")
+        val root = editable.root
+        val target = NewGroup(Entry.newId(), "Target")
+        val sub = NewGroup(Entry.newId(), "Sub")
+        GroupLifecycle.create(listOf(target, sub), web, root, now)
+        val there = EntryLifecycle.create(Entry.newId(), target.id, EntryChanges(title = "There"), root, now)
+        val entry = assertNotNull(EntryLifecycle.locate(one.uuid, root)).entry
+        val history = entry.first("History")?.all("Entry")?.size
+        val later = now.plusSeconds(60)
+
+        EntryLifecycle.moveEntry(one.uuid, target.id, root, later)
+
+        val group = assertNotNull(EntryLifecycle.group(target.id, root)).last()
+        assertEquals(listOf(there, entry), group.all("Entry"), "after the group's entries")
+        assertEquals(listOf("Entry", "Entry", "Group"), group.elements.map { it.name }.filter { it == "Entry" || it == "Group" })
+        assertEquals(web, entry.first("PreviousParentGroup")?.text)
+        val names = entry.elements.map { it.name }
+        assertEquals(names.indexOf("Times") - 1, names.indexOf("PreviousParentGroup"), "right before Times (KeePass's schema)")
+        for (stamp in listOf("LastModificationTime", "LastAccessTime", "LocationChanged")) {
+            assertEquals(later, entry.first("Times")?.first(stamp)?.text?.let(KdbxTime::parse), stamp)
+        }
+        assertEquals(history, entry.first("History")?.all("Entry")?.size, "no history snapshot")
+        for (touched in listOf(web, target.id)) {
+            val times = assertNotNull(EntryLifecycle.group(touched, root)).last().first("Times")
+            assertEquals(later, times?.first("LastModificationTime")?.text?.let(KdbxTime::parse))
+        }
+        val unchanged = XmlTree.withoutSecrets(root)
+        EntryLifecycle.moveEntry(one.uuid, target.id, root, later.plusSeconds(60))
+        assertContentEquals(unchanged, XmlTree.withoutSecrets(root), "where it is: nothing changes")
+
+        val after = reread(editable)
+        val moved = after.entries.single { it.uuid == one.uuid }
+        assertEquals(listOf("Web & Mail", "Target"), moved.groupPath)
+        assertEquals(one.copy(groupPath = moved.groupPath, ancestorGroupUuids = moved.ancestorGroupUuids, lastModified = later), moved)
+    }
+
+    @Test
+    fun aMoveIsRefusedOutOfTheBinIntoItOrForWhatIsGone() {
+        val editable = open("kdbx4-aes-aeskdf")
+        val root = editable.root
+        val document = document("kdbx4-aes-aeskdf")
+        val one = document.entry("Entry <one> ü")
+        val second = document.entry("Second renamed")
+        val binId = EntryLifecycle.moveToRecycleBin(second.uuid, root, now)
+        val top = EntryLifecycle.uuidText(root.first("Root")!!.first("Group")!!)
+
+        assertFailsWith<EditException.GroupNotFound> { EntryLifecycle.moveEntry(one.uuid, binId, root, now) }
+        assertFailsWith<EditException.AlreadyInRecycleBin> { EntryLifecycle.moveEntry(second.uuid, top, root, now) }
+        assertFailsWith<EditException.GroupNotFound> { EntryLifecycle.moveEntry(one.uuid, "gone", root, now) }
+        assertFailsWith<EditException.EntryNotFound> { EntryLifecycle.moveEntry("gone", top, root, now) }
     }
 
     @Test

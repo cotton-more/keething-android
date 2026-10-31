@@ -16,6 +16,7 @@ import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.FieldValue
+import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
@@ -171,8 +172,12 @@ public class EntryEditor private constructor(
     }
 
     /** The change to save: a new entry in its group, or the entry's fields as loaded. */
-    public fun edit(draft: EntryDraft): VaultEdit =
-        if (isNew) VaultEdit.Create(original.id, draft.groupId, changes(draft)) else VaultEdit.Update(original.id, original.lastModified, changes(draft))
+    public fun edit(draft: EntryDraft): VaultEdit.EntryEdit =
+        if (isNew) {
+            VaultEdit.Create(original.id, GroupDestination(draft.groupId), changes(draft))
+        } else {
+            VaultEdit.Update(original.id, original.lastModified, changes(draft))
+        }
 
     /** [changes] without the secrets made: compared on every keystroke. */
     private data class Shape(

@@ -9,6 +9,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
@@ -169,7 +170,7 @@ class EntryEditorTest {
         val draft = editor.start.copy(url = "https://shop.example", password = "pw", groupId = "web")
         assertTrue(editor.canSave(draft))
         assertEquals(
-            VaultEdit.Create("new", "web", EntryChanges(username = "alex", password = Secret.of("pw"), url = "https://shop.example")),
+            VaultEdit.Create("new", GroupDestination("web"), EntryChanges(username = "alex", password = Secret.of("pw"), url = "https://shop.example")),
             editor.edit(draft),
         )
         assertEquals("web", EntryEditor.create(vault, groupId = "web", now = now).start.groupId)

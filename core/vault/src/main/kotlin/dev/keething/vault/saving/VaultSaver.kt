@@ -28,7 +28,7 @@ import java.time.Instant
  * save derives nothing. Blocks: call it off the main thread.
  */
 internal class VaultSaver(private val store: DatabaseStore, private val backups: DatabaseBackups) {
-    fun save(edit: VaultEdit, key: DatabaseKey, now: Instant): SaveResult = try {
+    fun save(edit: VaultEdit.EntryEdit, key: DatabaseKey, now: Instant): SaveResult = try {
         saveOrRefuse(edit, key, now)
     } catch (refused: Refused) {
         SaveResult.Failed(refused.failure)
@@ -38,7 +38,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         SaveResult.Failed(SaveFailure.OutOfMemory)
     }
 
-    private fun saveOrRefuse(edit: VaultEdit, key: DatabaseKey, now: Instant): SaveResult {
+    private fun saveOrRefuse(edit: VaultEdit.EntryEdit, key: DatabaseKey, now: Instant): SaveResult {
         repeat(ATTEMPTS) {
             val original = read()
             val made = makeFile(original, edit, key, now)
@@ -80,7 +80,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     }
 
     /** Opens [original], applies the change and writes the new file; then reads that back and checks it. */
-    private fun makeFile(original: ByteArray, edit: VaultEdit, key: DatabaseKey, now: Instant): Made {
+    private fun makeFile(original: ByteArray, edit: VaultEdit.EntryEdit, key: DatabaseKey, now: Instant): Made {
         val editable = try {
             KdbxReader.openForEditing(original, key)
         } catch (failure: KdbxException) {
@@ -134,7 +134,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     }
 
     /** The entry must be in the file as it was loaded: a different `LastModificationTime` means changed elsewhere. */
-    private fun checkAsLoaded(document: KdbxDocument, edit: VaultEdit) {
+    private fun checkAsLoaded(document: KdbxDocument, edit: VaultEdit.EntryEdit) {
         val existing = document.entries.firstOrNull { it.uuid == edit.entryId }
         val loaded = when (edit) {
             is VaultEdit.Create -> {
@@ -161,6 +161,8 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         is EditException.MalformedLinks -> SaveFailure.VerificationFailed("the recycle bin's groups point to each other in a circle")
         is EditException.Malformed -> SaveFailure.VerificationFailed(message ?: "malformed")
         is EditException.BreaksFormat -> SaveFailure.BreaksFormat(what)
+        is EditException.InvalidName, is EditException.GroupNameTaken, is EditException.GroupNotChangeable, is EditException.GroupNotEmpty ->
+            SaveFailure.VerificationFailed(message ?: "the groups")
     }
 
     /** A save that wrote nothing, and why. */

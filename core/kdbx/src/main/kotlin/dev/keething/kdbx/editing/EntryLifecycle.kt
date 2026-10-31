@@ -9,13 +9,14 @@ import dev.keething.kdbx.xml.KdbxTime
 import java.time.Instant
 
 /**
- * Creates, recycles and restores entries in the tree as KeePassXC does (SPEC §3.3; port of the Mac
+ * Creates, recycles, restores and moves entries in the tree as KeePassXC does (SPEC §3.3; port of the Mac
  * `EntryLifecycle`, without deleting for good, which the phone leaves to the Mac):
  * - a new entry gets the elements KeePassXC writes for one, every time set to now, and the group's icon when
  *   the group has its own (not the plain folder);
  * - recycling moves it into the recycle bin (`Meta/RecycleBinUUID`; the bin is made when there is none),
  *   remembering where it was (`PreviousParentGroup`) and when it moved (`Times/LocationChanged`);
- * - restoring moves it back ([GroupLifecycle.home]).
+ * - restoring moves it back ([GroupLifecycle.home]);
+ * - a move into another group remembers the group it left, without a history snapshot ([moveEntry]).
  * A group that gains or loses an entry gets a new `LastModificationTime` / `LastAccessTime`, as in KeePassXC.
  */
 internal object EntryLifecycle {
@@ -125,6 +126,18 @@ internal object EntryLifecycle {
         val destination = GroupLifecycle.home(location.entry, location.groups, root, now, created)
         move(location, destination, root, now)
         return Restoration(uuidText(destination), created)
+    }
+
+    /**
+     * Into another group outside the recycle bin (keething-spec groups.entry-group AC3), as KeePassXC moves an entry
+     * ([move]). Where it is already, nothing changes.
+     */
+    fun moveEntry(entryId: String, groupId: String, root: XElement, now: Instant) {
+        val location = locate(entryId, root) ?: throw EditException.EntryNotFound()
+        if (isInRecycleBin(location.groups, root)) throw EditException.AlreadyInRecycleBin()
+        val path = group(groupId, root)
+        if (path == null || isInRecycleBin(path, root)) throw EditException.GroupNotFound()
+        if (path.last() !== location.group) move(location, path.last(), root, now)
     }
 
     // Moving

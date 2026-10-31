@@ -31,10 +31,12 @@ internal object EntryEditing {
         return root.first("Root")?.let(::search)
     }
 
+    /** A move ([EntryChanges.group]) is not an edit of the entry: [EntryLifecycle.moveEntry] does it. */
     fun apply(changes: EntryChanges, entry: XElement, root: XElement, now: Instant) {
-        if (changes.isEmpty) return
+        val fields = changes.fieldChanges
+        if (fields.isEmpty) return
         snapshotIntoHistory(entry, historyMaxItems(root))
-        write(changes, entry, root, now)
+        write(fields, entry, root, now)
     }
 
     /** The fields and times of [changes], without a history snapshot (a new entry has no old version). */

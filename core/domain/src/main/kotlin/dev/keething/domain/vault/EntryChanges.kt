@@ -30,10 +30,18 @@ public data class EntryChanges(
      * database's, [TotpFormat.forNewCode]) or removed.
      */
     val totp: TotpChange? = null,
+    /**
+     * Another group for an existing entry (keething-spec groups.entry-group): it moves there as KeePassXC moves an
+     * entry, without a history snapshot of its own. Not used for a new entry ([VaultEdit.Create] names its group).
+     */
+    val group: GroupDestination? = null,
 ) {
     public data class Expiry(val expires: Boolean, val time: Instant?)
 
     val isEmpty: Boolean get() = this == EntryChanges()
+
+    /** The changes to the entry's own data, without a move. */
+    val fieldChanges: EntryChanges get() = copy(group = null)
 
     /** Overwrites the secrets it carries (once the save is done with them). */
     public fun wipe() {

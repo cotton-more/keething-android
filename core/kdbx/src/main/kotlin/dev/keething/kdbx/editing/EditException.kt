@@ -20,6 +20,21 @@ public sealed class EditException(message: String) : Exception(message) {
     /** The recycle bin's `PreviousParentGroup` links go round in a circle. */
     public class MalformedLinks : EditException("previous groups in a circle")
 
+    /** A group's name must not be empty. */
+    public class InvalidName : EditException("a group needs a name")
+
+    /** The parent has another group of that name already, in any case (a path would name either). */
+    public class GroupNameTaken : EditException("the parent has a group of that name")
+
+    /**
+     * Not renamed, moved or deleted: the root group, the recycle bin or a group in it (keething-spec groups.manage
+     * AC7); nor made in one of those, nor moved into the bin, into itself or a group inside it, or where it is.
+     */
+    public class GroupNotChangeable : EditException("the group cannot be changed so")
+
+    /** Only a group with no entries and no groups is deleted this way. */
+    public class GroupNotEmpty : EditException("the group is not empty")
+
     /**
      * The change would leave the file with something KeePass's schema does not allow that it did not have before:
      * [what] says it as "an entry's PreviousParentGroup: out of order", never with a value.

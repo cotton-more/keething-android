@@ -397,7 +397,7 @@ public class VaultSession(
      * elsewhere, the vault is read again; refused because the password changed elsewhere, the session locks.
      * The save reads [edit]'s secrets until the result is complete: wipe them only then.
      */
-    public fun save(edit: VaultEdit): Deferred<SaveOutcome>? {
+    public fun save(edit: VaultEdit.EntryEdit): Deferred<SaveOutcome>? {
         if (mutableState.value !is SessionState.Unlocked || saving) return null
         val attempt = key?.copy() ?: return null
         saving = true

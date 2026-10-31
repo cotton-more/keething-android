@@ -8,6 +8,7 @@ import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
@@ -119,7 +120,7 @@ private fun lifecycle(store: FileStore, key: DatabaseKey, start: Vault) {
     var vault = start
     var total = 0.0
     var saves = 0
-    fun step(name: String, edit: (Vault) -> VaultEdit) {
+    fun step(name: String, edit: (Vault) -> VaultEdit.EntryEdit) {
         val change = edit(vault)
         val started = TimeSource.Monotonic.markNow()
         when (val result = saver.save(change, key, Instant.now())) {
@@ -151,7 +152,7 @@ private fun lifecycle(store: FileStore, key: DatabaseKey, start: Vault) {
     touched += listOf(probeId, existing.id)
     step("new entry") {
         VaultEdit.Create(
-            probeId, group.id,
+            probeId, GroupDestination(group.id),
             EntryChanges(
                 title = "Keething probe", username = "probe", password = Secret.of("probe-1"), url = "https://probe.invalid",
                 notes = "probe", customFields = listOf(CustomField.plain("Probe field", "x"), CustomField.protected("Probe secret", "y")),

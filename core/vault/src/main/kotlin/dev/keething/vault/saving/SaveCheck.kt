@@ -17,7 +17,7 @@ import java.time.temporal.ChronoUnit
 internal object SaveCheck {
     class Failed(val detail: String) : Exception(detail)
 
-    fun verify(before: Vault, after: Vault, edit: VaultEdit, applied: AppliedEdit, now: Instant) {
+    fun verify(before: Vault, after: Vault, edit: VaultEdit.EntryEdit, applied: AppliedEdit, now: Instant) {
         val old = all(before)
         val new = all(after)
         val id = edit.entryId
@@ -48,7 +48,8 @@ internal object SaveCheck {
             is VaultEdit.Create -> {
                 val actual = new[id]
                 if (id in old || actual == null) fail("the new entry is missing")
-                val group = groups[edit.groupId] ?: fail("the group is missing")
+                // Where it went as the file had it: a new level another app made meanwhile is that app's group.
+                val group = groups[applied.expectedGroupId ?: edit.group.finalGroupId] ?: fail("the group is missing")
                 // A new entry's expiry time is its creation time, as in KeePassXC (it does not expire).
                 val expected = applyTo(
                     Entry(

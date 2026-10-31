@@ -183,7 +183,7 @@ internal class EntryEditorViewModel(
         if (follower.backToEditing()) editor = null
     }
 
-    private fun VaultEdit.wipe() {
+    private fun VaultEdit.EntryEdit.wipe() {
         when (this) {
             is VaultEdit.Update -> changes.wipe()
             is VaultEdit.Create -> fields.wipe()

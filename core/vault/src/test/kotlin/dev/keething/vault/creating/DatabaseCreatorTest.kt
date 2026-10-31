@@ -8,6 +8,7 @@ import dev.keething.domain.storage.NewFile
 import dev.keething.domain.storage.NewFilePlace
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.key.KeyFile
@@ -191,7 +192,7 @@ class DatabaseCreatorTest {
         val id = Entry.newId()
 
         val created = assertIs<SaveResult.Saved>(
-            saver.save(VaultEdit.Create(id, root.id, EntryChanges(title = "GitHub", username = "me", password = Secret.of("s3cret"))), key, now),
+            saver.save(VaultEdit.Create(id, GroupDestination(root.id), EntryChanges(title = "GitHub", username = "me", password = Secret.of("s3cret"))), key, now),
         ).opened.vault
         val entry = created.entries.single()
         assertEquals("GitHub", entry.title)

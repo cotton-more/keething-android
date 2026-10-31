@@ -8,6 +8,7 @@ import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
@@ -115,7 +116,7 @@ class VaultSaverTest {
         val saver = VaultSaver(store, backups)
         val id = Entry.newId()
 
-        val created = saved(saver.save(VaultEdit.Create(id, group.id, EntryChanges(title = "Fresh", password = Secret.of("pw1"))), key, now))
+        val created = saved(saver.save(VaultEdit.Create(id, GroupDestination(group.id), EntryChanges(title = "Fresh", password = Secret.of("pw1"))), key, now))
             .titled("Fresh")
         assertEquals(Secret.of("pw1"), created.password)
         assertEquals(group.id, created.groupId)
@@ -128,7 +129,7 @@ class VaultSaverTest {
         val back = saved(saver.save(VaultEdit.Restore(id, recycled.lastModified), key, now)).entries.single { it.id == id }
         assertEquals(group.id, back.groupId)
         assertEquals(SaveFailure.WrongPlace, failure(saver.save(VaultEdit.Restore(id, back.lastModified), key, now)))
-        assertEquals(SaveFailure.GroupNotFound, failure(saver.save(VaultEdit.Create(Entry.newId(), "gone", EntryChanges(title = "x")), key, now)))
+        assertEquals(SaveFailure.GroupNotFound, failure(saver.save(VaultEdit.Create(Entry.newId(), GroupDestination("gone"), EntryChanges(title = "x")), key, now)))
 
         val end = unlock(store)
         assertEquals(start.entries, end.entries.filter { it.id != id }, "the other entries are as they were")
@@ -146,7 +147,7 @@ class VaultSaverTest {
 
         val created = saved(
             saver.save(
-                VaultEdit.Create(id, root.id, EntryChanges(title = "Pass", customFields = listOf(field("Ablauf", "2027-10-31")), fieldTypes = mapOf("Ablauf" to "until"))),
+                VaultEdit.Create(id, GroupDestination(root.id), EntryChanges(title = "Pass", customFields = listOf(field("Ablauf", "2027-10-31")), fieldTypes = mapOf("Ablauf" to "until"))),
                 key, now,
             ),
         ).titled("Pass")
@@ -171,7 +172,7 @@ class VaultSaverTest {
         val uri = "otpauth://totp/Coded:me?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&period=60&digits=8&issuer=Coded&algorithm=SHA256"
 
         val created = saved(
-            VaultSaver(store, backups).save(VaultEdit.Create(Entry.newId(), root.id, EntryChanges(title = "Coded", totp = TotpChange.Set(config, uri))), key, now),
+            VaultSaver(store, backups).save(VaultEdit.Create(Entry.newId(), GroupDestination(root.id), EntryChanges(title = "Coded", totp = TotpChange.Set(config, uri))), key, now),
         ).titled("Coded")
 
         assertEquals(config, created.totp)
@@ -232,7 +233,7 @@ class VaultSaverTest {
         val key = key()
         val saver = VaultSaver(store, backups)
 
-        val refused = failure(saver.save(VaultEdit.Create(Entry.newId(), groupId, EntryChanges(title = "New")), key, now))
+        val refused = failure(saver.save(VaultEdit.Create(Entry.newId(), GroupDestination(groupId), EntryChanges(title = "New")), key, now))
 
         assertEquals(SaveFailure.BreaksFormat("an entry's CustomIconUUID: no such custom icon"), refused)
         assertContentEquals(broken, store.content)

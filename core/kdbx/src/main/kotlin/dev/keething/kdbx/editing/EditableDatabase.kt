@@ -2,6 +2,8 @@ package dev.keething.kdbx.editing
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.FieldValue
+import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxTemplate
@@ -32,21 +34,67 @@ public class EditableDatabase internal constructor(
     /** What KeePass's schema does not allow in the file as it was read: kept, never a reason to refuse a save. */
     private val schemaBefore: Set<SchemaViolation> = KdbxSchema.violations(root)
 
-    /** Applies [edit] to the tree as KeePassXC would (SPEC §3.3); throws an [EditException] when it cannot. */
+    /**
+     * Applies [edit] to the tree as KeePassXC would (SPEC §3.3); throws an [EditException] when it cannot. New groups
+     * meet the file as it is now ([GroupLifecycle.resolving]): one another app made since the read is taken, not made
+     * twice.
+     */
     public fun apply(edit: VaultEdit, now: Instant): AppliedEdit = when (edit) {
         is VaultEdit.Update -> {
             val location = EntryLifecycle.locate(edit.entryId, root) ?: throw EditException.EntryNotFound()
             EntryEditing.apply(edit.changes, location.entry, root, now)
-            AppliedEdit(expectedGroupId = null)
+            val wanted = edit.changes.group
+            if (wanted == null) AppliedEdit(expectedGroupId = null) else move(edit.entryId, EntryLifecycle.uuidText(location.group), wanted, now)
         }
         is VaultEdit.Create -> {
-            val entry = EntryLifecycle.create(edit.entryId, edit.groupId, edit.fields, root, now)
-            AppliedEdit(expectedGroupId = edit.groupId, customIconId = entry.first("CustomIconUUID")?.text?.trim())
+            if (EntryLifecycle.locate(edit.entryId, root) != null) throw EditException.EntryExists()
+            val destination = GroupLifecycle.resolving(edit.group, root)
+            GroupLifecycle.create(destination.newGroups, destination.groupId, root, now)
+            val entry = EntryLifecycle.create(edit.entryId, destination.finalGroupId, edit.fields, root, now)
+            AppliedEdit(
+                expectedGroupId = destination.finalGroupId,
+                createdGroupIds = destination.newGroups.map(NewGroup::id),
+                customIconId = entry.first("CustomIconUUID")?.text?.trim(),
+                destination = destination,
+            )
         }
         is VaultEdit.MoveToRecycleBin -> AppliedEdit(expectedGroupId = EntryLifecycle.moveToRecycleBin(edit.entryId, root, now))
         is VaultEdit.Restore -> EntryLifecycle.restore(edit.entryId, root, now).let {
             AppliedEdit(expectedGroupId = it.destinationId, createdGroupIds = it.createdGroupIds)
         }
+        is VaultEdit.RenameGroup -> {
+            GroupLifecycle.rename(edit.groupId, edit.name, root, now)
+            AppliedEdit(expectedGroupId = null)
+        }
+        is VaultEdit.CreateGroup -> {
+            GroupLifecycle.createNamed(edit.group, edit.parentId, root, now)
+            AppliedEdit(expectedGroupId = null, createdGroupIds = listOf(edit.group.id))
+        }
+        is VaultEdit.MoveGroup -> {
+            GroupLifecycle.move(edit.groupId, edit.intoGroupId, root, now)
+            AppliedEdit(expectedGroupId = null)
+        }
+        is VaultEdit.DeleteEmptyGroup -> {
+            GroupLifecycle.deleteEmpty(edit.groupId, root, now)
+            AppliedEdit(expectedGroupId = null, deletedGroupIds = listOf(edit.groupId))
+        }
+    }
+
+    /**
+     * The entry (just edited, or not) into [wanted]'s group, made first where it is new, as KeePassXC moves an entry
+     * (keething-spec groups.entry-group AC3); the group it [left] and each parent the move leaves empty go for good.
+     */
+    private fun move(entryId: String, left: String, wanted: GroupDestination, now: Instant): AppliedEdit {
+        val destination = GroupLifecycle.resolving(wanted, root)
+        GroupLifecycle.create(destination.newGroups, destination.groupId, root, now)
+        EntryLifecycle.moveEntry(entryId, destination.finalGroupId, root, now)
+        val emptied = if (left != destination.finalGroupId) GroupLifecycle.removeEmpty(left, root, now) else emptyList()
+        return AppliedEdit(
+            expectedGroupId = destination.finalGroupId,
+            createdGroupIds = destination.newGroups.map(NewGroup::id),
+            destination = destination,
+            deletedGroupIds = emptied,
+        )
     }
 
     /** Renames the entries' `CustomData` item [from] to [to] everywhere, history included ([CustomDataRename]). */
@@ -83,14 +131,24 @@ public class EditableDatabase internal constructor(
     }
 }
 
-/** What an applied edit should leave, for the check of the written file. */
+/**
+ * What an applied edit should leave, for the check of the written file. A group renamed or moved is the edit's own
+ * ([VaultEdit.RenameGroup], [VaultEdit.MoveGroup]): what the check needs of it is there.
+ */
 public data class AppliedEdit(
-    /** The group the entry should be in afterwards; null when it stays where it was. */
+    /** The group the entry should be in afterwards; null when it stays where it was, and for a group's edit. */
     val expectedGroupId: String?,
-    /** Groups a restore made on the way (outermost first). */
+    /** Groups made, outermost first: on a restore's way back, the levels of [destination] made, a new empty group. */
     val createdGroupIds: List<String> = emptyList(),
     /** The custom icon a new entry took from its group. */
     val customIconId: String? = null,
+    /**
+     * Where a new or moved entry went, as the file had it ([GroupLifecycle.resolving]): a level another app made
+     * since the read is an existing group here, and only the levels still missing were made.
+     */
+    val destination: GroupDestination? = null,
+    /** Groups deleted for good: those a move left empty (innermost first), or the empty group deleted. */
+    val deletedGroupIds: List<String> = emptyList(),
 )
 
 /** A written file and the attachments in it, in order (this database's own: wiped with it). */
