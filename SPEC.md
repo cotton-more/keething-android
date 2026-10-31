@@ -61,7 +61,7 @@ Writing comes after them (ROADMAP step 7) and must be done before a Google Play 
   (a password without an entry, copied).
 
 Non-goals (v1): SSH agent, e-mail aliases,
-reports (but Groups & tags, without its changes), restoring a version from the history, YubiKey, Twofish, deleting entries for good / emptying the recycle bin, adding / removing / renaming
+reports (but Groups & tags), restoring a version from the history, YubiKey, Twofish, deleting entries for good / emptying the recycle bin, adding / removing / renaming
 attachments, reordering custom fields, a Quick Settings tile, a one-time code pinned to the notification
 shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
 foreground service for little gain), an entry pinned to the notification shade with Copy username / password /
@@ -73,8 +73,11 @@ Planned beyond the first releases (decided by the owner on 2026-10-27; keething-
 databases side by side (in: the list, one list over several open, the chooser and one fingerprint for several,
 §3.1, §5), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
-3.1 (refused until then), moving entries between groups, merging conflicting copies (detected and shown only until
-then, §3.4).
+3.1 (refused until then), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
+the owner on 2026-10-31; keething-spec `plans/android-groups.md`): an entry's group changed in the editor and from its
+card (a move), new groups made from the editor's group picker, groups renamed, made, moved and deleted when empty from
+Groups & tags, and Groups & tags over every open database, a block each; renaming tags and the recycle bin's groups
+stay with the Mac.
 
 ## 2. Architecture
 
@@ -846,6 +849,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   numbered grid with one eye; a copy confirms in a snackbar ("Password copied · clears in 30 s").
 - Show as QR can also show the password as text; the Share… warning points to Show as QR as the safer way.
 - The canvas also has a code pinned to the notification shade; it was dropped (§1).
+- Groups (keething-spec `plans/android-groups.md` AG3, agreed 2026-10-31) have a canvas of their own:
+  https://claude.ai/artifact/P3Vn7ihTPMN3yrTA9LmPeE (the group picker, the editor's group row, Groups & tags over
+  every open database, a group's sheet and name dialog, Move to…, the card's Move to group…).
 
 ### 6.1 Look and feel
 
