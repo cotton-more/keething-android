@@ -6,6 +6,7 @@ import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
+import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.editing.EditException
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxDatabase
@@ -21,14 +22,15 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * Saves one change into the database file (SPEC §3.3; port of the Mac `KDBXFileSaver`). The file is read again
- * right before writing, so changes made elsewhere since the unlock (KeePassXC, a synced device) are kept; only
- * when that very entry changed meanwhile is the save refused. The new file is read back and checked before it
+ * Saves one change into the database file (SPEC §3.3; port of the Mac `KDBXFileSaver`): an entry's or the groups'.
+ * The file is read again right before writing, so changes made elsewhere since the unlock (KeePassXC, a synced
+ * device) are kept; only when that very entry changed meanwhile, or the groups no longer allow the change (a group
+ * gone, a name taken, a group not empty), is the save refused. The new file is read back and checked before it
  * replaces the old one ([SaveCheck]), and the old one is backed up. The key's derived key does all the work: a
  * save derives nothing. Blocks: call it off the main thread.
  */
 internal class VaultSaver(private val store: DatabaseStore, private val backups: DatabaseBackups) {
-    fun save(edit: VaultEdit.EntryEdit, key: DatabaseKey, now: Instant): SaveResult = try {
+    fun save(edit: VaultEdit, key: DatabaseKey, now: Instant): SaveResult = try {
         saveOrRefuse(edit, key, now)
     } catch (refused: Refused) {
         SaveResult.Failed(refused.failure)
@@ -38,7 +40,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         SaveResult.Failed(SaveFailure.OutOfMemory)
     }
 
-    private fun saveOrRefuse(edit: VaultEdit.EntryEdit, key: DatabaseKey, now: Instant): SaveResult {
+    private fun saveOrRefuse(edit: VaultEdit, key: DatabaseKey, now: Instant): SaveResult {
         repeat(ATTEMPTS) {
             val original = read()
             val made = makeFile(original, edit, key, now)
@@ -60,7 +62,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 made.discard()
                 throw Refused(SaveFailure.WriteFailed("the new file is gone"))
             }
-            return SaveResult.Saved(made.reread.toOpenedVault(version, made.vault))
+            return SaveResult.Saved(made.reread.toOpenedVault(version, made.vault), made.deletedGroups)
         }
         throw Refused(SaveFailure.FileKeepsChanging)
     }
@@ -72,7 +74,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     }
 
     /** The new file, read back and checked; [vault] is what an unlock would show of it. */
-    private class Made(val file: ByteArray, val reread: KdbxDatabase, val vault: Vault) {
+    private class Made(val file: ByteArray, val reread: KdbxDatabase, val vault: Vault, val deletedGroups: List<VaultGroup>) {
         fun discard() {
             vault.wipe()
             reread.binaries.forEach(Secret::wipe)
@@ -80,7 +82,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     }
 
     /** Opens [original], applies the change and writes the new file; then reads that back and checks it. */
-    private fun makeFile(original: ByteArray, edit: VaultEdit.EntryEdit, key: DatabaseKey, now: Instant): Made {
+    private fun makeFile(original: ByteArray, edit: VaultEdit, key: DatabaseKey, now: Instant): Made {
         val editable = try {
             KdbxReader.openForEditing(original, key)
         } catch (failure: KdbxException) {
@@ -116,12 +118,14 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             try {
                 after = VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
                 try {
-                    SaveCheck.verify(before, after, edit, applied, now)
+                    SaveCheck.verify(before, after, edit, applied, now, groups(editable.document), groups(reread.document))
                 } catch (failure: SaveCheck.Failed) {
                     throw Refused(SaveFailure.VerificationFailed(failure.detail))
                 }
                 if (reread.binaries != written.binaries) throw Refused(SaveFailure.VerificationFailed("attachments differ"))
-                return Made(written.file, reread, after)
+                // As they were: the check found these gone and nothing else.
+                val groups = before.groups.associateBy { it.id }
+                return Made(written.file, reread, after, applied.deletedGroupIds.mapNotNull(groups::get))
             } catch (refused: Refused) {
                 after?.wipe()
                 reread.binaries.forEach(Secret::wipe)
@@ -133,8 +137,12 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         }
     }
 
+    /** Every group of the file in file order, the recycle bin's own too. */
+    private fun groups(document: KdbxDocument): List<VaultGroup> = document.groups.map { VaultGroup(it.uuid, it.name, it.path) }
+
     /** The entry must be in the file as it was loaded: a different `LastModificationTime` means changed elsewhere. */
-    private fun checkAsLoaded(document: KdbxDocument, edit: VaultEdit.EntryEdit) {
+    private fun checkAsLoaded(document: KdbxDocument, edit: VaultEdit) {
+        if (edit !is VaultEdit.EntryEdit) return
         val existing = document.entries.firstOrNull { it.uuid == edit.entryId }
         val loaded = when (edit) {
             is VaultEdit.Create -> {
@@ -161,8 +169,10 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         is EditException.MalformedLinks -> SaveFailure.VerificationFailed("the recycle bin's groups point to each other in a circle")
         is EditException.Malformed -> SaveFailure.VerificationFailed(message ?: "malformed")
         is EditException.BreaksFormat -> SaveFailure.BreaksFormat(what)
-        is EditException.InvalidName, is EditException.GroupNameTaken, is EditException.GroupNotChangeable, is EditException.GroupNotEmpty ->
-            SaveFailure.VerificationFailed(message ?: "the groups")
+        is EditException.InvalidName -> SaveFailure.InvalidName
+        is EditException.GroupNameTaken -> SaveFailure.GroupNameTaken
+        is EditException.GroupNotChangeable -> SaveFailure.GroupNotChangeable
+        is EditException.GroupNotEmpty -> SaveFailure.GroupNotEmpty
     }
 
     /** A save that wrote nothing, and why. */

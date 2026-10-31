@@ -4,9 +4,13 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.storage.DatabaseStore
+import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
+import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.opening.HistoryResult
@@ -14,6 +18,7 @@ import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.saving.SaveFailure
+import dev.keething.vault.saving.VaultSaver
 import java.time.Instant
 import java.time.LocalDateTime
 import kotlin.test.Test
@@ -340,7 +345,7 @@ class VaultSessionTest {
         val outcome = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "saved"))))
         runCurrent()
 
-        assertEquals(SaveOutcome.Saved, outcome.await())
+        assertEquals(SaveOutcome.Saved(), outcome.await())
         assertEquals("saved", f.vault.entries.single { it.id == entry.id }.notes)
         assertEquals(1, f.store.replaced)
         assertEquals(1, f.backups.size)
@@ -406,6 +411,56 @@ class VaultSessionTest {
         assertEquals(entry, f.vault.entries.single { it.id == entry.id })
         assertEquals(0, f.store.replaced)
         assertTrue(f.store.reads > reads + 1, "the vault is read again after the save's own read")
+    }
+
+    @Test
+    fun aGroupChangeIsSavedAndASaveSaysWhichEmptyGroupsItDeleted() = runTest {
+        val f = unlocked()
+        val top = f.vault.groups.single { it.isRoot }
+        val web = f.vault.groups.single { it.name == "Web & Mail" }
+        val made = NewGroup(Entry.newId(), "Made")
+
+        val created = assertNotNull(f.session.save(VaultEdit.CreateGroup(top.id, made)))
+        runCurrent()
+        assertEquals(SaveOutcome.Saved(), created.await())
+        assertTrue(VaultGroup(made.id, "Made", listOf("Made")) in f.vault.groups)
+
+        // Both entries of Web & Mail into Made: the second leaves it empty.
+        val (first, second) = f.vault.entries.filter { it.groupId == web.id }
+        for ((entry, deleted) in listOf(first to emptyList(), second to listOf(web))) {
+            val moved = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(group = GroupDestination(made.id)))))
+            runCurrent()
+            assertEquals(SaveOutcome.Saved(deleted), moved.await())
+        }
+        assertTrue(f.vault.groups.none { it.id == web.id })
+        assertEquals(listOf(made.id, made.id), f.vault.entries.map { it.groupId })
+    }
+
+    @Test
+    fun aGroupChangeRefusedBecauseTheFileChangedMeanwhileSaysWhyAndReadsTheFileAgain() = runTest {
+        val f = unlocked()
+        val top = f.vault.groups.single { it.isRoot }
+        val web = f.vault.groups.single { it.name == "Web & Mail" }
+        // Meanwhile another device makes "Mail" at the top level; the watcher has not noticed it yet.
+        val elsewhere = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        VaultSaver(elsewhere) { _, _, _ -> }.save(VaultEdit.CreateGroup(top.id, NewGroup(Entry.newId(), "Mail")), DatabaseKey.of(Secret.of("pw")), Instant.now())
+        f.store.change(elsewhere.content, notify = false)
+        assertTrue(f.vault.groups.none { it.name == "Mail" })
+
+        for ((edit, failure) in listOf(
+            VaultEdit.CreateGroup(top.id, NewGroup(Entry.newId(), "mail")) to SaveFailure.GroupNameTaken,
+            VaultEdit.DeleteEmptyGroup(web.id) to SaveFailure.GroupNotEmpty,
+            VaultEdit.RenameGroup(top.id, "Top") to SaveFailure.GroupNotChangeable,
+            VaultEdit.RenameGroup("gone", "x") to SaveFailure.GroupNotFound,
+        )) {
+            val reads = f.store.reads
+            val outcome = assertNotNull(f.session.save(edit))
+            runCurrent()
+            assertEquals(SaveOutcome.Failed(failure), outcome.await())
+            assertTrue(f.store.reads > reads + 1, "$failure: the vault is read again after the save's own read")
+        }
+        assertTrue(f.vault.groups.any { it.name == "Mail" }, "the vault is the file as it is now")
+        assertEquals(0, f.store.replaced)
     }
 
     @Test

@@ -334,8 +334,11 @@ keeps the new time. The way out is in §3.3 step 7.
 
 What the phone writes (`VaultEdit`): an entry's fields (title, username, password, URL, notes, custom fields,
 their types, tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it.
-Deleting for good, history, attachments, one-time codes (but that of an entry received, §10) and groups are left to
-the Mac (§1).
+Deleting for good, history, attachments, one-time codes (but that of an entry received, §10), renaming tags and the
+recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
+`VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
+made, moved, deleted when empty; keething-spec `plans/android-groups.md` AG1, AG2); no screen makes them yet (AG4,
+AG6).
 
 A one-time code written (`EntryEditing`, the Mac's alike) first removes every code field of the entry (the ten of
 §3.2), so one entry never holds two formats; a save that does not change the code leaves its fields as they are. The
@@ -352,14 +355,25 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    data, other apps' data) and writes it back in order. A protected value goes into the tree as a secret,
    decrypted straight into it: the tree holds no password in the clear either (§4).
 2. Find the entry by UUID; if its `LastModificationTime` differs from the one loaded → "changed elsewhere",
-   nothing is saved, the vault reloads. Other entries changed elsewhere are kept.
+   nothing is saved, the vault reloads. Other entries changed elsewhere are kept. A group's edit has no such time:
+   it meets the groups as the file has them now, and is refused when they no longer allow it — the group gone
+   (`GroupNotFound`), a name taken there by now, case and accents aside (`GroupNameTaken`), a group to delete not
+   empty any more (`GroupNotEmpty`), a group that may not be changed so (`GroupNotChangeable`: the root, the bin or in
+   it, a move into the bin, into itself or below it, or where it is), an empty name (`InvalidName`); nothing is saved
+   and the vault reloads. New levels for an entry meet the file the same way: a level another app made meanwhile is
+   that group (`GroupLifecycle.resolving`).
 3. Apply the change as KeePassXC does: the old version into `History`, trimmed to `HistoryMaxItems`; a new
    entry with KeePassXC's elements and its group's own icon; the recycle bin made as KeePassXC makes it when
    there is none; an entry moved remembers its group in `PreviousParentGroup`, before `Times` as KeePass's schema
    has it (after `Tags` or whichever of `UUID`, `IconID`, `CustomIconUUID`, `ForegroundColor`, `BackgroundColor`,
    `OverrideURL`, `QualityCheck` the entry has; new `Tags` and a missing `Times` go where the schema has them too);
    a restored entry into the group it came from, the root group when that is gone, and an entry recycled with
-   its group into that group's place, the group made again there by name (as on the Mac).
+   its group into that group's place, the group made again there by name (as on the Mac). An entry moved as
+   KeePassXC's `Entry::setGroup` (no history snapshot of its own; an edit and a move make one), the group it left and
+   each parent it leaves empty deleted for good (never the root, the bin or in it, the templates group, the group it
+   goes into or above it); new groups as KeePassXC writes one, after the parent's groups; a group renamed as
+   `Group::setName`, moved as `Group::setParent`; a group deleted gets a `DeletedObject` (`DeletedObjects` made after
+   the root group when the file has none).
 4. Write: same format, new master seed / IV / inner stream key; the KDF parameters and salt kept, so the key
    in memory writes it and a save derives nothing; attachments nothing refers to dropped, identical ones
    stored once, `Ref`s renumbered, every reference still meaning the same bytes. A `PreviousParentGroup` out of
@@ -375,7 +389,18 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    the file already had is kept and no reason to refuse); open the new bytes with the built-in reader; every
    other entry and group exactly as before, the changed entry exactly as asked, every attachment byte for byte.
    "Before" is the reader's own reading of the same decrypted XML the tree was made from, so a fault in the tree
-   shows as a difference.
+   shows as a difference. With groups (`SaveCheck`, the Mac's `expectedStructure`): an entry's new groups are built
+   from the names asked (trimmed, each inside the one before, where the file had the levels before them), not taken
+   from the file; the groups a move deleted must be the group it left, then each parent in turn, none the root, the
+   group it goes into or one holding another entry; a group's edit leaves the groups as expected (a renamed or moved
+   group and everything below it at its new path, a new one in its parent, the deleted one gone) and every entry as
+   before but for its path; the groups gone are those the edit reports. The levels the file had are walked by name
+   from the group asked (case and accents aside, as `resolving`), and no group is made, renamed or moved beside one
+   of its name. Groups are matched by id and each group's parent is
+   checked, found by the file's order (a group's groups follow it), so two groups of one name in one parent are each
+   themselves (the Mac goes by path and does not offer such a group). The recycle bin's own groups are checked too:
+   as before for an entry's edit (but the bin a recycled entry makes, in the root group), and a group's edit takes them along when the
+   bin is inside the group changed, its entries' paths with them.
 6. If the file on disk changed meanwhile (byte for byte), do it all again on the new file (once more, then
    fail).
 7. Back up the old file into app-private storage (`filesDir/backups/<database id>/`, `<name> <local date and
@@ -444,8 +469,12 @@ test folder's fictitious databases it found what an older Keething wrote — `de
 `kdbx.keepass-schema` AC6).
 
 The session saves one change at a time with the key in memory (`VaultSession.save`); the vault is then the
-written file as read back, and the app's own write is not read again. Refused because the entry changed or went
-elsewhere, the vault is read again; refused because the password changed elsewhere, that database locks (the others stay open, §4). Reloads and
+written file as read back, and the app's own write is not read again; the outcome names the groups the save deleted
+(`SaveOutcome.Saved`, as they were, innermost first: what the file lost, not a guess beforehand) for the snackbar
+"Saved and checked. The empty group “Work › Old” was deleted." (two or more: "The empty groups “…” and “…” were
+deleted."; shown from AG4). Refused because the entry changed or went elsewhere, or the file's groups refuse the
+change (a group gone, also a new entry's, a name taken, a group not empty or not to be changed so), the vault is read
+again; refused because the password changed elsewhere, that database locks (the others stay open, §4). Reloads and
 saves take turns, so an older read never replaces a newer save. On the Mac's JVM a save of the fictitious
 1,894-entry demo database took about 0.3 s, no key derivation; on the test phone (Pixel 6, release build,
 the same database with the real KDF parameters) 0.66–0.75 s from Save to "Saved and checked", and about

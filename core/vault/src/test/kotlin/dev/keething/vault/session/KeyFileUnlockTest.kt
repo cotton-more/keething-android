@@ -240,7 +240,7 @@ class KeyFileUnlockTest {
             val outcome = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "Saved with a key file"))))
             runCurrent()
 
-            assertEquals(SaveOutcome.Saved, outcome.await(), database)
+            assertEquals(SaveOutcome.Saved(), outcome.await(), database)
             val saved = KdbxReader.open(f.store.content!!, key(password))
             assertTrue(saved.document.entries.isNotEmpty(), database)
             assertEquals(1, f.keyFile!!.reads, "the save uses the kept key")

@@ -2,6 +2,7 @@ package dev.keething.vault.session
 
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.vault.Vault
+import dev.keething.domain.vault.VaultGroup
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.saving.SaveFailure
 import kotlin.time.Duration
@@ -36,8 +37,12 @@ public sealed interface UnlockOutcome {
 
 /** How one save ended. */
 public sealed interface SaveOutcome {
-    /** The file was replaced and the vault is the file read back. */
-    public data object Saved : SaveOutcome
+    /**
+     * The file was replaced and the vault is the file read back. [deletedGroups]: the groups the save deleted for good,
+     * as they were (the empty ones a move left, innermost first, or the empty group deleted; keething-spec
+     * groups.entry-group AC7).
+     */
+    public data class Saved(val deletedGroups: List<VaultGroup> = emptyList()) : SaveOutcome
 
     public data class Failed(val failure: SaveFailure) : SaveOutcome
 

@@ -9,6 +9,7 @@ import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
@@ -38,8 +39,10 @@ import org.w3c.dom.Node
  * Usage: `tools/kdbx-probe.sh <copy.kdbx>` (asks for the password, passes it on standard input).
  * 1. Round trip: read and write back unchanged; KeePassXC's XML exports of the copy and the written file must
  *    be the same, the attachments byte for byte.
- * 2. Lifecycle on the copy, each through the save path with its checks: a new entry, an edit of it, an edit of
- *    an existing entry (its notes), into the recycle bin and back, for both.
+ * 2. Lifecycle on the copy, each through the save path with its checks: a new entry, an edit of it, the groups (a
+ *    new group, renamed; another, moved into it; the new entry moved with an edit into a new group inside them, then
+ *    back, which deletes the three as empty; one more made and deleted), an edit of an existing entry (its notes),
+ *    into the recycle bin and back, for both.
  * 3. The copy read again from scratch: every other entry and group as before; KeePassXC opens it.
  * Throughout, KeePass's XML schema (SPEC §3.3): the copy, the file written back and every saved file checked against
  * `KDBX_XML.xsd` (fixtures/) and by the app's own check, which none may add a violation to.
@@ -120,7 +123,7 @@ private fun lifecycle(store: FileStore, key: DatabaseKey, start: Vault) {
     var vault = start
     var total = 0.0
     var saves = 0
-    fun step(name: String, edit: (Vault) -> VaultEdit.EntryEdit) {
+    fun step(name: String, deletes: Int = 0, edit: (Vault) -> VaultEdit) {
         val change = edit(vault)
         val started = TimeSource.Monotonic.markNow()
         when (val result = saver.save(change, key, Instant.now())) {
@@ -131,7 +134,8 @@ private fun lifecycle(store: FileStore, key: DatabaseKey, start: Vault) {
                 val elapsed = started.elapsedNow()
                 total += elapsed.inWholeMilliseconds / 1000.0
                 saves++
-                println("  $name: saved and checked in $elapsed")
+                println("  $name: saved and checked in $elapsed" + if (deletes > 0) ", ${result.deletedGroups.size} empty groups deleted" else "")
+                if (result.deletedGroups.size != deletes) fail("RESULT: $name deleted ${result.deletedGroups.size} groups, not $deletes")
                 if (!keepsSchema(store.read().let { (it as DatabaseRead.Found).bytes }, key, name)) fail("RESULT: $name breaks KeePass's schema")
             }
             is SaveResult.Failed -> fail("  $name: NOT saved: ${result.failure}")
@@ -166,6 +170,22 @@ private fun lifecycle(store: FileStore, key: DatabaseKey, start: Vault) {
             EntryChanges(password = Secret.of("probe-2"), customFields = listOf(CustomField.protected("Probe secret 2", "z"))),
         )
     }
+    // The groups (keething-spec groups.manage, groups.entry-group, groups.new-groups): all made here, and gone again.
+    val top = start.groups.first { it.isRoot }
+    val made = NewGroup(Entry.newId(), "Keething probe group")
+    val inner = NewGroup(Entry.newId(), "Keething probe inner")
+    val deep = NewGroup(Entry.newId(), "Keething probe deep")
+    val spare = NewGroup(Entry.newId(), "Keething probe spare")
+    step("new group") { VaultEdit.CreateGroup(top.id, made) }
+    step("renamed") { VaultEdit.RenameGroup(made.id, "Keething probe group 2") }
+    step("another new group") { VaultEdit.CreateGroup(top.id, inner) }
+    step("moved into the first") { VaultEdit.MoveGroup(inner.id, made.id) }
+    step("new entry edited and moved into a new group in them") {
+        VaultEdit.Update(probeId, entry(probeId).lastModified, EntryChanges(notes = "probe 2", group = GroupDestination(inner.id, listOf(deep))))
+    }
+    step("new entry moved back", deletes = 3) { VaultEdit.Update(probeId, entry(probeId).lastModified, EntryChanges(group = GroupDestination(group.id))) }
+    step("an empty group made") { VaultEdit.CreateGroup(top.id, spare) }
+    step("and deleted", deletes = 1) { VaultEdit.DeleteEmptyGroup(spare.id) }
     step("edit an existing entry") { VaultEdit.Update(existing.id, entry(existing.id).lastModified, EntryChanges(notes = existing.notes + "\n(probe)")) }
     step("existing into the bin") { VaultEdit.MoveToRecycleBin(existing.id, entry(existing.id).lastModified) }
     step("existing restored") { VaultEdit.Restore(existing.id, entry(existing.id).lastModified) }

@@ -147,7 +147,7 @@ internal class EntryEditorViewModel(
         viewModelScope.launch {
             val outcome = pending.await()
             val how = when (outcome) {
-                SaveOutcome.Saved -> "saved"
+                is SaveOutcome.Saved -> "saved"
                 is SaveOutcome.Failed -> "failed"
                 SaveOutcome.Interrupted -> "interrupted"
             }

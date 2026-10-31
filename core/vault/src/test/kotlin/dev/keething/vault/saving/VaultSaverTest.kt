@@ -9,14 +9,18 @@ import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
+import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.editing.BrokenFiles
 import dev.keething.kdbx.editing.CodeFiles
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.kdbx.schema.SchemaCheck
 import dev.keething.totp.TotpSetup
+import dev.keething.vault.opening.HistoryResult
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
@@ -24,12 +28,14 @@ import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.fixtureBytes
 import java.io.IOException
 import java.time.Instant
+import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.w3c.dom.Element
 
 /** The save path (SPEC §3.3; the Mac `KDBXWriteTests` and `LifecycleTests` saver expectations). */
 class VaultSaverTest {
@@ -58,6 +64,24 @@ class VaultSaverTest {
     private fun saved(result: SaveResult): Vault = assertIs<SaveResult.Saved>(result).opened.vault
 
     private fun failure(result: SaveResult): SaveFailure = assertIs<SaveResult.Failed>(result).failure
+
+    private fun deletedBy(result: SaveResult): List<VaultGroup> = assertIs<SaveResult.Saved>(result).deletedGroups
+
+    /** The file's `DeletedObjects` records, in order. */
+    private fun deletedObjects(store: FakeStore): List<String> {
+        val editable = KdbxReader.openForEditing(store.content!!, key())
+        try {
+            val xml = editable.xmlWithoutSecrets()
+            val records = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(xml.inputStream()).getElementsByTagName("DeletedObject")
+            return (0 until records.length).map { (records.item(it) as Element).getElementsByTagName("UUID").item(0).textContent }
+        } finally {
+            editable.wipe()
+        }
+    }
+
+    /** How many old versions the entry's history holds. */
+    private fun historySize(store: FakeStore, id: String): Int =
+        assertIs<HistoryResult.Read>(VaultOpener().history(store, key(), id)).versions.history.size
 
     @Test
     fun anEditLandsInTheFileTheOldFileIsBackedUpAndTheSavedVaultIsWhatIsOnDisk() {
@@ -312,5 +336,247 @@ class VaultSaverTest {
             SaveFailure.WriteFailed("I/O error"),
             failure(VaultSaver(store, backups).save(VaultEdit.Update("any", null, EntryChanges(notes = "x")), key(), now)),
         )
+    }
+
+    // The groups (keething-spec groups.manage AC8, groups.entry-group AC2–AC7, groups.new-groups AC3–AC5; the Mac's
+    // GroupChangeTests and GroupTests saver expectations)
+
+    @Test
+    fun aRenamedGroupIsSavedTheGroupsAndEntriesBelowItTakeTheNewPathAndNothingElseChanges() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val saver = VaultSaver(store, backups)
+        val start = unlock(store, key)
+        val web = start.groups.single { it.name == "Web & Mail" }
+        val top = start.groups.single { it.isRoot }
+        val inner = NewGroup(Entry.newId(), "Inner")
+        val other = NewGroup(Entry.newId(), "Other")
+        saved(saver.save(VaultEdit.Create(Entry.newId(), GroupDestination(web.id, listOf(inner)), EntryChanges(title = "Deep")), key, now))
+        val before = saved(saver.save(VaultEdit.Create(Entry.newId(), GroupDestination(top.id, listOf(other)), EntryChanges(title = "O")), key, now))
+
+        val result = saver.save(VaultEdit.RenameGroup(web.id, "  Web  "), key, now)
+
+        val after = saved(result)
+        assertEquals(VaultGroup(web.id, "Web", listOf("Web")), after.groups.single { it.id == web.id })
+        assertEquals(listOf("Web", "Inner"), after.groups.single { it.id == inner.id }.path)
+        assertEquals(before.groups.size, after.groups.size)
+        assertEquals(before.entries.size, after.entries.size)
+        for (entry in before.entries) {
+            val expected = if (entry.groupPath.firstOrNull() == "Web & Mail") entry.copy(groupPath = listOf("Web") + entry.groupPath.drop(1)) else entry
+            assertEquals(expected, after.entries.single { it.id == entry.id }, "entries are not touched, only their path")
+        }
+        assertEquals(unlock(store), after, "the saved vault is the file read back")
+        assertEquals(emptyList(), deletedBy(result))
+        assertEquals("WEB", saved(saver.save(VaultEdit.RenameGroup(web.id, "WEB"), key, now)).groups.single { it.id == web.id }.name, "its own name in another case")
+
+        val file = store.content
+        assertEquals(SaveFailure.GroupNameTaken, failure(saver.save(VaultEdit.RenameGroup(other.id, "wéb"), key, now)), "case and accents aside")
+        assertEquals(SaveFailure.InvalidName, failure(saver.save(VaultEdit.RenameGroup(other.id, "  "), key, now)))
+        assertEquals(SaveFailure.GroupNotChangeable, failure(saver.save(VaultEdit.RenameGroup(top.id, "Top"), key, now)))
+        assertEquals(SaveFailure.GroupNotFound, failure(saver.save(VaultEdit.RenameGroup("gone", "x"), key, now)))
+        assertContentEquals(file, store.content, "a refusal writes nothing")
+        val entry = unlock(store, key).entries.first()
+        val binId = saved(saver.save(VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified), key, now)).recycleBin.single { it.id == entry.id }.groupId
+        assertEquals(SaveFailure.GroupNotChangeable, failure(saver.save(VaultEdit.RenameGroup(binId, "Bin"), key, now)), "the recycle bin")
+    }
+
+    @Test
+    fun aNewGroupAMovedGroupAndAnEmptyGroupDeletedAreSavedAndChecked() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val saver = VaultSaver(store, backups)
+        val start = unlock(store, key)
+        val web = start.groups.single { it.name == "Web & Mail" }
+        val top = start.groups.single { it.isRoot }
+
+        val archive = NewGroup(Entry.newId(), " Archive ")
+        var vault = saved(saver.save(VaultEdit.CreateGroup(top.id, archive), key, now))
+        assertTrue(VaultGroup(archive.id, "Archive", listOf("Archive")) in vault.groups)
+        assertEquals(start.entries, vault.entries)
+        assertEquals(SaveFailure.GroupNameTaken, failure(saver.save(VaultEdit.CreateGroup(top.id, NewGroup(Entry.newId(), "ARCHIVE")), key, now)))
+        assertEquals(SaveFailure.InvalidName, failure(saver.save(VaultEdit.CreateGroup(top.id, NewGroup(Entry.newId(), " ")), key, now)))
+
+        // Web & Mail, with a group and entries in it, into Archive.
+        val inner = NewGroup(Entry.newId(), "Inner")
+        val before = saved(saver.save(VaultEdit.Create(Entry.newId(), GroupDestination(web.id, listOf(inner)), EntryChanges(title = "Deep")), key, now))
+        vault = saved(saver.save(VaultEdit.MoveGroup(web.id, archive.id), key, now))
+        assertEquals(listOf("Archive", "Web & Mail"), vault.groups.single { it.id == web.id }.path)
+        assertEquals(listOf("Archive", "Web & Mail", "Inner"), vault.groups.single { it.id == inner.id }.path)
+        for (entry in before.entries) {
+            val expected = if (entry.groupPath.firstOrNull() == "Web & Mail") entry.copy(groupPath = listOf("Archive") + entry.groupPath) else entry
+            assertEquals(expected, vault.entries.single { it.id == entry.id })
+        }
+
+        assertEquals(SaveFailure.GroupNotChangeable, failure(saver.save(VaultEdit.MoveGroup(archive.id, inner.id), key, now)), "into a group inside it")
+        assertEquals(SaveFailure.GroupNotChangeable, failure(saver.save(VaultEdit.MoveGroup(web.id, archive.id), key, now)), "where it is")
+        assertEquals(SaveFailure.GroupNotChangeable, failure(saver.save(VaultEdit.MoveGroup(top.id, archive.id), key, now)), "the root group")
+        val namesake = NewGroup(Entry.newId(), "web & mail")
+        saved(saver.save(VaultEdit.CreateGroup(top.id, namesake), key, now))
+        assertEquals(SaveFailure.GroupNameTaken, failure(saver.save(VaultEdit.MoveGroup(namesake.id, archive.id), key, now)))
+
+        // Only an empty group is deleted this way.
+        assertEquals(SaveFailure.GroupNotEmpty, failure(saver.save(VaultEdit.DeleteEmptyGroup(archive.id), key, now)))
+        assertEquals(SaveFailure.GroupNotChangeable, failure(saver.save(VaultEdit.DeleteEmptyGroup(top.id), key, now)))
+        val deleted = saver.save(VaultEdit.DeleteEmptyGroup(namesake.id), key, now)
+        assertTrue(saved(deleted).groups.none { it.id == namesake.id })
+        assertEquals(listOf(VaultGroup(namesake.id, "web & mail", listOf("web & mail"))), deletedBy(deleted))
+        assertEquals(namesake.id, deletedObjects(store).last(), "for good, with a DeletedObject")
+
+        // Into the bin no group is moved.
+        val entry = unlock(store, key).entries.first()
+        val binId = saved(saver.save(VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified), key, now)).recycleBin.single { it.id == entry.id }.groupId
+        assertEquals(SaveFailure.GroupNotChangeable, failure(saver.save(VaultEdit.MoveGroup(archive.id, binId), key, now)))
+    }
+
+    @Test
+    fun aNewEntryInNewGroupsAndAnEntryMovedWithAnEditAndAlone() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val saver = VaultSaver(store, backups)
+        val start = unlock(store, key)
+        val web = start.groups.single { it.name == "Web & Mail" }
+
+        val id = Entry.newId()
+        val servers = NewGroup(Entry.newId(), "Servers")
+        val prod = NewGroup(Entry.newId(), "Prod")
+        var vault = saved(saver.save(VaultEdit.Create(id, GroupDestination(web.id, listOf(servers, prod)), EntryChanges(title = "Box")), key, now))
+        var created = vault.entries.single { it.id == id }
+        assertEquals(prod.id, created.groupId)
+        assertEquals(listOf("Web & Mail", "Servers", "Prod"), created.groupPath)
+        assertEquals(start.groups.size + 2, vault.groups.size)
+
+        // Moved and edited at once: one history snapshot for the edit, none for the move; Prod is left empty.
+        val both = saver.save(VaultEdit.Update(id, created.lastModified, EntryChanges(username = "root", group = GroupDestination(servers.id))), key, now)
+        vault = saved(both)
+        created = vault.entries.single { it.id == id }
+        assertEquals(servers.id, created.groupId)
+        assertEquals("root", created.username)
+        assertEquals(1, historySize(store, id))
+        assertEquals(listOf(VaultGroup(prod.id, "Prod", listOf("Web & Mail", "Servers", "Prod"))), deletedBy(both))
+
+        // Only moved, into a new group at the top level: no snapshot; Servers is left empty.
+        val root = vault.groups.single { it.isRoot }
+        val archive = NewGroup(Entry.newId(), "Archive")
+        val alone = saver.save(VaultEdit.Update(id, created.lastModified, EntryChanges(group = GroupDestination(root.id, listOf(archive)))), key, now)
+        vault = saved(alone)
+        created = vault.entries.single { it.id == id }
+        assertEquals(listOf("Archive"), created.groupPath)
+        assertEquals(1, historySize(store, id))
+        assertEquals(listOf(servers.id), deletedBy(alone).map { it.id })
+        assertEquals(start.entries, vault.entries.filter { it.id != id }, "the other entries as they were")
+        assertEquals(start.groups.size + 1, vault.groups.size)
+
+        assertEquals(SaveFailure.GroupNotFound, failure(saver.save(VaultEdit.Update(id, created.lastModified, EntryChanges(group = GroupDestination("gone"))), key, now)))
+    }
+
+    @Test
+    fun aMoveThatLeavesItsGroupEmptyDeletesItAndEachParentItEmptiesAndTheResultNamesThem() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val saver = VaultSaver(store, backups)
+        val start = unlock(store, key)
+        val web = start.groups.single { it.name == "Web & Mail" }
+        val top = start.groups.single { it.isRoot }
+        // Old › Deep holds A alone; Keep holds B and the group Kept, which holds C.
+        val old = NewGroup(Entry.newId(), "Old")
+        val deep = NewGroup(Entry.newId(), "Deep")
+        val keep = NewGroup(Entry.newId(), "Keep")
+        val kept = NewGroup(Entry.newId(), "Kept")
+        val (a, b, c) = List(3) { Entry.newId() }
+        saved(saver.save(VaultEdit.Create(a, GroupDestination(top.id, listOf(old, deep)), EntryChanges(title = "A")), key, now))
+        saved(saver.save(VaultEdit.Create(b, GroupDestination(top.id, listOf(keep)), EntryChanges(title = "B")), key, now))
+        saved(saver.save(VaultEdit.Create(c, GroupDestination(keep.id, listOf(kept)), EntryChanges(title = "C")), key, now))
+        fun move(id: String, destination: GroupDestination): SaveResult {
+            val entry = unlock(store, key).entries.single { it.id == id }
+            return saver.save(VaultEdit.Update(id, entry.lastModified, EntryChanges(group = destination)), key, now)
+        }
+
+        val before = unlock(store, key)
+        val moved = move(a, GroupDestination(web.id))
+        var after = saved(moved)
+        assertEquals(
+            listOf(VaultGroup(deep.id, "Deep", listOf("Old", "Deep")), VaultGroup(old.id, "Old", listOf("Old"))), deletedBy(moved),
+            "innermost first, as they were",
+        )
+        assertTrue(after.groups.none { it.id == old.id || it.id == deep.id })
+        assertEquals(before.groups.size - 2, after.groups.size)
+        assertEquals(listOf("Web & Mail"), after.entries.single { it.id == a }.groupPath)
+        assertEquals(listOf(deep.id, old.id), deletedObjects(store).takeLast(2), "for good, the innermost first")
+
+        // Kept goes; Keep still holds B.
+        assertEquals(listOf(kept.id), deletedBy(move(c, GroupDestination(top.id))).map { it.id })
+        after = unlock(store, key)
+        assertTrue(after.groups.none { it.id == kept.id })
+        assertTrue(after.groups.any { it.id == keep.id })
+
+        // B into a new group inside Keep: Keep is not left empty. Then back up into Keep: the new group goes, not Keep.
+        val sub = NewGroup(Entry.newId(), "Sub")
+        assertEquals(emptyList(), deletedBy(move(b, GroupDestination(keep.id, listOf(sub)))))
+        assertTrue(unlock(store, key).groups.any { it.id == keep.id })
+        assertEquals(listOf(sub.id), deletedBy(move(b, GroupDestination(keep.id))).map { it.id })
+        after = unlock(store, key)
+        assertEquals(listOf("Keep"), after.entries.single { it.id == b }.groupPath)
+
+        // An edit without a move deletes no group.
+        val records = deletedObjects(store).size
+        val entry = after.entries.single { it.id == b }
+        val edited = saver.save(VaultEdit.Update(b, entry.lastModified, EntryChanges(title = "B2")), key, now)
+        assertEquals(emptyList(), deletedBy(edited))
+        assertEquals(after.groups, saved(edited).groups)
+        assertEquals(records, deletedObjects(store).size)
+    }
+
+    @Test
+    fun aGroupChangeRefusedBecauseTheFileChangedMeanwhileSaysWhyAndWritesNothing() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val saver = VaultSaver(store, backups)
+        val top = unlock(store, key).groups.single { it.isRoot }
+        val spare = NewGroup(Entry.newId(), "Spare")
+        val gone = NewGroup(Entry.newId(), "Gone")
+        saved(saver.save(VaultEdit.CreateGroup(top.id, spare), key, now))
+        saved(saver.save(VaultEdit.CreateGroup(top.id, gone), key, now))
+        // What the phone shows from here on; meanwhile another app makes "Mail" at the top level, puts an entry into Spare
+        // and deletes Gone.
+        val shown = unlock(store, key)
+        val elsewhere = VaultSaver(store, FakeBackups())
+        saved(elsewhere.save(VaultEdit.CreateGroup(top.id, NewGroup(Entry.newId(), "Mail")), key, now))
+        saved(elsewhere.save(VaultEdit.Create(Entry.newId(), GroupDestination(spare.id), EntryChanges(title = "Filed")), key, now))
+        saved(elsewhere.save(VaultEdit.DeleteEmptyGroup(gone.id), key, now))
+        assertTrue(shown.groups.none { it.name == "Mail" })
+        val file = store.content
+        val replaced = store.replaced
+
+        assertEquals(SaveFailure.GroupNameTaken, failure(saver.save(VaultEdit.CreateGroup(top.id, NewGroup(Entry.newId(), "mail")), key, now)))
+        assertEquals(SaveFailure.GroupNameTaken, failure(saver.save(VaultEdit.RenameGroup(spare.id, "Mail"), key, now)))
+        assertEquals(SaveFailure.GroupNotEmpty, failure(saver.save(VaultEdit.DeleteEmptyGroup(spare.id), key, now)))
+        assertEquals(SaveFailure.GroupNotFound, failure(saver.save(VaultEdit.RenameGroup(gone.id, "Back"), key, now)))
+        assertEquals(SaveFailure.GroupNotFound, failure(saver.save(VaultEdit.MoveGroup(spare.id, gone.id), key, now)))
+        assertEquals(SaveFailure.GroupNotFound, failure(saver.save(VaultEdit.CreateGroup(gone.id, NewGroup(Entry.newId(), "In")), key, now)))
+        assertContentEquals(file, store.content)
+        assertEquals(replaced, store.replaced)
+    }
+
+    @Test
+    fun aMovedEntrysNewLevelAnotherAppMadeMeanwhileIsThatAppsGroupAndOnlyTheRestIsMade() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val start = unlock(store, key)
+        val web = start.groups.single { it.name == "Web & Mail" }
+        val entry = start.entries.first()
+        // Meanwhile another app makes Web & Mail › Servers.
+        val theirs = NewGroup(Entry.newId(), "Servers")
+        saved(VaultSaver(store, FakeBackups()).save(VaultEdit.CreateGroup(web.id, theirs), key, now))
+        val servers = NewGroup(Entry.newId(), "servers")
+        val prod = NewGroup(Entry.newId(), "Prod")
+
+        val result = VaultSaver(store, backups).save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(group = GroupDestination(web.id, listOf(servers, prod)))), key, now)
+
+        val vault = saved(result)
+        val moved = vault.entries.single { it.id == entry.id }
+        assertEquals(prod.id, moved.groupId)
+        assertEquals(listOf("Web & Mail", "Servers", "Prod"), moved.groupPath)
+        assertEquals(listOf(theirs.id), vault.groups.filter { it.path == listOf("Web & Mail", "Servers") }.map { it.id }, "theirs, not made twice")
+        assertEquals(emptyList(), deletedBy(result), "Web & Mail still holds the other entry")
     }
 }

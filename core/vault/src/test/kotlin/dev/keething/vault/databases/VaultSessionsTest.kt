@@ -177,7 +177,7 @@ class VaultSessionsTest {
 
         val saved = assertNotNull(found.database.session.save(VaultEdit.MoveToRecycleBin(found.entry.id, found.entry.lastModified)))
         runCurrent()
-        assertEquals(SaveOutcome.Saved, saved.await())
+        assertEquals(SaveOutcome.Saved(), saved.await())
         assertEquals(1, f.files.getValue("/b/Work.kdbx").replaced)
         assertEquals(0, f.files.getValue("/a/Personal.kdbx").replaced, "Personal's file is not touched")
         assertTrue(f.vault(w).recycleBin.any { it.id == same })

@@ -392,12 +392,13 @@ public class VaultSession(
     }
 
     /**
-     * Writes [edit] into the file (SPEC §3.3), with the key in memory; the vault then becomes the file read back.
-     * One save at a time: null while one runs, and when not unlocked. Refused because the entry changed or went
-     * elsewhere, the vault is read again; refused because the password changed elsewhere, the session locks.
+     * Writes [edit] into the file (SPEC §3.3), an entry's or the groups', with the key in memory; the vault then becomes
+     * the file read back, and [SaveOutcome.Saved] names the groups the save deleted. One save at a time: null while one
+     * runs, and when not unlocked. Refused because the entry changed or went elsewhere, or the file's groups no longer
+     * allow the change, the vault is read again; refused because the password changed elsewhere, the session locks.
      * The save reads [edit]'s secrets until the result is complete: wipe them only then.
      */
-    public fun save(edit: VaultEdit.EntryEdit): Deferred<SaveOutcome>? {
+    public fun save(edit: VaultEdit): Deferred<SaveOutcome>? {
         if (mutableState.value !is SessionState.Unlocked || saving) return null
         val attempt = key?.copy() ?: return null
         saving = true
@@ -418,7 +419,7 @@ public class VaultSession(
                             key?.wipe()
                             key = attempt
                             adopt(OpenResult.Opened(result.opened), copies)
-                            outcome.complete(SaveOutcome.Saved)
+                            outcome.complete(SaveOutcome.Saved(result.deletedGroups))
                         }
                         is SaveResult.Failed -> {
                             attempt.wipe()
@@ -439,6 +440,9 @@ public class VaultSession(
         when {
             failure == SaveFailure.CannotOpen(OpenFailure.WrongPassword) -> lock(LockReason.PasswordChanged)
             failure == SaveFailure.ChangedElsewhere || failure == SaveFailure.EntryNotFound -> reload()
+            // The file's groups are not what the vault shows: a group gone, a name taken, a group no longer empty.
+            failure == SaveFailure.GroupNotFound || failure == SaveFailure.GroupNameTaken ||
+                failure == SaveFailure.GroupNotChangeable || failure == SaveFailure.GroupNotEmpty -> reload()
         }
     }
 

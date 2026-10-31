@@ -1,23 +1,58 @@
 package dev.keething.vault.saving
 
+import dev.keething.domain.text.TextFolding
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
+import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.editing.AppliedEdit
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
  * The check before a written file replaces the old one (SPEC §3.3 step 5; port of the Mac `KDBXFileSaver.verify`):
- * read back as an unlock would read it, every other entry and every group is exactly as before, and the changed
- * entry exactly as asked.
+ * read back as an unlock would read it. An entry's edit: every other entry exactly as before, the groups as before
+ * but those it made and those a move left empty, and the changed entry exactly as asked. A change of the groups:
+ * the groups as expected ([expectedGroups]), every entry as before but for its path, the recycle bin as before.
+ * Groups are matched by id, and each group's parent is checked too, found by the file's order (a group's groups follow
+ * it), so two groups of one name in one parent are each themselves.
  */
 internal object SaveCheck {
     class Failed(val detail: String) : Exception(detail)
 
-    fun verify(before: Vault, after: Vault, edit: VaultEdit.EntryEdit, applied: AppliedEdit, now: Instant) {
+    /**
+     * [fileBefore] and [fileAfter]: every group of each file in file order, the recycle bin's own too, which the vaults'
+     * groups leave out.
+     */
+    fun verify(
+        before: Vault,
+        after: Vault,
+        edit: VaultEdit,
+        applied: AppliedEdit,
+        now: Instant,
+        fileBefore: List<VaultGroup> = before.groups,
+        fileAfter: List<VaultGroup> = after.groups,
+    ) {
+        when (edit) {
+            is VaultEdit.EntryEdit -> verifyEntry(before, after, edit, applied, now, fileBefore, fileAfter)
+            is VaultEdit.GroupEdit -> verifyGroups(before, after, edit, fileBefore, fileAfter)
+        }
+        // What the save says it deleted (groups.entry-group AC7) is what went.
+        val gone = before.groups.map { it.id }.toSet() - after.groups.map { it.id }.toSet()
+        if (applied.deletedGroupIds.toSet() != gone || applied.deletedGroupIds.size != gone.size) fail("the groups deleted are not those reported")
+    }
+
+    private fun verifyEntry(
+        before: Vault,
+        after: Vault,
+        edit: VaultEdit.EntryEdit,
+        applied: AppliedEdit,
+        now: Instant,
+        fileBefore: List<VaultGroup>,
+        fileAfter: List<VaultGroup>,
+    ) {
         val old = all(before)
         val new = all(after)
         val id = edit.entryId
@@ -26,15 +61,88 @@ internal object SaveCheck {
             if (other != id && new[other] != entry) fail("another entry changed")
         }
 
-        // The groups as before, with those a restore made on the way back.
         val groups = before.groups.associateBy { it.id }.toMutableMap()
-        for (made in applied.createdGroupIds) {
-            val group = after.groups.firstOrNull { it.id == made }
-            if (group == null || made in groups) fail("a group is missing")
-            groups[made] = group
+        val parentsBefore = parents(fileBefore)
+        val parents = parentsBefore.toMutableMap()
+        // Where a new or moved entry goes: its new groups by the names asked, each inside the one before.
+        val destination = when (edit) {
+            is VaultEdit.Create -> applied.destination ?: edit.group
+            is VaultEdit.Update -> edit.changes.group?.let { applied.destination ?: it }
+            else -> null
+        }
+        if (destination != null) {
+            val asked = (edit as? VaultEdit.Create)?.group ?: (edit as VaultEdit.Update).changes.group!!
+            // As the file had it: the levels it has by now are its groups, and only the rest are made (groups.new-groups AC3, AC4).
+            val made = asked.newGroups.takeLast(destination.newGroups.size)
+            if (destination.newGroups.map { it.id } != made.map { it.id } ||
+                destination.newGroups.map { it.name } != made.map { it.name.trim() } ||
+                applied.expectedGroupId != destination.finalGroupId
+            ) {
+                fail("the new groups are not those asked")
+            }
+            // The levels the file had: each the first group of its name, case and accents aside, in the one before.
+            val inside = parents(before.groups)
+            var reached = asked.groupId
+            for (level in asked.newGroups.dropLast(destination.newGroups.size)) {
+                val name = TextFolding.fold(level.name.trim())
+                reached = before.groups.firstOrNull { inside[it.id] == reached && TextFolding.fold(it.name.trim()) == name }?.id
+                    ?: fail("the new groups are not those asked")
+            }
+            if (reached != destination.groupId) fail("the new groups are not those asked")
+            // ... and the first level made is one it did not have: no namesake made beside it.
+            destination.newGroups.firstOrNull()?.let { first ->
+                val name = TextFolding.fold(first.name.trim())
+                if (before.groups.any { inside[it.id] == reached && TextFolding.fold(it.name.trim()) == name }) fail("the new groups are not those asked")
+            }
+            var path = groups[destination.groupId]?.path ?: fail("the new groups are not those asked")
+            var parent = destination.groupId
+            for (group in destination.newGroups) {
+                if (group.id in groups) fail("the new groups are not those asked")
+                path = path + group.name
+                groups[group.id] = VaultGroup(group.id, group.name, path)
+                parents[group.id] = parent
+                parent = group.id
+            }
+        }
+        val parentsAfter = parents(fileAfter)
+        // A restored entry's group, made again on the way back: where the file put it.
+        if (edit is VaultEdit.Restore) {
+            for (made in applied.createdGroupIds) {
+                val group = after.groups.firstOrNull { it.id == made }
+                if (group == null || made in groups) fail("a group is missing")
+                groups[made] = group
+                parents[made] = parentsAfter[made]
+            }
+        }
+        // The recycle bin's own groups as before; a recycled entry's bin made in the root group when there was none.
+        val bin = fileBefore.filter { it.id !in groups }.associateBy { it.id }.toMutableMap()
+        val binAfter = fileAfter.filter { group -> after.groups.none { it.id == group.id } }.associateBy { it.id }
+        val madeBin = applied.expectedGroupId.takeIf { edit is VaultEdit.MoveToRecycleBin && it !in bin && it !in groups }
+        val rootId = before.groups.firstOrNull { it.isRoot }?.id
+        binAfter[madeBin]?.takeIf { parentsAfter[it.id] == rootId }?.let { made ->
+            bin[made.id] = made
+            parents[made.id] = parentsAfter[made.id]
+        }
+        if (binAfter != bin) fail("the recycle bin's groups changed")
+        // Those a move left empty (groups.entry-group AC5, AC6): the group the entry left, then each parent in turn, none
+        // the root, none holding another entry (one holding a group would leave that group missing below).
+        if (applied.deletedGroupIds.isNotEmpty()) {
+            if (edit !is VaultEdit.Update || destination == null) fail("a group that was not empty went")
+            var expected = old[id]?.groupId
+            for (gone in applied.deletedGroupIds) {
+                val group = groups[gone]
+                if (gone != expected || group == null || group.isRoot || gone == destination.finalGroupId ||
+                    old.values.any { it.id != id && it.groupId == gone }
+                ) {
+                    fail("a group that was not empty went")
+                }
+                groups.remove(gone)
+                parents.remove(gone)
+                expected = parentsBefore[gone]
+            }
         }
         if (after.groups.associateBy { it.id } != groups || after.groups.size != groups.size ||
-            after.recycleBinEnabled != before.recycleBinEnabled
+            after.recycleBinEnabled != before.recycleBinEnabled || parentsAfter != parents
         ) {
             fail("the groups changed")
         }
@@ -42,14 +150,17 @@ internal object SaveCheck {
         when (edit) {
             is VaultEdit.Update -> {
                 val actual = new[id] ?: fail("the edit did not come out as asked")
-                val expected = applyTo(old[id] ?: fail("entries differ"), edit.changes).copy(lastModified = actual.lastModified)
+                var expected = applyTo(old[id] ?: fail("entries differ"), edit.changes).copy(lastModified = actual.lastModified)
+                if (destination != null) {
+                    val group = groups[destination.finalGroupId] ?: fail("the group is missing")
+                    expected = expected.copy(groupPath = group.path, groupId = group.id)
+                }
                 if (actual != expected) fail("the edit did not come out as asked")
             }
             is VaultEdit.Create -> {
                 val actual = new[id]
                 if (id in old || actual == null) fail("the new entry is missing")
-                // Where it went as the file had it: a new level another app made meanwhile is that app's group.
-                val group = groups[applied.expectedGroupId ?: edit.group.finalGroupId] ?: fail("the group is missing")
+                val group = groups[destination!!.finalGroupId] ?: fail("the group is missing")
                 // A new entry's expiry time is its creation time, as in KeePassXC (it does not expire).
                 val expected = applyTo(
                     Entry(
@@ -72,6 +183,105 @@ internal object SaveCheck {
                 if (actual != expected) fail("the moved entry changed")
             }
         }
+    }
+
+    /**
+     * A change of the groups alone (groups.manage; the Mac `verify(groups:path:tags:)`): every group of the file comes
+     * out as [expectedGroups], each in its parent; every entry as before but for its path, its group's new one (the
+     * bin's too, when the bin is inside the group changed).
+     */
+    private fun verifyGroups(before: Vault, after: Vault, edit: VaultEdit.GroupEdit, fileBefore: List<VaultGroup>, fileAfter: List<VaultGroup>) {
+        val groups = expectedGroups(fileBefore, edit).associateBy { it.id }
+        val parents = parents(fileBefore).toMutableMap()
+        // A name the parent has, case and accents aside, is refused by the file (groups.manage AC1, AC3, AC5).
+        fun taken(name: String, parent: String?, except: String?): Boolean =
+            fileBefore.any { it.id != except && parents[it.id] == parent && TextFolding.fold(it.name.trim()) == TextFolding.fold(name.trim()) }
+        val namesake = when (edit) {
+            is VaultEdit.RenameGroup -> taken(edit.name, parents[edit.groupId], edit.groupId)
+            is VaultEdit.MoveGroup -> taken(groups[edit.groupId]?.name ?: "", edit.intoGroupId, edit.groupId)
+            is VaultEdit.CreateGroup -> taken(edit.group.name, edit.parentId, null)
+            is VaultEdit.DeleteEmptyGroup -> false
+        }
+        if (namesake) fail("the groups did not come out as asked")
+        when (edit) {
+            is VaultEdit.MoveGroup -> parents[edit.groupId] = edit.intoGroupId
+            is VaultEdit.CreateGroup -> parents[edit.group.id] = edit.parentId
+            is VaultEdit.DeleteEmptyGroup -> parents.remove(edit.groupId)
+            is VaultEdit.RenameGroup -> {}
+        }
+        if (fileAfter.associateBy { it.id } != groups || fileAfter.size != groups.size || parents(fileAfter) != parents ||
+            after.recycleBinEnabled != before.recycleBinEnabled
+        ) {
+            fail("the groups did not come out as asked")
+        }
+        val old = all(before)
+        val new = all(after)
+        if (old.keys != new.keys || before.recycleBin.map { it.id }.toSet() != after.recycleBin.map { it.id }.toSet()) fail("entries differ")
+        val inBin = before.recycleBin.map { it.id }.toSet()
+        for ((id, entry) in old) {
+            val group = groups[entry.groupId]
+            val expected = if (group == null && id in inBin) entry else entry.copy(groupPath = group?.path ?: fail("an entry changed"))
+            if (new[id] != expected) fail("an entry changed")
+        }
+    }
+
+    /**
+     * The groups as [edit] should leave them (the Mac `expectedStructure`): a renamed or moved group and every group
+     * below it at its new path, a new group added in its parent, the group deleted gone. Names trimmed, as written.
+     */
+    private fun expectedGroups(groups: List<VaultGroup>, edit: VaultEdit.GroupEdit): List<VaultGroup> {
+        fun index(id: String) = groups.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: fail("the group is missing")
+
+        // The group at [at] and everything below it at [newPath].
+        fun moving(at: Int, newPath: List<String>, name: String): List<VaultGroup> {
+            val oldDepth = groups[at].path.size
+            val below = below(groups, at)
+            return groups.mapIndexed { i, group ->
+                when {
+                    i == at -> group.copy(name = name, path = newPath)
+                    i in below -> group.copy(path = newPath + group.path.drop(oldDepth))
+                    else -> group
+                }
+            }
+        }
+        return when (edit) {
+            is VaultEdit.RenameGroup -> {
+                val at = index(edit.groupId)
+                val name = edit.name.trim()
+                moving(at, groups[at].path.dropLast(1) + name, name)
+            }
+            is VaultEdit.MoveGroup -> {
+                val at = index(edit.groupId)
+                moving(at, groups[index(edit.intoGroupId)].path + groups[at].name, groups[at].name)
+            }
+            is VaultEdit.CreateGroup -> {
+                val name = edit.group.name.trim()
+                groups + VaultGroup(edit.group.id, name, groups[index(edit.parentId)].path + name)
+            }
+            is VaultEdit.DeleteEmptyGroup -> {
+                val at = index(edit.groupId)
+                groups.filterIndexed { i, _ -> i != at }
+            }
+        }
+    }
+
+    /** The indexes of the groups inside the one at [at]: in file order they follow it, deeper than it. */
+    private fun below(groups: List<VaultGroup>, at: Int): IntRange {
+        var end = at + 1
+        while (end < groups.size && groups[end].path.size > groups[at].path.size) end++
+        return at + 1 until end
+    }
+
+    /** Each group's parent (null for the root): in file order, the last group before it one level up. */
+    private fun parents(groups: List<VaultGroup>): Map<String, String?> {
+        val open = ArrayList<VaultGroup>()
+        val parents = HashMap<String, String?>()
+        for (group in groups) {
+            while (open.isNotEmpty() && open.last().path.size >= group.path.size) open.removeAt(open.lastIndex)
+            parents[group.id] = open.lastOrNull()?.id
+            open += group
+        }
+        return parents
     }
 
     /** An entry as [changes] leave it: tags trimmed and times to the second, as the file stores them. */
