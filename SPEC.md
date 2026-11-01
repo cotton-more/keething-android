@@ -75,7 +75,7 @@ databases side by side (in: the list, one list over several open, the chooser an
 §3.1, §5), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
 3.1 (refused until then), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
-the owner on 2026-10-31; keething-spec `plans/android-groups.md`): an entry's group changed in the editor (in, §6.2)
+the owner on 2026-10-31; keething-spec `plans/done/android-groups.md`): an entry's group changed in the editor (in, §6.2)
 and from its card (a move: in), new groups made from the editor's group picker (in), groups renamed, made, moved and
 deleted when empty from Groups & tags (in; over every open database, a block each: in, §6.2); renaming tags and the recycle bin's groups stay with
 the Mac.
@@ -310,7 +310,9 @@ keeps the new time. The way out is in §3.3 step 7.
   into `.stversions` and then renames the new one in, so for a moment there is no file.
 - Shared storage is a FUSE file system: right after an inotify event `stat` can still show the old file
   (measured: stale at the event, fresh 0.3 s later). The folder watcher reports every event again after
-  1 s (`FileObserverFolderWatcher`).
+  1 s (`FileObserverFolderWatcher`). One watch per folder, shared by every open database in it
+  (`SharedFolderWatcher`): Android keeps one inotify watch per path in the process, so a second `FileObserver` of
+  a folder takes the first one's events and stopping either stops both.
 - One Syncthing replace brings several events (rename, then the modification time); a reload decrypts the
   file with Argon2 again, so the reload waits for the folder to be quiet for 1.5 s and runs once. A version
   that failed to open (damaged) is not read again until the file changes.
@@ -338,7 +340,7 @@ their types, tags, expiry), a new entry at the end of a group's entries, an entr
 Deleting for good, history, attachments, one-time codes (but that of an entry received, §10), renaming tags and the
 recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
 `VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
-made, moved, deleted when empty; keething-spec `plans/android-groups.md` AG1, AG2). The editor makes an entry's move
+made, moved, deleted when empty; keething-spec `plans/done/android-groups.md` AG1, AG2). The editor makes an entry's move
 and its new groups (the group picker, §6.2; AG4), the received entries' screen new groups (§10), the card's Move to
 group… a move alone, its new groups too, and Groups & tags the groups' own changes (§6.2; AG6), each through the
 checked save.
@@ -362,8 +364,8 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    it meets the groups as the file has them now, and is refused when they no longer allow it — the group gone
    (`GroupNotFound`), a name taken there by now, case and accents aside (`GroupNameTaken`), a group to delete not
    empty any more (`GroupNotEmpty`), a group that may not be changed so (`GroupNotChangeable`: the root, the bin or in
-   it, a move into the bin, into itself or below it, or where it is), an empty name (`InvalidName`); nothing is saved
-   and the vault reloads. New levels for an entry meet the file the same way: a level another app made meanwhile is
+   it, a move into the bin, into itself or below it, or where it is): nothing is saved and the vault reloads; an
+   empty name (`InvalidName`) is refused too, without reloading. New levels for an entry meet the file the same way: a level another app made meanwhile is
    that group (`GroupLifecycle.resolving`).
 3. Apply the change as KeePassXC does: the old version into `History`, trimmed to `HistoryMaxItems`; a new
    entry with KeePassXC's elements and its group's own icon; the recycle bin made as KeePassXC makes it when
@@ -882,10 +884,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   numbered grid with one eye; a copy confirms in a snackbar ("Password copied · clears in 30 s").
 - Show as QR can also show the password as text; the Share… warning points to Show as QR as the safer way.
 - The canvas also has a code pinned to the notification shade; it was dropped (§1).
-- Groups (keething-spec `plans/android-groups.md` AG3, agreed 2026-10-31) have a canvas of their own:
+- Groups (keething-spec `plans/done/android-groups.md` AG3, agreed 2026-10-31) have a canvas of their own:
   https://claude.ai/artifact/P3Vn7ihTPMN3yrTA9LmPeE (the group picker, the editor's group row, Groups & tags over
   every open database, a group's sheet and name dialog, Move to…, the card's Move to group…). Changed by the owner at
-  AG4: the picker shows one level at a time instead of its drawn tree, the new levels one NEW (the editor, above).
+  AG4: the picker shows one level at a time instead of its drawn tree, the new levels one NEW (the editor, §6.2), a
+  path on one line cut as fish shell cuts a directory (the list, §6.2), the card's one place chip instead of its
+  database and group chips (the card, §6.2); at AG5 the "Not open:" row lost its lock icon.
 
 ### 6.1 Look and feel
 
@@ -1083,7 +1087,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   has the same copy button (username, URL, code, custom fields alike). **Edit** is a button at the bottom
   right, in reach of the thumb; the bar's ⋮ holds History, Move to group…, Send to a request (§10) and Move to the
   recycle bin (at once, the list offering Undo). **Move to group…** (keething-spec groups.entry-group AC2 from the
-  card, `plans/android-groups.md` G6): the group picker titled "Move to group", the entry's group checked, new groups
+  card, `plans/done/android-groups.md` G6): the group picker titled "Move to group", the entry's group checked, new groups
   offered as in the editor ("made with the move"); a group chosen moves the entry at once through the checked save
   (no history snapshot, as KeePassXC moves one), the snackbar "Moved to “Archive › Japan”. The empty group “Travel ›
   Japan › Hotels” was deleted." (the groups the move left empty, as in the editor); the group it is in already does
@@ -1223,7 +1227,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
   one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
   entry needs a title or a website. **Group** (keething-spec groups.entry-group, groups.new-groups;
-  `plans/android-groups.md` G2, G3), at the top for a new and an existing entry: a folder and the path from the top,
+  `plans/done/android-groups.md` G2, G3), at the top for a new and an existing entry: a folder and the path from the top,
   wrapped ("Top level" for the root group, a new entry's to start with), the levels made with the save in their own
   colour with one NEW after the last; under it "“Zed” is made when the entry is saved" ("“A” and “B” are…", from three
   on "3 new groups are…"), or for an existing entry moved "Moves here from Travel › Japan when saved". A tap opens the
@@ -1262,7 +1266,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the one before stays on screen, so no reload empties the list or scrolls it to the top.
 - **Groups & tags** (the folder in the list's header; the Mac's Groups & Tags window, §3.25 there, without the tags'
   and the bin's groups' changes): **a block per open database**, in the window's order, even with one (keething-spec
-  `plans/android-groups.md` G7). Its header (the database's dot, its label, "38 entries") stays pinned while its block
+  `plans/done/android-groups.md` G7). Its header (the database's dot, its label, "38 entries") stays pinned while its block
   scrolls; with two or more open a tap on it folds the block, kept folded while the app runs. In a block:
   **Groups** as segmented rows, "Top level" (the root group) first, then tree order
   (parents first, siblings by name, indented by depth), each with how many entries are in it and below it
@@ -1276,7 +1280,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   another "Work" elsewhere in that database. Under the last block the window's databases not open, "Not open:"
   with each one's dot and label; a tap shows its lock screen, Back comes back here. Each block follows its
   database: read again (a save, a sync) it is built again, locked or closed alone it goes, opened it comes.
-  **Changing groups** (keething-spec groups.manage, `plans/android-groups.md` G5; `card/editing/GroupChanges`): a long
+  **Changing groups** (keething-spec groups.manage, `plans/done/android-groups.md` G5; `card/editing/GroupChanges`): a long
   press on a group's row opens its sheet: its path, its database and what it holds ("Personal · 12 entries · 3 here",
   "empty"), then **New group inside…**, **Rename…**, **Move to…** ("With everything in it") and, only when it holds no
   entry (the Mac app's settings entry counted) and no group, **Delete** ("It is empty: deleted at once", no question:

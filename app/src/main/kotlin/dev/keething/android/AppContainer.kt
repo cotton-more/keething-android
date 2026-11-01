@@ -41,6 +41,7 @@ import dev.keething.android.storage.FileObserverFolderWatcher
 import dev.keething.android.storage.PathDatabaseStore
 import dev.keething.android.storage.PathKeyFileSource
 import dev.keething.android.storage.PathNewFile
+import dev.keething.android.storage.SharedFolderWatcher
 import dev.keething.android.storage.SharedStorage
 import dev.keething.android.storageprobe.FingerprintProbe
 import dev.keething.android.storageprobe.ProbeSettings
@@ -72,7 +73,7 @@ internal class AppContainer(context: Context) {
     /** Lives as long as the process; work that must outlast a screen runs here, on the main thread. */
     private val appScope: CoroutineScope = MainScope()
 
-    private val folderWatcher = FileObserverFolderWatcher()
+    private val folderWatcher = SharedFolderWatcher(FileObserverFolderWatcher())
 
     val databaseStoreAt: (File) -> DatabaseStore = { file -> PathDatabaseStore(file, folderWatcher, AndroidClock) }
 

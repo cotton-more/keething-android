@@ -12,6 +12,8 @@ import java.util.concurrent.TimeUnit
  * Shared storage is a FUSE file system, and right after an event `stat` can still show the file as it was
  * (measured on Android 17: stale at the event, fresh 0.3 s later). So every event is reported again once
  * the folder has had [SETTLE_MILLIS] to settle.
+ *
+ * One per folder: a second FileObserver of a path takes the first one's events ([SharedFolderWatcher] shares it).
  */
 internal class FileObserverFolderWatcher : FolderWatcher {
     override fun watch(folder: File, onEvent: (fileName: String?) -> Unit): AutoCloseable {
