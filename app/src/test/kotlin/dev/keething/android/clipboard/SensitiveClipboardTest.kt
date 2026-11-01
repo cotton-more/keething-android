@@ -38,6 +38,8 @@ class SensitiveClipboardTest {
 
         override fun text(): String? = text
 
+        override fun hasText(): Boolean = text != null
+
         fun copiedElsewhere(other: String) {
             text = other
             token = null

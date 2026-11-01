@@ -10,4 +10,7 @@ internal class InMemorySettingsStore : SettingsStore {
     override fun setString(key: String, value: String?) {
         if (value == null) values.remove(key) else values[key] = value
     }
+
+    /** What is stored, for tests that check nothing else was. */
+    fun snapshot(): Map<String, String> = values.toMap()
 }

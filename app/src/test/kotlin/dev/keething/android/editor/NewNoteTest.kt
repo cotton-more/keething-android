@@ -5,6 +5,12 @@ import dev.keething.android.clipboard.SystemClipboard
 import dev.keething.android.list.NewChoice
 import dev.keething.android.navigation.NavigationState
 import dev.keething.android.navigation.Screen
+import dev.keething.card.editing.EditorLayout
+import dev.keething.card.editing.GroupChoice
+import dev.keething.domain.vault.NoteDates
+import dev.keething.domain.vault.Vault
+import dev.keething.domain.vault.VaultGroup
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,6 +37,8 @@ class NewNoteTest {
         }
 
         override fun text(): String? = text
+
+        override fun hasText(): Boolean = text != null
     }
 
     @Test
@@ -52,6 +60,24 @@ class NewNoteTest {
         assertNull(NoteFromClipboard.read(FakeSystemClipboard(null)), "nothing, or not text (a picture), or the app not in front")
         assertNull(NoteFromClipboard.read(FakeSystemClipboard(" \n\t\n")), "blank is no text")
         assertEquals("No text on the clipboard", NoteFromClipboard.NO_TEXT)
+    }
+
+    @Test
+    fun aQuickNotesEditorIsInTheInboxWithoutSaveIntoNewNotesInTheGroupAskedWithIt() {
+        val groups = listOf(VaultGroup("R", "Root", emptyList()), VaultGroup("W", "Work", listOf("Work")), VaultGroup("I", "inbox", listOf("inbox")))
+        val vault = Vault(entries = emptyList(), groups = groups)
+        val dates = NoteDates { "" }
+
+        val quick = NewNote("Dune", quick = true)
+        val editor = quick.editor(vault, groupId = "W", now = Instant.EPOCH, dates = dates)
+        assertEquals(EditorLayout.NOTE, editor.layout)
+        assertEquals(GroupChoice("I"), editor.start.group, "the Inbox, not the group a new entry would take")
+        assertFalse(quick.offersSaveInto, "the setting chose the database")
+
+        val plain = NewNote("Dune")
+        assertEquals(GroupChoice("W"), plain.editor(vault, groupId = "W", now = Instant.EPOCH, dates = dates).start.group)
+        assertTrue(plain.offersSaveInto)
+        assertFalse("Dune" in quick.toString())
     }
 
     @Test

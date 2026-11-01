@@ -48,6 +48,11 @@ internal class AndroidSystemClipboard(context: Context) : SystemClipboard {
         return item.text?.toString() ?: item.htmlText?.let { Html.fromHtml(it, Html.FROM_HTML_MODE_LEGACY).toString().replace("\uFFFC", "") }
     }
 
+    // Plain text or HTML, as text() reads them; the clip itself is not read, so the system shows no notice.
+    override fun hasText(): Boolean = manager.primaryClipDescription?.let {
+        it.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) || it.hasMimeType(ClipDescription.MIMETYPE_TEXT_HTML)
+    } == true
+
     private companion object {
         const val LABEL = "Keething"
         const val TOKEN = "dev.keething.android.clipToken"

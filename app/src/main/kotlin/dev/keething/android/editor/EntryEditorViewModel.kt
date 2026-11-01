@@ -87,7 +87,7 @@ internal class EntryEditorViewModel(
         (database.session.state.value as? SessionState.Unlocked)?.vault?.let { vault ->
             when {
                 entryId != null -> vault.entries.firstOrNull { it.id == entryId }?.let { EntryEditor.edit(it, now, dates) }
-                note != null -> EntryEditor.createNote(vault, groupId, now, dates)
+                note != null -> note.editor(vault, groupId, now, dates)
                 else -> EntryEditor.create(vault, groupId, now)
             }
         },
@@ -115,8 +115,14 @@ internal class EntryEditorViewModel(
     /** The open databases as a new entry sees them; empty for an entry being edited. */
     private var open: List<NewEntryDatabase> by mutableStateOf(emptyList())
 
-    /** Save into's choices while two or more are open (keething-spec databases.one-list AC5); empty otherwise. */
-    val offered: List<NewEntryDatabase> get() = if (editor?.isNew == true) NewEntryDatabases.offered(open) else emptyList()
+    /** A quick note's editor: its database is the setting's (keething-spec app.quick-note AC1), not chosen here. */
+    private val quick = note?.offersSaveInto == false
+
+    /**
+     * Save into's choices while two or more are open (keething-spec databases.one-list AC5); empty otherwise, and for
+     * a quick note.
+     */
+    val offered: List<NewEntryDatabase> get() = if (editor?.isNew == true && !quick) NewEntryDatabases.offered(open) else emptyList()
 
     /** The database chosen, as Save into shows it. */
     val chosen: NewEntryDatabase? get() = open.firstOrNull { it.id == database.id }
@@ -207,7 +213,7 @@ internal class EntryEditorViewModel(
      */
     fun saveInto(id: DatabaseId) {
         val editor = editor ?: return
-        if (!editor.isNew || phase != SavePhase.Editing || id == database.id) return
+        if (!editor.isNew || quick || phase != SavePhase.Editing || id == database.id) return
         val target = open.firstOrNull { it.id == id && it.takesEntries } ?: return
         val session = places?.session?.invoke(id)?.takeIf { it.number == target.session } ?: return
         val (moved, movedDraft) = editor.movedTo(target.vault, draft)

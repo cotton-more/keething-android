@@ -6,6 +6,18 @@ import android.net.Uri
 import android.provider.Settings
 import android.view.autofill.AutofillManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.keething.android.databases.DatabaseDot
+import dev.keething.android.databases.DatabaseLinesModel
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -89,6 +101,9 @@ internal fun SettingsScreen(
             Text("Settings", style = MaterialTheme.typography.titleLarge)
         }
         DatabasesSetting(container, onDatabase)
+        Group("Quick notes") {
+            QuickNotesSetting(container)
+        }
         Group("Fingerprint") {
             FingerprintSetting(container)
         }
@@ -158,6 +173,61 @@ internal fun SettingsScreen(
 }
 
 private const val MIB = 1024 * 1024
+
+/** "Quick notes go to" (SPEC §6.4; keething-spec app.quick-note AC1): Current database or one of the list, with its dot. */
+@Composable
+private fun QuickNotesSetting(container: AppContainer) {
+    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list) }
+    val screens by linesModel.screens.collectAsStateWithLifecycle()
+    val setting by container.settings.quickNoteDatabase.collectAsStateWithLifecycle()
+    val destination = QuickNoteDestination(setting, screens?.lines)
+    val chosen = destination.choices.firstOrNull { it.id == destination.selected }
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(12.dp)).clickable(enabled = !destination.isLoading) { open = true },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Quick notes go to", style = MaterialTheme.typography.bodyLarge)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    chosen?.colorIndex?.let { DatabaseDot(it) }
+                    Text(destination.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Icon(Icons.Rounded.ExpandMore, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            destination.choices.forEach { choice ->
+                DropdownMenuItem(
+                    leadingIcon = {
+                        choice.colorIndex?.let { DatabaseDot(it) }
+                            ?: Box(Modifier.size(12.dp).border(2.dp, MaterialTheme.colorScheme.outline, CircleShape))
+                    },
+                    text = {
+                        Column {
+                            Text(choice.title)
+                            choice.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        }
+                    },
+                    trailingIcon = if (choice.id == destination.selected) ({ Icon(Icons.Rounded.Check, contentDescription = "Chosen") }) else null,
+                    onClick = {
+                        container.settings.chooseQuickNoteDatabase(choice.id)
+                        open = false
+                    },
+                )
+            }
+        }
+    }
+    destination.note?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+    Text(
+        "A quick note opens a new note in that database's Inbox, made with the note when there is none. Nothing is " +
+            "saved until you save it.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
 
 /** Whether Keething is the phone's autofill service (SPEC §7), and how to make it so. */
 @Composable

@@ -31,6 +31,12 @@ internal interface SystemClipboard {
 
     /** The clipboard's text; null when it holds none, or the app is not in front (only it may read, Android 10+). */
     fun text(): String?
+
+    /**
+     * Whether the clipboard holds text, from its description alone (keething-spec app.quick-note AC7: before an
+     * unlock nothing of the text is read, and the system says nothing of a look at the description).
+     */
+    fun hasText(): Boolean
 }
 
 /** Wakes the app to clear the clipboard: Android freezes an app in the background, so a timer may not run. */

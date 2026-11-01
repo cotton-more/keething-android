@@ -63,6 +63,20 @@ internal class AppSettings(private val store: SettingsStore) {
         get() = store.string(LAST_NEW_ENTRY_DATABASE)?.let(::DatabaseId)
         set(value) = store.setString(LAST_NEW_ENTRY_DATABASE, value?.value)
 
+    private val mutableQuickNoteDatabase = MutableStateFlow(store.string(QUICK_NOTE_DATABASE)?.takeIf { it.isNotEmpty() }?.let(::DatabaseId))
+
+    /**
+     * Where quick notes go (keething-spec app.quick-note AC1; SPEC §6.4): the database's id, nothing else; null, the
+     * current database ([dev.keething.vault.databases.QuickNoteTarget]). Kept while that database leaves the list:
+     * Settings says so, and quick notes go to the current one until another is chosen.
+     */
+    val quickNoteDatabase: StateFlow<DatabaseId?> = mutableQuickNoteDatabase.asStateFlow()
+
+    fun chooseQuickNoteDatabase(id: DatabaseId?) {
+        store.setString(QUICK_NOTE_DATABASE, id?.value)
+        mutableQuickNoteDatabase.value = id
+    }
+
     /**
      * Entries whose card was told "Not now" to its offer to type their fields (SPEC §6.3), by ref
      * ([dev.keething.vault.databases.EntryRef]): the offer is not made again, and the same UUID in another database is
@@ -101,5 +115,6 @@ internal class AppSettings(private val store: SettingsStore) {
         private const val REQUEST_NAME = "requestName"
         private const val DISMISSED_SUGGESTIONS = "dismissedTypeSuggestions"
         private const val LAST_NEW_ENTRY_DATABASE = "lastNewEntryDatabase"
+        private const val QUICK_NOTE_DATABASE = "quickNoteDatabase"
     }
 }

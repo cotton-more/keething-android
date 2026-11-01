@@ -695,7 +695,10 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   On the test phone the timer cleared after 30 s in each run (screen off, Doze), and the clipboard was
   empty afterwards; reading it in the background is refused ("Denying clipboard access … not in focus" in
   the system log), clearing is not. The app reads the clipboard's text only for New note from clipboard
-  (§6.4), on the tap, while in front, and leaves it as it was.
+  (§6.4), on the tap, while in front, and for a quick note from the clipboard once its database is open (before
+  that only the clip's description, which shows no notice); it leaves the clipboard as it was. A quick note's text is
+  kept nowhere but the editor: not in the settings (they hold the quick notes' database's id alone), saved state, a
+  log or a draft; a text handed over by another app waits in memory only while its database's lock screen is up.
 - Attachments (card rows "Open in another app" and "Save to a folder"; Mac SPEC §3.18):
   - **Open**: another app can only read a file, so the attachment is written to
     `cacheDir/attachments/<database id>/<uuid>/<name>` (the name made safe: no `/` or `:`, no control characters, at
@@ -1349,7 +1352,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Change…, Forget; "Remembered here by its path, not its contents. It must be there at every unlock, the fingerprint
   too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
   **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
-  Under the list **Open a database…** (it becomes current; one open stays open, §3.1) and **New database…** (§6.2). Then the app's fingerprint switch (§5) and,
+  Under the list **Open a database…** (it becomes current; one open stays open, §3.1) and **New database…** (§6.2). Then **Quick notes**: "Quick notes go to", Current database or a database of the
+  list with its dot, in a menu (§6.4). Then the app's fingerprint switch (§5) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.
@@ -1423,7 +1427,8 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
 Being built (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/android-notes.md`, the
 mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1); the
 card, the list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from
-clipboard (AN3). Not yet: quick notes (AQ1–AQ4).
+clipboard (AN3); where a quick note goes, its editor, its run and the setting (AQ1). Not yet: the ways a quick note
+gets in (AQ2–AQ4).
 
 **What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
 item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,
@@ -1497,6 +1502,35 @@ only blank lines, a picture, a file): "No text on the clipboard" over the list, 
 editor with the text in it, already a change (Back asks before discarding). The text lives only in the editor: it
 travels to the editor's screen in memory (`NewNote`, whose name says nothing of it, since a screen's name keys its
 saved state), not in saved state, a draft, a log or the settings, and goes with the editor (Back, a save, a lock).
+
+**Where a quick note goes** (keething-spec app.quick-note AC1, AC2; the Mac's §3.28 there). Settings, Quick notes:
+"Quick notes go to" is Current database (the default; "Personal now" under it) or one database of the list, each with
+its dot (`QuickNoteDestination`). `AppSettings.quickNoteDatabase` stores that database's id, nothing else, under
+`quickNoteDatabase`, removed when Current database is chosen. `QuickNoteTarget.resolve` gives the database set while it
+is in the list, else the current one (the lock screen's), else the list's first; one set and since removed from the
+list stays set, Settings saying "The database chosen before is no longer in the list: quick notes go to the current
+one." until another is chosen. In that database the note goes to the group path `Inbox`, found as a typed path is
+(`GroupTree.resolve`: the first top-level group of the name in any case, accents and outer spaces aside; a deeper
+Inbox is not it; the recycle bin never), else a new top-level group made with the note at Save (the group row shows
+it new). The saver meets the file as it is then (`GroupLifecycle.resolving`, groups.new-groups AC3): an Inbox another
+app made since the read is taken, never a second one.
+
+**A quick note's editor** (`EntryEditor.createQuickNote`, `NewNote(text, quick = true)`; app.quick-note AC3): New
+note's editor (protected, the kind written at Save, no username, the dated title) with the text given and the group
+above; the text is in the draft, not the start, so it is a change and Back asks first. The group can be changed. No
+Save into: the setting chose the database.
+
+**A quick note's run** (`app/quicknote` `QuickNoteRun`; app.quick-note AC3, AC4, AC7; the Mac's `QuickNoteRun`): one
+request, from a text handed over (a share or the selection menu, `Source.Given`) or the clipboard (the tile and the
+launcher's shortcut, `Source.Clipboard`). No text or only blank lines: "No text to save" (handed over) or "No text on
+the clipboard", and no editor; no database in the list: "No database to put the quick note in". The target open: the
+text, outer blank lines trimmed, goes to the editor at once. Locked: the run waits for that database's unlock (another
+database unlocked changes nothing; a second request while it waits changes nothing); from the clipboard only its
+description is looked at until then (`SystemClipboard.hasText`, which shows no "pasted" notice), its text read once
+the database is open, as it is then. A text handed over is in memory already and is held only until the unlock or
+giving up (§4). Given up (the lock screen left): nothing read, nothing kept, and a later unlock opens nothing. Once
+the editor has the text the run keeps none of it. The ways in that start a run and give it up are AQ2 (the share
+sheet, the selection menu) and AQ4 (the tile, the shortcut); until then nothing on the phone starts one.
 
 **For the phone checks**: `task notes:database -- <new.kdbx>` writes a fictitious database through the phone's own
 core (`core/vault` test `probe/MakeNotesDatabase.kt`, password `pw`): a protected note, an unprotected one, an entry

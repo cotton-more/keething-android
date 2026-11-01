@@ -22,6 +22,7 @@ import dev.keething.domain.vault.EntryType
 import dev.keething.domain.vault.EntryTypeChange
 import dev.keething.domain.vault.NoteDates
 import dev.keething.domain.vault.NoteTitle
+import dev.keething.domain.vault.QuickNote
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
@@ -396,6 +397,18 @@ public class EntryEditor private constructor(
             val entry = create(vault, groupId, now, id)
             val draft = entry.start.copy(username = "", notesProtected = true)
             return EntryEditor(Entry(id), isNew = true, start = draft, groups = vault.groups, layout = EditorLayout.NOTE, openedAt = now, dates = dates)
+        }
+
+        /**
+         * A quick note's editor (SPEC §6.4; keething-spec app.quick-note AC2, AC3; the Mac's `EntryEditorModel(quickNoteIn:)`):
+         * [createNote]'s new note, its group the path [QuickNote.INBOX] found as every typed path is (the top-level group
+         * of the name, the first, in any case), else made at the top level with the note. The text it was given goes
+         * into the draft, not the start, so that it counts as a change.
+         */
+        public fun createQuickNote(vault: Vault, now: Instant, dates: NoteDates?, id: String = Entry.newId()): EntryEditor {
+            val note = createNote(vault, groupId = null, now, dates, id)
+            val inbox = GroupTree(vault.groups).resolve(listOf(QuickNote.INBOX)) ?: return note
+            return EntryEditor(Entry(id), isNew = true, start = note.start.choosing(inbox), groups = vault.groups, layout = EditorLayout.NOTE, openedAt = now, dates = dates)
         }
 
         /** The codes in [text]: every line (or, on one line, every part between commas or semicolons), numbering and bullets dropped. */

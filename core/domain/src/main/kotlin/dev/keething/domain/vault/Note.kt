@@ -122,3 +122,9 @@ public object NoteText {
         return if (start < 0) "" else text.substring(start, end)
     }
 }
+
+/** A quick note (SPEC §6.4, keething-spec app.quick-note; Mac `QuickNote`): a new note made from text received, in the Inbox. */
+public object QuickNote {
+    /** The top-level group quick notes go into (the first of the name, in any case), made with the note when there is none. */
+    public const val INBOX: String = "Inbox"
+}
