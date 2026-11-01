@@ -88,6 +88,7 @@ class QuickNoteActivity : ComponentActivity() {
                     intoWindow = { id -> sessions.list.setInWindow(id, true) },
                     started = container.quickNotes,
                     locks = sessions.locks.counted,
+                    awaited = { sessions.quickNoteAwaited += if (it) 1 else -1 },
                     scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
                 )
             }

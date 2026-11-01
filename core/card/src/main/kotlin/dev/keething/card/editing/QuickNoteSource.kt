@@ -29,13 +29,13 @@ public data class QuickNoteSource(
 
     public companion object {
         /**
-         * The address as it goes into the Website (AC5): `http` or `https` with a host, outer spaces trimmed, the rest as
-         * written (a `user:password@`, a token, Chrome's link to the highlight too: the user's to move or protect); null
+         * The address as it goes into the Website (AC5): `http` or `https` with a host (a letter or digit in it), no
+         * white space, control or invisible format character, outer spaces trimmed, the rest as written (a `user:password@`, a token, Chrome's link to the highlight too: the user's to move or protect); null
          * for anything else.
          */
         public fun address(raw: String?): String? {
             val text = raw?.trim() ?: return null
-            if (text.any(Char::isWhitespace)) return null
+            if (text.any { it.isWhitespace() || it.isISOControl() || isInvisibleFormat(it) }) return null
             val schemeEnd = text.indexOf("://")
             if (schemeEnd < 0) return null
             val scheme = text.substring(0, schemeEnd).lowercase()
@@ -51,7 +51,7 @@ public data class QuickNoteSource(
             val hostValid = if (ipv6) {
                 host.length > 2 && ':' in host && host.substring(1, host.length - 1).all { it in HEX || it == ':' || it == '.' }
             } else {
-                host.all(::isHostChar) && host.any { it.code >= 0x80 || it.isLetterOrDigit() }
+                host.all(::isHostChar) && host.any(Char::isLetterOrDigit)
             }
             val portValid = port.isEmpty() || (port.startsWith(':') && port.drop(1).all { it in '0'..'9' })
             return text.takeIf { hostValid && portValid }
@@ -60,8 +60,15 @@ public data class QuickNoteSource(
         private const val HEX = "0123456789abcdefABCDEF"
 
         /**
+         * A format character (a direction override that shows a text reversed, a zero-width space, a byte order mark),
+         * but the zero-width non-joiner and joiner, which an internationalised name may need.
+         */
+        private fun isInvisibleFormat(c: Char) = Character.getType(c) == Character.FORMAT.toInt() && c != '\u200C' && c != '\u200D'
+
+        /**
          * A host name's characters: ASCII letters, digits, dots, hyphens, `_` and `%`-escapes, and anything beyond ASCII
-         * (an internationalised name as typed, its combining marks too; white space is refused before).
+         * (an internationalised name as typed, its combining marks too; white space and control characters are refused
+         * before).
          */
         private fun isHostChar(c: Char) = c.code >= 0x80 || c.isLetterOrDigit() || c == '.' || c == '-' || c == '_' || c == '%'
 

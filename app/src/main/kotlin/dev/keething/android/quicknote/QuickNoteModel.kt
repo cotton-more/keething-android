@@ -44,9 +44,17 @@ internal class QuickNoteModel(
     private val started: MutableStateFlow<Int>,
     /**
      * The app's locks, counted ([dev.keething.android.session.AppLocks]): also a stay away past the lock timeout, which
-     * a frozen app cannot time itself and counts when it is back in front.
+     * a frozen app cannot time itself and counts when it is back in front or the lock alarm wakes it.
      */
     private val locks: StateFlow<Int>,
+    /**
+     * Whether it waits behind a screen it opened (a key file picker, Locate…), told when that changes (each quick
+     * note its own: [dev.keething.android.session.Sessions.quickNoteAwaited] counts them): the lock alarm then wakes
+     * the app when it goes to the background, nothing open to lock too, and a stay away past the timeout is counted
+     * in [locks] there instead of only on the app's return (the user may never come back to it: a share's task is not
+     * in Recents).
+     */
+    private val awaited: (Boolean) -> Unit,
     private val scope: CoroutineScope,
 ) : ViewModel(scope) {
     /** What the screen shows. None of them says anything of the text when printed. */
@@ -158,11 +166,17 @@ internal class QuickNoteModel(
 
     /**
      * The screen stopped: given up, unless [ownInFront] (a key file picker, Locate…), which waits for its return or a
-     * lock of the app.
+     * lock of the app, a stay away past the timeout too ([awaited]).
      */
     fun stopped(ownInFront: Boolean) {
-        if (!ownInFront) finish(null)
+        if (!ownInFront) finish(null) else if (showing.value !is Showing.Gone && !waiting) {
+            waiting = true
+            awaited(true)
+        }
     }
+
+    /** It said it waits behind a screen it opened ([awaited]); only then does it say it no longer does. */
+    private var waiting = false
 
     /** The editor closed without saving: its X or Back, the draft discarded. */
     fun editorClosed() = finish(null)
@@ -174,6 +188,9 @@ internal class QuickNoteModel(
         finish(group?.let { "Saved to $it" } ?: "Saved")
     }
 
+    /** Its screen gone for good without going through [finish]: nothing of the text stays, nothing waits. */
+    override fun onCleared() = finish(null)
+
     /** The screen goes; nothing of the text stays. */
     private fun finish(message: String?) {
         if (showing.value is Showing.Gone) return
@@ -181,5 +198,9 @@ internal class QuickNoteModel(
         run.giveUp()
         mutableShowing.value = Showing.Gone(message)
         watching.cancel()
+        if (waiting) {
+            waiting = false
+            awaited(false)
+        }
     }
 }

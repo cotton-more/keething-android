@@ -1,5 +1,9 @@
 package dev.keething.android.quicknote
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.keething.android.quicknote.QuickNoteModel.Showing
 import dev.keething.card.editing.QuickNoteSource
 import dev.keething.domain.vault.Entry
@@ -47,6 +51,9 @@ class QuickNoteModelTest {
 
         /** The app's locks, counted. */
         val locks = MutableStateFlow(0)
+
+        /** What it last said of waiting behind a screen it opened (the lock alarm wakes the app for it); null: nothing. */
+        var awaited: Boolean? = null
         val model = QuickNoteModel(
             target = { target },
             isOpen = { sessionsSay ?: (state.value is SessionState.Unlocked) },
@@ -54,6 +61,7 @@ class QuickNoteModelTest {
             intoWindow = { intoWindow += it },
             started = started,
             locks = locks,
+            awaited = { awaited = it },
             scope = scope.backgroundScope,
         )
 
@@ -329,11 +337,71 @@ class QuickNoteModelTest {
     }
 
     @Test
+    fun waitingBehindAScreenItOpenedItHasTheAppWokenAtTheTimeoutWhoseLockGivesItUp() = runTest {
+        // spec: app.quick-note/AC4
+        val f = Fixture(this, open = false)
+        f.model.start(recreated = false) { given("Dune") }
+        runCurrent()
+        f.model.stopped(ownInFront = true)
+        assertEquals(true, f.awaited, "Home from the key file picker: the lock alarm wakes the app, nothing open to lock too")
+        f.locks.value++
+        runCurrent()
+        assertEquals(Showing.Gone(null), f.showing)
+        assertEquals(false, f.awaited, "gone, nothing to wake the app for")
+        assertFalse(holds(f.model, "Dune"))
+
+        val left = Fixture(this, open = false)
+        left.model.start(recreated = false) { given("Dune") }
+        runCurrent()
+        left.model.stopped(ownInFront = false)
+        assertEquals(Showing.Gone(null), left.showing)
+        assertEquals(null, left.awaited, "left: given up at once, no alarm")
+        left.model.stopped(ownInFront = true)
+        assertEquals(null, left.awaited, "gone already: nothing to wake the app for")
+    }
+
+    @Test
+    fun clearedWhileWaitingItNoLongerWaitsAndKeepsNothing() = runTest {
+        // spec: app.quick-note/AC4
+        val f = Fixture(this, open = false)
+        val store = ViewModelStore()
+        ViewModelProvider.create(store, viewModelFactory { initializer { f.model } })[QuickNoteModel::class]
+        f.model.start(recreated = false) { given("Dune") }
+        runCurrent()
+        f.model.stopped(ownInFront = true)
+        store.clear()
+        assertEquals(false, f.awaited)
+        assertEquals(Showing.Gone(null), f.showing)
+        assertFalse(holds(f.model, "Dune"))
+    }
+
+    @Test
+    fun aQuickNoteGoneWithoutWaitingLeavesAnotherOneWaiting() = runTest {
+        // spec: app.quick-note/AC4
+        val started = MutableStateFlow(0)
+        val waiting = Fixture(this, open = false, started = started)
+        waiting.model.start(recreated = false) { given("Dune") }
+        runCurrent()
+        waiting.model.stopped(ownInFront = true)
+        assertEquals(true, waiting.awaited)
+        // The tile with nothing on the clipboard, and a screen re-created after its process died: neither ever waited.
+        val empty = Fixture(this, open = false, started = started)
+        empty.model.start(recreated = false) { given("  ") }
+        val recreated = Fixture(this, open = false, started = started)
+        recreated.model.start(recreated = true) { fail("the intent read again") }
+        runCurrent()
+        assertEquals(null, empty.awaited)
+        assertEquals(null, recreated.awaited)
+        assertIs<Showing.Unlock>(waiting.showing)
+    }
+
+    @Test
     fun startedAgainByTheSameScreenIsTheSameQuickNote() = runTest {
         val f = Fixture(this, open = false)
         f.model.start(recreated = false) { given("Dune") }
         runCurrent()
-        f.model.start(recreated = true) { given(fail("read again")) }
+        // A configuration change: the model is kept, and the new screen's start passes recreated = false.
+        f.model.start(recreated = false) { given(fail("read again")) }
         runCurrent()
         assertEquals(Showing.Unlock(personal), f.showing, "a configuration change keeps the model and its quick note")
         assertEquals(1, f.started.value)

@@ -4,6 +4,8 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.EntryType
+import dev.keething.domain.vault.EntryTypeChange
 import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.Vault
@@ -55,6 +57,27 @@ class SaveCheckTest {
         check(before.copy(entries = listOf(a.copy(fieldTypes = mapOf("PIN" to "password"), lastModified = seconds), b)), edit)
         fails("the edit did not come out as asked", before.copy(entries = listOf(a.copy(lastModified = seconds), b)), edit)
         fails("another entry changed", before.copy(entries = listOf(a.copy(fieldTypes = mapOf("PIN" to "password")), b.copy(fieldTypes = mapOf("x" to "url")))), edit)
+    }
+
+    @Test
+    fun aNotesProtectionAndTheKindMustComeOutAsAskedAndStayOnOtherEntries() {
+        // spec: types.note/AC1
+        val note = a.copy(notes = "Films", notesProtected = true, entryType = "note")
+        val from = before.copy(entries = listOf(note, b))
+        val edit = VaultEdit.Update("a", a.lastModified, EntryChanges(notes = "Films 2"))
+        val edited = note.copy(notes = "Films 2", lastModified = seconds)
+
+        check(before.copy(entries = listOf(edited, b)), edit, from = from)
+        fails("the edit did not come out as asked", before.copy(entries = listOf(edited.copy(notesProtected = false), b)), edit, from = from)
+        fails("the edit did not come out as asked", before.copy(entries = listOf(edited.copy(entryType = null), b)), edit, from = from)
+        val unprotecting = VaultEdit.Update("a", a.lastModified, EntryChanges(notesProtected = false))
+        fails("the edit did not come out as asked", before.copy(entries = listOf(note.copy(lastModified = seconds), b)), unprotecting, from = from)
+        val marking = VaultEdit.Update("a", a.lastModified, EntryChanges(entryType = EntryTypeChange.Set(EntryType.NOTE)))
+        fails("the edit did not come out as asked", before.copy(entries = listOf(a.copy(lastModified = seconds), b)), marking)
+        val other = VaultEdit.Update("b", b.lastModified, EntryChanges(title = "B2"))
+        val b2 = b.copy(title = "B2", lastModified = seconds)
+        fails("another entry changed", before.copy(entries = listOf(note.copy(notesProtected = false), b2)), other, from = from)
+        fails("another entry changed", before.copy(entries = listOf(note.copy(entryType = "NOTE"), b2)), other, from = from)
     }
 
     @Test

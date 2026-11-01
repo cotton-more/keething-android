@@ -1433,12 +1433,13 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
 
 ### 6.4 Notes and quick notes
 
-Being built (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/android-notes.md`, the
-mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1); the
-card, the list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from
-clipboard (AN3); where a quick note goes, its editor, its run and the setting (AQ1); Keething note in the share sheet
-and the selection menu (AQ2); where a quick note came from (AQ3); the Quick note tile and the launcher's Note from
-clipboard (AQ4).
+Built and reviewed (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/android-notes.md`,
+the mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9): what a note is, in the file (AN1); the card, the
+list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from clipboard
+(AN3); where a quick note goes, its editor, its run and the setting (AQ1); Keething note in the share sheet and the
+selection menu (AQ2); where a quick note came from (AQ3); the Quick note tile and the launcher's Note from clipboard
+(AQ4); an independent review, KeePassXC and the Mac on one file by hand (AN4). Not yet: a quick note's Database row
+(app.quick-note AC2, databases.one-list AC5, AC7) and attachments in a note's editor (edit.attachments).
 
 **What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
 item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,
@@ -1564,7 +1565,9 @@ the main app is left alone.
 Given up, nothing is saved and nothing of the text is kept: Close, or Back (in the editor Back asks first, as New
 note's does); the screen stopped by anything but what it opened itself (Home, another app, Recents, the screen off: a
 key file picker, Locate… or all-files access it opened leave it waiting); a lock of the app (Lock all, the timeout, a
-stay away past the timeout, which a frozen app counts when it is back in front: `AppLocks.counted`); its database
+stay away past the timeout, which a frozen app counts when it is back in front: `AppLocks.counted`; while it waits
+behind a screen it opened, the lock alarm wakes the app at the timeout, nothing open to lock too, so Home from a picker
+does not keep the text until Keething is next opened: `Sessions.quickNoteAwaited`); its database
 locked while the editor is open, or leaving the window; a newer Keething note, which replaces it; a screen re-created
 after its process died, which does not read its intent again. Each share opens the screen in a task of its own
 (`documentLaunchMode="always"`: with one task, a second share brought the first one's task back and its text was
@@ -1617,7 +1620,9 @@ text whose last line, after a line break and blanks, is an http(s) address with 
 shared selection, and the other Chromium browsers') gives that link to the Website and the rest as the text, the
 quotes the browser put around the selection taken off (only when the rest is wrapped in them). Anything else gives no
 page, an address in the middle of a text or a selected one (the selection menu) too: nothing is guessed. An address
-is `http` or `https` with a host, and kept whole: a `user:password@`, a token, and the text directive, which holds the
+is `http` or `https` with a host (a letter or digit in it), no white space, control character or invisible format
+character in it (a direction override, a zero-width space; an internationalised name's joiners are allowed), and kept
+whole: a `user:password@`, a token, and the text directive, which holds the
 selected words and a few around them (the Website is not protected; the owner's choice, P5). Android's browsers do not
 tell a private window (Chrome's incognito shares as a normal tab does), so none is left out for that. Both go into the
 quick note's editor as an ordinary tag and Website, the Website row shown (it stays while its address is taken out),

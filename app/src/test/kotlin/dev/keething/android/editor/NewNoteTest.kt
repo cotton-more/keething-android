@@ -16,6 +16,7 @@ import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -87,7 +88,11 @@ class NewNoteTest {
         val start = NewNote("Bank PIN 4711")
         val screen = Screen.Editor(entryId = null, database = "P", note = start)
         assertFalse("4711" in screen.toString(), "a screen's name is a key of the saved state")
-        assertFalse(screen == Screen.Editor(entryId = null, database = "P", note = NewNote("Bank PIN 4711")), "two notes are two editors")
+        val again = Screen.Editor(entryId = null, database = "P", note = NewNote("Bank PIN 4711"))
+        assertFalse(screen == again, "two notes are two editors")
+        // The navigation keys an entry's view models and saved state by its screen's name (Navigation 3's content key).
+        assertNotEquals(screen.toString(), again.toString(), "two notes' editors share no state")
+        assertNotEquals(NewNote.EMPTY.toString(), NewNote.EMPTY.toString())
         assertEquals("", NewNote.EMPTY.text)
 
         val navigation = NavigationState()

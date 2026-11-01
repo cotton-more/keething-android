@@ -75,6 +75,7 @@ class QuickNoteSessionsTest {
             intoWindow = {},
             started = MutableStateFlow(0),
             locks = MutableStateFlow(0),
+            awaited = {},
             scope = backgroundScope,
         )
         model.start(recreated = false) { given("Dune\nArrival") }

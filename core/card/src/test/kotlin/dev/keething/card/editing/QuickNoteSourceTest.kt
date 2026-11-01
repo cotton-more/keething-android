@@ -51,6 +51,19 @@ class QuickNoteSourceTest {
     }
 
     @Test
+    fun noAddressWithAControlOrInvisibleFormatCharacterOrAHostOfNoLetterOrDigit() {
+        // spec: app.quick-note-source/AC5
+        for (other in listOf(
+            "https://example.com/a\u0000b", "https://example.com/?q=\u0008", "https://example.com/\u007F",
+            "https://exa\u0001mple.com/", "https://example.com/\u0085", "https://→/", "https://→.★/", "https://\u200B/",
+            "https://example.com/\u202Efdp.exe", "https://example.com/a\u2066b", "https://exa\u200Bmple.com/",
+            "https://example.com/\u200F", "https://example.com/\uFEFF",
+        )) {
+            assertNull(QuickNoteSource.address(other), other)
+        }
+    }
+
+    @Test
     fun anAddressIsKeptWholeAUserPasswordATokenAndChromesLinkToTheHighlightToo() {
         // spec: app.quick-note-source/AC5
         for (kept in listOf(
@@ -59,7 +72,7 @@ class QuickNoteSourceTest {
             "https://alex:hunter2@example.com/x?token=1", "https://alex@example.com/x",
             "https://en.wikipedia.org/wiki/Touchscreen#:~:text=is%20commonly-,used,-for%20touch",
             "https://例え.jp/パス", "https://उदाहरण.परीक्षा/", "https://ตัวอย่าง.ไทย/", "https://example.com./", "https://example.com:/",
-            "https://u:p@ss@example.com/", "HTTPS://WWW.EXAMPLE.COM/", "https://my_host.local:8443/", "http://[2001:db8::1]:8080/x", "https://xn--e1afmkfd.xn--p1ai/",
+            "https://u:p@ss@example.com/", "HTTPS://WWW.EXAMPLE.COM/", "https://\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645.ir/", "https://my_host.local:8443/", "http://[2001:db8::1]:8080/x", "https://xn--e1afmkfd.xn--p1ai/",
         )) {
             assertEquals(kept, QuickNoteSource.address(kept))
         }

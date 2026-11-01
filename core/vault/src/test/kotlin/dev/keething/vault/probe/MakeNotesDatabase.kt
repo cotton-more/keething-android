@@ -22,7 +22,8 @@ import org.w3c.dom.Element
 /**
  * The fictitious database of the notes' phone checks (keething-spec plans/android-notes.md, `an/Notes.kdbx`), written
  * by the phone's own core: a protected note, an unprotected one, an entry with Notes only (a note by the rule, no
- * kind), and an ordinary entry with a password and protected Notes. Password `pw`, as the fixtures'.
+ * kind), an ordinary entry with a password and protected Notes, and one whose protected Notes are longer than the
+ * card's seven lines. Password `pw`, as the fixtures'.
  *
  * Usage: `task notes:database -- <new.kdbx>`. KeePassXC's export of the result is checked before it is called done.
  */
@@ -53,6 +54,11 @@ fun main(arguments: Array<String>) {
             title = "Router admin", username = "admin", password = Secret.of("correct-horse-battery"), url = "http://192.168.1.1",
             notes = "Guest Wi-Fi: Lighthouse-Guest\nGuest password: sea-glass-42\nReset button: back, left", notesProtected = true,
         ),
+        EntryChanges(
+            title = "Server rack", username = "ops", password = Secret.of("tidal-orbit-lantern"), url = "https://rack.example.net",
+            notes = (1..12).joinToString("\n") { "Slot $it: " + listOf("switch", "NAS", "router", "UPS", "patch panel", "spare")[it % 6] },
+            notesProtected = true,
+        ),
     )
     for (changes in entries) {
         val result = saver.save(VaultEdit.Create(Entry.newId(), GroupDestination(top.id), changes), key(), now)
@@ -72,8 +78,8 @@ fun main(arguments: Array<String>) {
             .filter { it.child("Key")?.textContent == "Notes" && it.child("Value")?.getAttribute("ProtectInMemory") == "True" }
             .size
     }
-    if (protectedNotes != 2) fail("KeePassXC lists $protectedNotes protected Notes, not 2")
-    println("KeePassXC: opens it, 2 Notes protected")
+    if (protectedNotes != 3) fail("KeePassXC lists $protectedNotes protected Notes, not 3")
+    println("KeePassXC: opens it, 3 Notes protected")
     println("RESULT: $output written (password $PASSWORD)")
 }
 

@@ -286,8 +286,17 @@ internal class Sessions(
         mutableVisit.value = Visit(visit.value.number + 1, beganLocked = (state.value as? SessionsState.Open)?.vaults?.none { it.id == shown } ?: true)
     }
 
+    /**
+     * The quick notes waiting behind a screen they opened (SPEC §6.4): while there is one, the lock alarm wakes the app
+     * for it at the timeout, nothing open to lock too, and counts the stay away ([checkBackgroundTime]), which gives
+     * the quick note up. Call it on the main thread.
+     */
+    var quickNoteAwaited: Int = 0
+
     override fun onStop(owner: LifecycleOwner) {
         locks.movedToBackground()
+        // Before the databases' own timer, which sets the same alarm to the time they have left.
+        if (quickNoteAwaited > 0) lockAlarm.schedule(settings.lockTimeout.value)
         // A database open or opening: the timer starts, and the alarm with it (above).
         vaults.movedToBackground()
     }

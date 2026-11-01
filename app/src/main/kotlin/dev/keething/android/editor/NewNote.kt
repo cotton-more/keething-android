@@ -8,11 +8,13 @@ import dev.keething.domain.vault.NoteDates
 import dev.keething.domain.vault.NoteText
 import dev.keething.domain.vault.Vault
 import java.time.Instant
+import java.util.UUID
 
 /**
  * A new note's editor asked for (SPEC §6.4; keething-spec types.note AC4), with the [text] it starts with (New note
  * from clipboard; empty for New note). It travels with the editor's screen in memory only: two are two editors, and its
- * name says nothing of the text, since a screen's name keys its saved state (app.quick-note AC7).
+ * name says nothing of the text but is its own, since a screen's name keys its view models and saved state
+ * (app.quick-note AC7).
  */
 internal class NewNote(
     val text: String,
@@ -24,7 +26,10 @@ internal class NewNote(
     /** Where a quick note's text came from (keething-spec app.quick-note-source): the app's tag and the page. */
     val source: QuickNoteSource = QuickNoteSource(),
 ) {
-    override fun toString(): String = "NewNote"
+    /** Its own after a process died too, when the activity's saved state comes back under the screens' names. */
+    private val name = "NewNote#" + UUID.randomUUID()
+
+    override fun toString(): String = name
 
     /** The editor it opens: a quick note's in the Inbox ([EntryEditor.createQuickNote]), else New note's in [groupId]. */
     fun editor(vault: Vault, groupId: String?, now: Instant, dates: NoteDates): EntryEditor =
