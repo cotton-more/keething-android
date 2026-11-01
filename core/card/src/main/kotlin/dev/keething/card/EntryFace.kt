@@ -5,8 +5,8 @@ import java.util.Locale
 
 /**
  * What the list shows of an entry its typed fields make a payment card, a Wi-Fi network, a bank account, an identity
- * document, an SSH login or a crypto wallet (SPEC §6.2): a small face instead of the monogram, and a line saying which it
- * is instead of the username and site.
+ * document, an SSH login or a crypto wallet (SPEC §6.2), or of a note (§6.4): a small face instead of the monogram, and a
+ * line saying which it is instead of the username and site.
  */
 public sealed interface EntryFace {
     /** The line under the title. */
@@ -55,9 +55,19 @@ public sealed interface EntryFace {
             ).joinToString(" · ")
     }
 
+    /**
+     * A note (SPEC §6.4, keething-spec types.note AC7): the note tile in place of its icon or a kind's face, and its
+     * [line][NoteLine], `Protected note` when [protected] (nothing of the text read), nothing when it has none.
+     */
+    public data class Note(val line: String?, val protected: Boolean) : EntryFace {
+        override val subtitle: String get() = line.orEmpty()
+    }
+
     public companion object {
         /** The face of an entry, as its card draws it; null for any other entry. Reads nothing protected. */
         public fun of(entry: Entry): EntryFace? {
+            // A note's tile wins over a kind's face (types.note AC7).
+            if (entry.isNote) return Note(NoteLine.of(entry), entry.notesProtected)
             if (entry.fieldTypes.isEmpty()) return null
             val interpreter = FieldInterpreter(entry)
             fun typed(type: FieldType) = entry.customFields.firstOrNull { interpreter.type(it) == type }

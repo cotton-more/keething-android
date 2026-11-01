@@ -222,6 +222,18 @@ internal class EntryCardViewModel(
         mutableNotices.trySend(if (canMarkUsed(row) && row.usedOn == null) copied.copy(undo = { setUsed(row, true) }, actionLabel = "Mark as used") else copied)
     }
 
+    /**
+     * A part of a note's text, or of protected Notes, the user selected and copied (SPEC §6.4; Mac
+     * `EntryCardModel.copySelection`): through the app as every copy, concealed and cleared as its row's Copy. Only from
+     * a text shown in clear, and only a part of it ([EntryCard.selectionToCopy]).
+     */
+    fun copySelection(rowId: String, text: String) {
+        val selection = content.value?.card?.selectionToCopy(rowId, text, reveal.value) ?: return
+        clipboard.copy(selection.text, sensitive = selection.sensitive)
+        if (content.value?.inRecycleBin == false) recents.note(ref.text)
+        mutableNotices.trySend(Notice("Copied · clears in 30 s"))
+    }
+
     /** Text the card makes rather than a row holds (an ssh command, a config block, a public key): nothing secret. */
     fun copyText(what: String, text: String) {
         clipboard.copy(text, sensitive = false)

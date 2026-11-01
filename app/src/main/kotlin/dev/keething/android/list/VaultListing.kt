@@ -166,9 +166,9 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
         .groupBy { it.entryId }
         .mapValues { (_, list) -> rowDeadline(list.minWith(compareBy<Deadline> { it.hint.status }.thenBy { it.date })) }
 
-    /** Only the entries with typed fields can have one: few, and found without reading the others' fields. */
+    /** Only notes and the entries with typed fields can have one: few, and found without reading the others' fields. */
     private val faces: Map<String, EntryFace> = (vault.entries + vault.recycleBin)
-        .filter { it.fieldTypes.isNotEmpty() }
+        .filter { it.fieldTypes.isNotEmpty() || it.isNote }
         .mapNotNull { entry -> EntryFace.of(entry)?.let { entry.id to it } }
         .toMap()
 
@@ -230,7 +230,7 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
     private fun row(entry: Entry) = EntryRow(
         id = entry.id,
         title = entry.displayTitle,
-        // A card or a network says which it is ("Visa •• 4242 · 12/26"); other entries their username and site.
+        // A card or a network says which it is ("Visa •• 4242 · 12/26"), a note its line; other entries their username and site.
         subtitle = faces[entry.id]?.subtitle ?: listOf(entry.username, entry.urlHost.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
         group = if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1),
         avatar = EntryAvatar.of(entry.displayTitle),

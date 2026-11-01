@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AttachFile
@@ -97,7 +96,7 @@ internal fun CardSectionView(
         CardSection.Kind.Credentials -> RowGroup(section.rows) { row, shape ->
             FieldRowView(row, reveal, now, actions, shape, tile = credentialTile(row))
         }
-        CardSection.Kind.Notes -> NotesView(section.rows.single(), actions)
+        CardSection.Kind.Note, CardSection.Kind.Notes -> NoteTextView(section.rows.single(), reveal, actions)
         CardSection.Kind.Custom -> Titled(section.title) {
             RowGroup(section.rows) { row, shape -> FieldRowView(row, reveal, now, actions, shape, tile = customTile(row)) }
         }
@@ -296,24 +295,6 @@ private fun CodeValue(display: TotpDisplay) {
         )
         CodeRing(display.period, colour, MaterialTheme.colorScheme.outlineVariant, size = 22.dp)
         Text("${display.secondsRemaining} s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun NotesView(row: FieldRow, actions: CardActions) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(OUTER)).background(MaterialTheme.extraColors.row).padding(start = 18.dp, end = 6.dp, bottom = 16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Notes", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy the notes", tint = MaterialTheme.colorScheme.primary)
-            }
-        }
-        // Selectable rather than tap-to-copy: notes are long, a part of them is what is wanted.
-        SelectionContainer(Modifier.padding(end = 12.dp)) {
-            Text(row.revealedText(), style = MaterialTheme.typography.bodyLarge)
-        }
     }
 }
 

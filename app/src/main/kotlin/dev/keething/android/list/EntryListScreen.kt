@@ -144,6 +144,7 @@ import dev.keething.android.ui.NoticeHost
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.rememberSecondsNow
 import dev.keething.android.ui.segmentShape
+import dev.keething.card.EntryFace
 import dev.keething.card.ExpiryHint
 import dev.keething.card.TotpDisplay
 import dev.keething.domain.totp.TotpConfig
@@ -625,15 +626,7 @@ internal fun EntryRowView(
                     )
                 }
             }
-            if (row.subtitle.isNotEmpty()) {
-                Text(
-                    row.subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            RowSubtitle(row)
             val mark = row.database
             if (mark != null) {
                 DatabaseLine(mark, row.group)
@@ -653,6 +646,24 @@ internal fun EntryRowView(
             if (codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(top = 6.dp), height = 32.dp) }
         }
         if (!codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(start = 8.dp)) }
+    }
+}
+
+/** A row's line under its title, if any; a protected note's with a lock before it (SPEC §6.4). */
+@Composable
+internal fun RowSubtitle(row: EntryRow) {
+    if (row.subtitle.isEmpty()) return
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        if ((row.face as? EntryFace.Note)?.protected == true) {
+            Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(
+            row.subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

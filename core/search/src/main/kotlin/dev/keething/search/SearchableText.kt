@@ -4,11 +4,13 @@ import dev.keething.domain.vault.Entry
 
 /**
  * The single place that decides which parts of an entry search can find (Mac `SearchableText`). Passwords,
- * protected custom values and one-time code keys are deliberately absent.
+ * protected custom values, protected Notes and one-time code keys are deliberately absent.
  */
 internal object SearchableText {
     fun of(entry: Entry): String {
-        val parts = mutableListOf(entry.title, entry.username, entry.url, entry.notes)
+        val parts = mutableListOf(entry.title, entry.username, entry.url)
+        // A protected text (a note's, by default) is not searched: keething-spec types.note AC9.
+        if (!entry.notesProtected) parts += entry.notes
         parts += entry.tags
         parts += entry.groupPath
         for (field in entry.customFields) {

@@ -22,6 +22,9 @@ public object RowIds {
     public const val TOTP: String = "totp"
     public const val NOTES: String = "notes"
 
+    /** A note's text (SPEC §6.4), first on its card. */
+    public const val NOTE: String = "note"
+
     public fun custom(index: Int): String = "custom-$index"
 
     /** The index of the custom field a row id names; null for another row. */
@@ -65,7 +68,7 @@ public data class FieldRow(
     /** A wallet's recovery phrase, its passphrase, a private key: shown, never copied (SPEC §6.2). */
     val neverCopied: Boolean = false,
 ) {
-    public enum class Kind { USERNAME, PASSWORD, URL, TOTP, NOTES, CUSTOM, ATTACHMENT }
+    public enum class Kind { USERNAME, PASSWORD, URL, TOTP, NOTES, NOTE, CUSTOM, ATTACHMENT }
 
     val isProtected: Boolean get() = value is FieldValue.Protected
 

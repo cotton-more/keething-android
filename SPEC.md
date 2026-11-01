@@ -1047,7 +1047,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   bar from the start; beside the card (§6.1) that bar has the title only. Recently used: the last 8 entries whose card was opened or from which something was copied,
   kept as refs only (they survive a lock and say nothing without the database; 8 kept per database, §3.1). Syncthing's
   conflict copies and a failed reload are each open database's own banner (the reload's named while two or more are
-  open).
+  open). Search finds the title, username, URL, Notes, tags, groups and custom fields' names and plain values;
+  never a password, a protected value, protected Notes (a note's text by default, §6.4) or a code's key
+  (`SearchableText`). A note's row: §6.4.
   **Search field**: a magnifier and "Search"; while it has the focus, chips over the keyboard (one line, sideways):
   `@ group`, `# tag`, `! database` (only while two or more databases are open), `+ file`, `− bin` (the bin's toggles
   the recycle bin search; none in the Codes list). A tap on one adds its sign to the query, and then the chips are
@@ -1102,7 +1104,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   offered as in the editor ("made with the move"); a group chosen moves the entry at once through the checked save
   (no history snapshot, as KeePassXC moves one), the snackbar "Moved to “Archive › Japan”. The empty group “Travel ›
   Japan › Hotels” was deleted." (the groups the move left empty, as in the editor); the group it is in already does
-  nothing. In the recycle bin: Restore in the bar, History under ⋮, no Edit. Custom fields are read by their
+  nothing. In the recycle bin: Restore in the bar, History under ⋮, no Edit. A note's text and protected Notes:
+  §6.4. Custom fields are read by their
   types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. The header
   is compact: the icon (56 dp) beside the title, under the title one place chip (the owner, 2026-10-31): while two or more databases are open the entry's database
   first (a dot and its label in its colour on a soft fill of it), then the group's path, on one line cut as the list
@@ -1327,8 +1330,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **History** (the card's ⋮, for an entry in the bin too; Mac SPEC §3.22 without restoring):
   "Reading the file…", then the versions newest first, each dated by its modification time, the current one
   marked, each with what it changed from the one before (`card/history`, the Mac's `EntryVersionDiff`):
-  title, username, password, URL, notes, custom fields (added / removed / changed, a change of protection
-  or of type, the order), tags, expiry, the one-time code (that it changed, never its values), attachments
+  title, username, password, URL, notes (masked when either version protects them; a change of their protection
+  alone, "not protected" → "protected", its own line), the kind (§6.4: "Kind" added / removed), custom fields
+  (added / removed / changed, a change of protection or of type, the order), tags, expiry, the one-time code (that it changed, never its values), attachments
   (added / removed / size). Old values struck through above the new; protected ones masked, an eye each.
   The oldest version kept has nothing to compare with; "No earlier versions are kept" when there are none.
   The versions are wiped when the screen goes (a lock closes it); the values compared are plain strings
@@ -1414,8 +1418,8 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
 ### 6.4 Notes and quick notes
 
 Being built (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/android-notes.md`, the
-mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1). Not
-yet: the card, the list, the search and the history (AN2), the editor and New note (AN3), quick notes (AQ1–AQ4).
+mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1); the
+card, the list, the search and the history (AN2). Not yet: the editor and New note (AN3), quick notes (AQ1–AQ4).
 
 **What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
 item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,
@@ -1433,6 +1437,28 @@ or one with no line to take, "Note, <when it was made>" (`Times/CreationTime`, t
 the time to the minute in the phone's region: `NoteDates`, ICU's `yMMMdjmm`, given by the app), plain "Note" without
 it. A text received (the clipboard, a quick note) loses its blank lines before the first line and after the last
 (`NoteText.trimmingOuterBlankLines`).
+
+**On the card** (`core/card` `EntryCardBuilder`, `app` `NoteTextView`; the Mac's `ProtectedTextWell`): a note's text is
+the first section, labelled "Note", larger than a field's value (19 sp), its line breaks kept; everything the note has
+besides comes under it (a website, a password from KeePassXC, a kind's face, custom fields, attachments), and Notes
+are not repeated. A protected text (a note's, or an ordinary entry's Notes protected in the file) sits in a well
+recessed into its row: hidden, one line with a lock and "Hidden", the same whatever the text, the text itself not
+composed (nothing of it on screen or in the accessibility tree); the eye beside the label is the one control that
+shows and hides it; shown, the well opens to the text's height (a note) or to seven lines scrolled inside (an
+ordinary entry's Notes). It is masked again as every concealed value (another entry, the card left, a lock: the
+reveal state goes with the card). Copy copies the whole text, protected or not, hidden or shown, through the app
+(§4; marked sensitive when protected). A note's text and protected Notes, once shown, can be selected: the menu has
+Copy and Select all only (no other apps' items, `SecretTextMenu`), and a selection goes through the app too
+(`EntryCard.selectionToCopy`: only a part of a text shown in clear; "Copied · clears in 30 s"); Compose's selection
+writes through the clipboard the well gives it, so the system's plain copy is never reached. Compose's smart
+selection is off app-wide (`KeethingApplication`): it would hand a selected text to the system's text classifier,
+another process, on a long press. Unprotected Notes of an
+ordinary entry keep the system's selection, as before. The header's icon is the note tile (a note on a warm tile).
+
+**In the list** (`EntryFace.Note`, `NoteLine`): the note tile in place of the entry's icon or a kind's face, and as its
+line the text's first line that is not blank and not the title (both trimmed; a title made from that line counts as
+it), never the username or the site; nothing when there is none; for a protected text a lock and "Protected note",
+decided before the text is looked at. A protected text is not searched (§6.2), every entry's protected Notes with it.
 
 **For the phone checks**: `task notes:database -- <new.kdbx>` writes a fictitious database through the phone's own
 core (`core/vault` test `probe/MakeNotesDatabase.kt`, password `pw`): a protected note, an unprotected one, an entry
@@ -1631,7 +1657,11 @@ needed each time, come later (ROADMAP).
   second step is no longer yours alone"); so are custom fields that still hold a code's secret
   (`HmacOtp-…`, KeePass's counter-based codes, not made here, or `TimeOtp-…` under a name KeePass does not read; its
   own `TimeOtp-*` are the entry's code, §3.2), with the same warning. The title, tags, expiry and the custom fields' types always go; attachments
-  ("1 attachment stays on this phone"), history and the icon never do. The sender names themselves ("From",
+  ("1 attachment stays on this phone"), history and the icon never do. Each part's row shows the start of its value,
+  never a protected one: a password, a protected field and protected Notes (a note's text by default, §6.4) are dots.
+  Notes go as plain text: the receiving phone writes them as its database protects new Notes, and a note's kind does
+  not go (an entry with notes only is a note there by its fields alone). To be changed (keething-spec
+  `plans/android-notes.md` AS, sharing.content AC9): a note arrives as it was, its Notes protected and its kind kept. The sender names themselves ("From",
   remembered).
 - **What of a wallet never goes** (`WalletSecrets`, `Sending.neverSent`). A recovery phrase (`crypto.seed`), its
   passphrase (`crypto.passphrase`) and a private key typed `crypto.xpub` (`xprv…`) are no part to switch on: What

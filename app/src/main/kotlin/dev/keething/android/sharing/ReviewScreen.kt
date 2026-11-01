@@ -408,11 +408,11 @@ private fun EntryPart.label(): String = when (this) {
 }
 
 /** What the row shows of the part: never a protected value. */
-private fun EntryPart.preview(entry: Entry): String = when (this) {
+internal fun EntryPart.preview(entry: Entry): String = when (this) {
     EntryPart.Username -> entry.username
     EntryPart.Password -> "••••••••••••"
     EntryPart.Website -> entry.url
-    EntryPart.Notes -> entry.notes.lineSequence().first()
+    EntryPart.Notes -> if (entry.notesProtected) "••••••••" else entry.notes.lineSequence().first()
     is EntryPart.Field -> when (val value = entry.customFields.firstOrNull { it.name == name }?.value) {
         is FieldValue.Plain -> value.text.lineSequence().first()
         else -> "••••••••"

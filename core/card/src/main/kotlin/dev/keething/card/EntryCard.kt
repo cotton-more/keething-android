@@ -16,6 +16,9 @@ public data class CardSection(val id: String, val kind: Kind, val title: String?
         /** Username, password, URL and additional URLs, one-time code. */
         public data object Credentials : Kind
 
+        /** A note's text (SPEC §6.4): first, before everything the note has besides. */
+        public data object Note : Kind
+
         public data object Notes : Kind
 
         /** Custom fields: loose ones (no title) or a 1Password section (titled). */
@@ -72,6 +75,22 @@ public data class EntryCard(
     val created: Instant?,
     val customIconId: String?,
 ) {
+    /** The entry is a note (SPEC §6.4): its text comes first, and the note tile stands in for its icon. */
+    val isNote: Boolean get() = sections.firstOrNull()?.kind == CardSection.Kind.Note
+
+    /**
+     * A part of a text the user selected, to copy through the app (SPEC §6.4; Mac `EntryCardModel.copySelection`): a
+     * note's text, or Notes protected in the file. Only from a text shown in clear, and only a part of it; concealed
+     * and cleared as its row's Copy. Null for anything else, unprotected Notes too (the system's selection stays).
+     */
+    public fun selectionToCopy(rowId: String, text: String, reveal: RevealState): NoteSelection? {
+        if (text.isEmpty()) return null
+        val row = rows.firstOrNull { it.id == rowId } ?: return null
+        val isText = row.kind == FieldRow.Kind.NOTE || (row.kind == FieldRow.Kind.NOTES && row.isConcealed)
+        if (!isText || (row.isConcealed && !reveal.isRevealed(row.id)) || text !in row.storedText()) return null
+        return NoteSelection(text, sensitive = row.isConcealed)
+    }
+
     val paymentCard: PaymentCard? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.PaymentCard)?.card }
     val wifi: WiFiNetwork? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.WiFi)?.network }
     val bankAccount: BankAccount? get() = sections.firstNotNullOfOrNull { (it.kind as? CardSection.Kind.BankAccount)?.account }
@@ -93,9 +112,10 @@ public data class EntryCard(
 }
 
 /**
- * Lays an entry out as card rows (Mac `EntryCardBuilder`): username, password, URL (and additional URLs), the
- * one-time code; a view per kind of entry its typed fields make (payment card, Wi-Fi network); notes; custom
- * fields in file order grouped by 1Password section; the attachments.
+ * Lays an entry out as card rows (Mac `EntryCardBuilder`): a note's text first (SPEC §6.4); username, password, URL
+ * (and additional URLs), the one-time code; a view per kind of entry its typed fields make (payment card, Wi-Fi
+ * network); notes, unless they are a note's text; custom fields in file order grouped by 1Password section; the
+ * attachments.
  */
 public object EntryCardBuilder {
     /** The views of kinds of entries, in card order. */
@@ -127,6 +147,9 @@ public object EntryCardBuilder {
         }
 
         val sections = mutableListOf<CardSection>()
+        // A note's text first, everything added to it under it (keething-spec types.note AC3, AC6).
+        val isNote = entry.isNote
+        if (isNote) sections += CardSection("note", CardSection.Kind.Note, null, listOf(notesRow(entry, RowIds.NOTE, FieldRow.Kind.NOTE, "Note")))
         if (credentials.isNotEmpty()) sections += CardSection("credentials", CardSection.Kind.Credentials, null, credentials)
         val claimed = mutableSetOf<Int>()
         for (kind in typedSections) {
@@ -134,8 +157,8 @@ public object EntryCardBuilder {
             sections += section
             claimed += fields
         }
-        if (entry.notes.isNotEmpty()) {
-            sections += CardSection("notes", CardSection.Kind.Notes, null, listOf(row(RowIds.NOTES, FieldRow.Kind.NOTES, "Notes", FieldValue.Plain(entry.notes))))
+        if (!isNote && entry.notes.isNotEmpty()) {
+            sections += CardSection("notes", CardSection.Kind.Notes, null, listOf(notesRow(entry, RowIds.NOTES, FieldRow.Kind.NOTES, "Notes")))
         }
         sections += customSections(context.fields.filter { !it.value.isAdditionalUrl && it.index !in claimed }, context)
 
@@ -192,6 +215,12 @@ public object EntryCardBuilder {
             if (ImportedFieldName.isCodeList(members, interpreter)) indices.forEach { guesses[it] = FieldType.CODE }
         }
         return guesses
+    }
+
+    /** The text of Notes, a note's or an entry's: concealed while protected in the file (types.note AC6). */
+    private fun notesRow(entry: Entry, id: String, kind: FieldRow.Kind, label: String): FieldRow {
+        val row = FieldRow(id, kind, label, FieldValue.Plain(entry.notes))
+        return if (entry.notesProtected) row.concealed() else row
     }
 
     private fun linkStyle(url: String?): ValueStyle = url?.let(ValueStyle::Link) ?: ValueStyle.Text

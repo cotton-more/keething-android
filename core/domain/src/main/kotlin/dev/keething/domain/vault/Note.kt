@@ -76,7 +76,7 @@ public object NoteText {
     /** Every line break Unicode knows, `\r\n` as one. */
     private val LINE_BREAK = Regex("\r\n|[\n\r\u000B\u000C\u0085  ]")
 
-    internal fun lines(text: String): List<String> = text.split(LINE_BREAK)
+    public fun lines(text: String): List<String> = text.split(LINE_BREAK)
 
     /**
      * The text without the blank lines (empty or white space only) before its first line and after its last; what

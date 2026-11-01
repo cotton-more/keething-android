@@ -63,6 +63,12 @@ internal data class ExtraColors(
     val paperWave: Color,
     val paperLabel: Color,
     val paperPhoto: Color,
+    /** A note's tile (SPEC §6.4): a warm tone in place of the monogram, on the list, the card and the `+`. */
+    val noteTile: Color,
+    val onNoteTile: Color,
+    /** The well a protected text sits in, recessed into its row (SPEC §6.4), and its inner shade. */
+    val well: Color,
+    val wellShade: Color,
 )
 
 private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
@@ -82,6 +88,10 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
         paperWave = Color(0x66789FA4),
         paperLabel = Color(0xFF3D5A66),
         paperPhoto = Color(0xFFADBAC2),
+        noteTile = Color(0xFF5E4C26),
+        onNoteTile = Color(0xFFF8E4B9),
+        well = scheme.surfaceContainerLowest,
+        wellShade = Color(0x99000000),
     )
 } else {
     ExtraColors(
@@ -100,6 +110,10 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
         paperWave = Color(0x6696C4CA),
         paperLabel = Color(0xFF45616C),
         paperPhoto = Color(0xFFCBD3D9),
+        noteTile = Color(0xFFFFE8B6),
+        onNoteTile = Color(0xFF744E0E),
+        well = scheme.surfaceContainer,
+        wellShade = Color(0x1A000000),
     )
 }
 

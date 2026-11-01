@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
+import dev.keething.android.list.RowSubtitle
 import dev.keething.android.list.EntryRow
 import dev.keething.android.list.ListSection
 import dev.keething.android.list.RecentEntries
@@ -215,9 +216,7 @@ private fun ChoosableRow(row: EntryRow, shape: RoundedCornerShape, icons: Custom
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
             Text(row.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (row.subtitle.isNotEmpty()) {
-                Text(row.subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            RowSubtitle(row)
         }
         Checkbox(checked = chosen, onCheckedChange = null)
     }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Icon
@@ -117,8 +118,8 @@ internal fun ContactlessMark(modifier: Modifier = Modifier) {
 }
 
 /**
- * An entry's picture in the list and on its card's header: the small face of a payment card, a Wi-Fi network, a bank
- * account, an identity document or an SSH login (SPEC §6.2), else its icon or monogram.
+ * An entry's picture in the list and on its card's header: a note's tile (§6.4), the small face of a payment card, a
+ * Wi-Fi network, a bank account, an identity document or an SSH login (SPEC §6.2), else its icon or monogram.
  */
 @Composable
 internal fun EntryMark(avatar: EntryAvatar, image: ImageBitmap?, face: EntryFace?, size: Dp, modifier: Modifier = Modifier) {
@@ -129,7 +130,17 @@ internal fun EntryMark(avatar: EntryAvatar, image: ImageBitmap?, face: EntryFace
         is EntryFace.Document -> MiniDocument(size, modifier)
         is EntryFace.Ssh -> MiniTerminal(size, modifier)
         is EntryFace.Crypto -> MiniWallet(face, size, modifier)
+        is EntryFace.Note -> NoteTile(size, modifier)
         null -> EntryIcon(avatar, image, size, modifier)
+    }
+}
+
+/** A note (SPEC §6.4): a note on a warm tile, in place of its icon or a kind's face (keething-spec types.note AC7). */
+@Composable
+internal fun NoteTile(size: Dp, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.extraColors
+    Box(modifier.size(size).clip(RoundedCornerShape(size * 0.36f)).background(colors.noteTile), contentAlignment = Alignment.Center) {
+        Icon(Icons.AutoMirrored.Rounded.StickyNote2, contentDescription = null, Modifier.size(size * 0.5f), tint = colors.onNoteTile)
     }
 }
 

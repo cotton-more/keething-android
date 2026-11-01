@@ -24,7 +24,8 @@ public data class VersionChange(
 /** Every difference between two versions of an entry (Mac `EntryVersionDiff`). */
 public object EntryVersionDiff {
     /**
-     * From [old] to [new], in the card's order: the standard fields, the custom fields (by name, in [new]'s order,
+     * From [old] to [new], in the card's order: the standard fields, Notes' protection, the kind of entry (SPEC §6.4),
+     * the custom fields (by name, in [new]'s order,
      * then the removed ones; a change of protection or of type; the order), tags, expiry, the one-time code (that
      * it changed, never its values), attachments. [day] writes the expiry's date, [size] an attachment's size.
      */
@@ -55,7 +56,17 @@ public object EntryVersionDiff {
         compare("Username", old.username, new.username)
         compare("Password", old.password.reveal(), new.password.reveal(), protected = true)
         compare("URL", old.url, new.url)
-        compare("Notes", old.notes, new.notes)
+        // A protected text is masked, as it was protected before or is now (SPEC §6.4).
+        compare("Notes", old.notes, new.notes, protected = old.notesProtected || new.notesProtected)
+        if (old.notes == new.notes && new.notes.isNotEmpty() && old.notesProtected != new.notesProtected) {
+            result += VersionChange(
+                "Notes", VersionChange.Kind.CHANGED,
+                if (old.notesProtected) "protected" else "not protected",
+                if (new.notesProtected) "protected" else "not protected",
+                isProtected = false,
+            )
+        }
+        compare("Kind", old.entryType, new.entryType)
 
         // The first field of a name, as the Mac keeps it.
         val oldFields = LinkedHashMap<String, CustomField>().apply { old.customFields.forEach { putIfAbsent(it.name, it) } }

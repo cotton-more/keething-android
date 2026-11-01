@@ -258,6 +258,7 @@ internal fun EntryCardScreen(
             }
         },
         onCopyText = model::copyText,
+        onCopySelection = model::copySelection,
         onShareBank = { model.bankShareIntent()?.let(context::startActivity) },
         onSeedWords = { onShowPassword(PasswordView.SEED_WORDS) },
         onAddressQr = onShowAddress,
@@ -693,6 +694,8 @@ internal class CardActions(
     val onSeedWords: () -> Unit = {},
     /** A receiving address's QR code full screen, by its row. */
     val onAddressQr: (String) -> Unit = {},
+    /** A part of a note's text or of protected Notes, selected and copied (SPEC §6.4): by its row. */
+    val onCopySelection: (rowId: String, text: String) -> Unit = { _, _ -> },
 )
 
 /** Tapping anywhere on a row copies it (SPEC §6.2). */

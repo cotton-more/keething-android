@@ -98,15 +98,7 @@ internal fun QuickActionsSheet(
                 EntryMark(row.avatar, icons?.get(row.customIconId), row.face, 44.dp)
                 Column(Modifier.weight(1f)) {
                     Text(row.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (row.subtitle.isNotEmpty()) {
-                        Text(
-                            row.subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    RowSubtitle(row)
                 }
             }
             for (group in listOf(copies, changes)) {
