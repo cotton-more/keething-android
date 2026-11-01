@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.stateDescription
@@ -223,11 +222,9 @@ private fun NotOpenRow(notOpen: List<NotOpenDatabase>, onLockScreen: (DatabaseId
             .clip(segmentShape(0, 1))
             .background(MaterialTheme.extraColors.row)
             .then(if (single != null) Modifier.clickable(onClickLabel = "Unlock") { onLockScreen(single.id) } else Modifier)
-            .padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(16.dp))
         FlowRow(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 "Not open:",
