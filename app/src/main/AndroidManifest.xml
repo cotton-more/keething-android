@@ -124,6 +124,35 @@
             </intent-filter>
         </activity>
 
+        <!--
+        Keething note in the share sheet and the text selection menu (SPEC §6.4): a quick note from another app's text,
+        in a sheet over that app. A task of its own for each share (documentLaunchMode: a second share would otherwise
+        bring the first one's task back and drop its text); the selection menu, started for a result, opens it in the
+        caller's task. Never in Recents nor kept across a restart, and it finishes itself when stopped; it returns no
+        result, so a selected text stays as it was.
+        -->
+        <activity
+            android:name=".quicknote.QuickNoteActivity"
+            android:documentLaunchMode="always"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/keething_note"
+            android:persistableMode="persistNever"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Keething.Autofill"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <!-- The pictures of requests and answers, handed to a messenger or mail (SPEC §10). -->
         <provider
             android:name="androidx.core.content.FileProvider"

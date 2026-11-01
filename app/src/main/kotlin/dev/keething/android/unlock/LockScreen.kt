@@ -4,6 +4,8 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
+import dev.keething.android.session.Visit
 import androidx.compose.material.icons.rounded.FindInPage
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LockOpen
@@ -135,7 +137,9 @@ import dev.keething.domain.secret.Secret
  * key file alone has Unlock. [onBack]: Back from it (to the open databases, to the chooser, or to the one shown before);
  * [onChose]: this one gave way to another chosen here. [run]: the chooser's run asks this database (plan AD13;
  * keething-spec databases.chooser AC5, AC6): "Unlocking 2 of 3" over it with Stop, no fingerprint, the typed password
- * the run's, a wrong one said over the field, and Skip.
+ * the run's, a wrong one said over the field, and Skip. [purpose]: what the unlock is for, under the database ("Unlock to
+ * write the quick note", SPEC §6.4): a lock screen of its own over another app, for this database alone (no other is
+ * chosen on it), which asks for the fingerprint by itself once, when it shows.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -145,11 +149,18 @@ internal fun LockScreen(
     onBack: (() -> Unit)?,
     onChose: (DatabaseId) -> Unit,
     run: UnlockRun? = null,
+    purpose: String? = null,
 ) {
     val databases = container.sessions.databases
     // Per session, not per file: a model of an earlier session of the same file would unlock that one.
     val model = viewModel(key = "lock:${database.number}") {
-        LockViewModel(database, databases, container.sessions.list, container.sessions.fingerprintOffers::offer)
+        val offers: (Visit) -> Boolean = if (purpose == null) {
+            container.sessions.fingerprintOffers::offer
+        } else {
+            var offered = false
+            { _ -> !offered.also { offered = true } }
+        }
+        LockViewModel(database, databases, container.sessions.list, offers)
     }
     val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
@@ -255,13 +266,18 @@ internal fun LockScreen(
     val identity = @Composable {
         // With the keyboard up on a low screen one row is left: the database's, beside the field; in the run the
         // keyboard leaves room for the field and Skip only under the run's bar.
-        if (!((short || run != null) && WindowInsets.isImeVisible)) {
+        // A lock screen for a purpose is under its own title ("Keething note").
+        if (purpose == null && !((short || run != null) && WindowInsets.isImeVisible)) {
             AppLogo(Modifier.size(if (short) 72.dp else 104.dp))
             Spacer(Modifier.height(if (short) 12.dp else 24.dp))
             Text("Keething", style = MaterialTheme.typography.displaySmall)
             Spacer(Modifier.height(8.dp))
         }
-        DatabaseIdentity(lock?.line, name, onClick = if (run == null) ({ sheet = true }) else null)
+        DatabaseIdentity(lock?.line, name, onClick = if (run == null && purpose == null) ({ sheet = true }) else null)
+        purpose?.let {
+            Spacer(Modifier.height(16.dp))
+            Purpose(it)
+        }
         // The file's problems first (its key file not there; a file not found says it in place of the field); then
         // why the fingerprint is not offered or its stored password went (also when one fingerprint for several said
         // it, plan AD13), what was typed here aside; then why it is locked. In the run a wrong password is said over the
@@ -302,7 +318,7 @@ internal fun LockScreen(
                 }
                 // Not known yet (the files are being looked at): nothing rather than a field that goes again.
                 lock == null -> Spacer(Modifier.height(56.dp))
-                lock.showsLocate -> NotFound(lock.missingText.orEmpty(), onLocate = {
+                lock.showsLocate -> NotFound(lock.missingText.orEmpty(), othersAbove = run == null && purpose == null, onLocate = {
                     locateProblem = null
                     locate(folder)
                 })
@@ -490,9 +506,12 @@ private fun KeyFileRow(keyFile: KeyFileLine, onChange: () -> Unit) {
     }
 }
 
-/** A file not found (keething-spec databases.list AC5): said in place of the field, with Locate…. */
+/**
+ * A file not found (keething-spec databases.list AC5): said in place of the field, with Locate…; [othersAbove]: another
+ * database can be chosen above.
+ */
 @Composable
-private fun NotFound(text: String, onLocate: () -> Unit) {
+private fun NotFound(text: String, othersAbove: Boolean, onLocate: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -501,7 +520,18 @@ private fun NotFound(text: String, onLocate: () -> Unit) {
         Icon(Icons.Rounded.FindInPage, contentDescription = null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.error)
         Text(text, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
         Button(onClick = onLocate) { ButtonLabel("Locate…", Icons.Rounded.Search, iconSize = 20.dp) }
-        Text("or choose another database above", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (othersAbove) {
+            Text("or choose another database above", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** What the unlock is for, under the database (the agreed mock-up): "Unlock to write the quick note". */
+@Composable
+private fun Purpose(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.AutoMirrored.Rounded.StickyNote2, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
     }
 }
 

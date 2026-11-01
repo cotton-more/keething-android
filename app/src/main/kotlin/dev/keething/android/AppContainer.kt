@@ -198,6 +198,9 @@ internal class AppContainer(context: Context) {
     /** Codes another app handed over (a picture or a text shared to Keething), until the unlocked vault reads them. */
     val incomingCodes = MutableStateFlow<List<String>?>(null)
 
+    /** The quick notes another app handed over so far, counted: a newer one gives up the one waiting (SPEC §6.4). */
+    val quickNotes = MutableStateFlow(0)
+
     /**
      * What a database's Close says, with its Undo, what Locate… refused and what the chooser's run did: on the screen
      * showing (the list, Databases).

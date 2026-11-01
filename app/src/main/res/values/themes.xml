@@ -4,7 +4,8 @@
 
     <!--
     Autofill's screen over the app being filled: see-through, so that answering at once (a one-time code)
-    shows nothing; Compose draws the screen when there is one.
+    shows nothing; Compose draws the screen when there is one. Also "Read with Keething", and Keething note's sheet
+    over the app the text came from.
     -->
     <style name="Theme.Keething.Autofill">
         <item name="android:windowIsTranslucent">true</item>

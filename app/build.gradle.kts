@@ -28,7 +28,13 @@ android {
     }
 
     testOptions {
-        unitTests.all { it.useJUnitPlatform() }
+        unitTests.all {
+            it.useJUnitPlatform()
+            // The fictitious databases the tests read (SPEC §9).
+            val fixtures = rootDir.resolve("fixtures")
+            it.inputs.dir(fixtures).withPropertyName("fixtures")
+            it.systemProperty("keething.fixtures", fixtures.absolutePath)
+        }
     }
 }
 

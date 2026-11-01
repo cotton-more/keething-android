@@ -284,10 +284,10 @@ internal class EntryCardViewModel(
         }
     }
 
-    /** The account's details as text for the share sheet (holder, number, codes, bank: nothing secret). */
+    /** The account's details as text to send (holder, number, codes, bank: nothing secret), for the share sheet. */
     fun bankShareIntent(): Intent? {
         val text = content.value?.card?.bankAccount?.shareText() ?: return null
-        return Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), null)
+        return Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
     }
 
     /** The code row being marked used (or not); one at a time, while its save runs. */

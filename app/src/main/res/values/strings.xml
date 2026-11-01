@@ -3,4 +3,5 @@
     <string name="shortcut_codes">Codes</string>
     <string name="shortcut_codes_long">One-time codes</string>
     <string name="read_with_keething">Read with Keething</string>
+    <string name="keething_note">Keething note</string>
 </resources>

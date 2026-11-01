@@ -698,7 +698,12 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   (§6.4), on the tap, while in front, and for a quick note from the clipboard once its database is open (before
   that only the clip's description, which shows no notice); it leaves the clipboard as it was. A quick note's text is
   kept nowhere but the editor: not in the settings (they hold the quick notes' database's id alone), saved state, a
-  log or a draft; a text handed over by another app waits in memory only while its database's lock screen is up.
+  log or a draft. A text another app hands over (Keething note) comes in the intent, so it is in memory while its
+  database's lock screen waits: in the screen's model and the system's copy of the intent, both gone with the screen,
+  which finishes itself when stopped, unless a screen it opened itself (a key file picker) is in front: then it waits
+  for its return or a lock of the app, and with nothing open there is no alarm to count a stay away, so it may wait
+  until Keething is back in front or its process ends. A screen re-created after its process died gives up without
+  reading the intent again, and nothing of the text is in the screen's saved state.
 - Attachments (card rows "Open in another app" and "Save to a folder"; Mac SPEC §3.18):
   - **Open**: another app can only read a file, so the attachment is written to
     `cacheDir/attachments/<database id>/<uuid>/<name>` (the name made safe: no `/` or `:`, no control characters, at
@@ -1124,7 +1129,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   warning that it goes to another app and maybe its cloud and history; the warning offers Show as QR). Both
   full-screen views read the password from the vault by the entry's id, close on a lock, and are left with
   Back or ✕. The share sheet shows the text and has its own Copy, which the app cannot mark sensitive or
-  clear: the warning comes first for that reason.
+  clear: the warning comes first for that reason. Every share sheet the app opens (this one, an address, a bank
+  account's details, a code's pictures or text, §10.3) leaves out Keething's own targets, "Read with Keething" and
+  Keething note (`sharing/ShareSheet`): Keething does not share with itself.
 - **Entry faces** (agreed on the canvas, rows "Entry faces", "More faces" and "Crypto wallets"): a payment card, a
   Wi-Fi network, a bank account, an identity document, an SSH login and a crypto wallet are drawn as what they are,
   and the face is the interface; the rows under it are only what the face does not show. The Mac draws a card's and
@@ -1427,8 +1434,8 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
 Being built (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/android-notes.md`, the
 mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1); the
 card, the list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from
-clipboard (AN3); where a quick note goes, its editor, its run and the setting (AQ1). Not yet: the ways a quick note
-gets in (AQ2–AQ4).
+clipboard (AN3); where a quick note goes, its editor, its run and the setting (AQ1); Keething note in the share sheet
+and the selection menu (AQ2). Not yet: where a quick note came from (AQ3), the tile and the launcher's shortcut (AQ4).
 
 **What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
 item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,
@@ -1529,8 +1536,46 @@ database unlocked changes nothing; a second request while it waits changes nothi
 description is looked at until then (`SystemClipboard.hasText`, which shows no "pasted" notice), its text read once
 the database is open, as it is then. A text handed over is in memory already and is held only until the unlock or
 giving up (§4). Given up (the lock screen left): nothing read, nothing kept, and a later unlock opens nothing. Once
-the editor has the text the run keeps none of it. The ways in that start a run and give it up are AQ2 (the share
-sheet, the selection menu) and AQ4 (the tile, the shortcut); until then nothing on the phone starts one.
+the editor has the text the run keeps none of it. Keething note (below) starts it with a text handed over; the tile
+and the shortcut (AQ4) are not built, so nothing starts it from the clipboard yet.
+
+**Keething note** (`app/quicknote` `QuickNoteActivity`, `QuickNoteModel`, `QuickNoteIntent`; app.quick-note AC3, AC4,
+AC7; the Mac's `QuickNoteWindow`): Keething's target in other apps' share sheet for a text (`ACTION_SEND`,
+`text/plain`), beside "Read with Keething" (§10.3), and its item in the text selection menu (`ACTION_PROCESS_TEXT`,
+under ⋮ in Chrome's and Firefox's toolbar). The selection menu gets no result back, so a selected text in an editable
+field stays as it was. The text is the share's `EXTRA_TEXT` or the selection's `EXTRA_PROCESS_TEXT`; a share's subject
+becomes the first line only when the text is a lone http(s) address (a page shared from Chrome, whose subject is the
+page's title); Chrome's "Including link: …" over a selection and Firefox's "Share via" are left out. No text: "No text
+to save", and nothing opens.
+The screen is a sheet over the other app (a see-through window, the sheet 24 dp below the status bar, the other app
+dimmed behind it; the agreed mock-up). The quick notes' database open: the quick note's editor ("Quick note", Save).
+Locked: its lock screen under the title "Keething note", with "Unlock to write the quick note" under the database: the
+password, the key file, Locate…, and the fingerprint asked for once, when it shows (the system's prompt is a window
+over the sheet and does not stop it); no other database is chosen on it;
+a wrong password keeps it; unlocked, the editor. That database in the list but closed (not in the window) is put into
+the window for its lock screen, and stays open there after. Saved: "Saved to <group>" (the group's name, never the
+title or the text), the screen goes and the other app is in front again. The editor is a quick note's (above) without
+places: no Save into, and the next new entry's database (`lastNewEntryDatabase`) stays as it was. An editor open in
+the main app is left alone.
+Given up, nothing is saved and nothing of the text is kept: Close, or Back (in the editor Back asks first, as New
+note's does); the screen stopped by anything but what it opened itself (Home, another app, Recents, the screen off: a
+key file picker, Locate… or all-files access it opened leave it waiting); a lock of the app (Lock all, the timeout, a
+stay away past the timeout, which a frozen app counts when it is back in front: `AppLocks.counted`); its database
+locked while the editor is open, or leaving the window; a newer Keething note, which replaces it; a screen re-created
+after its process died, which does not read its intent again. Each share opens the screen in a task of its own
+(`documentLaunchMode="always"`: with one task, a second share brought the first one's task back and its text was
+dropped); the selection menu, which Chrome and text fields start for a result, opens a new one in the caller's task
+(Android makes no document task for a launch that asks for a result; Firefox asks for none, so its gets a task of its
+own). A share's task is never in Recents (`excludeFromRecents`), none is kept across a restart (`persistNever`),
+`FLAG_SECURE`.
+The run starts once the screen is resumed, after the app's own start, where a stay away past the timeout locks first
+(§4): a database the timeout should have locked never opens its editor for a moment, and that lock is not counted
+against the quick note. Whether its database is open is the sessions' word: the window's flow follows them a moment
+late and can still say open just after a lock (seen on the Pixel 6, the timeout's lock as the sheet opened), which
+opens nothing. Recents keeps the sheet as its live top card (blank: `FLAG_SECURE`); picking another app's card gives
+it up. While a screen it opened is in front, an unlock elsewhere (the main app) still opens the
+editor behind it; a lock of the app then gives it up. The log says which screen showed, by name ("Unlock", "Editor", "Gone with a notice"), never the
+text, the database or the group.
 
 **For the phone checks**: `task notes:database -- <new.kdbx>` writes a fictitious database through the phone's own
 core (`core/vault` test `probe/MakeNotesDatabase.kt`, password `pw`): a protected note, an unprotected one, an entry
@@ -1828,10 +1873,12 @@ needed each time, come later (ROADMAP).
   of about 1000 px, a caption under the code: "Keething · Alex asks for" and the reason, or "Keething · answer to
   “…”" and "Code 1 of 2: all are needed"; from `cacheDir/sharing` through a `FileProvider`, cleared when the app
   starts), sent as text (a few words for the person, then the code), or saved to Pictures/Keething. The share
-  sheet leaves out Keething's own "Read with Keething".
+  sheet leaves out Keething's own "Read with Keething" and Keething note (§6.4), as every share sheet of the app does
+  (`ShareSheet`, §6.2).
 - **Reading**: the back camera (CameraX, frames at about Full HD, ZXing); pictures from the system's photo
   picker, several at once (all of an answer's parts); pasted text; and "Read with Keething" in other apps' share
-  sheet: a picture, several, or a text from a messenger or mail, read at once by a see-through activity of its
+  sheet (beside Keething note, which takes a text as a quick note, §6.4): a picture, several, or a text from a
+  messenger or mail, read at once by a see-through activity of its
   own (no task of the app's, so it never opens inside the other app's), then shown once the vault is unlocked.
   Only pictures another app serves (`content:`, not the app's own providers) are read: the app reads with its own
   rights, which the sender must not borrow.

@@ -248,7 +248,7 @@ internal fun EntryEditorScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             topBar = {
                 TopAppBar(
-                    title = { Text(if (editor.isNew) "New ${editor.noun}" else "Edit ${editor.noun}") },
+                    title = { Text(if (note?.quick == true) "Quick note" else if (editor.isNew) "New ${editor.noun}" else "Edit ${editor.noun}") },
                     navigationIcon = {
                         IconButton(onClick = close) {
                             Icon(Icons.Rounded.Close, contentDescription = if (editor.isDirty(draft)) "Discard changes" else "Close")

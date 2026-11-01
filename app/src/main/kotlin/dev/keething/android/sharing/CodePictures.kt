@@ -96,7 +96,7 @@ internal class CodePictures(private val context: Context) {
         return chooser(send.setType("image/png").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), route)
     }
 
-    /** The share sheet without Keething's own "Read with Keething", and without [route]'s app to leave out. */
+    /** The share sheet ([ShareSheet], without Keething's own targets), and without [route]'s app to leave out. */
     private fun chooser(send: Intent, route: Route? = null): Intent {
         val chosen = route?.let {
             val tell = Intent(context, ChosenAppReceiver::class.java)
@@ -105,8 +105,7 @@ internal class CodePictures(private val context: Context) {
             // Mutable: the system adds the app chosen. Explicit, so nothing else can receive it.
             PendingIntent.getBroadcast(context, if (it.pictures) 1 else 0, tell, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE).intentSender
         }
-        val leaveOut = listOfNotNull(ComponentName(context, ReceiveCodeActivity::class.java), route?.leaveOut?.let(ComponentName::unflattenFromString))
-        return Intent.createChooser(send, null, chosen).putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, leaveOut.toTypedArray())
+        return ShareSheet.of(context, send, chosen, listOfNotNull(route?.leaveOut?.let(ComponentName::unflattenFromString)))
     }
 
     /** The name of the app [component] (a flat component name) belongs to, when this app may see it. */

@@ -63,6 +63,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import dev.keething.android.sharing.ShareSheet
 import dev.keething.android.clipboard.SensitiveClipboard
 import dev.keething.card.AddressCheck
 import dev.keething.card.CryptoAddress
@@ -301,7 +302,7 @@ private fun AddressQrCode(address: String, onCopy: () -> Unit) {
         // An address is public: the share sheet without a warning.
         FilledTonalButton(onClick = {
             val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, address)
-            context.startActivity(Intent.createChooser(send, null))
+            context.startActivity(ShareSheet.of(context, send))
         }) {
             Icon(Icons.Rounded.Share, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.size(ButtonDefaults.IconSpacing))

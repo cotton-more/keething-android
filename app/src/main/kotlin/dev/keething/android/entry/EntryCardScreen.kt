@@ -1,6 +1,7 @@
 package dev.keething.android.entry
 
 import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
+import dev.keething.android.sharing.ShareSheet
 import dev.keething.android.groups.GroupPickerSheet
 import dev.keething.card.editing.GroupChoice
 import dev.keething.card.editing.GroupTree
@@ -259,7 +260,7 @@ internal fun EntryCardScreen(
         },
         onCopyText = model::copyText,
         onCopySelection = model::copySelection,
-        onShareBank = { model.bankShareIntent()?.let(context::startActivity) },
+        onShareBank = { model.bankShareIntent()?.let { context.startActivity(ShareSheet.of(context, it)) } },
         onSeedWords = { onShowPassword(PasswordView.SEED_WORDS) },
         onAddressQr = onShowAddress,
     )
@@ -275,7 +276,7 @@ internal fun EntryCardScreen(
                 sharing = false
                 model.passwordToShare()?.let { password ->
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, password)
-                    context.startActivity(Intent.createChooser(send, null))
+                    context.startActivity(ShareSheet.of(context, send))
                 }
             },
             onShowQrCode = {
