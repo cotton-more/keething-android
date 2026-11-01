@@ -92,6 +92,10 @@ It finds the current connect port over Bonjour, connects adb to `127.0.0.1:15555
 while it runs (`ANDROID_SERIAL=127.0.0.1:15555`). The pairing port and code are in Developer options ›
 Wireless debugging › "Pair device with pairing code"; the dialog must stay open while pairing.
 
+With several devices connected (the phone through the forwarder and by its own wireless connection, the emulator),
+`task install:debug` installs and starts on each of them; `ANDROID_SERIAL=127.0.0.1:15555 task install:debug` (or any
+task) keeps to one, since adb and Gradle both read it.
+
 ## Trying the writing on a copy of a database
 
     tools/kdbx-probe.sh <copy.kdbx>     # asks for the password; changes the copy, prints no values

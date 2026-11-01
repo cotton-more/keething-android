@@ -58,15 +58,22 @@ tasks:
       - tools/adb-wireless.py {{.CLI_ARGS}}
 
   install:debug:
-    desc: The debug build installed on the connected phone, then started
+    desc: "The debug build installed on the connected phone (every connected device; ANDROID_SERIAL=<serial> for one), then started"
     cmds:
       - ./gradlew :app:installDebug
       - task: start
 
   start:
-    desc: Starts the app on the connected phone
+    desc: "Starts the app on the connected phone (every connected device, as installDebug installs; ANDROID_SERIAL=<serial> for one)"
     cmds:
-      - adb shell am start -n {{.APP_ID}}/.MainActivity
+      - |
+        if [ -n "$ANDROID_SERIAL" ]; then
+          adb shell am start -n {{.APP_ID}}/.MainActivity
+        else
+          for device in $(adb devices | awk 'NR > 1 && $2 == "device" { print $1 }'); do
+            adb -s "$device" shell am start -n {{.APP_ID}}/.MainActivity
+          done
+        fi
 
   stop:
     desc: Stops the app on the connected phone
