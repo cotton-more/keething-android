@@ -54,22 +54,25 @@ public class WindowFingerprint(
     public val running: StateFlow<Boolean> = mutableRunning.asStateFlow()
 
     /**
-     * Whether a fingerprint would open one of the window's locked databases now: asked, never read (keething-spec
-     * databases.chooser AC1: the prompt shows only then).
+     * Whether a fingerprint would open one of the window's locked databases now, of [among] only when given: asked, never
+     * read (keething-spec databases.chooser AC1: the prompt shows only then; AC5: the run's checked ones).
      */
-    public suspend fun canUnlockAny(): Boolean {
+    public suspend fun canUnlockAny(among: Collection<DatabaseId>? = null): Boolean {
         if (!setup.state.value.enabled) return false
-        val candidates = locked().filter { whyNot(it) == null }
+        val candidates = locked(among).filter { whyNot(it) == null }
         if (candidates.isEmpty() || setup.availability() != BiometricAvailability.Available) return false
         return candidates.any { it.isPasswordless || setup.hasPassword(it.id) }
     }
 
-    /** Asks for the fingerprint once and opens every database of the window that can. */
-    public suspend fun unlock(): WindowFingerprintResult {
+    /**
+     * Asks for the fingerprint once and opens every database of the window that can, of [among] only when given (the
+     * chooser's run: the checked ones; the others are not looked at).
+     */
+    public suspend fun unlock(among: Collection<DatabaseId>? = null): WindowFingerprintResult {
         if (setup.asking) return WindowFingerprintResult(FingerprintOutcome.InProgress, emptyMap())
         if (!setup.state.value.enabled) return WindowFingerprintResult(FingerprintOutcome.NotAvailable("it is turned off in Settings"), emptyMap())
         if (list.window.isEmpty()) return WindowFingerprintResult(FingerprintOutcome.NotAvailable("there is no database"), emptyMap())
-        val looked = locked()
+        val looked = locked(among)
         // Nothing left to open.
         if (looked.isEmpty()) return WindowFingerprintResult(FingerprintOutcome.Unlocked, emptyMap())
         val each = linkedMapOf<DatabaseId, FingerprintOutcome>()
@@ -190,8 +193,9 @@ public class WindowFingerprint(
         asked.forEach { each[it.id] = outcome }
     }
 
-    /** The window's databases that are locked, with a session that can open. */
-    private fun locked(): List<DatabaseRecord> = list.window.filter { record ->
+    /** The window's databases that are locked, with a session that can open; of [among] only when given. */
+    private fun locked(among: Collection<DatabaseId>? = null): List<DatabaseRecord> = list.window.filter { record ->
+        if (among != null && record.id !in among) return@filter false
         val session = sessions.session(record.id)?.session
         session != null && !session.isClosed && session.state.value is SessionState.Locked
     }

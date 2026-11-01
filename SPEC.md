@@ -215,7 +215,9 @@ paused · 14 days, Fingerprint to set up, Fingerprint to set up again; one open 
 found, its key file not there or unusable, cannot be read) has no check and says why, with Locate… for one not found;
 the others are checked as at the last unlock (`checkedInChooser`, kept at once). Past five rows the list scrolls (four
 and a half show, "9 databases · scroll for the rest"). **Unlock N databases** starts the **run** (`UnlockRun`,
-`CurrentDatabase.run`): the checked ones asked one after another, each on its own lock screen with "Unlocking 2 of 3"
+`CurrentDatabase.run`): first one fingerprint for the checked ones it would open (decided without reading any stored
+password; nothing asked when none would; a cancelled or failed one leaves them to their passwords, nothing said; a lock
+under its prompt starts no run), then the checked ones it did not open asked one after another, each on its own lock screen with "Unlocking 2 of 3"
 over it (a segment per database, what opened, Stop), its line, its key file and Use fingerprint next time, no
 fingerprint button, and Skip; a password goes to that database only (its typed path: stored for the fingerprint when
 that is on for it); a wrong one stays to be typed again ("Wrong password — or this database needs a key file. Type it

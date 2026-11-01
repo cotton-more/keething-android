@@ -518,4 +518,28 @@ class WindowFingerprintTest {
         assertEquals(emptyList(), f.stores.read, "asked, never read")
         assertEquals(personal.id, f.list.currentId)
     }
+
+    // spec: databases.chooser/AC5
+    @Test
+    fun askedForSomeOfTheWindowItOpensAndLooksAtThoseOnly() = runTest {
+        val f = fixture()
+        val personal = f.add("/db/Personal.kdbx", stored = "pw")
+        val work = f.add("/db/Work.kdbx")
+        val keyOnly = f.add("/db/KeyOnly.kdbx", bytes = keyFileBytes("keyfile-only.kdbx"))
+        f.list.update(keyOnly.id) { it.copy(keyFilePath = "/keys/keyx.keyx", opensWithoutPassword = true) }
+        f.keyFiles["/keys/keyx.keyx"] = FakeKeyFile(keyFileBytes("keyx.keyx"), "keyx.keyx")
+
+        assertFalse(f.fingerprint.canUnlockAny(among = listOf(work.id)), "nothing stored for Work, the others not looked at")
+        assertTrue(f.fingerprint.canUnlockAny(among = listOf(personal.id)))
+        f.stores.stored[work.id.fileName] = Secret.of("pw")
+        val result = f.fingerprint.unlock(among = listOf(personal.id, keyOnly.id))
+        runCurrent()
+
+        assertEquals(FingerprintOutcome.Unlocked, result.outcome)
+        assertEquals(1, f.stores.prompts)
+        assertEquals(listOf(listOf(personal.id.fileName)), f.stores.severals, "Work's password not read")
+        assertEquals(listOf(personal.id, keyOnly.id), f.sessions.openIds)
+        assertEquals(setOf(personal.id, keyOnly.id), result.each.keys)
+        assertEquals(SessionState.Locked(LockReason.Initial), f.state(work))
+    }
 }

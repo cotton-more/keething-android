@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 /**
  * The chooser and its run as the app keeps them, across screens and rotations (plan AD13; keething-spec databases.chooser;
  * the Mac's `WindowDatabasesModel` and `WindowScreenModel`):
- * - The run of the checked databases ([start]); a lock ends it with nothing said, also one with nothing open yet
+ * - The run of the checked databases ([start]), after one fingerprint for those of them it would open; a lock ends it with nothing said, also one with nothing open yet
  *   ([lockCount]: the app's, a stay away past the timeout counted); Stop too. Its end is told over the list ([tell]) when
  *   any opened, else said over the chooser ([note]); the vault then shows on what opened ([showOpened]).
  * - Those it skipped say Skipped on their chips until they do something else ([skipped]) or another run starts.
@@ -38,8 +38,9 @@ import kotlinx.coroutines.launch
 internal class WindowChooser(
     private val list: DatabaseList,
     private val startRun: (List<DatabaseId>) -> UnlockRun,
-    private val fingerprint: suspend () -> WindowFingerprintResult,
-    private val canUnlockAny: suspend () -> Boolean,
+    /** The fingerprint for every database of the window that can, of those given only (null: every one). */
+    private val fingerprint: suspend (Collection<DatabaseId>?) -> WindowFingerprintResult,
+    private val canUnlockAny: suspend (Collection<DatabaseId>?) -> Boolean,
     /** Once per visit that began locked, for the app ([dev.keething.android.session.FingerprintOffers]). */
     private val offers: (Visit) -> Boolean,
     private val label: (DatabaseId) -> String,
@@ -111,11 +112,29 @@ internal class WindowChooser(
         list.update(id) { it.copy(checkedInChooser = !it.checkedInChooser) }
     }
 
-    /** Unlock N databases: [ids], the checked ones, one after another. */
+    /**
+     * Unlock N databases: [ids], the checked ones. First one fingerprint for those of them it would open (decided
+     * without reading any stored password), then the rest one after another; those it opened count as opened
+     * (keething-spec databases.chooser AC5). A fingerprint cancelled or failed leaves them to their passwords, nothing
+     * said; a lock under its prompt starts no run.
+     */
     fun start(ids: List<DatabaseId>) {
         if (mutableRun.value != null || mutableBusy.value || ids.isEmpty()) return
         mutableSkipped.value = emptySet()
         mutableNote.value = null
+        mutableBusy.value = true
+        scope.launch {
+            val locks = lockCount.value
+            try {
+                if (canUnlockAny(ids)) fingerprint(ids)
+            } finally {
+                mutableBusy.value = false
+            }
+            if (lockCount.value == locks && mutableRun.value == null) startNow(ids)
+        }
+    }
+
+    private fun startNow(ids: List<DatabaseId>) {
         val run = startRun(ids)
         run.onEnd = { ended(run, it) }
         mutableRun.value = run
@@ -174,7 +193,7 @@ internal class WindowChooser(
         mutableBusy.value = true
         scope.launch {
             try {
-                if (canUnlockAny() && mutableRun.value == null && onScreen) fingerprintNow()
+                if (canUnlockAny(null) && mutableRun.value == null && onScreen) fingerprintNow()
             } finally {
                 mutableBusy.value = false
             }
@@ -189,7 +208,7 @@ internal class WindowChooser(
     private suspend fun fingerprintNow() {
         mutableNote.value = null
         val locks = lockCount.value
-        val result = fingerprint()
+        val result = fingerprint(null)
         // A lock meanwhile: the plain chooser comes, with nothing said of a fingerprint asked before it.
         if (lockCount.value != locks) return
         when (result.outcome) {

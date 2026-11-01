@@ -63,6 +63,13 @@ class WindowChooserTest {
         /** With it, whether one would open is still being asked. */
         var asking: CompletableDeferred<Unit>? = null
 
+        /** The databases each fingerprint and each "would one open" was asked for; null: every one of the window. */
+        val fingerprintedFor = mutableListOf<Collection<DatabaseId>?>()
+        val askedFor = mutableListOf<Collection<DatabaseId>?>()
+
+        /** What a fingerprint opens of those it is asked for. */
+        var fingerprintOpens = emptySet<DatabaseId>()
+
         val chooser = WindowChooser(
             list = list,
             startRun = { ids ->
@@ -72,12 +79,15 @@ class WindowChooserTest {
                     failures[id]?.let { UnlockRun.Attempt.Failed(it) } ?: UnlockRun.Attempt.Opened.also { opened += id }
                 }
             },
-            fingerprint = {
+            fingerprint = { among ->
                 fingerprints++
+                fingerprintedFor += among
                 duringFingerprint()
+                opened += fingerprintOpens.filter { among == null || it in among }
                 WindowFingerprintResult(fingerprint, emptyMap())
             },
-            canUnlockAny = {
+            canUnlockAny = { among ->
+                askedFor += among
                 asking?.await()
                 canOpenAny
             },
@@ -124,6 +134,7 @@ class WindowChooserTest {
     fun theRunsEndIsToldOverTheListOrSaidByTheChooserWhenNoneOpened() = runTest {
         val f = Fixture(this)
         f.chooser.start(listOf(personal, work))
+        runCurrent()
         f.type()
         runCurrent()
         f.skip()
@@ -135,6 +146,7 @@ class WindowChooserTest {
 
         f.opened.clear()
         f.chooser.start(listOf(personal, work))
+        runCurrent()
         assertEquals(emptySet(), f.chooser.skipped.value, "another run")
         f.skip()
         f.skip()
@@ -148,6 +160,7 @@ class WindowChooserTest {
         val f = Fixture(this)
         f.failures[work] = OpenFailure.WrongPassword
         f.chooser.start(listOf(personal, work))
+        runCurrent()
         f.type()
         runCurrent()
         f.type("typo")
@@ -182,6 +195,7 @@ class WindowChooserTest {
     fun skippedGivesWayToWhatItsDatabaseDidSince() = runTest {
         val f = Fixture(this)
         f.chooser.start(listOf(personal, work))
+        runCurrent()
         f.type()
         runCurrent()
         f.skip()
@@ -247,9 +261,86 @@ class WindowChooserTest {
         f.chooser.start(emptyList())
         assertNull(f.chooser.run.value)
         f.chooser.start(listOf(work))
+        runCurrent()
         val run = f.chooser.run.value
         f.chooser.start(listOf(personal))
+        runCurrent()
         assertEquals(run, f.chooser.run.value, "one run at a time")
+    }
+
+    // spec: databases.chooser/AC5
+    @Test
+    fun theRunOpensByTheFingerprintWhatCanAmongTheCheckedAndAsksPasswordsOnlyForTheRest() = runTest {
+        val f = Fixture(this)
+        f.fingerprint = FingerprintOutcome.Unlocked
+        f.fingerprintOpens = setOf(personal)
+        f.chooser.start(listOf(personal, work))
+        assertTrue(f.chooser.busy.value, "the chooser waits for the prompt")
+        assertNull(f.chooser.run.value, "no run under the prompt")
+        runCurrent()
+
+        assertEquals(listOf<Collection<DatabaseId>?>(listOf(personal, work)), f.askedFor, "asked for the checked ones only")
+        assertEquals(listOf<Collection<DatabaseId>?>(listOf(personal, work)), f.fingerprintedFor)
+        val run = assertNotNull(f.chooser.run.value)
+        assertEquals(work, run.current, "a password for the one the fingerprint did not open")
+        assertEquals(listOf(UnlockRun.Segment.OPENED, UnlockRun.Segment.CURRENT), run.segments)
+        f.type()
+        runCurrent()
+
+        assertEquals(listOf(work), f.tried, "no password asked for Personal")
+        assertEquals(listOf("2 of 2 open"), f.told)
+        assertNull(f.chooser.note.value, "what the fingerprint said is not said over the chooser")
+    }
+
+    // spec: databases.chooser/AC5
+    @Test
+    fun whenTheFingerprintOpensEveryCheckedOneTheRunEndsAtOnce() = runTest {
+        val f = Fixture(this)
+        f.fingerprint = FingerprintOutcome.Unlocked
+        f.fingerprintOpens = setOf(personal, work)
+        f.chooser.start(listOf(personal, work))
+        runCurrent()
+
+        assertNull(f.chooser.run.value)
+        assertEquals(emptyList(), f.tried)
+        assertEquals(listOf("2 of 2 open"), f.told)
+        assertEquals(1, f.shownOpened)
+    }
+
+    // spec: databases.chooser/AC5
+    @Test
+    fun aFingerprintCancelledOrNoneThatWouldOpenLeavesEveryCheckedOneToItsPassword() = runTest {
+        val f = Fixture(this)
+        f.chooser.start(listOf(personal, work))
+        runCurrent()
+        assertEquals(1, f.fingerprints)
+        assertEquals(personal, f.chooser.run.value?.current, "cancelled: Personal's password")
+        assertNull(f.chooser.note.value, "nothing said of the fingerprint")
+        assertFalse(f.chooser.busy.value)
+        f.chooser.stop()
+
+        f.canOpenAny = false
+        f.chooser.start(listOf(personal, work))
+        runCurrent()
+        assertEquals(1, f.fingerprints, "none would open: no prompt")
+        assertEquals(personal, f.chooser.run.value?.current)
+    }
+
+    // spec: databases.chooser/AC5
+    @Test
+    fun aLockWhileTheRunsFingerprintIsAskedStartsNoRun() = runTest {
+        val f = Fixture(this)
+        f.duringFingerprint = {
+            f.locks.value++
+            yield()
+        }
+        f.chooser.start(listOf(personal, work))
+        runCurrent()
+
+        assertNull(f.chooser.run.value)
+        assertFalse(f.chooser.busy.value)
+        assertEquals(emptyList(), f.told)
+        assertNull(f.chooser.note.value)
     }
 
     // Found by AD13's review
@@ -298,13 +389,14 @@ class WindowChooserTest {
     fun aVisitThatBeginsOnTheRunUsesItsOfferSoLockAllBringsNoPrompt() = runTest {
         val f = Fixture(this)
         f.chooser.start(listOf(personal, work))
+        runCurrent()
         f.chooser.showingRun(Visit(2, beganLocked = true))
         f.chooser.stop()
 
         f.chooser.offer(Visit(2, beganLocked = true))
         runCurrent()
 
-        assertEquals(0, f.fingerprints)
+        assertEquals(listOf<Collection<DatabaseId>?>(listOf(personal, work)), f.fingerprintedFor, "the run's own only")
     }
 
     @Test
