@@ -303,13 +303,13 @@ internal class NavigationState : ViewModel() {
 
     /**
      * A database's lock screen asked for from the vault while others stay open (keething-spec databases.not-open AC3):
-     * the screens are its session's ([number]) already, the list under its lock screen, the search kept for when it
-     * opens (its entries join the list).
+     * the screens are its session's ([number]) already, the list under its lock screen (and Groups & tags, every open
+     * database's, when asked from there), the search kept for when it opens (its entries join the list).
      */
     fun ask(number: Int) {
         asked = number
         sessionNumber = number
-        backStack.retainAll { it == Screen.Entries }
+        backStack.retainAll { it == Screen.Entries || it == Screen.Groups }
     }
 
     /** The current database's lock screen shows, session [number]: the screens reset, unless it was asked for and some stay open. */
@@ -321,8 +321,8 @@ internal class NavigationState : ViewModel() {
 
     /**
      * The current database, its vault shown with session [number], is open no more. Locked alone (its password changed
-     * elsewhere) while [open] stay open, the vault goes on with them: the current database's own screen (Groups & tags)
-     * goes, the search and the others' screens stay (a new entry and a received one follow their own database, plan
+     * elsewhere) while [open] stay open, the vault goes on with them: the search and the screens stay (Groups & tags drops
+     * its block) (a new entry and a received one follow their own database, plan
      * AD11), and the result is the open database to make current, the window's first. Null when it was not shown or
      * nothing else is open: its lock screen shows.
      */
@@ -332,7 +332,6 @@ internal class NavigationState : ViewModel() {
             return null
         }
         val (next, nextNumber) = open.entries.first()
-        backStack.removeAll { it is Screen.Groups }
         sessionNumber = nextNumber
         shownSession = nextNumber
         return next
@@ -594,8 +593,8 @@ private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit)
 
 /**
  * The open databases' screens: one list over them; an entry's screens on its own database ([Screen.ref]); a new entry
- * and a received one in the open database chosen for them (plan AD11); Groups & tags and Settings with the [current]
- * database.
+ * and a received one in the open database chosen for them (plan AD11); Groups & tags over every open one; Settings with
+ * the [current] database.
  */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -753,9 +752,14 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                         PasswordScreen(database, key.ref.entry, key.view, key.rowId, container.clipboard, onBack = { navigation.close(key) })
                     }
                     entry<Screen.Groups> {
-                        // The current database's: with two or more open its label says which.
-                        val label = open.takeIf { it.size >= 2 }?.firstOrNull { it.database.id == current.id }?.mark?.label?.full
-                        GroupsScreen(current, label, onBack = navigation::back, onSearch = navigation::search)
+                        GroupsScreen(
+                            open = sessions.open,
+                            notOpen = overview?.notOpen.orEmpty(),
+                            folded = container.foldedGroupBlocks,
+                            onBack = navigation::back,
+                            onSearch = navigation::search,
+                            onLockScreen = { showLockScreen(it) },
+                        )
                     }
                     entry<Screen.Settings> {
                         SettingsScreen(

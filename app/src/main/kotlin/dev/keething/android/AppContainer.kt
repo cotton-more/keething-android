@@ -189,6 +189,9 @@ internal class AppContainer(context: Context) {
     /** The pictures of requests and answers, made to be sent; what a process that died left goes at once. */
     val codePictures = CodePictures(context).also(CodePictures::clear)
 
+    /** The blocks of Groups & tags folded, by database: kept while the app runs (keething-spec plans/android-groups.md G7). */
+    val foldedGroupBlocks = MutableStateFlow<Set<DatabaseId>>(emptySet())
+
     /** Codes another app handed over (a picture or a text shared to Keething), until the unlocked vault reads them. */
     val incomingCodes = MutableStateFlow<List<String>?>(null)
 

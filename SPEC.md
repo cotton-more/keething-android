@@ -76,8 +76,8 @@ databases side by side (in: the list, one list over several open, the chooser an
 3.1 (refused until then), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
 the owner on 2026-10-31; keething-spec `plans/android-groups.md`): an entry's group changed in the editor (in, §6.2)
 and from its card (a move), new groups made from the editor's group picker (in), groups renamed, made, moved and deleted when empty from
-Groups & tags, and Groups & tags over every open database, a block each; renaming tags and the recycle bin's groups
-stay with the Mac.
+Groups & tags (over every open database, a block each: in, §6.2); renaming tags and the recycle bin's groups stay with
+the Mac.
 
 ## 2. Architecture
 
@@ -260,7 +260,7 @@ the open ones (those of the window not open are named under them, not offered), 
 the group goes to that database's top level, the tags offered are its, and the username becomes its default unless it
 was changed. A new entry's draft goes when its own database locks; another database locking leaves it (a save in
 flight keeps its sheet). Autofill fills and saves from every open database, and received entries choose theirs too
-(§7, §10). Groups & tags stays with the current database; sending reads entries from any open one. The search's **`!` filter** keeps one database's entries (§6.2): the index has each entry's
+(§7, §10). Groups & tags has a block per open database; sending reads entries from any open one. The search's **`!` filter** keeps one database's entries (§6.2): the index has each entry's
 database label, also with one open (`!Personal` typed by hand still filters), none for autofill's single vault.
 
 **A database's name and colour** (keething-spec databases.name-colour; the Mac's D7b): its name is its file's
@@ -1253,18 +1253,22 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   keeps its scroll position: the row fades out at once (not when the save is done) and the rows below close
   up; a failed save or Undo puts it back in its place. A vault read again (a save, a sync) is listed while
   the one before stays on screen, so no reload empties the list or scrolls it to the top.
-- **Groups & tags** (the folder in the list's header; the current database's, its label under the title while two or
-  more are open; the Mac's Groups & Tags window, §3.25 there, without
-  changing anything): **Groups** as segmented rows, "Top level" (the root group) first, then tree order
+- **Groups & tags** (the folder in the list's header; the Mac's Groups & Tags window, §3.25 there, without changing
+  anything yet): **a block per open database**, in the window's order, even with one (keething-spec
+  `plans/android-groups.md` G7). Its header (the database's dot, its label, "38 entries") stays pinned while its block
+  scrolls; with two or more open a tap on it folds the block, kept folded while the app runs. In a block:
+  **Groups** as segmented rows, "Top level" (the root group) first, then tree order
   (parents first, siblings by name, indented by depth), each with how many entries are in it and below it
-  and, when some are in its groups, how many right in it ("3 here"); empty groups too. The counts are the
-  current database's (the Mac app's settings entry left out); with two or more open, a tap's search lists the
-  other open databases' entries of that name too. Then the **Recycle bin** with its count, when it has
+  and, when some are in its groups, how many right in it ("3 here"); empty groups too. The counts are that
+  database's (the Mac app's settings entry left out). Then the **Recycle bin** with its count, when it has
   entries. **Tags**: every tag outside the bin by name with its count, spellings differing only in case or
   diacritics as one ("also bank, Bänk"). A tap goes back to the list searching for it, as the card's chips
-  do: `@Work`, `#bank`, `-` for the bin, "Top level" the whole list; Back clears the search. The search
-  matches by name prefix at any level (§1), so `@Work` also lists a group "Workshop" or another "Work"
-  elsewhere. The screen follows a vault read again.
+  do: `@Work`, `#bank`, `-` for the bin, "Top level" the whole list; with two or more open the search keeps that
+  database only (`!Personal @Work`, `- !Personal` for its bin, `!Personal` for its Top level). Back clears the
+  search. The search matches by name prefix at any level (§1), so `@Work` also lists a group "Workshop" or
+  another "Work" elsewhere in that database. Under the last block the window's databases not open, "Not open:"
+  with each one's dot and label; a tap shows its lock screen, Back comes back here. Each block follows its
+  database: read again (a save, a sync) it is built again, locked or closed alone it goes, opened it comes.
 - **Used recovery codes** (a list of codes on the card, an entry outside the bin): copying a code offers **Mark
   as used** in its notice; a long press on a code offers "Mark as used" / "Mark as not used". The mark is
   written into the field's value, in front of the code: `used 2026-10-22 · 1234-5678` ("used" in any case, the

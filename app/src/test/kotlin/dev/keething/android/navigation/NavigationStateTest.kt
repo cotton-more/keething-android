@@ -63,9 +63,12 @@ class NavigationStateTest {
         assertEquals(personal, navigation.lockedAlone(2, mapOf(personal to 1)), "Work (session 2, shown) locked: Personal")
 
         assertEquals(
-            listOf(Screen.Entries, Screen.Card(p("same"), "RESULTS"), Screen.ShareReceived("code"), Screen.Editor(entryId = null, database = personal.value)),
+            listOf(
+                Screen.Entries, Screen.Card(p("same"), "RESULTS"), Screen.Groups, Screen.ShareReceived("code"),
+                Screen.Editor(entryId = null, database = personal.value),
+            ),
             navigation.backStack.toList(),
-            "the current one's groups go; a new entry and a received one follow their own database (plan AD11)",
+            "Groups & tags stays (its block goes); a new entry and a received one follow their own database (plan AD11)",
         )
         assertEquals("git", navigation.query.text.toString(), "the search stays")
         assertEquals(1, navigation.sessionNumber, "the screens are Personal's now")
@@ -100,6 +103,17 @@ class NavigationStateTest {
         navigation.ask(3)
         navigation.lockScreen(3, anyOpen = false)
         assertEquals("", navigation.query.text.toString(), "Lock all meanwhile: nothing lingers")
+    }
+
+    @Test
+    fun aLockScreenAskedForFromGroupsAndTagsGoesBackThere() {
+        val navigation = NavigationState()
+        navigation.shown(1)
+        navigation.open(Screen.Groups)
+
+        navigation.ask(2)
+        navigation.lockScreen(2, anyOpen = true)
+        assertEquals(listOf(Screen.Entries, Screen.Groups), navigation.backStack.toList(), "Groups & tags is every open database's")
     }
 
     // What the app shows over its databases (plan AD13; the Mac's WindowScreenTests)
