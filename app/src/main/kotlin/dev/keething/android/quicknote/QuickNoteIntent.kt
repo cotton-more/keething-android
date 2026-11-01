@@ -1,6 +1,7 @@
 package dev.keething.android.quicknote
 
 import android.content.Intent
+import dev.keething.android.clipboard.SystemClipboard
 import dev.keething.android.quicknote.QuickNoteRun.Source
 import dev.keething.card.editing.QuickNoteSource
 
@@ -18,6 +19,16 @@ import dev.keething.card.editing.QuickNoteSource
  * - Anything else, and the selection menu: the text as it came, no page; nothing is guessed from an address in it.
  */
 internal object QuickNoteIntent {
+    /** The tile's and the launcher's Note from clipboard: the clipboard's text, read by the screen itself. */
+    const val ACTION_FROM_CLIPBOARD: String = "dev.keething.android.action.NOTE_FROM_CLIPBOARD"
+
+    /**
+     * Where the quick note's text comes from: the [clipboard] for [ACTION_FROM_CLIPBOARD] (nothing in the intent read,
+     * no app: the clipboard does not say), else what a share or the selection menu handed over ([read]).
+     */
+    fun source(action: String?, extra: (String) -> CharSequence?, app: () -> String?, clipboard: () -> SystemClipboard): Source? =
+        if (action == ACTION_FROM_CLIPBOARD) Source.Clipboard(clipboard()) else read(action, extra, app)
+
     private val LONE_ADDRESS = Regex("""https?://\S+""", RegexOption.IGNORE_CASE)
 
     /** The selection, a line break, blanks, and an address with a text directive: the last line, nothing after it. */

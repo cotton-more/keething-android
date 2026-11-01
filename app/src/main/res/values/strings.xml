@@ -4,4 +4,8 @@
     <string name="shortcut_codes_long">One-time codes</string>
     <string name="read_with_keething">Read with Keething</string>
     <string name="keething_note">Keething note</string>
+    <string name="shortcut_note_from_clipboard">Note from clipboard</string>
+    <string name="shortcut_note_from_clipboard_long">Quick note from the clipboard</string>
+    <string name="tile_quick_note">Quick note</string>
+    <string name="tile_quick_note_subtitle">Keething · from the clipboard</string>
 </resources>

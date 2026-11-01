@@ -26,7 +26,8 @@ import kotlinx.coroutines.test.runTest
  * The quick note's screen over another app (SPEC §6.4; keething-spec app.quick-note AC3, AC4, AC7; the Mac's
  * `QuickNoteTests`, "The window"): a text handed over by a share or the selection menu, into the quick note's editor,
  * after the database's lock screen when it is locked; given up by Back, by the screen left, by a lock, by its database
- * gone, by a newer quick note and by a screen re-created after its process died, keeping nothing of the text.
+ * gone, by a newer quick note and by a screen re-created after its process died, keeping nothing of the text. The
+ * clipboard's (the tile, the launcher's shortcut) once the screen has the window focus, its text after the unlock.
  */
 /** An open database's state. */
 private fun unlocked(vault: Vault = Vault(emptyList())) = SessionState.Unlocked(vault)
@@ -336,6 +337,197 @@ class QuickNoteModelTest {
         runCurrent()
         assertEquals(Showing.Unlock(personal), f.showing, "a configuration change keeps the model and its quick note")
         assertEquals(1, f.started.value)
+    }
+
+    // The clipboard (the tile, the launcher's shortcut)
+
+    /**
+     * The clipboard as Android shows it to the app: nothing, not even whether it holds text, while the screen does not
+     * have the window focus (plans/android-notes.md AQ0). Counts the looks at its description and the reads of its text.
+     */
+    private class FocusClipboard : dev.keething.android.clipboard.SystemClipboard {
+        var text: String? = null
+        var inFront = false
+        var looks = 0
+        var reads = 0
+
+        override fun put(text: String, sensitive: Boolean, token: String) = fail("the clipboard is left as it was")
+
+        override fun owner() = dev.keething.android.clipboard.ClipOwner.Other
+
+        override fun clear() = fail("the clipboard is left as it was")
+
+        override fun text(): String? {
+            reads++
+            return text.takeIf { inFront }
+        }
+
+        override fun hasText(): Boolean {
+            looks++
+            return inFront && text != null
+        }
+    }
+
+    private class Clipboard(scope: TestScope, open: Boolean = true, started: MutableStateFlow<Int> = MutableStateFlow(0)) {
+        val clipboard = FocusClipboard()
+        val f = Fixture(scope, open = open, started = started)
+
+        fun start() = f.model.start(recreated = false) { QuickNoteRun.Source.Clipboard(clipboard) }
+
+        /** The window focus, as the activity hands it on: the clipboard follows it. */
+        fun focus(has: Boolean) {
+            clipboard.inFront = has
+            f.model.focus(has)
+        }
+    }
+
+    @Test
+    fun theClipboardIsLookedAtOnlyOnceTheScreenHasTheFocusAndItsTextReadOnce() = runTest {
+        // spec: app.quick-note/AC7
+        val c = Clipboard(this)
+        c.clipboard.text = "\n Perfect Days (2023)\n"
+        c.start()
+        runCurrent()
+        assertEquals(Showing.Nothing, c.f.showing, "no focus yet (onResume): it waits instead of finding no text")
+        assertEquals(0, c.clipboard.looks + c.clipboard.reads)
+        c.focus(true)
+        runCurrent()
+        val editor = assertIs<Showing.Editor>(c.f.showing)
+        assertEquals(" Perfect Days (2023)", editor.note.text)
+        assertTrue(editor.note.quick)
+        assertEquals(QuickNoteSource(), editor.note.source, "the clipboard says no app and no page (app.quick-note-source AC4)")
+        c.focus(false)
+        c.focus(true)
+        runCurrent()
+        assertEquals(1, c.clipboard.reads, "read once: one \"pasted from your clipboard\" per note")
+        assertIs<Showing.Editor>(c.f.showing)
+    }
+
+    @Test
+    fun noTextOnTheClipboardSaysSoAndAsksNoUnlockWhenTheDatabaseIsLocked() = runTest {
+        for (open in listOf(true, false)) {
+            val c = Clipboard(this, open = open)
+            c.start()
+            c.focus(true)
+            runCurrent()
+            assertEquals(Showing.Gone("No text on the clipboard"), c.f.showing, if (open) "open" else "locked")
+            assertTrue(c.f.intoWindow.isEmpty(), "no unlock asked for nothing")
+            assertEquals(0, c.clipboard.reads, "its description alone looked at")
+        }
+    }
+
+    @Test
+    fun aLockedDatabaseReadsTheClipboardOnlyAfterTheUnlockWithTheFocusBack() = runTest {
+        val c = Clipboard(this, open = false)
+        c.clipboard.text = "Dune"
+        c.start()
+        c.focus(true)
+        runCurrent()
+        assertEquals(Showing.Unlock(personal), c.f.showing)
+        assertEquals(0, c.clipboard.reads, "nothing of the text in memory while the lock screen waits")
+        c.focus(false) // The fingerprint prompt, the system's window over the screen.
+        c.f.state.value = unlocked()
+        runCurrent()
+        assertEquals(Showing.Unlock(personal), c.f.showing, "unlocked under the prompt: waits for the focus, finds no empty clipboard")
+        assertEquals(0, c.clipboard.reads)
+        c.focus(true)
+        runCurrent()
+        assertEquals("Dune", assertIs<Showing.Editor>(c.f.showing).note.text)
+        assertEquals(1, c.clipboard.reads)
+    }
+
+    @Test
+    fun lockedAgainBeforeTheFocusCameBackKeepsTheLockScreen() = runTest {
+        val c = Clipboard(this, open = false)
+        c.clipboard.text = "Dune"
+        c.start()
+        c.focus(true)
+        runCurrent()
+        c.focus(false)
+        c.f.state.value = unlocked()
+        runCurrent()
+        c.f.state.value = SessionState.Locked(LockReason.Timeout)
+        runCurrent()
+        c.focus(true)
+        runCurrent()
+        assertEquals(Showing.Unlock(personal), c.f.showing, "its lock screen again, nothing read")
+        assertEquals(0, c.clipboard.reads)
+    }
+
+    @Test
+    fun theScreenLeftBeforeItHadTheFocusGivesUpLookingAtNothing() = runTest {
+        val c = Clipboard(this)
+        c.clipboard.text = "Dune"
+        c.start()
+        c.f.model.stopped(ownInFront = false)
+        assertEquals(Showing.Gone(null), c.f.showing)
+        c.focus(true)
+        runCurrent()
+        assertEquals(Showing.Gone(null), c.f.showing)
+        assertEquals(0, c.clipboard.looks + c.clipboard.reads)
+        assertEquals(0, c.f.started.value)
+    }
+
+    @Test
+    fun startedAgainBeforeTheFocusIsTheSameQuickNote() = runTest {
+        val c = Clipboard(this)
+        c.clipboard.text = "Dune"
+        c.start()
+        // A configuration change: the model is kept, and the new screen's start passes recreated = false.
+        c.f.model.start(recreated = false) { fail("asked again") }
+        c.focus(true)
+        runCurrent()
+        assertEquals("Dune", assertIs<Showing.Editor>(c.f.showing).note.text)
+        assertEquals(1, c.f.started.value)
+    }
+
+    @Test
+    fun aLockCountedBeforeTheFocusIsNotThisQuickNotes() = runTest {
+        // The app's own start counts a stay away past the timeout; the database's state then says what to show.
+        val c = Clipboard(this, open = false)
+        c.clipboard.text = "Dune"
+        c.start()
+        c.f.locks.value++
+        c.focus(true)
+        runCurrent()
+        assertEquals(Showing.Unlock(personal), c.f.showing)
+        c.f.locks.value++
+        runCurrent()
+        assertEquals(Showing.Gone(null), c.f.showing, "one counted after it started is")
+    }
+
+    @Test
+    fun aClipboardNoteReplacesOneWaitingOnlyOnceItHasATextAndADatabase() = runTest {
+        val started = MutableStateFlow(0)
+        val first = Fixture(this, open = false, started = started)
+        first.model.start(recreated = false) { given("Dune") }
+        runCurrent()
+        val empty = Clipboard(this, started = started)
+        empty.start()
+        empty.focus(true)
+        runCurrent()
+        assertEquals(Showing.Gone("No text on the clipboard"), empty.f.showing)
+        val waiting = Clipboard(this, started = started)
+        waiting.clipboard.text = "Arrival"
+        waiting.start()
+        runCurrent()
+        assertEquals(Showing.Unlock(personal), first.showing, "nothing replaced it: one without the focus has not started")
+        waiting.focus(true)
+        runCurrent()
+        assertEquals(Showing.Gone(null), first.showing, "the newer one replaces it")
+        assertEquals("Arrival", assertIs<Showing.Editor>(waiting.f.showing).note.text)
+    }
+
+    @Test
+    fun aTextHandedOverDoesNotWaitForTheFocus() = runTest {
+        val f = Fixture(this, open = false)
+        f.model.focus(false)
+        f.model.start(recreated = false) { given("Dune") }
+        runCurrent()
+        assertEquals(Showing.Unlock(personal), f.showing)
+        f.state.value = unlocked()
+        runCurrent()
+        assertEquals("Dune", assertIs<Showing.Editor>(f.showing).note.text, "the fingerprint prompt's focus does not hold up a shared text")
     }
 
     // Saved

@@ -63,7 +63,7 @@ Writing comes after them (ROADMAP step 7) and must be done before a Google Play 
 
 Non-goals (v1): SSH agent, e-mail aliases,
 reports (but Groups & tags), restoring a version from the history, YubiKey, Twofish, deleting entries for good / emptying the recycle bin, adding / removing / renaming
-attachments, reordering custom fields, a Quick Settings tile, a one-time code pinned to the notification
+attachments, reordering custom fields, a Quick Settings tile for codes (Quick note's is §6.4), a one-time code pinned to the notification
 shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
 foreground service for little gain), an entry pinned to the notification shade with Copy username / password /
 code (dropped 2026-10-22: doable without a service, but it saves only a switch back to the app, whose card
@@ -695,8 +695,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   On the test phone the timer cleared after 30 s in each run (screen off, Doze), and the clipboard was
   empty afterwards; reading it in the background is refused ("Denying clipboard access … not in focus" in
   the system log), clearing is not. The app reads the clipboard's text only for New note from clipboard
-  (§6.4), on the tap, while in front, and for a quick note from the clipboard once its database is open (before
-  that only the clip's description, which shows no notice); it leaves the clipboard as it was. A quick note's text is
+  (§6.4), on the tap, while in front, and for a quick note from the clipboard once its database is open and its
+  screen has the window focus (before that only the clip's description, once it has the focus, which shows no notice); it leaves the clipboard as it was. A quick note's text is
   kept nowhere but the editor: not in the settings (they hold the quick notes' database's id alone), saved state, a
   log or a draft (nor the app it came from or its page, which travel with it). A text another app hands over
   (Keething note) comes in the intent, so it is in memory while its
@@ -1361,11 +1361,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
   **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
   Under the list **Open a database…** (it becomes current; one open stays open, §3.1) and **New database…** (§6.2). Then **Quick notes**: "Quick notes go to", Current database or a database of the
-  list with its dot, in a menu (§6.4). Then the app's fingerprint switch (§5) and,
+  list with its dot, in a menu, and Add the Quick note tile (§6.4). Then the app's fingerprint switch (§5) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build.
-- **Launcher shortcut** "Codes" (long press on the icon; static, `res/xml/shortcuts.xml`): unlock, then
+- **Launcher shortcuts** (long press on the icon; static, `res/xml/shortcuts.xml`): "Codes", then "Note from
+  clipboard" (a quick note, §6.4). Codes: unlock, then
   the list titled "Codes" with only the entries with a one-time code, by title, each row's live code a
   button that copies it; the search searches among them. Back (or the arrow) goes to the whole list; a lock
   keeps the Codes list, so the shortcut opens the lock screen and then it. A group or tag chip on a card
@@ -1436,7 +1437,8 @@ Being built (keething-spec `types.note`, `app.quick-note`, `app.quick-note-sourc
 mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1); the
 card, the list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from
 clipboard (AN3); where a quick note goes, its editor, its run and the setting (AQ1); Keething note in the share sheet
-and the selection menu (AQ2); where a quick note came from (AQ3). Not yet: the tile and the launcher's shortcut (AQ4).
+and the selection menu (AQ2); where a quick note came from (AQ3); the Quick note tile and the launcher's Note from
+clipboard (AQ4).
 
 **What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
 item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,
@@ -1539,8 +1541,8 @@ database unlocked changes nothing; a second request while it waits changes nothi
 description is looked at until then (`SystemClipboard.hasText`, which shows no "pasted" notice), its text read once
 the database is open, as it is then. A text handed over is in memory already and is held only until the unlock or
 giving up (§4). Given up (the lock screen left): nothing read, nothing kept, and a later unlock opens nothing. Once
-the editor has the text the run keeps none of it. Keething note (below) starts it with a text handed over; the tile
-and the shortcut (AQ4) are not built, so nothing starts it from the clipboard yet.
+the editor has the text the run keeps none of it. Keething note (below) starts it with a text handed over; the Quick
+note tile and Note from clipboard (below) with the clipboard.
 
 **Keething note** (`app/quicknote` `QuickNoteActivity`, `QuickNoteModel`, `QuickNoteIntent`; app.quick-note AC3, AC4,
 AC7; the Mac's `QuickNoteWindow`): Keething's target in other apps' share sheet for a text (`ACTION_SEND`,
@@ -1578,6 +1580,27 @@ opens nothing. Recents keeps the sheet as its live top card (blank: `FLAG_SECURE
 it up. While a screen it opened is in front, an unlock elsewhere (the main app) still opens the
 editor behind it; a lock of the app then gives it up. The log says which screen showed, by name ("Unlock", "Editor", "Gone with a notice"), never the
 text, the database or the group.
+
+**The Quick note tile and Note from clipboard** (`app/quicknote` `QuickNoteTileService`, `QuickNoteTile`,
+`res/xml/shortcuts.xml`; app.quick-note AC3, AC4, AC7): a quick note from the clipboard's text, copied earlier or in
+an app that offers no Keething note (Telegram shares no message to other apps). The Quick Settings tile **Quick note**
+("Keething · from the clipboard" under it; an action, never shown as on) and the launcher's second shortcut **Note from
+clipboard** (long press on the icon, under Codes) open Keething note's screen (above) with the clipboard's action
+(`QuickNoteIntent.ACTION_FROM_CLIPBOARD`); everything above holds for it: the sheet, the lock screen, saved, given up.
+The tile collapses the shade and opens it (`startActivityAndCollapse`); on the phone's lock screen Android asks the
+phone's unlock first. Only the app with the window focus may read the clipboard (Android 10+: before, even resumed,
+it says the clipboard holds nothing), so the run starts once the screen has the focus (`onWindowFocusChanged`), not at
+`onResume`: a screen stopped before it gives up having looked at nothing. Then the clip's description alone: no text
+(nothing, a picture, a file) says "No text on the clipboard" and asks no unlock, the database open or locked. Locked:
+its lock screen, the text not read; unlocked while the fingerprint prompt (a window of the system's) still has the
+focus, the editor waits for the focus to come back and reads the text then, once (one "Keething pasted from your
+clipboard" per note). The intent of the clipboard's action is not read (any app may start it: it can only open the
+editor on the user's own clipboard). No tag and no page: the clipboard says neither. **Settings → Quick notes → Add the
+Quick note tile** asks Android to add it (`StatusBarManager.requestAddTileService`, Android's own question); "The Quick
+note tile is in Quick Settings already" when it is, and "Android did not ask. Add the tile from Quick Settings' edit
+button." when Android answers with an error (the app not in front, a question already showing). Added or not added
+by the user, Android's question said it; Android may also answer "not added" without asking after the user said no
+several times, and then nothing is said.
 
 **Where it came from** (`core/card` `QuickNoteSource`, `app/quicknote` `QuickNoteIntent`, `QuickNoteApp`;
 keething-spec app.quick-note-source; the Mac's `QuickNoteSource`). The app is the sending or calling app named by

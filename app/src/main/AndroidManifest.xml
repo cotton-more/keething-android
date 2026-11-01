@@ -153,6 +153,18 @@
             </intent-filter>
         </activity>
 
+        <!-- The Quick note tile (SPEC §6.4): the quick note's screen with the clipboard's text. -->
+        <service
+            android:name=".quicknote.QuickNoteTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_quick_note"
+            android:label="@string/tile_quick_note"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <!-- The pictures of requests and answers, handed to a messenger or mail (SPEC §10). -->
         <provider
             android:name="androidx.core.content.FileProvider"

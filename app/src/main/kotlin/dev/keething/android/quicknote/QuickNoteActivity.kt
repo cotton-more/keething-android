@@ -60,9 +60,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * Keething note in the share sheet and the text selection menu (SPEC §6.4; keething-spec app.quick-note AC3, AC4, AC7):
- * the text another app hands over goes into the quick note's editor, in a sheet over that app, after the quick notes'
- * database's lock screen when it is locked ([QuickNoteModel]). Saved or given up, the screen goes and the other app is
+ * Keething note in the share sheet and the text selection menu, the Quick note tile and the launcher's Note from
+ * clipboard (SPEC §6.4; keething-spec app.quick-note AC3, AC4, AC7): the text another app hands over, or the clipboard's
+ * once this screen has the window focus, goes into the quick note's editor, in a sheet over that app, after the quick
+ * notes' database's lock screen when it is locked ([QuickNoteModel]). Saved or given up, the screen goes and the other app is
  * in front again. It goes too when it stops, unless a screen it opened itself is in front (a key file picker, Locate…);
  * the text is in the intent and in memory only, never in saved state, a log or the settings.
  */
@@ -131,9 +132,23 @@ class QuickNoteActivity : ComponentActivity() {
         // open, and that lock is not counted against this quick note.
         // The sending or calling app as the system names it (a share's sender, not the chooser; the selection menu's
         // caller, Firefox's too, which does not start it for a result: plans/android-notes.md AQ0).
+        // The clipboard's waits for the window focus (onWindowFocusChanged).
         model.start(recreated) {
-            QuickNoteIntent.read(intent.action, intent::getCharSequenceExtra) { QuickNoteApp.name(referrer?.toString(), packageName, ::appLabel) }
+            QuickNoteIntent.source(intent.action, intent::getCharSequenceExtra, { QuickNoteApp.name(referrer?.toString(), packageName, ::appLabel) }) {
+                container.systemClipboard
+            }
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        model.focus(hasFocus)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // A rotation removes the window without always saying it lost the focus; the new one says when it has it.
+        model.focus(false)
     }
 
     override fun onStop() {

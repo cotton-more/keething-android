@@ -4,7 +4,9 @@ import android.content.Intent
 import dev.keething.card.editing.QuickNoteSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 /**
  * What a share or the selection menu hands over to Keething note (SPEC §6.4; keething-spec app.quick-note AC3,
@@ -148,5 +150,24 @@ class QuickNoteIntentTest {
         val given = QuickNoteIntent.read(Intent.ACTION_SEND, mapOf(Intent.EXTRA_TEXT to "Unforgettable")::get) { "Chrome" }
         assertEquals("Given", given.toString())
         assertEquals(QuickNoteSource(app = "Chrome"), given?.source)
+    }
+
+    // The clipboard's way in (the tile, the launcher's shortcut)
+
+    @Test
+    fun theClipboardsActionGivesTheClipboardAndNothingFromTheIntent() {
+        val clipboard = object : dev.keething.android.clipboard.SystemClipboard {
+            override fun put(text: String, sensitive: Boolean, token: String) = error("not touched")
+            override fun owner() = error("not touched")
+            override fun clear() = error("not touched")
+            override fun text() = error("not read")
+            override fun hasText() = error("not looked at")
+        }
+        val extras = mapOf<String, CharSequence?>(Intent.EXTRA_TEXT to "Dune", Intent.EXTRA_PROCESS_TEXT to "Dune")
+        val source = QuickNoteIntent.source(QuickNoteIntent.ACTION_FROM_CLIPBOARD, extras::get, { error("no app asked: the clipboard does not say") }) { clipboard }
+        assertSame(clipboard, assertIs<QuickNoteRun.Source.Clipboard>(source).clipboard)
+        val shared = QuickNoteIntent.source(Intent.ACTION_SEND, extras::get, { "Chrome" }) { error("the clipboard not asked for a share") }
+        assertEquals("Dune", assertIs<QuickNoteRun.Source.Given>(shared).text)
+        assertNull(QuickNoteIntent.source(null, extras::get, { "Chrome" }) { error("not asked") })
     }
 }

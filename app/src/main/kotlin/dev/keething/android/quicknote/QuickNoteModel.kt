@@ -13,13 +13,15 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
  * The quick note's screen over another app (SPEC §6.4; keething-spec app.quick-note AC3, AC4, AC7; the Mac's
- * `QuickNoteWindow`): the text a share or the selection menu handed over goes into the quick note's editor in the
- * quick notes' database, after that database's lock screen when it is locked ([QuickNoteRun]). It goes once the note is
+ * `QuickNoteWindow`): the text a share or the selection menu handed over, or the clipboard's (the tile, the launcher's
+ * shortcut; looked at once the screen has the window focus), goes into the quick note's editor in the quick notes'
+ * database, after that database's lock screen when it is locked ([QuickNoteRun]). It goes once the note is
  * saved, and when it is given up: Back; the screen left (stopped while nothing it opened itself is in front); a lock of
  * the app (Lock all, the timeout, a stay away past it); its database locked while the editor is open, or gone from the
  * window; a newer quick note; a screen re-created after its process died, whose intent is not read again. Once it goes
@@ -73,16 +75,39 @@ internal class QuickNoteModel(
     /** What follows the database, the app's locks and the newer quick notes; ended when the screen goes. */
     private val watching = Job(scope.coroutineContext[Job])
 
+    /** Whether the screen has the window focus: only then may it read the clipboard (Android 10+). */
+    private val focused = MutableStateFlow(false)
+
+    /** The clipboard's quick note, asked for before the screen had the focus; it starts once it has. */
+    private var waitingForFocus: Source.Clipboard? = null
+
     /**
-     * The screen's first start: [text] reads the intent, unless the screen was [recreated] after its process died
-     * (gives up). Again for the same screen (a configuration change): nothing. No text or no database leaves a quick
-     * note already waiting alone.
+     * The screen's first start: [source] reads the intent, unless the screen was [recreated] after its process died
+     * (gives up). The clipboard's starts once the screen has the window focus ([focus]): before, Android says it holds
+     * nothing. Again for the same screen (a configuration change): nothing. No text or no database leaves a quick note
+     * already waiting alone.
      */
-    fun start(recreated: Boolean, given: () -> Source.Given?) {
-        if (showing.value != Showing.Nothing) return
+    fun start(recreated: Boolean, source: () -> Source?) {
+        if (showing.value != Showing.Nothing || waitingForFocus != null) return
         if (recreated) return finish(null)
+        when (val asked = source() ?: Source.Given("")) {
+            is Source.Clipboard -> if (focused.value) begin(asked) else waitingForFocus = asked
+            is Source.Given -> begin(asked)
+        }
+    }
+
+    /** The screen gained or lost the window focus (the fingerprint prompt takes it while it shows). */
+    fun focus(has: Boolean) {
+        focused.value = has
+        if (has) waitingForFocus?.let {
+            waitingForFocus = null
+            begin(it)
+        }
+    }
+
+    private fun begin(source: Source) {
         val locked = locks.value
-        run.start(given() ?: Source.Given(""))
+        run.start(source)
         val database = when (val state = run.state) {
             is State.Unlocking -> state.database.also {
                 intoWindow(it)
@@ -101,22 +126,23 @@ internal class QuickNoteModel(
             locks.first { it != locked }
             finish(null)
         }
-        follow(database)
+        follow(database, readsClipboard = source is Source.Clipboard)
     }
 
     /**
      * The database's state: unlocked, the editor opens; locked while the editor is open, or gone from the window once
-     * it was there, the quick note is given up.
+     * it was there, the quick note is given up. The clipboard is read only with the focus: unlocked under the fingerprint
+     * prompt, the editor waits for it to come back.
      */
-    private fun follow(database: DatabaseId) {
+    private fun follow(database: DatabaseId, readsClipboard: Boolean) {
         scope.launch(watching) {
             var seen = false
             var opened = false
-            state(database).collect { state ->
+            combine(state(database), focused, ::Pair).collect { (state, focus) ->
                 if (state != null) seen = true
                 if (state is SessionState.Unlocked) {
                     opened = true
-                    if (showing.value is Showing.Unlock) {
+                    if (showing.value is Showing.Unlock && (focus || !readsClipboard)) {
                         run.unlocked(database)
                         run.state.message?.let(::finish)
                     }
@@ -151,6 +177,7 @@ internal class QuickNoteModel(
     /** The screen goes; nothing of the text stays. */
     private fun finish(message: String?) {
         if (showing.value is Showing.Gone) return
+        waitingForFocus = null
         run.giveUp()
         mutableShowing.value = Showing.Gone(message)
         watching.cancel()

@@ -5,12 +5,15 @@ import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.provider.Settings
 import android.view.autofill.AutofillManager
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.DashboardCustomize
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.DropdownMenu
@@ -64,6 +67,7 @@ import dev.keething.android.AppContainer
 import dev.keething.android.databases.DatabasesSetting
 import dev.keething.android.list.seconds
 import dev.keething.vault.databases.DatabaseSession
+import dev.keething.android.quicknote.QuickNoteTile
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.FitText
 import dev.keething.android.ui.readableInset
@@ -222,11 +226,19 @@ private fun QuickNotesSetting(container: AppContainer) {
     }
     destination.note?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
     Text(
-        "A quick note opens a new note in that database's Inbox, made with the note when there is none. Nothing is " +
-            "saved until you save it.",
+        "Text shared to Keething note or picked from a text's menu, the tile and the launcher's Note from clipboard " +
+            "open a new note in that database's Inbox, made with the note when there is none. Nothing is saved until " +
+            "you save it.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    // Android asks its own question; what it does not show (the tile there already, no question asked) is a toast.
+    val context = LocalContext.current
+    FilledTonalButton(onClick = { QuickNoteTile.requestAdd(context) { Toast.makeText(context.applicationContext, it, Toast.LENGTH_LONG).show() } }) {
+        Icon(Icons.Rounded.DashboardCustomize, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("Add the Quick note tile")
+    }
 }
 
 /** Whether Keething is the phone's autofill service (SPEC §7), and how to make it so. */
