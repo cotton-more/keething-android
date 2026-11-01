@@ -36,11 +36,13 @@ first change there.
   `./status <area or id>` shows one area or feature with every criterion.
 - Work goes by feature: a session takes one feature (or what is left of one), area by area from the bottom layer up
   (`kdbx` first). A feature waiting for the owner's decision (`OPEN.md`) is skipped until it is taken.
-- Before starting a feature, read `features/<id>.md` (or `features/<id>/README.md`): its acceptance criteria are the
-  brief, its *Platform notes* say what is Android-only, the Mac code and tests are the reference.
+- Before starting a feature, read `features/<area>/<name>.md` (or `features/<area>/<name>/README.md`; ideas are in
+  `ideas/`): its acceptance criteria are the brief, its *Platform notes* say what is Android-only, the Mac code and
+  tests are the reference.
 - Finishing a feature or changing behaviour: in the same piece of work update the feature file and
   `coverage/android/<area>.md` (`test` / `code` / `partial` / `no`, with the file and `#symbol` that shows it), or put
-  `// spec: <id>/AC<n>` in the test that checks it. Then run `./status --check` there; it must pass.
+  `// spec: <id>/AC<n>` in the test that checks it. Then run `./status --index` and `./status --check` there; the
+  check must pass.
 - A change that alters a criterion: edit the criterion, and set the macOS line back to `partial` or `no` with a note
   saying what changed.
 - A bug that breaks a criterion goes on that criterion's coverage line (`partial` / `no` with a note), not into a
