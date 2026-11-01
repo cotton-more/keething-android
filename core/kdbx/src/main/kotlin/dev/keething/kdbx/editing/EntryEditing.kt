@@ -5,6 +5,8 @@ import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.EntryFieldTypes
+import dev.keething.domain.vault.EntryType
+import dev.keething.domain.vault.EntryTypeChange
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.TotpChange
 import dev.keething.kdbx.schema.KdbxSchema
@@ -53,10 +55,15 @@ internal object EntryEditing {
             setString("Password", value, entry)
         }
         standard("URL", changes.url)
-        standard("Notes", changes.notes)
+        if (changes.notes != null || changes.notesProtected != null) setNotes(changes.notes, changes.notesProtected, protection.getValue("Notes"), entry)
         changes.customFields?.let { setCustomFields(it, entry) }
         changes.fieldTypes?.let { types ->
             setCustomData(EntryFieldTypes.CUSTOM_DATA_KEY, types.takeIf { it.isNotEmpty() }?.let(EntryFieldTypes::encode), entry, now)
+        }
+        when (val type = changes.entryType) {
+            is EntryTypeChange.Set -> setCustomData(EntryType.CUSTOM_DATA_KEY, type.type.stored, entry, now)
+            EntryTypeChange.Remove -> setCustomData(EntryType.CUSTOM_DATA_KEY, null, entry, now)
+            null -> {}
         }
         changes.tags?.let { setTags(it, entry) }
         changes.totp?.let { setTotp(it, entry, root) }
@@ -110,6 +117,21 @@ internal object EntryEditing {
 
     private fun strings(entry: XElement): List<Pair<XElement, String>> =
         entry.all("String").map { it to (it.first("Key")?.text ?: "") }
+
+    /**
+     * Notes keep their own protection (SPEC §6.4, §3.3; Mac `EntryEditing.apply`): the one asked for ([protect]),
+     * else the value's own, else `Meta/MemoryProtection`'s ([byDatabase]) for a new one. [text] null keeps the text.
+     */
+    private fun setNotes(text: String?, protect: Boolean?, byDatabase: Boolean, entry: XElement) {
+        val own = strings(entry).firstOrNull { it.second == "Notes" }?.first?.first("Value")
+        val protected = protect ?: own?.let { it.secret != null } ?: byDatabase
+        val value = when {
+            text != null -> if (protected) FieldValue.Protected(Secret.of(text)) else FieldValue.Plain(text)
+            own?.secret != null -> if (protected) return else FieldValue.Plain(own.secret!!.reveal())
+            else -> (own?.text ?: "").let { if (protected) FieldValue.Protected(Secret.of(it)) else FieldValue.Plain(it) }
+        }
+        setString("Notes", value, entry)
+    }
 
     /** [value] becomes the field's: a secret is taken over by the tree. */
     private fun setString(key: String, value: FieldValue, entry: XElement) {

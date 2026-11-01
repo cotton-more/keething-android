@@ -2,6 +2,7 @@ package dev.keething.domain.vault
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.totp.TotpFormat
 import java.nio.ByteBuffer
 import java.time.Instant
 import java.util.Base64
@@ -16,6 +17,8 @@ public data class Entry(
     val password: Secret = Secret.empty(),
     val url: String = "",
     val notes: String = "",
+    /** Notes are protected in the file (`Protected="True"`): a note's text by default (SPEC §6.4). An edit keeps it. */
+    val notesProtected: Boolean = false,
     /** Group names from the top-level group down, without the database's root group. */
     val groupPath: List<String> = emptyList(),
     /** UUID of the group the entry is in ("" when not known). */
@@ -28,7 +31,11 @@ public data class Entry(
      * `CustomData` ([EntryFieldTypes]). A field without one is read by its value.
      */
     val fieldTypes: Map<String, String> = emptyMap(),
+    /** Its kind as stored in its `CustomData` ([EntryType], SPEC §6.4), null when it has none; kept as it is. */
+    val entryType: String? = null,
     val totp: TotpConfig? = null,
+    /** It has fields of a one-time code ([TotpFormat.FIELD_NAMES]), whether or not they make a code [totp] can read. */
+    val hasCodeFields: Boolean = false,
     val attachments: List<Attachment> = emptyList(),
     val expires: Boolean = false,
     val expiryTime: Instant? = null,
@@ -53,6 +60,20 @@ public data class Entry(
         get() = (listOf(url) + customFields.filter { it.isAdditionalUrl }.mapNotNull { it.plainText })
             .filter { it.isNotEmpty() }
 
+    /**
+     * Whether the entry is a note (keething-spec types.note AC1–AC3; Mac `Entry.isNote`): the one definition the card,
+     * the list and the editor share. A stored `note` makes one, whatever else the entry has. Any other stored kind
+     * leaves it an ordinary entry. Without one it is a note when its Notes are not blank, its username, password and
+     * URL are blank, and it has no custom fields and no one-time code (attachments allowed); reading it so writes
+     * nothing.
+     */
+    val isNote: Boolean
+        get() {
+            entryType?.let { return EntryType.of(it) == EntryType.NOTE }
+            return notes.isNotBlank() && username.isBlank() && url.isBlank() && password.isBlank() &&
+                customFields.isEmpty() && totp == null && !hasCodeFields
+        }
+
     public fun isExpired(at: Instant): Boolean = expires && expiryTime != null && expiryTime <= at
 
     /** Overwrites the entry's secrets (the lock). */
@@ -60,6 +81,14 @@ public data class Entry(
         password.wipe()
         customFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
         totp?.secret?.wipe()
+    }
+
+    /**
+     * The password white space only. A byte in ASCII but a space decides without decoding, so a password becomes a
+     * string only when it is all spaces or outside ASCII.
+     */
+    private fun Secret.isBlank(): Boolean = useBytes { bytes ->
+        bytes.all { it < 0 || it.toInt().toChar().isWhitespace() } && bytes.decodeToString().isBlank()
     }
 
     public companion object {

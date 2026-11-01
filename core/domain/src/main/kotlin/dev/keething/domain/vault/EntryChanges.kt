@@ -17,12 +17,19 @@ public data class EntryChanges(
     val url: String? = null,
     val notes: String? = null,
     /**
+     * Notes protected in the file or not (SPEC §6.4). null keeps the value's own protection, or gives a new one
+     * `Meta/MemoryProtection`'s.
+     */
+    val notesProtected: Boolean? = null,
+    /**
      * The custom fields as they should be afterwards, in order: those missing from it are removed, new ones
      * added. The one-time code's fields ([RESERVED_FIELD_NAMES]) are never touched through it.
      */
     val customFields: List<CustomField>? = null,
     /** The field types as they should be afterwards (Mac SPEC §3.12); empty removes them. */
     val fieldTypes: Map<String, String>? = null,
+    /** The entry's kind ([EntryType], SPEC §6.4) set or its item removed. */
+    val entryType: EntryTypeChange? = null,
     val tags: List<String>? = null,
     val expiry: Expiry? = null,
     /**

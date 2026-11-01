@@ -99,6 +99,18 @@ class XmlTreeTest {
     }
 
     @Test
+    fun aValueMarkedProtectedFalseThatBecomesASecretIsWrittenWithOneProtectedAttribute() {
+        // Some writers mark a plain value Protected="False"; protecting it (Notes' switch) must not write the attribute twice.
+        val root = XmlTree.parse("""<String><Key>Notes</Key><Value Protected="False">plain</Value></String>""".encodeToByteArray())
+        root.first("Value")!!.secret = Secret.of("now protected")
+
+        val written = write(root).decodeToString()
+
+        assertEquals(1, Regex("Protected=").findAll(written).count(), written)
+        assertEquals("now protected", read(written.encodeToByteArray()).first("Value")?.secret?.reveal())
+    }
+
+    @Test
     fun aSecretIsNeverWrittenWithoutTheStream() {
         val root = XElement("Value").apply { secret = Secret.of("pw") }
 

@@ -97,6 +97,9 @@ public class EditableDatabase internal constructor(
         )
     }
 
+    /** `Meta/MemoryProtection`'s `ProtectNotes`: the protection Notes take where an entry had none (SPEC §6.4). */
+    public val protectsNotes: Boolean get() = EntryEditing.memoryProtection(root).getValue("Notes")
+
     /** Renames the entries' `CustomData` item [from] to [to] everywhere, history included ([CustomDataRename]). */
     public fun renameEntryCustomData(from: String, to: String): CustomDataRenamed = CustomDataRename.rename(from, to, root)
 

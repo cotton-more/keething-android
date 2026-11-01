@@ -38,3 +38,11 @@ tasks.register<JavaExec>("renameFieldTypes") {
     maxHeapSize = "2g"
     args(providers.gradleProperty("database").getOrElse(""), providers.gradleProperty("output").getOrElse(""))
 }
+
+// The notes' fictitious test database, written by the phone's core: `task notes:database -- <new.kdbx>`.
+tasks.register<JavaExec>("makeNotesDatabase") {
+    description = "A new fictitious database of notes (password pw) for the phone's checks"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.keething.vault.probe.MakeNotesDatabaseKt")
+    args(providers.gradleProperty("output").getOrElse(""))
+}

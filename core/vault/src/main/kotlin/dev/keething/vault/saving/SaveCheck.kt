@@ -3,6 +3,7 @@ package dev.keething.vault.saving
 import dev.keething.domain.text.TextFolding
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.EntryTypeChange
 import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
@@ -23,6 +24,12 @@ internal object SaveCheck {
     class Failed(val detail: String) : Exception(detail)
 
     /**
+     * What the file says of Notes an edit writes where there were none (SPEC §6.4): [protected], the database's
+     * `ProtectNotes`, for a new entry's and for those of the entry [missingIn] (an edited one that had no Notes).
+     */
+    class NewNotes(val protected: Boolean = false, val missingIn: String? = null)
+
+    /**
      * [fileBefore] and [fileAfter]: every group of each file in file order, the recycle bin's own too, which the vaults'
      * groups leave out.
      */
@@ -34,9 +41,10 @@ internal object SaveCheck {
         now: Instant,
         fileBefore: List<VaultGroup> = before.groups,
         fileAfter: List<VaultGroup> = after.groups,
+        notes: NewNotes = NewNotes(),
     ) {
         when (edit) {
-            is VaultEdit.EntryEdit -> verifyEntry(before, after, edit, applied, now, fileBefore, fileAfter)
+            is VaultEdit.EntryEdit -> verifyEntry(before, after, edit, applied, now, fileBefore, fileAfter, notes)
             is VaultEdit.GroupEdit -> verifyGroups(before, after, edit, fileBefore, fileAfter)
         }
         // What the save says it deleted (groups.entry-group AC7) is what went.
@@ -52,6 +60,7 @@ internal object SaveCheck {
         now: Instant,
         fileBefore: List<VaultGroup>,
         fileAfter: List<VaultGroup>,
+        notes: NewNotes,
     ) {
         val old = all(before)
         val new = all(after)
@@ -150,7 +159,8 @@ internal object SaveCheck {
         when (edit) {
             is VaultEdit.Update -> {
                 val actual = new[id] ?: fail("the edit did not come out as asked")
-                var expected = applyTo(old[id] ?: fail("entries differ"), edit.changes).copy(lastModified = actual.lastModified)
+                val newNotes = notes.protected.takeIf { notes.missingIn == id }
+                var expected = applyTo(old[id] ?: fail("entries differ"), edit.changes, newNotes).copy(lastModified = actual.lastModified)
                 if (destination != null) {
                     val group = groups[destination.finalGroupId] ?: fail("the group is missing")
                     expected = expected.copy(groupPath = group.path, groupId = group.id)
@@ -164,7 +174,8 @@ internal object SaveCheck {
                 // A new entry's expiry time is its creation time, as in KeePassXC (it does not expire).
                 val expected = applyTo(
                     Entry(
-                        id, groupPath = group.path, groupId = group.id, expiryTime = seconds(now), created = seconds(now),
+                        id, notesProtected = notes.protected, groupPath = group.path, groupId = group.id,
+                        expiryTime = seconds(now), created = seconds(now),
                         lastModified = actual.lastModified,
                         customIconId = applied.customIconId?.takeIf { it in after.customIcons },
                     ),
@@ -284,24 +295,34 @@ internal object SaveCheck {
         return parents
     }
 
-    /** An entry as [changes] leave it: tags trimmed and times to the second, as the file stores them. */
-    private fun applyTo(entry: Entry, changes: EntryChanges): Entry {
+    /**
+     * An entry as [changes] leave it: tags trimmed and times to the second, as the file stores them. [newNotesProtected]:
+     * the protection Notes take when the entry has none and the change writes them.
+     */
+    private fun applyTo(entry: Entry, changes: EntryChanges, newNotesProtected: Boolean? = null): Entry {
         var expected = entry
         changes.title?.let { expected = expected.copy(title = it) }
         changes.username?.let { expected = expected.copy(username = it) }
         changes.password?.let { expected = expected.copy(password = it) }
         changes.url?.let { expected = expected.copy(url = it) }
+        if (changes.notes != null || changes.notesProtected != null) newNotesProtected?.let { expected = expected.copy(notesProtected = it) }
         changes.notes?.let { expected = expected.copy(notes = it) }
+        changes.notesProtected?.let { expected = expected.copy(notesProtected = it) }
         changes.customFields?.let { fields ->
             expected = expected.copy(customFields = fields.filter { it.name !in EntryChanges.RESERVED_FIELD_NAMES })
         }
         changes.fieldTypes?.let { expected = expected.copy(fieldTypes = it) }
+        when (val type = changes.entryType) {
+            is EntryTypeChange.Set -> expected = expected.copy(entryType = type.type.stored)
+            EntryTypeChange.Remove -> expected = expected.copy(entryType = null)
+            null -> {}
+        }
         changes.tags?.let { tags -> expected = expected.copy(tags = tags.map { it.trim() }.filter { it.isNotEmpty() }) }
         changes.expiry?.let { expiry ->
             expected = expected.copy(expires = expiry.expires)
             expiry.time?.let { expected = expected.copy(expiryTime = seconds(it)) }
         }
-        changes.totp?.let { expected = expected.copy(totp = (it as? TotpChange.Set)?.config) }
+        changes.totp?.let { expected = expected.copy(totp = (it as? TotpChange.Set)?.config, hasCodeFields = it is TotpChange.Set) }
         return expected
     }
 

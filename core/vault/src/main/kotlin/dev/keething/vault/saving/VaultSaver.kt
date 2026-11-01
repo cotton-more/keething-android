@@ -92,6 +92,13 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         try {
             checkAsLoaded(editable.document, edit)
             before = VaultAssembler.assemble(editable.document, editable.binaries.map(Secret::size))
+            // The protection Notes written where an entry had none take (SPEC §6.4): the database's, read before the edit.
+            val notes = SaveCheck.NewNotes(
+                editable.protectsNotes,
+                (edit as? VaultEdit.Update)?.entryId?.takeIf { id ->
+                    editable.document.entries.firstOrNull { it.uuid == id }?.fields?.none { it.key == "Notes" } == true
+                },
+            )
             val applied = try {
                 editable.apply(edit, now)
             } catch (failure: EditException) {
@@ -118,7 +125,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             try {
                 after = VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
                 try {
-                    SaveCheck.verify(before, after, edit, applied, now, groups(editable.document), groups(reread.document))
+                    SaveCheck.verify(before, after, edit, applied, now, groups(editable.document), groups(reread.document), notes)
                 } catch (failure: SaveCheck.Failed) {
                     throw Refused(SaveFailure.VerificationFailed(failure.detail))
                 }

@@ -77,6 +77,8 @@ internal object XmlTree {
         sink.ascii("<")
         sink.text(element.name, attribute = false)
         for ((name, value) in element.attributes) {
+            // A value read as `Protected="False"` and protected since: its one `Protected` is written below.
+            if (secret != null && name == "Protected") continue
             sink.ascii(" ")
             sink.text(name, attribute = false)
             sink.ascii("=\"")

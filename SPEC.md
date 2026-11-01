@@ -356,6 +356,13 @@ unpadded), `TimeOtp-Length`, `TimeOtp-Period` and `TimeOtp-Algorithm`, all four.
 (KeePass: more than 8 digits; `TOTP Settings`: SHA-256 or SHA-512) is written as `otp`. The fields go where the
 entry's first code field was, else after its other fields; the save's check reads the code back from whichever.
 
+Notes keep their own protection (keething-spec kdbx.round-trip AC6; `EntryChanges.notesProtected`): an edit writes
+them protected as asked, else as the value was, else as `Meta/MemoryProtection`'s `ProtectNotes` says for Notes the
+entry did not have; a new entry's Notes take `ProtectNotes` unless asked otherwise. Before notes (AN1) an edit of a
+protected Notes wrote it unprotected. An entry's kind (§6.4) is one `CustomData` item written as the field types' is
+(`EntryChanges.entryType`, set or removed, an edit with its history). The save's check expects both: the protection
+asked, kept, or `ProtectNotes`' where there were no Notes; the kind as written.
+
 The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/vault` `VaultSaver`, `core/kdbx`
 `EditableDatabase`):
 1. Read the file again; open it as an XML tree that keeps everything (unknown elements, history, custom
@@ -636,7 +643,9 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
 - Secrets are wipeable byte arrays (`Secret`): passwords, protected fields, one-time code keys, attachments.
   Protected values are decrypted from the file straight into them, so the XML in memory never holds a
   password in the clear. Not wipeable, and accepted: a `String` while a value is shown, copied or filled;
-  the typed master password in the text field until it is cleared; unprotected fields (username, notes);
+  the typed master password in the text field until it is cleared; unprotected fields (username, notes); Notes,
+  protected ones too (`Entry.notes` is a string, `Entry.notesProtected` says whether the file protects it, and each
+  reader that must not show a protected text asks it; keething-spec `plans/android-notes.md` P4, as on the Mac);
   the values in the editor while it is open (Compose's text fields hold strings; the editor goes with the
   lock). What a save writes is made into secrets, wiped once the save is over.
 - The keyboard is asked not to learn what is typed in the editor and the search field
@@ -1401,6 +1410,33 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   field's that has one, but `text` only where the value would be read as something else; a rename carries
   the type along; types of fields the entry no longer has go with the next save, which they do not cause.
   A card number, CVC or PIN gets the number keyboard, an SSH port the digits.
+
+### 6.4 Notes and quick notes
+
+Being built (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/android-notes.md`, the
+mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1). Not
+yet: the card, the list, the search and the history (AN2), the editor and New note (AN3), quick notes (AQ1–AQ4).
+
+**What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
+item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,
+other apps' items kept, its `LastModificationTime` kept up to date. It is read ignoring case and outer spaces and kept
+as stored (`Entry.entryType`). An entry is a note when its stored kind is `note`, whatever else it has; another kind
+makes no note and stays as it is; without one, when its Notes are not blank, its username, password and URL are blank
+(white space only counts as blank), and it has no custom fields and no field of a one-time code, even one that makes
+no code (`Entry.hasCodeFields`); attachments are allowed. An entry read as a note so is not written to. The settings
+entry is never a note (it is not among the entries). A note's text is its Notes, protected by default
+(`Entry.notesProtected`; §3.3 keeps the protection through an edit).
+
+**Its title** when saved without one (`NoteTitle.make`): the text's first line that is not blank, outer spaces trimmed,
+cut to 60 characters (grapheme clusters: an emoji or a letter with its accent is one) then `…`; for a protected text,
+or one with no line to take, "Note, <when it was made>" (`Times/CreationTime`, the date with the month's short name and
+the time to the minute in the phone's region: `NoteDates`, ICU's `yMMMdjmm`, given by the app), plain "Note" without
+it. A text received (the clipboard, a quick note) loses its blank lines before the first line and after the last
+(`NoteText.trimmingOuterBlankLines`).
+
+**For the phone checks**: `task notes:database -- <new.kdbx>` writes a fictitious database through the phone's own
+core (`core/vault` test `probe/MakeNotesDatabase.kt`, password `pw`): a protected note, an unprotected one, an entry
+with Notes only and an ordinary entry with a password and protected Notes.
 
 ## 7. Autofill
 
