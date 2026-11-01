@@ -694,7 +694,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   Android 17 emulator: both ways clear, and the alarm even starts a new process when the old one is gone.
   On the test phone the timer cleared after 30 s in each run (screen off, Doze), and the clipboard was
   empty afterwards; reading it in the background is refused ("Denying clipboard access … not in focus" in
-  the system log), clearing is not.
+  the system log), clearing is not. The app reads the clipboard's text only for New note from clipboard
+  (§6.4), on the tap, while in front, and leaves it as it was.
 - Attachments (card rows "Open in another app" and "Save to a folder"; Mac SPEC §3.18):
   - **Open**: another app can only read a file, so the attachment is written to
     `cacheDir/attachments/<database id>/<uuid>/<name>` (the name made safe: no `/` or `:`, no control characters, at
@@ -1214,14 +1215,16 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     is public: no warning). Under it the other addresses (badge, start and end, QR, copy), the extended public key
     (`zpub6rFR7y4Q2A…2AGutZYs`, "Shows every address and balance of the wallet: share it with care"; its checksum),
     the derivation path with what it says ("BIP-84 · Bitcoin, native SegWit · account 1"), then the rest.
-- **Editor** (the card's Edit; a new entry from the button next to the search field): title, username,
+- **Editor** (the card's Edit; a new entry from the `+` next to the search field, a menu: New entry, New note, New
+  note from clipboard, §6.4): title, username,
   password (masked, an eye shows it coloured; masked, it shows the card's fixed dots, not its length, and a dot a
   character only while typed in), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
   name above value, each with the row's whole width, and under them the type as a chip (§6.3), a Protected chip
   (a lock, closed when on) and remove; a protected value is masked as the password is. The text menu of the
   password, a protected or password-typed value and the lock screen's master password has no items other apps add
   ("Ask Gemini", "Translate", "Read aloud": they would hand it the text); the master password's and a recovery
-  phrase's have no Copy or Cut either. **Tags** (Mac SPEC §3.24) are chips with ✕
+  phrase's have no Copy or Cut either (a keyboard's Ctrl+C or Copy there copies nothing, and its Cut is refused); the others' Copy and Cut go
+  through the app (§4: concealed, cleared after 30 s), never the system's plain copy. **Tags** (Mac SPEC §3.24) are chips with ✕
   and a field after them, "Add a tag" (a tap anywhere in the box types one): Enter, a comma or a semicolon
   adds it (not when the entry has it already, in any case or accent), Backspace in the empty field takes
   the last chip off; typing offers the vault's tags that start with it (most used first), then those it
@@ -1419,7 +1422,8 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
 
 Being built (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/android-notes.md`, the
 mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1); the
-card, the list, the search and the history (AN2). Not yet: the editor and New note (AN3), quick notes (AQ1–AQ4).
+card, the list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from
+clipboard (AN3). Not yet: quick notes (AQ1–AQ4).
 
 **What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
 item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,
@@ -1459,6 +1463,40 @@ ordinary entry keep the system's selection, as before. The header's icon is the 
 line the text's first line that is not blank and not the title (both trimmed; a title made from that line counts as
 it), never the username or the site; nothing when there is none; for a protected text a lock and "Protected note",
 decided before the text is looked at. A protected text is not searched (§6.2), every entry's protected Notes with it.
+
+**The editor** (`core/card` `EntryEditor` with `EditorLayout.NOTE`, `app` `EntryEditorScreen`; the Mac's
+`EntryEditorModel` `.note`). The `+` next to the search field is a menu (§6.2): New entry, New note, New note from
+clipboard ("Opens it with the copied text"). New note opens the editor of a new note on its text, the keyboard up, in
+the database and group a new entry would go to (§3.1, Save into while two or more are open), with no username;
+"New note" / "Edit note". An entry that is a note (its kind, or its fields alone) opens in the same layout: the group,
+Title, then the text and **Protect text** under it in one block ("Hidden on the card until shown, and not searched"),
+the website when it has one or once **+ Website** is tapped, tags, the expiry. What another app gave the note (a
+username, a password, custom fields, a one-time code) shows and stays, editable; nothing of that is offered (no Add
+field). The phone's editor adds no attachments (none of its editors does; they are kept). A new note's text is
+protected; the switch is written whatever `ProtectNotes` says, an existing note's only when changed (one read as a
+note by its fields keeps the protection it had until switched). Saving marks the entry a note when it has no kind;
+opening and closing writes nothing; a kind this version does not know is never written over (an entry with one opens
+as an ordinary entry). A note needs its text (a new one: the text, never the title alone; an existing one: a text or
+a title). An empty title is written at save as the title above says, its placeholder saying what it will be ("Title:
+Note, 31 Oct 2026, 20:14", "Title: <the first line>", "Title: the first line" while there is no text); an untitled
+note's time is when it was made (its `CreationTime`, a new one's when its editor opened), in the phone's format
+(`PhoneNoteDates`: ICU's `yMMMdjmm` in the phone's locale). Protect text switched on empties a title made from the
+text's first line (as saved or as typed, cut or not), so the line does not stay in the unprotected Title; a title the
+user typed stays. The text is shown as typed in the editor (the window is never captured, §4); while protected its
+text menu has no other apps' items and its Copy and Cut go through the app (§4), as every secret field's in the
+editor does (the password, a protected value, backup codes being added, an entry's Notes protected in the file; not a
+new entry's Notes, which the database's `ProtectNotes` may protect only at save). Switching Protect text keeps the
+cursor and the keyboard. A username or password given to a note's editor from outside (autofill's save offer updating
+a note with a website) shows, so it is never saved unseen, and stays while edited. The clipboard's text is a clip's plain text, else its HTML
+as text; a link or a file alone is no text, and a URI's content is never opened.
+
+**New note from clipboard** (keething-spec app.quick-note AC6, AC7): the tap reads the clipboard's text once (the app
+is in front, so Android lets it; Android 12+ says "Keething pasted from your clipboard" when another app copied it),
+blank lines before the first line and after the last taken off; the clipboard is not written or cleared. No text (or
+only blank lines, a picture, a file): "No text on the clipboard" over the list, and no editor. Otherwise New note's
+editor with the text in it, already a change (Back asks before discarding). The text lives only in the editor: it
+travels to the editor's screen in memory (`NewNote`, whose name says nothing of it, since a screen's name keys its
+saved state), not in saved state, a draft, a log or the settings, and goes with the editor (Back, a save, a lock).
 
 **For the phone checks**: `task notes:database -- <new.kdbx>` writes a fictitious database through the phone's own
 core (`core/vault` test `probe/MakeNotesDatabase.kt`, password `pw`): a protected note, an unprotected one, an entry

@@ -1,6 +1,19 @@
 package dev.keething.android.editor
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.sp
+import dev.keething.android.ui.CopiedThroughTheApp
+import dev.keething.card.editing.EditorLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -187,9 +200,13 @@ internal fun EntryEditorScreen(
     places: NewEntryPlaces? = null,
     /** Another showing of the same screen (after a lock and an unlock): a fresh editor, not the one whose draft went. */
     showing: Int = 0,
+    /** A new note's editor and the text it starts with (SPEC §6.4). */
+    note: NewNote? = null,
+    /** What a secret's text field copies or cuts: through the app, concealed and cleared (SPEC §4). */
+    copySecret: (String) -> Unit,
 ) {
     // A new entry's editor is its own whichever database it started in: it may have moved to another (Save into).
-    val model = viewModel(key = if (entryId == null) "editor/new/$showing" else "editor/${database.number}/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill, places) }
+    val model = viewModel(key = if (entryId == null) "editor/new/$showing" else "editor/${database.number}/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill, places, note) }
     val editor = model.editor
     LaunchedEffect(editor == null) { if (editor == null) onClose() }
     if (editor == null) return
@@ -210,7 +227,7 @@ internal fun EntryEditorScreen(
         AlertDialog(
             onDismissRequest = { confirmingDiscard = false },
             title = { Text("Discard the changes?") },
-            text = { Text(if (editor.isNew) "The new entry is not saved." else "What you changed in this entry is not saved.") },
+            text = { Text(if (editor.isNew) "The new ${editor.noun} is not saved." else "What you changed in this ${editor.noun} is not saved.") },
             confirmButton = { TextButton(onClick = { confirmingDiscard = false; onClose() }) { Text("Discard") } },
             dismissButton = { TextButton(onClick = { confirmingDiscard = false }) { Text("Keep editing") } },
         )
@@ -231,7 +248,7 @@ internal fun EntryEditorScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             topBar = {
                 TopAppBar(
-                    title = { Text(if (editor.isNew) "New entry" else "Edit entry") },
+                    title = { Text(if (editor.isNew) "New ${editor.noun}" else "Edit ${editor.noun}") },
                     navigationIcon = {
                         IconButton(onClick = close) {
                             Icon(Icons.Rounded.Close, contentDescription = if (editor.isDirty(draft)) "Discard changes" else "Close")
@@ -266,7 +283,9 @@ internal fun EntryEditorScreen(
                     val saveInto: (@Composable () -> Unit)? = into?.let {
                         { SaveInto(it, model.offered, model.notOpen, enabled = phase == SavePhase.Editing, onChoose = model::saveInto) }
                     }
-                    EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto, model.groups, model::choose)
+                    CompositionLocalProvider(LocalSecretCopy provides copySecret) {
+                        EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto, model.groups, model::choose)
+                    }
                 }
             }
         }
@@ -291,17 +310,25 @@ private fun EditorForm(
         saveInto?.invoke()
         if (groups != null) GroupRow(groups, editor, draft, joined = saveInto != null, onChoose = onGroup)
     }
-    EditorField("Title", draft.title, { update(draft.copy(title = it)) }, highlighted = true, capitalization = KeyboardCapitalization.Sentences)
-    EditorField("Username", draft.username, { update(draft.copy(username = it)) }, keyboardType = KeyboardType.Email)
+    val note = editor.layout == EditorLayout.NOTE
+    EditorField(
+        "Title", draft.title, { update(draft.copy(title = it)) }, highlighted = !note, capitalization = KeyboardCapitalization.Sentences,
+        placeholder = editor.titlePlaceholder(draft).takeIf { note },
+    )
+    if (note) NoteTextBlock(editor, draft, update)
+    // A note shows a username, a password and fields only when another app gave it them (keething-spec types.note AC3).
+    if (editor.showsUsername) EditorField("Username", draft.username, { update(draft.copy(username = it)) }, keyboardType = KeyboardType.Email)
     var passwordShown by remember { mutableStateOf(false) }
     var generating by rememberSaveable { mutableStateOf(false) }
-    PasswordField(
-        draft.password,
-        onChange = { update(draft.copy(password = it)) },
-        revealed = passwordShown,
-        onToggle = { passwordShown = !passwordShown },
-        onGenerate = { generating = true },
-    )
+    if (editor.showsPassword) {
+        PasswordField(
+            draft.password,
+            onChange = { update(draft.copy(password = it)) },
+            revealed = passwordShown,
+            onToggle = { passwordShown = !passwordShown },
+            onGenerate = { generating = true },
+        )
+    }
     if (generating) {
         val state = remember { generator() }
         PasswordGeneratorSheet(
@@ -314,10 +341,22 @@ private fun EditorForm(
             onDismiss = { generating = false },
         )
     }
-    EditorField("Website", draft.url, { update(draft.copy(url = it)) }, keyboardType = KeyboardType.Uri)
-    EditorField("Notes", draft.notes, { update(draft.copy(notes = it)) }, singleLine = false, capitalization = KeyboardCapitalization.Sentences)
+    if (editor.showsWebsite(draft)) EditorField("Website", draft.url, { update(draft.copy(url = it)) }, keyboardType = KeyboardType.Uri)
+    if (!note) {
+        // An ordinary entry's protected Notes: their text menu and copies as a secret's.
+        EditorField(
+            "Notes", draft.notes, { update(draft.copy(notes = it)) }, singleLine = false, capitalization = KeyboardCapitalization.Sentences,
+            secret = draft.notesProtected,
+        )
+    }
     TagsField(draft, update, knownTags)
+    if (!editor.showsWebsite(draft)) {
+        FilledTonalButton(onClick = { update(draft.copy(websiteAdded = true)) }) {
+            ButtonLabel("Website", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
+        }
+    }
     ExpiryRow(draft, update)
+    if (!editor.showsCustomFields) return
 
     Text(
         "Fields",
@@ -329,14 +368,16 @@ private fun EditorForm(
     var focusing by remember { mutableStateOf<Int?>(null) }
     CustomFields(editor, draft, update, generator, focusing, onFocused = { focusing = null })
     var addingCodes by rememberSaveable { mutableStateOf(false) }
-    AddFieldButton(
-        onAdd = { type ->
-            val added = draft.addField(type)
-            update(added)
-            focusing = added.fields.last().id
-        },
-        onCodes = { addingCodes = true },
-    )
+    if (editor.offersFields) {
+        AddFieldButton(
+            onAdd = { type ->
+                val added = draft.addField(type)
+                update(added)
+                focusing = added.fields.last().id
+            },
+            onCodes = { addingCodes = true },
+        )
+    }
     if (addingCodes) AddCodesDialog(onAdd = addCodes, onDone = { addingCodes = false })
 
     val problems = draft.fields.mapNotNull { editor.fieldProblem(draft, it) }.distinct()
@@ -387,7 +428,9 @@ private fun EditorField(
         TextField(
             value = value,
             onValueChange = onChange,
-            modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+            modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
+                // Never copied: a keyboard's Cut (Ctrl+X, Gboard's Cut key) would take the text to nowhere, so it is refused.
+                .then(if (secret && !copyable) Modifier.onPreviewKeyEvent { it.isCut } else Modifier),
             label = { Text(label, color = if (highlighted) MaterialTheme.colorScheme.primary else Color.Unspecified) },
             placeholder = placeholder?.let { { Text(it) } },
             singleLine = singleLine,
@@ -408,7 +451,74 @@ private fun EditorField(
             colors = editorFieldColors(containerColor),
         )
     }
-    if (secret) SecretTextMenu(copyable, content = field) else field()
+    val copySecret = LocalSecretCopy.current
+    when {
+        !secret -> field()
+        copyable -> SecretTextMenu(copyable = true) { CopiedThroughTheApp(copySecret, field) }
+        // Never copied (a recovery phrase): a keyboard's Ctrl+C or Copy, which the menu does not offer, goes nowhere.
+        else -> SecretTextMenu(copyable = false) { CopiedThroughTheApp(onCopy = {}, content = field) }
+    }
+}
+
+/** Cut as a key: the Cut key (which a keyboard's Cut sends too), or Ctrl+X / Meta+X. */
+private val KeyEvent.isCut: Boolean
+    get() = key == Key.Cut || (key == Key.X && (isCtrlPressed || isMetaPressed))
+
+/** Where the editor's secret fields copy and cut to: the app's clipboard (null: none given, as in a preview). */
+private val LocalSecretCopy = staticCompositionLocalOf<((String) -> Unit)?> { null }
+
+/** "note" or "entry", as the editor's title and its discard question say it. */
+private val EntryEditor.noun: String get() = if (layout == EditorLayout.NOTE) "note" else "entry"
+
+/**
+ * A note's text and its Protect text under it, one block (the agreed mock-up; SPEC §6.4): the text shown as typed (the
+ * window is never captured), larger than a field's; protected, a secret's text menu and copies. A new note opens on it
+ * (keething-spec types.note AC4).
+ */
+@Composable
+private fun NoteTextBlock(editor: EntryEditor, draft: EntryDraft, update: (EntryDraft) -> Unit) {
+    val container = MaterialTheme.colorScheme.surfaceContainerHigh
+    val focus = remember { FocusRequester() }
+    if (editor.isNew) LaunchedEffect(Unit) { focus.requestFocus() }
+    Column(Modifier.clip(RoundedCornerShape(18.dp)).background(container)) {
+        val field: @Composable () -> Unit = {
+            TextField(
+                value = draft.notes,
+                onValueChange = { update(draft.copy(notes = it)) },
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Text", color = MaterialTheme.colorScheme.primary)
+                        if (draft.notesProtected) Icon(Icons.Rounded.Lock, contentDescription = "protected", Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                },
+                placeholder = { Text("What to keep") },
+                minLines = 8,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp, lineHeight = 27.sp),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = true),
+                colors = editorFieldColors(container),
+            )
+        }
+        val copySecret = LocalSecretCopy.current
+        // One place in the tree either way: Protect text switched keeps the cursor and the keyboard.
+        SecretTextMenu(copyable = true, active = draft.notesProtected) { CopiedThroughTheApp(copySecret.takeIf { draft.notesProtected }, field) }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .toggleable(draft.notesProtected, role = Role.Switch) { update(editor.protecting(draft, on = it)) }
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Protect text", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text("Hidden on the card until shown, and not searched", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = draft.notesProtected, onCheckedChange = null)
+        }
+    }
 }
 
 /** A masked value not being typed in: the card's dots, which do not tell its length; the cursor goes to its end. */
@@ -1131,20 +1241,25 @@ private fun AddCodesDialog(onAdd: (text: String, prefix: String) -> String?, onD
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     EditorField("Name of the list", name, { name = it; problem = null }, capitalization = KeyboardCapitalization.Sentences)
-                    TextField(
-                        value = codes,
-                        onValueChange = { codes = it; problem = null },
-                        label = { Text("Codes") },
-                        minLines = 4,
-                        maxLines = 8,
-                        isError = problem != null,
-                        supportingText = problem?.let { { Text(it) } },
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),
-                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = editorFieldColors(MaterialTheme.colorScheme.surfaceContainerHigh),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    // Backup codes are secrets: copied through the app, no other apps' items.
+                    SecretTextMenu(copyable = true) {
+                        CopiedThroughTheApp(LocalSecretCopy.current) {
+                            TextField(
+                                value = codes,
+                                onValueChange = { codes = it; problem = null },
+                                label = { Text("Codes") },
+                                minLines = 4,
+                                maxLines = 8,
+                                isError = problem != null,
+                                supportingText = problem?.let { { Text(it) } },
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),
+                                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = editorFieldColors(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                 }
             }
         },

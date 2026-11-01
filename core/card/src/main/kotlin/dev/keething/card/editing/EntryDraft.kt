@@ -34,6 +34,10 @@ public data class EntryDraft(
     val password: String = "",
     val url: String = "",
     val notes: String = "",
+    /** Notes protected in the file: a note's Protect text (SPEC §6.4); an entry's as loaded, not offered. */
+    val notesProtected: Boolean = false,
+    /** A note's Website row brought in by Add website (an entry's is always there). */
+    val websiteAdded: Boolean = false,
     /** The tags as chips (Mac SPEC §3.24), each once in any case or accent. */
     val tags: List<String> = emptyList(),
     /** A tag being typed; what is still typed when saving is saved too ([savedTags]). */

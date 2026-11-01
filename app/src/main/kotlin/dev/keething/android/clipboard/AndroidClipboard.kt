@@ -9,6 +9,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.PersistableBundle
+import android.text.Html
 import android.os.SystemClock
 import android.util.Log
 import dev.keething.android.KeethingApplication
@@ -37,6 +38,15 @@ internal class AndroidSystemClipboard(context: Context) : SystemClipboard {
     }
 
     override fun clear() = manager.clearPrimaryClip()
+
+    // Only the text of the first item (an HTML copy's as text): a picture, a file or a link alone is no text, and a
+    // URI's content is never opened. Reading the clip (not only its description) shows the system's "pasted from your
+    // clipboard" when another app copied it.
+    override fun text(): String? {
+        val item = manager.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return null
+        // A picture in the HTML becomes U+FFFC, the object replacement character: not text.
+        return item.text?.toString() ?: item.htmlText?.let { Html.fromHtml(it, Html.FROM_HTML_MODE_LEGACY).toString().replace("\uFFFC", "") }
+    }
 
     private companion object {
         const val LABEL = "Keething"

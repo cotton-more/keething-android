@@ -48,6 +48,9 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import dev.keething.android.AppContainer
+import dev.keething.android.editor.NewNote
+import dev.keething.android.editor.NoteFromClipboard
+import dev.keething.android.list.NewChoice
 import dev.keething.android.editor.EntryEditorScreen
 import dev.keething.android.entry.EntryCardScreen
 import dev.keething.android.history.EntryHistoryScreen
@@ -120,7 +123,7 @@ internal sealed interface Screen {
      * The editor of an entry, or of a new one ([entryId] null) in [groupId], starting in the open [database] (its id;
      * keething-spec databases.one-list AC4): its editor may move it to another (Save into) and closes when its own locks.
      */
-    data class Editor(val entryId: String?, val groupId: String? = null, val database: String? = null) : Screen {
+    data class Editor(val entryId: String?, val groupId: String? = null, val database: String? = null, val note: NewNote? = null) : Screen {
         override val ref: EntryRef? get() = entryId?.let(EntryRef::of)
     }
 
@@ -685,7 +688,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 onLockScreen = { showLockScreen(it) },
                                 onCloseDatabase = { closeDatabase(it) },
                                 onDatabases = { navigation.open(Screen.WindowDatabases) },
-                                onNewEntry = {
+                                onNew = { choice ->
                                     // The database the search names, else the card beside the list's, else the last new entry's.
                                     val start = NewEntryDatabases.start(
                                         sessions.newEntryDatabases(open),
@@ -693,7 +696,16 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                         navigation.cardBesideList?.let(EntryRef::of),
                                         container.settings.lastNewEntryDatabase,
                                     )
-                                    navigation.open(Screen.Editor(entryId = null, database = (start ?: current.id).value))
+                                    val database = (start ?: current.id).value
+                                    when (choice) {
+                                        NewChoice.ENTRY -> navigation.open(Screen.Editor(entryId = null, database = database))
+                                        NewChoice.NOTE -> navigation.open(Screen.Editor(entryId = null, database = database, note = NewNote.EMPTY))
+                                        // Read once, on the tap (the app in front); no text opens nothing (app.quick-note AC6, AC7).
+                                        NewChoice.NOTE_FROM_CLIPBOARD -> when (val text = NoteFromClipboard.read(container.systemClipboard)) {
+                                            null -> container.windowNotices.trySend(Notice(NoteFromClipboard.NO_TEXT))
+                                            else -> navigation.open(Screen.Editor(entryId = null, database = database, note = NewNote(text)))
+                                        }
+                                    }
                                 },
                                 onSharing = { navigation.open(Screen.Sharing) },
                             )
@@ -745,6 +757,8 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 if (key.entryId == null) navigation.replace(Screen.Card(ref.text, origin = "new")) else navigation.back()
                             },
                             places = if (key.entryId == null) remember { container.newEntryPlaces() } else null,
+                            note = key.note,
+                            copySecret = { container.clipboard.copy(it, sensitive = true) },
                         )
                     }
                     entry<Screen.Password> { key ->

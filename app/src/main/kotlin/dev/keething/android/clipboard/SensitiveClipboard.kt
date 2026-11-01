@@ -28,6 +28,9 @@ internal interface SystemClipboard {
     fun owner(): ClipOwner
 
     fun clear()
+
+    /** The clipboard's text; null when it holds none, or the app is not in front (only it may read, Android 10+). */
+    fun text(): String?
 }
 
 /** Wakes the app to clear the clipboard: Android freezes an app in the background, so a timer may not run. */

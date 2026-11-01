@@ -162,7 +162,9 @@ internal class AppContainer(context: Context) {
     /** A new generator: its options are remembered, its passwords are not. */
     fun passwordGenerator(): PasswordGeneratorState = PasswordGeneratorState(settingsStore)
 
-    val clipboard = SensitiveClipboard(AndroidSystemClipboard(context), ClipboardClearAlarm(context), appScope)
+    /** The system's clipboard read as such: New note from clipboard (SPEC §6.4). */
+    val systemClipboard = AndroidSystemClipboard(context)
+    val clipboard = SensitiveClipboard(systemClipboard, ClipboardClearAlarm(context), appScope)
 
     val probeSettings = ProbeSettings(context.getSharedPreferences("storage-probe", Context.MODE_PRIVATE))
 

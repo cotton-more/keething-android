@@ -6,6 +6,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import dev.keething.android.ui.NoteTile
+import androidx.compose.ui.draw.rotate
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -173,7 +177,8 @@ internal fun EntryListScreen(
     onSettings: () -> Unit,
     onGroups: () -> Unit,
     onLeaveCodes: () -> Unit,
-    onNewEntry: () -> Unit,
+    /** The `+`'s choice: a new entry, a new note, a new note from the clipboard (SPEC §6.2, §6.4). */
+    onNew: (NewChoice) -> Unit,
     onSharing: () -> Unit,
     /** The window's databases not open (keething-spec databases.not-open), and how many are open. */
     notOpen: List<NotOpenDatabase> = emptyList(),
@@ -318,7 +323,7 @@ internal fun EntryListScreen(
                 onFocusChange = { searchFocused = it },
                 above = { if (searchFocused) SearchChipRow(chips) { query.setTextAndPlaceCursorAtEnd(it) } },
             ) {
-                if (!codesOnly) NewEntryButton(onNewEntry)
+                if (!codesOnly) NewButton(onNew)
             }
         },
         snackbarHost = { NoticeHost(snackbar) },
@@ -712,18 +717,58 @@ private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Un
     }
 }
 
-/** Next to the search field, in thumb reach (the mock-up's list). */
+/**
+ * Next to the search field, in thumb reach (the mock-up's list): New entry, New note, New note from clipboard (the agreed
+ * menu of three, SPEC §6.4).
+ */
 @Composable
-private fun NewEntryButton(onClick: () -> Unit) {
-    FilledIconButton(
-        onClick = onClick,
-        modifier = Modifier.size(56.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ),
-    ) { Icon(Icons.Rounded.Add, contentDescription = "New entry") }
+private fun NewButton(onChoose: (NewChoice) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FilledIconButton(
+            onClick = { open = true },
+            modifier = Modifier.size(56.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = if (open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                contentColor = if (open) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+        ) { Icon(Icons.Rounded.Add, contentDescription = "New", Modifier.rotate(if (open) 45f else 0f)) }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(22.dp)) {
+            for (choice in NewChoice.entries) {
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(choice.title, style = MaterialTheme.typography.bodyLarge)
+                            choice.subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        }
+                    },
+                    leadingIcon = { NewChoiceTile(choice) },
+                    onClick = {
+                        open = false
+                        onChoose(choice)
+                    },
+                    modifier = Modifier.heightIn(min = 56.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewChoiceTile(choice: NewChoice) {
+    val tile = 36.dp
+    when (choice) {
+        NewChoice.ENTRY -> Box(
+            Modifier.size(tile).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Rounded.Key, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+        NewChoice.NOTE -> NoteTile(tile)
+        NewChoice.NOTE_FROM_CLIPBOARD -> Box(
+            Modifier.size(tile).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.extraColors.noteTile),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Rounded.ContentPaste, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.extraColors.onNoteTile) }
+    }
 }
 
 /**

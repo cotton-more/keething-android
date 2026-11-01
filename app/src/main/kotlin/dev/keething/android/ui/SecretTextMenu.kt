@@ -20,12 +20,13 @@ import androidx.compose.ui.platform.TextToolbar
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun SecretTextMenu(copyable: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+internal fun SecretTextMenu(copyable: Boolean, modifier: Modifier = Modifier, active: Boolean = true, content: @Composable () -> Unit) {
     val platform = LocalTextToolbar.current
     val toolbar = remember(platform, copyable) { if (copyable) platform else NoCopyToolbar(platform) }
     val kept = if (copyable) COPYABLE else NOT_COPYABLE
-    CompositionLocalProvider(LocalTextToolbar provides toolbar) {
-        Box(modifier.filterTextContextMenuComponents { it.key in kept }) {
+    // [active] false: the menu as everywhere, in the same place in the tree (a field becoming secret keeps its focus).
+    CompositionLocalProvider(LocalTextToolbar provides if (active) toolbar else platform) {
+        Box(modifier.filterTextContextMenuComponents { !active || it.key in kept }) {
             content()
         }
     }

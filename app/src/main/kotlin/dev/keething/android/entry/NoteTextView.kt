@@ -24,18 +24,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.innerShadow
 import androidx.compose.ui.graphics.shadow.Shadow
-import androidx.compose.ui.platform.ClipEntry
-import androidx.compose.ui.platform.Clipboard
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -44,6 +39,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.keething.android.theme.extraColors
+import dev.keething.android.ui.CopiedThroughTheApp
 import dev.keething.android.ui.SecretTextMenu
 import dev.keething.card.FieldRow
 import dev.keething.card.RevealState
@@ -133,31 +129,14 @@ private fun HiddenLine(label: String) {
 
 /**
  * A selectable text whose selection is copied through the app: its menu without other apps' items ([SecretTextMenu]),
- * and the clipboard the selection writes to handing the text to [CardActions.onCopySelection] instead of the system's,
- * so that it is concealed and cleared (SPEC §4). Compose's selection writes through [LocalClipboard], from its menu
- * and from a keyboard's Ctrl+C alike.
+ * and what the selection copies handed to [CardActions.onCopySelection] instead of the system's clipboard, so that it
+ * is concealed and cleared (SPEC §4).
  */
 @Composable
 private fun CopiedThroughTheApp(row: FieldRow, actions: CardActions, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val platform = LocalClipboard.current
-    val copy by rememberUpdatedState { text: String -> actions.onCopySelection(row.id, text) }
-    val clipboard = remember(platform) { SelectionClipboard(platform) { copy(it) } }
-    CompositionLocalProvider(LocalClipboard provides clipboard) {
+    CopiedThroughTheApp(onCopy = { actions.onCopySelection(row.id, it) }) {
         SecretTextMenu(copyable = true, modifier = modifier) {
             SelectionContainer { content() }
         }
-    }
-}
-
-/** Takes what a selection copies; reading is the system's. */
-private class SelectionClipboard(private val platform: Clipboard, private val onCopy: (String) -> Unit) : Clipboard {
-    override val nativeClipboard get() = platform.nativeClipboard
-
-    override suspend fun getClipEntry(): ClipEntry? = platform.getClipEntry()
-
-    override suspend fun setClipEntry(clipEntry: ClipEntry?) {
-        val clip = clipEntry?.clipData ?: return
-        if (clip.itemCount == 0) return
-        clip.getItemAt(0).text?.toString()?.let(onCopy)
     }
 }

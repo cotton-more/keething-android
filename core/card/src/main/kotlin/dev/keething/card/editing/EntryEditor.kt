@@ -18,6 +18,10 @@ import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.NewGroup
+import dev.keething.domain.vault.EntryType
+import dev.keething.domain.vault.EntryTypeChange
+import dev.keething.domain.vault.NoteDates
+import dev.keething.domain.vault.NoteTitle
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
@@ -31,6 +35,9 @@ public sealed interface AddedCodes {
 
     public data class Refused(val problem: String) : AddedCodes
 }
+
+/** What the editor offers (SPEC §6.4): an entry's fields, or a note's title, text, site and the rest. */
+public enum class EditorLayout { ENTRY, NOTE }
 
 /** Custom fields the card shows as one list of codes (§3.6.2 of the Mac SPEC); the editor folds them into one row. */
 public data class CodeList(val title: String, val fieldIds: List<Int>, val allProtected: Boolean)
@@ -46,7 +53,69 @@ public class EntryEditor private constructor(
     public val start: EntryDraft,
     /** Where a new entry can go: the groups outside the recycle bin. Empty for an existing entry. */
     public val groups: List<VaultGroup>,
+    public val layout: EditorLayout = EditorLayout.ENTRY,
+    /** When the editor opened: a new note is named by it ("Note, Oct 31, 2026, 7:45 AM"). */
+    private val openedAt: Instant = Instant.EPOCH,
+    /** How an untitled protected note's time is written: the app's formatter. */
+    private val dates: NoteDates? = null,
+    /** What the editor was given to start with besides the entry's own values (autofill's save offer); null: nothing. */
+    private val given: EntryDraft? = null,
 ) {
+    // A note (SPEC §6.4; keething-spec types.note AC3–AC5)
+
+    /**
+     * A note shows the username, the password and custom fields only when it has them (from another app), and keeps them
+     * (AC3); a username or password it was [given] shows too, so it is never saved unseen, and stays while edited.
+     */
+    public val showsUsername: Boolean
+        get() = layout == EditorLayout.ENTRY || original.username.isNotBlank() || given?.username?.isNotBlank() == true
+    public val showsPassword: Boolean
+        get() = layout == EditorLayout.ENTRY || start.password.isNotBlank() || given?.password?.isNotBlank() == true
+
+    /** This editor opened on [draft] rather than on [start] (a save offer's values): they still count as changes. */
+    public fun given(draft: EntryDraft): EntryEditor =
+        EntryEditor(original, isNew, start, groups, layout, openedAt, dates, given = draft)
+
+    public val showsCustomFields: Boolean get() = layout == EditorLayout.ENTRY || original.customFields.isNotEmpty()
+
+    /** Add field, codes and a kind's set: a note offers none of them (a login is an entry, AC4). */
+    public val offersFields: Boolean get() = layout == EditorLayout.ENTRY
+
+    /** A note's Website row: there when it has a site, or once Add website is tapped. */
+    public fun showsWebsite(draft: EntryDraft): Boolean =
+        layout == EditorLayout.ENTRY || draft.websiteAdded || original.url.isNotBlank() || draft.url.isNotBlank()
+
+    /** When the note was made: the entry's creation time, a new one's editor opening. */
+    private val made: Instant get() = original.created ?: openedAt
+
+    /**
+     * The title the save writes: as typed; a note's empty one made from its text, or `Note` and when the note was made
+     * while it is protected (AC5).
+     */
+    public fun savedTitle(draft: EntryDraft): String =
+        if (layout != EditorLayout.NOTE || draft.title.isNotBlank()) draft.title else NoteTitle.make(draft.notes, draft.notesProtected, made, dates)
+
+    /** What the empty title field says it will become (the agreed mock-up: the first line itself once there is one). */
+    public fun titlePlaceholder(draft: EntryDraft): String = when {
+        layout != EditorLayout.NOTE -> "Title"
+        draft.notesProtected -> "Title: ${NoteTitle.make("", protected = true, made = made, dates = dates)}"
+        draft.notes.isBlank() -> "Title: the first line"
+        else -> "Title: ${NoteTitle.make(draft.notes, protected = false)}"
+    }
+
+    /**
+     * Protect text switched: on empties a title made from the text's first line (the text as saved or as typed), so the
+     * line does not stay in the unprotected Title; the save names the note by its date instead. A title of the user's own stays.
+     */
+    public fun protecting(draft: EntryDraft, on: Boolean): EntryDraft {
+        if (on == draft.notesProtected) return draft
+        val switched = draft.copy(notesProtected = on)
+        if (!on || layout != EditorLayout.NOTE) return switched
+        val typed = draft.title.trim()
+        val made = listOf(original.notes, draft.notes).filter { it.isNotBlank() }.map { NoteTitle.make(it, protected = false) }
+        return if (typed in made) switched.copy(title = "") else switched
+    }
+
     public val entryId: String get() = original.id
 
     /** The fields as loaded, names untrimmed: tidying them is saved with the next change, but is none itself. */
@@ -145,13 +214,20 @@ public class EntryEditor private constructor(
         return GroupDestination(draft.groupId, newGroupIds.zip(draft.newGroups, ::NewGroup))
     }
 
-    /** A new entry needs a title or a website (not a problem to list: every new entry starts without). */
-    public fun hasName(draft: EntryDraft): Boolean = draft.title.isNotBlank() || draft.url.isNotBlank()
+    /** A new entry needs a title or a website, a note its text (not a problem to list: every new entry starts without). */
+    public fun hasName(draft: EntryDraft): Boolean = when (layout) {
+        EditorLayout.ENTRY -> draft.title.isNotBlank() || draft.url.isNotBlank()
+        EditorLayout.NOTE -> draft.notes.isNotBlank()
+    }
 
     /** Something to lose when the editor closes: a group chosen too, for a new entry as for a move. */
     public fun isDirty(draft: EntryDraft): Boolean = shape(draft) != shape(start) || draft.group != start.group
 
-    public fun canSave(draft: EntryDraft): Boolean = (if (isNew) hasName(draft) else isDirty(draft)) && !hasFieldProblems(draft)
+    public fun canSave(draft: EntryDraft): Boolean {
+        // An existing note keeps a text or a title.
+        val named = layout == EditorLayout.ENTRY || hasName(draft) || draft.title.isNotBlank()
+        return (if (isNew) hasName(draft) else isDirty(draft) && named) && !hasFieldProblems(draft)
+    }
 
     // Saving
 
@@ -167,8 +243,10 @@ public class EntryEditor private constructor(
             password = shape.password?.let(Secret::of),
             url = shape.url,
             notes = shape.notes,
+            notesProtected = shape.notesProtected,
             customFields = shape.fields?.map { CustomField(it.name, if (it.isProtected) FieldValue.Protected(Secret.of(it.value)) else FieldValue.Plain(it.value)) },
             fieldTypes = shape.fieldTypes,
+            entryType = shape.entryType,
             tags = shape.tags,
             expiry = shape.expiry,
             group = if (isNew) null else destination(draft),
@@ -184,8 +262,13 @@ public class EntryEditor private constructor(
     public fun movedTo(vault: Vault, draft: EntryDraft): Pair<EntryEditor, EntryDraft> {
         if (!isNew) return this to draft
         val root = vault.groups.firstOrNull { it.isRoot } ?: vault.groups.firstOrNull()
-        val moved = EntryEditor(original, isNew = true, start = start.copy(username = vault.defaultUsername, groupId = root?.id.orEmpty(), newGroups = emptyList()), groups = vault.groups)
-        val username = if (draft.username == start.username) vault.defaultUsername else draft.username
+        // A note has no default username.
+        val defaultUsername = if (layout == EditorLayout.NOTE) "" else vault.defaultUsername
+        val moved = EntryEditor(
+            original, isNew = true, start = start.copy(username = defaultUsername, groupId = root?.id.orEmpty(), newGroups = emptyList()),
+            groups = vault.groups, layout = layout, openedAt = openedAt, dates = dates,
+        )
+        val username = if (draft.username == start.username) defaultUsername else draft.username
         return moved to draft.copy(username = username, groupId = moved.start.groupId, newGroups = emptyList())
     }
 
@@ -204,8 +287,10 @@ public class EntryEditor private constructor(
         val password: String?,
         val url: String?,
         val notes: String?,
+        val notesProtected: Boolean?,
         val fields: List<FieldText>?,
         val fieldTypes: Map<String, String>?,
+        val entryType: EntryTypeChange?,
         val tags: List<String>?,
         val expiry: EntryChanges.Expiry?,
     )
@@ -217,14 +302,19 @@ public class EntryEditor private constructor(
         val tags = draft.savedTags
         // The file keeps seconds: a date less than a second off is the same.
         val moved = draft.expires && Duration.between(draft.expiryTime, original.expiryTime ?: start.expiryTime).abs() >= Duration.ofSeconds(1)
+        val note = layout == EditorLayout.NOTE
         return Shape(
-            title = draft.title.takeIf { it != original.title },
+            title = savedTitle(draft).takeIf { it != original.title },
             username = draft.username.takeIf { it != original.username },
             password = draft.password.takeIf { it != start.password },
             url = draft.url.takeIf { it != original.url },
             notes = draft.notes.takeIf { it != original.notes },
+            // A new note's choice is written either way, so Meta/MemoryProtection does not decide it.
+            notesProtected = draft.notesProtected.takeIf { note && (isNew || it != original.notesProtected) },
             fields = fields.takeIf { it != loadedFields },
             fieldTypes = savedFieldTypes(draft).takeIf { it != original.fieldTypes },
+            // Edited as a note, it is marked (one read so by its fields alone, AC2); a stored kind stays as stored (AC1).
+            entryType = EntryTypeChange.Set(EntryType.NOTE).takeIf { note && original.entryType == null },
             tags = tags.takeIf { it != original.tags },
             expiry = if (draft.expires != original.expires || moved) EntryChanges.Expiry(draft.expires, draft.expiryTime.takeIf { draft.expires }) else null,
         )
@@ -271,7 +361,7 @@ public class EntryEditor private constructor(
         public const val MAXIMUM_PASTED_CODES: Int = 50
 
         /** An existing entry, as loaded. */
-        public fun edit(entry: Entry, now: Instant): EntryEditor {
+        public fun edit(entry: Entry, now: Instant, dates: NoteDates? = null): EntryEditor {
             val fields = entry.customFields.mapIndexed { i, field ->
                 val value = when (val v = field.value) {
                     is FieldValue.Plain -> v.text
@@ -281,10 +371,11 @@ public class EntryEditor private constructor(
             }
             val draft = EntryDraft(
                 title = entry.title, username = entry.username, password = entry.password.reveal(), url = entry.url,
-                notes = entry.notes, tags = entry.tags, fields = fields,
+                notes = entry.notes, notesProtected = entry.notesProtected, tags = entry.tags, fields = fields,
                 expires = entry.expires, expiryTime = entry.expiryTime ?: aYearAfter(now), groupId = entry.groupId,
             )
-            return EntryEditor(entry, isNew = false, start = draft, groups = emptyList())
+            val layout = if (entry.isNote) EditorLayout.NOTE else EditorLayout.ENTRY
+            return EntryEditor(entry, isNew = false, start = draft, groups = emptyList(), layout = layout, openedAt = now, dates = dates)
         }
 
         /**
@@ -295,6 +386,16 @@ public class EntryEditor private constructor(
             val group = vault.groups.firstOrNull { it.id == groupId } ?: vault.groups.firstOrNull { it.isRoot } ?: vault.groups.firstOrNull()
             val draft = EntryDraft(username = vault.defaultUsername, expiryTime = aYearAfter(now), groupId = group?.id.orEmpty())
             return EntryEditor(Entry(id), isNew = true, start = draft, groups = vault.groups)
+        }
+
+        /**
+         * A new note in [groupId], as [create] places a new entry (SPEC §6.4; types.note AC4): its text protected, no
+         * username; untitled, it is named by [now] through [dates].
+         */
+        public fun createNote(vault: Vault, groupId: String?, now: Instant, dates: NoteDates?, id: String = Entry.newId()): EntryEditor {
+            val entry = create(vault, groupId, now, id)
+            val draft = entry.start.copy(username = "", notesProtected = true)
+            return EntryEditor(Entry(id), isNew = true, start = draft, groups = vault.groups, layout = EditorLayout.NOTE, openedAt = now, dates = dates)
         }
 
         /** The codes in [text]: every line (or, on one line, every part between commas or semicolons), numbering and bullets dropped. */

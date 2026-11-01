@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.keething.android.databases.DatabaseMark
+import dev.keething.domain.vault.NoteDates
 import dev.keething.domain.vault.Vault
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseSession
@@ -72,7 +73,10 @@ internal class EntryEditorViewModel(
     /** Values to start with (a login typed elsewhere, SPEC §7): they count as changes. */
     prefill: ((EntryDraft) -> EntryDraft)? = null,
     private val places: NewEntryPlaces? = null,
+    /** A new note's editor, with the text it starts with (SPEC §6.4): it counts as a change. */
+    note: NewNote? = null,
     now: Instant = Instant.now(),
+    dates: NoteDates = PhoneNoteDates,
 ) : ViewModel() {
     /** The database the entry is saved into: a new entry's chosen one. */
     var database: DatabaseSession by mutableStateOf(database)
@@ -81,7 +85,11 @@ internal class EntryEditorViewModel(
     /** Null when the entry is gone (deleted elsewhere) or its database locked: the editor closes. */
     var editor: EntryEditor? by mutableStateOf(
         (database.session.state.value as? SessionState.Unlocked)?.vault?.let { vault ->
-            if (entryId == null) EntryEditor.create(vault, groupId, now) else vault.entries.firstOrNull { it.id == entryId }?.let { EntryEditor.edit(it, now) }
+            when {
+                entryId != null -> vault.entries.firstOrNull { it.id == entryId }?.let { EntryEditor.edit(it, now, dates) }
+                note != null -> EntryEditor.createNote(vault, groupId, now, dates)
+                else -> EntryEditor.create(vault, groupId, now)
+            }
         },
     )
         private set
@@ -90,8 +98,15 @@ internal class EntryEditorViewModel(
     var knownTags: List<String> by mutableStateOf((database.session.state.value as? SessionState.Unlocked)?.vault?.let(::tagsOf).orEmpty())
         private set
 
-    var draft: EntryDraft by mutableStateOf(editor?.start?.let { prefill?.invoke(it) ?: it } ?: EntryDraft())
+    var draft: EntryDraft by mutableStateOf(
+        editor?.start?.let { start -> note?.let { start.copy(notes = it.text) } ?: prefill?.invoke(start) ?: start } ?: EntryDraft(),
+    )
         private set
+
+    init {
+        // A save offer's username and password show in a note's editor too (SPEC §6.4).
+        if (prefill != null) editor = editor?.given(draft)
+    }
 
     /** The database's groups as they are now (read again after a save or a sync): the group row and its picker. */
     var groups: GroupTree? by mutableStateOf((database.session.state.value as? SessionState.Unlocked)?.vault?.let(GroupTree::of))
