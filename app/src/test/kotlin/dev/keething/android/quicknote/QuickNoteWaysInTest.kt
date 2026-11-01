@@ -9,7 +9,7 @@ import kotlin.test.assertNull
 import org.w3c.dom.Element
 
 /**
- * The clipboard's ways in (SPEC §6.4; keething-spec app.quick-note AC3; plans/android-notes.md P1, AQ4): the launcher's
+ * The clipboard's ways in (SPEC §6.4; keething-spec app.quick-note AC3; plans/done/android-notes.md P1, AQ4): the launcher's
  * shortcut **Note from clipboard** and the Quick Settings tile **Quick note** both open the quick note's screen with
  * the clipboard's action; Settings asks Android to add the tile and says what came of it when Android shows nothing.
  */

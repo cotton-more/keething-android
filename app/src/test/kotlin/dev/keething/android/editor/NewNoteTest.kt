@@ -107,7 +107,7 @@ class NewNoteTest {
         val draft = NewNote("Dune").draft(EntryDraft(), knownTags = listOf("Chrome", "Keething"))
         assertEquals("Dune", draft.notes)
         assertEquals(emptyList(), draft.tags, "the app being Keething itself")
-        assertEquals("", draft.url, "no clip carries a page (plans/android-notes.md AQ0)")
+        assertEquals("", draft.url, "no clip carries a page (plans/done/android-notes.md AQ0)")
         assertFalse(draft.websiteAdded)
     }
 

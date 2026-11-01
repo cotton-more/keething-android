@@ -617,9 +617,10 @@ private fun Banner(icon: ImageVector, text: String, problem: Boolean, warning: B
     }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(container).padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Beside the first line of a text over several (keething-spec plans/done/android-notes.md AN5).
         Icon(icon, contentDescription = null, tint = onContainer)
         Text(text.dotsAtLineEnd(), style = MaterialTheme.typography.bodyMedium, color = onContainer)
     }

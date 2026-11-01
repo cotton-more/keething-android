@@ -162,6 +162,19 @@ private fun customTile(row: FieldRow): Tile? {
     return if (row.type == FieldType.PASSWORD) Tile(Icons.Rounded.Key, colors.primaryContainer, colors.onPrimaryContainer) else null
 }
 
+/**
+ * A row's first line: a one-line field's height (its name and value), which a button fills. A row's tile and buttons
+ * stay in it, at the top, and a value shown over several lines grows the row below them (keething-spec
+ * plans/done/android-notes.md AN5); a value shorter than it is centred in it, as before.
+ */
+private val FIRST_LINE = 48.dp
+
+/** [content] centred in a row's [FIRST_LINE]. */
+@Composable
+private fun InFirstLine(content: @Composable () -> Unit) {
+    Box(Modifier.height(FIRST_LINE), contentAlignment = Alignment.Center) { content() }
+}
+
 @Composable
 private fun TileView(tile: Tile) {
     Box(
@@ -189,13 +202,13 @@ internal fun FieldRowView(
             .background(MaterialTheme.extraColors.row)
             .copyOnTap(row, actions)
             .padding(start = if (tile != null) 14.dp else 18.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         tile?.let {
-            TileView(it)
+            InFirstLine { TileView(it) }
             Spacer(Modifier.width(14.dp))
         }
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).heightIn(min = FIRST_LINE), verticalArrangement = Arrangement.Center) {
             if (row.label.isNotEmpty()) {
                 Text(row.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -448,12 +461,12 @@ private fun AttachmentRowView(row: FieldRow, actions: CardActions, shape: Shape)
             .clip(shape)
             .background(MaterialTheme.extraColors.row)
             .padding(start = 14.dp, end = if (row.size != null) 6.dp else 14.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         val colors = MaterialTheme.colorScheme
-        TileView(Tile(Icons.Rounded.AttachFile, colors.secondaryContainer, colors.onSecondaryContainer))
+        InFirstLine { TileView(Tile(Icons.Rounded.AttachFile, colors.secondaryContainer, colors.onSecondaryContainer)) }
         Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).heightIn(min = FIRST_LINE), verticalArrangement = Arrangement.Center) {
             Text(row.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             row.size?.let {
                 Text(Formatter.formatShortFileSize(context, it.toLong()), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)

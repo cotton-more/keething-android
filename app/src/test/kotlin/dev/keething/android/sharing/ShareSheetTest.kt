@@ -8,7 +8,7 @@ import org.w3c.dom.Element
 
 /**
  * Keething's own share sheets leave out Keething's own targets, "Read with Keething" and Keething note (SPEC §6.2,
- * §10.3; keething-spec plans/android-notes.md P2): every share target the app declares is in the list, and every share
+ * §10.3; keething-spec plans/done/android-notes.md P2): every share target the app declares is in the list, and every share
  * sheet the app opens goes through [ShareSheet].
  */
 class ShareSheetTest {

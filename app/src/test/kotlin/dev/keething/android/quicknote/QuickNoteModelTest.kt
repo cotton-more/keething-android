@@ -411,7 +411,7 @@ class QuickNoteModelTest {
 
     /**
      * The clipboard as Android shows it to the app: nothing, not even whether it holds text, while the screen does not
-     * have the window focus (plans/android-notes.md AQ0). Counts the looks at its description and the reads of its text.
+     * have the window focus (plans/done/android-notes.md AQ0). Counts the looks at its description and the reads of its text.
      */
     private class FocusClipboard : dev.keething.android.clipboard.SystemClipboard {
         var text: String? = null

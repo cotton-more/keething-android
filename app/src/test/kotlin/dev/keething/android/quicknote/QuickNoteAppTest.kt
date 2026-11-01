@@ -6,7 +6,7 @@ import kotlin.test.assertNull
 
 /**
  * The app a quick note came from (SPEC §6.4; keething-spec app.quick-note-source AC1, AC4): the sending or calling
- * app's label as the launcher shows it, from `Activity.getReferrer()` (plans/android-notes.md AQ0); none for Keething
+ * app's label as the launcher shows it, from `Activity.getReferrer()` (plans/done/android-notes.md AQ0); none for Keething
  * itself or what cannot be named.
  */
 class QuickNoteAppTest {

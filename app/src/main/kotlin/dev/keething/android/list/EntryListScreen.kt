@@ -608,11 +608,15 @@ internal fun EntryRowView(
                 onLongClickLabel = onLongPress?.let { "More actions" },
             )
             .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
-        EntryMark(row.avatar, icons?.get(row.customIconId), row.face, 44.dp, Modifier.sharedIcon(sharedKey))
+        // The icon at the top, in the height of a title and a line (keething-spec plans/done/android-notes.md AN5): a row
+        // grown by a group, a date or a large font keeps it beside the title; a shorter column is centred beside it.
+        Box(Modifier.height(ROW_FIRST_LINES), contentAlignment = Alignment.Center) {
+            EntryMark(row.avatar, icons?.get(row.customIconId), row.face, 44.dp, Modifier.sharedIcon(sharedKey))
+        }
         Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).heightIn(min = ROW_FIRST_LINES), verticalArrangement = Arrangement.Center) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     row.title,
@@ -650,9 +654,14 @@ internal fun EntryRowView(
             }
             if (codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(top = 6.dp), height = 32.dp) }
         }
-        if (!codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(start = 8.dp)) }
+        if (!codeUnder && onCopyCode != null) row.totp?.let {
+            Box(Modifier.height(ROW_FIRST_LINES), contentAlignment = Alignment.Center) { CodeButton(it, now, onCopyCode, Modifier.padding(start = 8.dp)) }
+        }
     }
 }
+
+/** An entry row's height without its padding: a title and a line, where its icon and code button stay. */
+private val ROW_FIRST_LINES = 48.dp
 
 /** A row's line under its title, if any; a protected note's with a lock before it (SPEC §6.4). */
 @Composable

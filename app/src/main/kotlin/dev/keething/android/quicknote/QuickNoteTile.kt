@@ -11,10 +11,10 @@ import android.service.quicksettings.TileService
 import dev.keething.android.R
 
 /**
- * The Quick Settings tile **Quick note** (SPEC §6.4; keething-spec app.quick-note AC3; plans/android-notes.md P1):
+ * The Quick Settings tile **Quick note** (SPEC §6.4; keething-spec app.quick-note AC3; plans/done/android-notes.md P1):
  * the quick note's screen with the clipboard's text. Only the app in front may read the clipboard, so the screen reads
  * it itself once it has the focus. From the lock screen Android asks the phone's unlock before it opens the screen
- * (plans/android-notes.md AQ0).
+ * (plans/done/android-notes.md AQ0).
  */
 class QuickNoteTileService : TileService() {
     override fun onStartListening() {

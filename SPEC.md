@@ -645,7 +645,7 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   password in the clear. Not wipeable, and accepted: a `String` while a value is shown, copied or filled;
   the typed master password in the text field until it is cleared; unprotected fields (username, notes); Notes,
   protected ones too (`Entry.notes` is a string, `Entry.notesProtected` says whether the file protects it, and each
-  reader that must not show a protected text asks it; keething-spec `plans/android-notes.md` P4, as on the Mac);
+  reader that must not show a protected text asks it; keething-spec `plans/done/android-notes.md` P4, as on the Mac);
   the values in the editor while it is open (Compose's text fields hold strings; the editor goes with the
   lock). What a save writes is made into secrets, wiped once the save is over.
 - The keyboard is asked not to learn what is typed in the editor and the search field
@@ -903,6 +903,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   one-time code shows the live code and its ring as a button that copies it.
 - Card: a tinted tile per field kind; the password row has an eye, copy and a menu; recovery codes are a
   numbered grid with one eye; a copy confirms in a snackbar ("Password copied · clears in 30 s").
+- A row's tile or icon and its buttons stay at the top, in the height of a one-line row (a card's field, a list's
+  title and line), whatever the row's height: a value shown over several lines, or a list row grown by a group, a date
+  or a large font, grows below them (keething-spec `plans/done/android-notes.md` AN5).
 - Show as QR can also show the password as text; the Share… warning points to Show as QR as the safer way.
 - The canvas also has a code pinned to the notification shade; it was dropped (§1).
 - Groups (keething-spec `plans/done/android-groups.md` AG3, agreed 2026-10-31) have a canvas of their own:
@@ -1433,7 +1436,7 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
 
 ### 6.4 Notes and quick notes
 
-Built and reviewed (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/android-notes.md`,
+Built and reviewed (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/done/android-notes.md`,
 the mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9): what a note is, in the file (AN1); the card, the
 list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from clipboard
 (AN3); where a quick note goes, its editor, its run and the setting (AQ1); Keething note in the share sheet and the
@@ -1613,7 +1616,7 @@ label as the launcher shows it (`Chrome`, `Firefox`, `Gmail`). None for Keething
 app that is not installed or not visible, or one without a label of its own (its package name is not a name). The tag
 is that name, a `,` or `;` in it a space, spelt as a tag of that name already in the database is (compared as tags
 are: case and accents aside), added once. The page comes only from a share, in the shapes the browsers give
-(`plans/android-notes.md` AQ0): a lone http(s) address shared is a page, its address the Website, and the note's text
+(`plans/done/android-notes.md` AQ0): a lone http(s) address shared is a page, its address the Website, and the note's text
 the subject (the page's title, which Chrome gives and Firefox gave by the AQ3 round, not yet in AQ0's) or, with none,
 the address too, since a note needs its text; Firefox's "Share via" and Chrome's "Including link: …" are no title; a
 text whose last line, after a line break and blanks, is an http(s) address with a text directive (`#:~:text=`: Chrome's

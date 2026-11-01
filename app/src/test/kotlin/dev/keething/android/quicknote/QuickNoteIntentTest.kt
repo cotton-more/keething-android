@@ -10,7 +10,7 @@ import kotlin.test.assertSame
 
 /**
  * What a share or the selection menu hands over to Keething note (SPEC §6.4; keething-spec app.quick-note AC3,
- * app.quick-note-source AC2, AC4, AC5; the shapes seen in plans/android-notes.md AQ0): the text, the page a browser
+ * app.quick-note-source AC2, AC4, AC5; the shapes seen in plans/done/android-notes.md AQ0): the text, the page a browser
  * gives with it, and the app.
  */
 class QuickNoteIntentTest {

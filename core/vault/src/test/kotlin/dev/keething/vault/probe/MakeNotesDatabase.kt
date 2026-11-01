@@ -20,7 +20,7 @@ import java.time.Instant
 import org.w3c.dom.Element
 
 /**
- * The fictitious database of the notes' phone checks (keething-spec plans/android-notes.md, `an/Notes.kdbx`), written
+ * The fictitious database of the notes' phone checks (keething-spec plans/done/android-notes.md, `an/Notes.kdbx`), written
  * by the phone's own core: a protected note, an unprotected one, an entry with Notes only (a note by the rule, no
  * kind), an ordinary entry with a password and protected Notes, and one whose protected Notes are longer than the
  * card's seven lines. Password `pw`, as the fixtures'.

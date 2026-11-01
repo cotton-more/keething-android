@@ -132,7 +132,7 @@ class QuickNoteActivity : ComponentActivity() {
         // After the app's own start, where a stay away past the timeout locks first (SPEC §4): an open database is
         // open, and that lock is not counted against this quick note.
         // The sending or calling app as the system names it (a share's sender, not the chooser; the selection menu's
-        // caller, Firefox's too, which does not start it for a result: plans/android-notes.md AQ0).
+        // caller, Firefox's too, which does not start it for a result: plans/done/android-notes.md AQ0).
         // The clipboard's waits for the window focus (onWindowFocusChanged).
         model.start(recreated) {
             QuickNoteIntent.source(intent.action, intent::getCharSequenceExtra, { QuickNoteApp.name(referrer?.toString(), packageName, ::appLabel) }) {

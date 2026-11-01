@@ -122,7 +122,7 @@ internal class QuickNoteRun(
             state = State.NoText(source is Source.Clipboard)
             return
         }
-        // The clipboard says no app, and no browser's clip carries a page (plans/android-notes.md AQ0).
+        // The clipboard says no app, and no browser's clip carries a page (plans/done/android-notes.md AQ0).
         openEditor(database, text, (source as? Source.Given)?.source ?: QuickNoteSource())
         state = State.Opened(database)
     }

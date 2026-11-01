@@ -7,7 +7,7 @@ import dev.keething.card.editing.QuickNoteSource
 
 /**
  * What another app hands over to Keething note (SPEC §6.4; keething-spec app.quick-note AC3, app.quick-note-source
- * AC2, AC4, AC5), in the shapes seen in plans/android-notes.md AQ0: a share's text (`ACTION_SEND`, `text/plain`) or the
+ * AC2, AC4, AC5), in the shapes seen in plans/done/android-notes.md AQ0: a share's text (`ACTION_SEND`, `text/plain`) or the
  * selection menu's (`ACTION_PROCESS_TEXT`), the app, and the page a browser gives with a share.
  *
  * - A lone http(s) address shared is a page: the address goes to the Website, and the text is the subject (Chrome's
