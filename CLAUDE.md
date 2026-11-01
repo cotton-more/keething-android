@@ -13,6 +13,10 @@
 - Never open, copy or test against the owner's real database without asking; tests use `fixtures/`
   (password `pw`).
 - Report honestly what was verified on the phone and what was only built.
+- Build, test, install and phone commands go through `Taskfile.yml` (`task` lists them; `task test`,
+  `task test:module -- kdbx`, `task install:debug`, `task apk:install`, `task screenshot`, `task spec:check` …)
+  rather than typing the Gradle, adb or script command by hand. A command used often that is missing there is
+  added to it.
 - Wireless adb to the phone goes through `tools/adb-wireless.py` from the start (DEVELOPMENT.md: plain `adb pair` /
   `adb connect` fail on this Mac). Phone checks run on the test phone (Pixel 6), not the owner's main phone.
 - Starting a plan stage or a new feature (usually a new session): do not start the work at once. First

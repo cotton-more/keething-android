@@ -11,6 +11,9 @@ How to build, test and install the app on this Mac. What the app does is in SPEC
 
       export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 
+The commands below are also in `Taskfile.yml` (go-task: `brew install go-task`): `task` lists them, `task <name>`
+runs one, arguments after `--` (`task test:module -- kdbx`).
+
 ## Tests
 
     ./gradlew test                  # every module's JVM tests (core/* and app)

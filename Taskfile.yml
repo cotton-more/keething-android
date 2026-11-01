@@ -1,0 +1,136 @@
+# Shortcuts for the commands in DEVELOPMENT.md: `task` lists them, `task <name>` runs one.
+version: '3'
+
+env:
+  ANDROID_HOME: '{{.ANDROID_HOME | default "/opt/homebrew/share/android-commandlinetools"}}'
+
+vars:
+  APP_ID: dev.keething.android
+  SPEC: '{{.HOME}}/Projects/keething-spec'
+
+tasks:
+  default:
+    silent: true
+    cmds:
+      - task --list
+
+  # Tests and builds
+
+  test:
+    desc: "Every module's JVM tests (core/* and app); extra Gradle arguments after --"
+    cmds:
+      - ./gradlew test {{.CLI_ARGS}}
+
+  test:module:
+    desc: "One module's tests: task test:module -- kdbx (or app)"
+    requires:
+      vars: [CLI_ARGS]
+    cmds:
+      - ./gradlew {{if eq .CLI_ARGS "app"}}:app{{else}}:core:{{.CLI_ARGS}}{{end}}:test
+
+  build:
+    desc: The debug APK (app/build/outputs/apk/debug)
+    cmds:
+      - ./gradlew :app:assembleDebug
+
+  apk:
+    desc: The signed release APK into ~/Downloads (tools/build-apk.sh)
+    cmds:
+      - tools/build-apk.sh
+
+  apk:install:
+    desc: The signed release APK, installed with adb on the connected phone
+    cmds:
+      - tools/build-apk.sh --install
+
+  clean:
+    desc: Gradle's build outputs
+    cmds:
+      - ./gradlew clean
+
+  # The phone
+
+  phone:
+    desc: "Wireless adb through the forwarder: task phone -- <IP or .local name> [--pair <port> <code>]"
+    requires:
+      vars: [CLI_ARGS]
+    cmds:
+      - tools/adb-wireless.py {{.CLI_ARGS}}
+
+  install:debug:
+    desc: The debug build installed on the connected phone, then started
+    cmds:
+      - ./gradlew :app:installDebug
+      - task: start
+
+  start:
+    desc: Starts the app on the connected phone
+    cmds:
+      - adb shell am start -n {{.APP_ID}}/.MainActivity
+
+  stop:
+    desc: Stops the app on the connected phone
+    cmds:
+      - adb shell am force-stop {{.APP_ID}}
+
+  logcat:
+    desc: The app's log only (it must be running)
+    cmds:
+      - adb logcat --pid=$(adb shell pidof -s {{.APP_ID}})
+
+  screenshot:
+    desc: "The phone's screen as a PNG: task screenshot -- [file] (default ~/Downloads/keething-<time>.png)"
+    vars:
+      FILE: '{{.CLI_ARGS | default (printf "%s/Downloads/keething-%s.png" .HOME (now | date "20060102-150405"))}}'
+    cmds:
+      - adb exec-out screencap -p > {{.FILE}}
+      - echo "Saved {{.FILE}}"
+
+  # Test databases and pages (fictitious, password pw)
+
+  autofill:serve:
+    desc: The autofill test pages on the phone's localhost:8000 (adb reverse; Ctrl-C stops)
+    cmds:
+      - adb reverse tcp:8000 tcp:8000
+      - python3 -m http.server 8000 --bind 127.0.0.1 --directory tools/autofill-test/pages
+
+  autofill:database:
+    desc: "The autofill test database: task autofill:database -- [file] (default autofill.kdbx; needs keepassxc-cli)"
+    cmds:
+      - tools/autofill-test/make-database.py {{.CLI_ARGS | default "autofill.kdbx"}}
+
+  otp:database:
+    desc: "The one-time codes test database: task otp:database -- [file] (default otp-formats.kdbx; needs keepassxc-cli)"
+    cmds:
+      - tools/make-otp-database.py {{.CLI_ARGS | default "otp-formats.kdbx"}}
+
+  psl:update:
+    desc: Fetches a new public suffix list into core/search
+    cmds:
+      - tools/update-public-suffix-list.sh
+
+  # keething-spec
+
+  spec:
+    desc: "The spec's status: task spec -- [area or id]"
+    dir: '{{.SPEC}}'
+    cmds:
+      - ./status {{.CLI_ARGS}}
+
+  spec:gaps:
+    desc: What is left on Android
+    dir: '{{.SPEC}}'
+    cmds:
+      - ./status --gaps
+
+  spec:ideas:
+    desc: The ideas
+    dir: '{{.SPEC}}'
+    cmds:
+      - ./status --ideas
+
+  spec:check:
+    desc: The spec's consistency check (must pass after a change there)
+    dir: '{{.SPEC}}'
+    cmds:
+      - ./status --check
