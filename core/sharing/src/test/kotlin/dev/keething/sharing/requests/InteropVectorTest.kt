@@ -81,6 +81,39 @@ class InteropVectorTest {
         }
     }
 
+    /**
+     * Content version 2 (keething-spec sharing.content AC9): a note with its text protected and its kind, and an
+     * entry with protected Notes. [PAYLOAD_02] was written from plans/sharing-interop.md §2 by hand, not by this code.
+     */
+    private fun payload02() = AnswerPayload(
+        "Anna",
+        listOf(
+            SharedEntry(title = "Films to watch", notes = "Dune\nArrival\nBlade Runner", notesProtected = true, entryType = "note", tags = listOf("films")),
+            SharedEntry(
+                title = "Router admin", username = "admin", password = Secret.of("correct horse"), url = "http://192.168.178.1",
+                notes = "Reset button on the back", notesProtected = true,
+            ),
+        ),
+    )
+
+    // spec: sharing.content/AC9
+    @Test
+    fun theContentVersionTwoAndItsAnswerAreTheseBytes() {
+        assertContentEquals(hex(PAYLOAD_02), payload02().encode().useBytes { it.copyOf() })
+        assertContentEquals(hex(ANSWER_02), Answers.seal(request, payload02(), ephemeralKey).encoded())
+
+        val opened = Answers.open(ShareAnswer.decode(hex(ANSWER_02)), MyRequest(request, Secret.copyOf(askerKey), Pictures.of(request)))
+        assertEquals(listOf(true, true), opened.entries.map { it.notesProtected })
+        assertEquals(listOf("note", null), opened.entries.map { it.entryType })
+        assertEquals(Secret.of("correct horse"), opened.entries[1].password)
+
+        val created = Instant.parse("2026-10-23T16:00:00Z")
+        val envelope = Envelopes.seal(payload02(), envelopePictures, created, Duration.ofDays(3), hex("000102030405060708090a0b0c0d0e0f"))
+        val inEnvelope = Envelopes.open(ShareEnvelope.decode(envelope.encoded()), envelopePictures).entries
+        assertEquals(listOf(true, true), inEnvelope.map { it.notesProtected })
+        assertEquals(listOf("note", null), inEnvelope.map { it.entryType })
+    }
+
     private val envelopePictures = listOf(30, 29, 40, 43, 7, 13, 0, 63, 47, 54)
 
     @Test
@@ -127,6 +160,25 @@ class InteropVectorTest {
             "57edd1abb307d1d63c0fa41cd39919edc1bc2d41c4b2fa6fc8bf3b908859a3b55b46c5e42db6a536ea3876497d369fac" +
             "36b55e96d785be58c7bea6c9005baa53f6f023b085b5668a9e857c49e1553b54e79beb8c90f6d1424f5739d32aa8f684" +
             "ad9a900ef7dcb93ee167186d0574fa50bf957f63e6b708d1f70372ca01b1e186f612"
+
+        /** Content version 2: two entries, 256 bytes. */
+        const val PAYLOAD_02 =
+            "0204416e6e61020e46696c6d7320746f2077617463680000001944756e650a4172726976616c0a426c6164652052756e" +
+            "6e65720101046e6f7465010566696c6d73000000000c526f757465722061646d696e0561646d696e0d636f7272656374" +
+            "20686f72736514687474703a2f2f3139322e3136382e3137382e3118526573657420627574746f6e206f6e2074686520" +
+            "6261636b0100000000000064000000000000000000000000000000000000000000000000000000000000000000000000" +
+            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000" +
+            "00000000000000000000000000000000"
+
+        /** [PAYLOAD_02] sealed for the request with skE. */
+        const val ANSWER_02 =
+            "0102085a3dac8cbd1c1d177b737aa4fa75886c93e09869df3402d7bf231bf540fadd35cd56be14f97178f0954db94b7f" +
+            "c2568f3dd5f663a7764ad5bb2109d0b815e13d89fa5ed0d8c3778fa2892a3afdbb938da07bea3ac2e8406fd0596b9b29" +
+            "31717efc4defa44c5a3a4270b34b8cba76d728ff80c84334ffbabfd8b10af952347982292912011eaff27bdbe3671a09" +
+            "437473e4d17607e27bf104c955c0444ca6aff13da7df3caca870537c6bb410d5bccb6fd6b76d3b6ad3e190f08d27401c" +
+            "772cb00fba16f22c2dfdc8d3b51cd0fcfb39f1e18d72928518b915d5afdaba7071095ed4a2441277485a3344564f15c4" +
+            "6c7e559f29e8685d76611a2b43b8fc32b188b6594a378322a676e5fee8a44fb3d9b3284b6b15ee904cdfa760e5c1b2b9" +
+            "8eee2dc30f75ecf8d7c31203861ff31e0dd23fa22f7bdf85305acd3052674f32690d"
 
         /** Version 1, kind 4, created, expires, the salt; then the content sealed, with its tag. */
         const val ENVELOPE =

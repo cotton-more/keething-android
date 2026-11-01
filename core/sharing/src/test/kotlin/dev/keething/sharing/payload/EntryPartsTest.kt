@@ -6,6 +6,7 @@ import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.EntryTypeChange
 import dev.keething.domain.vault.TotpChange
 import java.time.Instant
 import kotlin.test.Test
@@ -99,6 +100,41 @@ class EntryPartsTest {
         assertEquals(listOf("shopping", "received"), Receiving.changes(Sending.shared(entry, emptySet())).tags)
         assertEquals(listOf("received"), Receiving.changes(SharedEntry("x")).tags)
         assertEquals(listOf("Received", "a"), Receiving.changes(SharedEntry("x", tags = listOf("Received", "a"))).tags)
+    }
+
+    private val note = Entry("n", title = "Films to watch", notes = "Dune\nArrival", notesProtected = true, entryType = "note")
+
+    // spec: sharing.content/AC9
+    @Test
+    fun aNoteGoesWithItsTextProtectedAndItsKindWhateverIsLeftOut() {
+        val whole = Sending.shared(note, emptySet())
+        assertEquals("Dune\nArrival", whole.notes)
+        assertTrue(whole.notesProtected)
+        assertEquals("note", whole.entryType)
+
+        val withoutText = Sending.shared(note, setOf(EntryPart.Notes))
+        assertEquals("", withoutText.notes)
+        assertFalse(withoutText.notesProtected, "Notes' protection goes only with the Notes")
+        assertEquals("note", withoutText.entryType, "the kind goes as the title does")
+
+        assertEquals(" Checklist ", Sending.shared(note.copy(entryType = " Checklist "), emptySet()).entryType)
+        val ordinary = Sending.shared(entry.copy(notes = "PIN in the drawer"), emptySet())
+        assertFalse(ordinary.notesProtected)
+        assertNull(ordinary.entryType)
+    }
+
+    // spec: sharing.receiving/AC9
+    @Test
+    fun aReceivedNoteIsSavedAsSentItsKindAsStored() {
+        val changes = Receiving.changes(Sending.shared(note, emptySet()))
+        assertEquals(true, changes.notesProtected)
+        assertEquals(EntryTypeChange.Stored("note"), changes.entryType)
+
+        assertEquals(EntryTypeChange.Stored(" Checklist "), Receiving.changes(SharedEntry("x", entryType = " Checklist ")).entryType)
+        // Notes not protected, or an entry of a content 01: as the receiving database protects new Notes.
+        val ordinary = Receiving.changes(SharedEntry("x", notes = "milk"))
+        assertNull(ordinary.notesProtected)
+        assertNull(ordinary.entryType)
     }
 
     private val phrase = "legal winner thank year wave sausage worth useful legal winner thank yellow"

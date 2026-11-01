@@ -1,5 +1,6 @@
 package dev.keething.domain.vault
 
+import dev.keething.domain.secret.Secret
 import java.text.BreakIterator
 import java.time.Instant
 
@@ -18,12 +19,33 @@ public enum class EntryType(public val stored: String) {
             val name = stored.trim().lowercase()
             return entries.firstOrNull { it.stored == name }
         }
+
+        /**
+         * The rule of [Entry.isNote], for an entry that is not an [Entry] yet (a received one): a stored `note`, else no
+         * other stored kind and Notes not blank with a blank username, password and URL and [nothingElse] (no custom
+         * fields, no one-time code).
+         */
+        public fun isNote(stored: String?, notes: String, username: String, password: Secret, url: String, nothingElse: Boolean): Boolean {
+            stored?.let { return of(it) == NOTE }
+            return notes.isNotBlank() && username.isBlank() && url.isBlank() && password.isBlank() && nothingElse
+        }
     }
+}
+
+/**
+ * The password white space only. A byte in ASCII but a space decides without decoding, so a password becomes a string
+ * only when it is all spaces or outside ASCII.
+ */
+internal fun Secret.isBlank(): Boolean = useBytes { bytes ->
+    bytes.all { it < 0 || it.toInt().toChar().isWhitespace() } && bytes.decodeToString().isBlank()
 }
 
 /** The kind of an entry set or its item removed. */
 public sealed interface EntryTypeChange {
     public data class Set(val type: EntryType) : EntryTypeChange
+
+    /** A kind written exactly as another file stored it (a received entry's), one this version does not know too. */
+    public data class Stored(val value: String) : EntryTypeChange
 
     public data object Remove : EntryTypeChange
 }

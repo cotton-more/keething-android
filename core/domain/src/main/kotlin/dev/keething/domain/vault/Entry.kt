@@ -68,11 +68,7 @@ public data class Entry(
      * nothing.
      */
     val isNote: Boolean
-        get() {
-            entryType?.let { return EntryType.of(it) == EntryType.NOTE }
-            return notes.isNotBlank() && username.isBlank() && url.isBlank() && password.isBlank() &&
-                customFields.isEmpty() && totp == null && !hasCodeFields
-        }
+        get() = EntryType.isNote(entryType, notes, username, password, url, customFields.isEmpty() && totp == null && !hasCodeFields)
 
     public fun isExpired(at: Instant): Boolean = expires && expiryTime != null && expiryTime <= at
 
@@ -81,14 +77,6 @@ public data class Entry(
         password.wipe()
         customFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
         totp?.secret?.wipe()
-    }
-
-    /**
-     * The password white space only. A byte in ASCII but a space decides without decoding, so a password becomes a
-     * string only when it is all spaces or outside ASCII.
-     */
-    private fun Secret.isBlank(): Boolean = useBytes { bytes ->
-        bytes.all { it < 0 || it.toInt().toChar().isWhitespace() } && bytes.decodeToString().isBlank()
     }
 
     public companion object {

@@ -163,6 +163,31 @@ class NoteSavingTest {
         assertTrue(noted.notesProtected)
     }
 
+    /** What a received entry's changes ask (core:sharing `Receiving.changes`, sharing.receiving AC9). */
+    // spec: sharing.receiving/AC9
+    @Test
+    fun aReceivedNoteIsWrittenAsSentItsKindAsStoredAndTheCheckExpectsIt() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val saver = VaultSaver(store, backups)
+        val top = unlock(store).groups.single { it.isRoot }
+        val films = Entry.newId()
+        val list = Entry.newId()
+        val received = EntryChanges(title = "Films to watch", notes = "Dune\nArrival", notesProtected = true, entryType = EntryTypeChange.Stored("note"))
+
+        saved(saver.save(VaultEdit.Create(films, GroupDestination(top.id), received), key(), now))
+        val vault = saved(
+            saver.save(VaultEdit.Create(list, GroupDestination(top.id), EntryChanges(title = "Groceries", notes = "milk", entryType = EntryTypeChange.Stored(" Checklist "))), key(), now),
+        )
+
+        val note = vault.entry(films)
+        assertTrue(note.isNote && note.notesProtected)
+        assertEquals("True", element(store, films).notesValue()?.getAttribute("Protected"))
+        assertEquals("note", element(store, films).child("CustomData")!!.children("Item").single().child("Value")?.textContent)
+        assertEquals(" Checklist ", vault.entry(list).entryType, "a kind this version does not know, kept as it was stored")
+        assertFalse(vault.entry(list).isNote)
+        assertEquals(vault.entry(list), unlock(store).entry(list))
+    }
+
     @Test
     fun aCodeSetAndRemovedChangesWhetherTheEntryHasACodesFieldsAndTheCheckExpectsIt() {
         val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))

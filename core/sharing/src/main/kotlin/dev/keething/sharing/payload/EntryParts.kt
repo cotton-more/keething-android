@@ -9,6 +9,7 @@ import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.EntryTypeChange
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.TotpChange
 import dev.keething.totp.TotpSetup
@@ -91,6 +92,9 @@ public object Sending {
             tags = entry.tags,
             expires = entry.expiryTime?.takeIf { entry.expires },
             totp = entry.totp?.takeIf { keeps(EntryPart.OneTimeCode) }?.let { it.copy(secret = it.secret.copy()) },
+            notesProtected = keeps(EntryPart.Notes) && entry.notesProtected,
+            // The kind goes as the title does: a note left without its text is a note all the same.
+            entryType = entry.entryType,
         )
     }
 
@@ -118,8 +122,9 @@ public object Receiving {
 
     /**
      * A new entry's fields for [entry] (SPEC §10): everything it carries, [TAG] added, its one-time code written in the
-     * format the database's codes use (KeePassXC's link when it has none). The secrets are copies: wipe the changes once
-     * saved.
+     * format the database's codes use (KeePassXC's link when it has none). Notes sent protected are written protected,
+     * others as the database protects new Notes; the kind as it was stored, one this version does not know too
+     * (sharing.receiving AC9). The secrets are copies: wipe the changes once saved.
      */
     public fun changes(entry: SharedEntry): EntryChanges = EntryChanges(
         title = entry.title,
@@ -127,11 +132,13 @@ public object Receiving {
         password = entry.password.copy(),
         url = entry.url,
         notes = entry.notes,
+        notesProtected = true.takeIf { entry.notesProtected },
         customFields = entry.customFields.map { field ->
             val value = field.value
             if (value is FieldValue.Protected) CustomField(field.name, FieldValue.Protected(value.secret.copy())) else field
         },
         fieldTypes = entry.fieldTypes,
+        entryType = entry.entryType?.let(EntryTypeChange::Stored),
         tags = if (entry.tags.any { it.trim().equals(TAG, ignoreCase = true) }) entry.tags else entry.tags + TAG,
         expiry = entry.expires?.let { EntryChanges.Expiry(expires = true, time = it) },
         totp = entry.totp?.let { code ->

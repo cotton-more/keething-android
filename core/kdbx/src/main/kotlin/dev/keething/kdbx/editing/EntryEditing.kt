@@ -62,6 +62,7 @@ internal object EntryEditing {
         }
         when (val type = changes.entryType) {
             is EntryTypeChange.Set -> setCustomData(EntryType.CUSTOM_DATA_KEY, type.type.stored, entry, now)
+            is EntryTypeChange.Stored -> setCustomData(EntryType.CUSTOM_DATA_KEY, type.value, entry, now)
             EntryTypeChange.Remove -> setCustomData(EntryType.CUSTOM_DATA_KEY, null, entry, now)
             null -> {}
         }

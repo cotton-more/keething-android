@@ -8,6 +8,7 @@ import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -55,6 +56,72 @@ class AnswerPayloadTest {
         assertTrue(plain.password.isEmpty())
         assertNull(plain.expires)
         assertNull(plain.totp)
+        assertFalse(e.notesProtected)
+        assertNull(e.entryType)
+    }
+
+    private fun note() = SharedEntry(title = "Films to watch", notes = "Dune\nArrival", notesProtected = true, entryType = "note")
+
+    // spec: sharing.content/AC9
+    @Test
+    fun anEntryWithoutProtectedNotesOrAKindIsStillVersionOne() {
+        assertEquals(1, AnswerPayload("Anna", listOf(full(), SharedEntry(title = "Wi-Fi"))).encode().useBytes { it[0].toInt() })
+        // Protected Notes that are empty send nothing protected.
+        assertEquals(1, AnswerPayload("Anna", listOf(SharedEntry(title = "x", notesProtected = true))).encode().useBytes { it[0].toInt() })
+    }
+
+    // spec: sharing.content/AC9
+    @Test
+    fun aNoteOrProtectedNotesGoAsVersionTwoAndComeBackWhole() {
+        val routerAdmin = SharedEntry(title = "Router admin", password = Secret.of("pw"), notes = "admin / 192.168.178.1", notesProtected = true)
+        for (entries in listOf(listOf(note()), listOf(routerAdmin), listOf(full(), SharedEntry(title = "Shopping", notes = "milk", entryType = "note")))) {
+            val bytes = AnswerPayload("Anna", entries).encode()
+            assertEquals(2, bytes.useBytes { it[0].toInt() })
+
+            val read = bytes.useBytes { AnswerPayload.decode(it) }.entries
+            assertEquals(entries.map { it.title }, read.map { it.title })
+            assertEquals(entries.map { it.notes }, read.map { it.notes })
+            assertEquals(entries.map { it.notesProtected }, read.map { it.notesProtected })
+            assertEquals(entries.map { it.entryType }, read.map { it.entryType })
+            assertEquals(entries.map { it.password }, read.map { it.password })
+            assertEquals(entries.map { it.totp }, read.map { it.totp })
+            assertEquals(entries.map { it.customFields }, read.map { it.customFields })
+        }
+    }
+
+    // spec: sharing.content/AC9
+    @Test
+    fun aKindThisVersionDoesNotKnowGoesAsItWasStored() {
+        val read = AnswerPayload("Anna", listOf(SharedEntry(title = "x", entryType = " Checklist "))).encode().useBytes { AnswerPayload.decode(it) }
+
+        assertEquals(" Checklist ", read.entries.single().entryType)
+        assertFailsWith<IllegalArgumentException> { AnswerPayload("Anna", listOf(SharedEntry(title = "x", entryType = "no\u0000te"))).encode() }
+    }
+
+    // spec: sharing.content/AC9
+    @Test
+    fun aVersionTwoCutAnywhereOrWithABadFlagOrKindIsRefusedAndOtherVersionsToo() {
+        val bytes = AnswerPayload("Anna", listOf(note(), full())).encode().useBytes { it.copyOf() }
+        for (length in 0 until bytes.size) {
+            assertFailsWith<MalformedShareException>("cut at $length") { AnswerPayload.decode(bytes.copyOf(length)) }
+        }
+        assertFailsWith<MalformedShareException> { AnswerPayload.decode(bytes + 0) }
+
+        // 02 | "Anna" | 1 entry | title "x" | four empty fields | the flag, then the kind.
+        fun content(flag: Int, kind: Int) = byteArrayOf(2, 4, 'A'.code.toByte(), 'n'.code.toByte(), 'n'.code.toByte(), 'a'.code.toByte(), 1, 1, 'x'.code.toByte(), 0, 0, 0, 0, flag.toByte(), kind.toByte())
+        // The rest of an entry with nothing: no tags, no expiry, no fields, no types, no code; then the padding to 128.
+        fun padded(head: ByteArray): ByteArray {
+            val body = head + byteArrayOf(0, 0, 0, 0, 0)
+            return body + byteArrayOf((128 - body.size - 1).toByte()) + ByteArray(128 - body.size - 1)
+        }
+        assertEquals(1, AnswerPayload.decode(padded(content(0, 0))).entries.size)
+        assertTrue(AnswerPayload.decode(padded(content(1, 0))).entries.single().notesProtected)
+        assertFailsWith<MalformedShareException> { AnswerPayload.decode(padded(content(2, 0))) }
+        assertFailsWith<MalformedShareException> { AnswerPayload.decode(padded(content(0, 2))) }
+        for (version in listOf(0, 3, 0xFF)) {
+            val other = padded(content(0, 0)).also { it[0] = version.toByte() }
+            assertFailsWith<MalformedShareException>("version $version") { AnswerPayload.decode(other) }
+        }
     }
 
     @Test

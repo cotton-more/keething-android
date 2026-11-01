@@ -1659,10 +1659,10 @@ needed each time, come later (ROADMAP).
   own `TimeOtp-*` are the entry's code, §3.2), with the same warning. The title, tags, expiry and the custom fields' types always go; attachments
   ("1 attachment stays on this phone"), history and the icon never do. Each part's row shows the start of its value,
   never a protected one: a password, a protected field and protected Notes (a note's text by default, §6.4) are dots.
-  Notes go as plain text: the receiving phone writes them as its database protects new Notes, and a note's kind does
-  not go (an entry with notes only is a note there by its fields alone). To be changed (keething-spec
-  `plans/android-notes.md` AS, sharing.content AC9): a note arrives as it was, its Notes protected and its kind kept. The sender names themselves ("From",
-  remembered).
+  A note arrives as it was (keething-spec sharing.content AC9, sharing.receiving AC9): Notes sent protected are
+  written protected, others as the receiving database protects new Notes; the kind (`Keething.EntryType`, §6.4) goes
+  whatever parts are switched off, as the title does, and is written as it was stored, a value this version does not
+  know too. Notes' protection goes only with the Notes. The sender names themselves ("From", remembered).
 - **What of a wallet never goes** (`WalletSecrets`, `Sending.neverSent`). A recovery phrase (`crypto.seed`), its
   passphrase (`crypto.passphrase`) and a private key typed `crypto.xpub` (`xprv…`) are no part to switch on: What
   to send shows them as locked rows, "Recovery phrase · stays on this phone: whoever has these words has the
@@ -1684,7 +1684,8 @@ needed each time, come later (ROADMAP).
   its id until it expires: one answer per request, the same request read again is "Answered already". The answer
   stays on its screen until Done.
 - **Receiving.** The asking phone opens it with the request's private key: "From <name>", the entries with their
-  fields (protected ones masked with an eye, each copied as the card copies), and "Only this phone could open it,
+  fields (protected ones masked with an eye, protected Notes too, a note's text named Note; each copied as the card
+  copies), and "Only this phone could open it,
   but anyone who saw your request could have made it, and the name is theirs to choose". Under a wallet's address
   (typed `crypto.address`, or read as one): "Check it with <name> another way before paying to it"; an envelope's
   come from whoever gave its pictures, without the note. Save makes each entry a
@@ -1721,7 +1722,11 @@ needed each time, come later (ROADMAP).
   first three are the AEAD's associated data.
 - **Content** (sealed): version 1, the sender's name, the entries (title, username, password, URL, notes, tags,
   expiry, custom fields with a protected flag, field types, the one-time code as its key, digits, period and
-  algorithm), then zeros up to a multiple of 128 bytes (its length says little about a password's). Read
+  algorithm), then zeros up to a multiple of 128 bytes (its length says little about a password's). Version 2
+  (since 2026-11-01, sharing.content AC9) has after each entry's notes a byte 1 when they are protected, and the kind
+  (a byte 1 and its stored value, or 0); it is written only when an entry sends protected Notes or has a kind, else
+  version 1, so a phone that reads only version 1 (before this change) still gets everything else, and refuses a
+  version 2 as one it does not know. Both are read; any other version is refused. Read
   strictly: a field named as KeePass's own fields or the code's (since 2026-10-29 all ten of §3.2: an answer from an
   older phone that sends `TimeOtp-Secret`, `-Secret-Hex` or `-Secret-Base64` as a field is refused), two fields of
   one name, a type for a field that

@@ -4,6 +4,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.EntryType
 import dev.keething.domain.vault.FieldValue
 import dev.keething.sharing.message.MalformedShareException
 import dev.keething.sharing.message.WireReader
@@ -28,7 +29,18 @@ public class SharedEntry(
     /** KeePass's expiry; null when the entry does not expire. */
     public val expires: Instant? = null,
     public val totp: TotpConfig? = null,
+    /** Notes protected in the sender's file (SPEC §6.4); said only when the Notes go. */
+    public val notesProtected: Boolean = false,
+    /** The entry's kind as the sender's file stores it (`Keething.EntryType`), a value this version does not know too. */
+    public val entryType: String? = null,
 ) {
+    /** A note as its card will call it once saved ([dev.keething.domain.vault.Entry.isNote]'s rule). */
+    public val isNote: Boolean
+        get() = EntryType.isNote(entryType, notes, username, password, url, customFields.isEmpty() && totp == null)
+
+    /** Protected Notes that are there to protect: an empty value sends nothing protected. */
+    internal val sendsProtectedNotes: Boolean get() = notesProtected && notes.isNotEmpty()
+
     public fun wipe() {
         password.wipe()
         customFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
@@ -44,6 +56,10 @@ public class SharedEntry(
  * protected, value), the field types (name, type), and the one-time code (a byte 1, the key, digits, period
  * and algorithm 0 SHA-1, 1 SHA-256, 2 SHA-512; or 0). Text is UTF-8 after its length. Last, zeros after their
  * length up to a multiple of 128 bytes: the answer's length tells little about how long a password is.
+ *
+ * Version 2 (keething-spec sharing.content AC9) has two more items after an entry's notes: a byte 1 when they are
+ * protected (else 0), and the kind (a byte 1 and the stored value, or 0). It is written only when an entry needs it,
+ * so a phone that reads only version 1 still gets everything else; both are read.
  */
 public class AnswerPayload(public val from: String, public val entries: List<SharedEntry>) {
     public fun wipe() {
@@ -67,9 +83,10 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
     }
 
     private fun write(): Secret {
+        val version = if (entries.any { it.sendsProtectedNotes || it.entryType != null }) VERSION_NOTES else VERSION
         val w = WireWriter(1024)
         try {
-            w.byte(VERSION)
+            w.byte(version)
             w.text(from)
             w.count(entries.size)
             for (e in entries) {
@@ -78,6 +95,15 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
                 w.secret(e.password)
                 w.text(e.url)
                 w.text(e.notes)
+                if (version == VERSION_NOTES) {
+                    w.byte(if (e.sendsProtectedNotes) 1 else 0)
+                    if (e.entryType != null) {
+                        w.byte(1)
+                        w.text(e.entryType)
+                    } else {
+                        w.byte(0)
+                    }
+                }
                 w.count(e.tags.size)
                 e.tags.forEach(w::text)
                 if (e.expires != null) {
@@ -116,6 +142,7 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
 
     public companion object {
         private const val VERSION = 1
+        private const val VERSION_NOTES = 2
         public const val MAX_ENTRIES: Int = 50
         private const val MAX_FIELDS = 500
         private const val MAX_TEXT = 1 shl 20
@@ -126,9 +153,10 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
             val taken = mutableListOf<SharedEntry>()
             try {
                 val r = WireReader(bytes)
-                if (r.byte() != VERSION) throw MalformedShareException("a version this app does not know")
+                val version = r.byte()
+                if (version != VERSION && version != VERSION_NOTES) throw MalformedShareException("a version this app does not know")
                 val from = r.text(MAX_TEXT)
-                repeat(r.count(MAX_ENTRIES)) { taken += entry(r) }
+                repeat(r.count(MAX_ENTRIES)) { taken += entry(r, version) }
                 if (r.field(PADDING).any { it != 0.toByte() }) throw MalformedShareException("padding")
                 r.end()
                 if (taken.isEmpty()) throw MalformedShareException("no entries")
@@ -142,7 +170,7 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
             }
         }
 
-        private fun entry(r: WireReader): SharedEntry {
+        private fun entry(r: WireReader, version: Int): SharedEntry {
             val title = r.xmlText()
             val username = r.xmlText()
             val password = r.xmlSecret()
@@ -150,6 +178,20 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
             try {
                 val url = r.xmlText()
                 val notes = r.xmlText()
+                var notesProtected = false
+                var entryType: String? = null
+                if (version == VERSION_NOTES) {
+                    notesProtected = when (r.byte()) {
+                        0 -> false
+                        1 -> true
+                        else -> throw MalformedShareException("Notes' protection")
+                    }
+                    entryType = when (r.byte()) {
+                        0 -> null
+                        1 -> r.xmlText()
+                        else -> throw MalformedShareException("a kind")
+                    }
+                }
                 val tags = List(r.count(MAX_FIELDS)) { r.xmlText() }
                 val expires = when (r.byte()) {
                     0 -> null
@@ -189,7 +231,7 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
                     }
                     else -> throw MalformedShareException("a one-time code")
                 }
-                return SharedEntry(title, username, password, url, notes, fields, types, tags, expires, totp)
+                return SharedEntry(title, username, password, url, notes, fields, types, tags, expires, totp, notesProtected, entryType)
             } catch (failure: Exception) {
                 secrets.forEach(Secret::wipe)
                 throw failure

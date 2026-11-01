@@ -306,28 +306,45 @@ private fun Unavailable(arrival: ShareRequests.Arrival) {
     }
 }
 
-/** A row of a received entry; [note] warns under the value, a value [copyable] false is only shown. */
-private data class ReceivedRow(val label: String, val value: String, val secret: Boolean, val copyable: Boolean = true, val note: String? = null)
+/**
+ * A row of a received entry; [note] warns under the value, a value [copyable] false is only shown. A [secret] is masked
+ * until shown and copied as one; shown, it is a password's coloured characters, or plain lines when it is [text].
+ */
+internal data class ReceivedRow(
+    val label: String,
+    val value: String,
+    val secret: Boolean,
+    val copyable: Boolean = true,
+    val note: String? = null,
+    val text: Boolean = false,
+)
+
+/** [sender]: set for an answer, whose addresses are to be checked with them (SPEC §10.1). */
+internal fun receivedRows(entry: SharedEntry, sender: String?): List<ReceivedRow> = buildList {
+    if (entry.username.isNotEmpty()) add(ReceivedRow("Username", entry.username, false))
+    if (!entry.password.isEmpty()) add(ReceivedRow("Password", entry.password.reveal(), true))
+    if (entry.url.isNotEmpty()) add(ReceivedRow("Website", entry.url, false))
+    if (entry.notes.isNotEmpty()) {
+        // As on the card: a note's text is its "Note"; Notes sent protected stay masked until shown.
+        val label = if (entry.isNote) "Note" else "Notes"
+        add(ReceivedRow(label, entry.notes, entry.notesProtected, text = true))
+    }
+    entry.customFields.forEach { field ->
+        val copyable = !Receiving.isNeverCopied(entry, field)
+        when (val value = field.value) {
+            is FieldValue.Plain -> {
+                val note = if (sender != null && Receiving.isAddress(entry, field)) "Check it with $sender another way before paying to it." else null
+                add(ReceivedRow(field.name, value.text, false, copyable, note))
+            }
+            is FieldValue.Protected -> add(ReceivedRow(field.name, value.secret.reveal(), true, copyable))
+        }
+    }
+}
 
 /** [sender]: set for an answer, whose addresses are to be checked with them (SPEC §10.1). */
 @Composable
 private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, sender: String?) {
-    val rows = buildList {
-        if (entry.username.isNotEmpty()) add(ReceivedRow("Username", entry.username, false))
-        if (!entry.password.isEmpty()) add(ReceivedRow("Password", entry.password.reveal(), true))
-        if (entry.url.isNotEmpty()) add(ReceivedRow("Website", entry.url, false))
-        if (entry.notes.isNotEmpty()) add(ReceivedRow("Notes", entry.notes, false))
-        entry.customFields.forEach { field ->
-            val copyable = !Receiving.isNeverCopied(entry, field)
-            when (val value = field.value) {
-                is FieldValue.Plain -> {
-                    val note = if (sender != null && Receiving.isAddress(entry, field)) "Check it with $sender another way before paying to it." else null
-                    add(ReceivedRow(field.name, value.text, false, copyable, note))
-                }
-                is FieldValue.Protected -> add(ReceivedRow(field.name, value.secret.reveal(), true, copyable))
-            }
-        }
-    }
+    val rows = receivedRows(entry, sender)
     val summary = listOfNotNull(
         if (rows.size == 1) "1 field" else "${rows.size} fields",
         entry.totp?.let { "a one-time code" },
@@ -346,7 +363,7 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, send
                 Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        rows.forEachIndexed { row, (label, value, secret, copyable, note) ->
+        rows.forEachIndexed { row, (label, value, secret, copyable, note, text) ->
             val key = "$index/$row"
             val empty = value.isEmpty()
             val shown = !secret || empty || key in model.revealed
@@ -359,7 +376,7 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, send
                     when {
                         empty -> Text("empty", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         !shown -> Text("••••••••••••", style = MaterialTheme.typography.bodyLarge)
-                        secret -> Text(colouredSecret(value), fontFamily = MonospaceFamily, style = MaterialTheme.typography.bodyLarge)
+                        secret && !text -> Text(colouredSecret(value), fontFamily = MonospaceFamily, style = MaterialTheme.typography.bodyLarge)
                         else -> Text(value, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
                     }
                     note?.let {
