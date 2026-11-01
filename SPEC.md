@@ -698,7 +698,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   (§6.4), on the tap, while in front, and for a quick note from the clipboard once its database is open (before
   that only the clip's description, which shows no notice); it leaves the clipboard as it was. A quick note's text is
   kept nowhere but the editor: not in the settings (they hold the quick notes' database's id alone), saved state, a
-  log or a draft. A text another app hands over (Keething note) comes in the intent, so it is in memory while its
+  log or a draft (nor the app it came from or its page, which travel with it). A text another app hands over
+  (Keething note) comes in the intent, so it is in memory while its
   database's lock screen waits: in the screen's model and the system's copy of the intent, both gone with the screen,
   which finishes itself when stopped, unless a screen it opened itself (a key file picker) is in front: then it waits
   for its return or a lock of the app, and with nothing open there is no alarm to count a stay away, so it may wait
@@ -1435,7 +1436,7 @@ Being built (keething-spec `types.note`, `app.quick-note`, `app.quick-note-sourc
 mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9). Built so far: what a note is, in the file (AN1); the
 card, the list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from
 clipboard (AN3); where a quick note goes, its editor, its run and the setting (AQ1); Keething note in the share sheet
-and the selection menu (AQ2). Not yet: where a quick note came from (AQ3), the tile and the launcher's shortcut (AQ4).
+and the selection menu (AQ2); where a quick note came from (AQ3). Not yet: the tile and the launcher's shortcut (AQ4).
 
 **What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
 item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,
@@ -1508,7 +1509,9 @@ blank lines before the first line and after the last taken off; the clipboard is
 only blank lines, a picture, a file): "No text on the clipboard" over the list, and no editor. Otherwise New note's
 editor with the text in it, already a change (Back asks before discarding). The text lives only in the editor: it
 travels to the editor's screen in memory (`NewNote`, whose name says nothing of it, since a screen's name keys its
-saved state), not in saved state, a draft, a log or the settings, and goes with the editor (Back, a save, a lock).
+saved state), not in saved state, a draft, a log or the settings, and goes with the editor (Back, a save, a lock). It gets no tag and no
+Website (app.quick-note-source AC6): the app is Keething itself, and no browser's copy carries the page (a copied link
+is the text itself).
 
 **Where a quick note goes** (keething-spec app.quick-note AC1, AC2; the Mac's §3.28 there). Settings, Quick notes:
 "Quick notes go to" is Current database (the default; "Personal now" under it) or one database of the list, each with
@@ -1543,10 +1546,9 @@ and the shortcut (AQ4) are not built, so nothing starts it from the clipboard ye
 AC7; the Mac's `QuickNoteWindow`): Keething's target in other apps' share sheet for a text (`ACTION_SEND`,
 `text/plain`), beside "Read with Keething" (§10.3), and its item in the text selection menu (`ACTION_PROCESS_TEXT`,
 under ⋮ in Chrome's and Firefox's toolbar). The selection menu gets no result back, so a selected text in an editable
-field stays as it was. The text is the share's `EXTRA_TEXT` or the selection's `EXTRA_PROCESS_TEXT`; a share's subject
-becomes the first line only when the text is a lone http(s) address (a page shared from Chrome, whose subject is the
-page's title); Chrome's "Including link: …" over a selection and Firefox's "Share via" are left out. No text: "No text
-to save", and nothing opens.
+field stays as it was. The text is the share's `EXTRA_TEXT` or the selection's `EXTRA_PROCESS_TEXT`, a page shared
+giving its title or address instead (below); a share's subject is used only as a page's title, so Chrome's "Including
+link: …" over a selection and Firefox's "Share via" are left out. No text: "No text to save", and nothing opens.
 The screen is a sheet over the other app (a see-through window, the sheet 24 dp below the status bar, the other app
 dimmed behind it; the agreed mock-up). The quick notes' database open: the quick note's editor ("Quick note", Save).
 Locked: its lock screen under the title "Keething note", with "Unlock to write the quick note" under the database: the
@@ -1576,6 +1578,29 @@ opens nothing. Recents keeps the sheet as its live top card (blank: `FLAG_SECURE
 it up. While a screen it opened is in front, an unlock elsewhere (the main app) still opens the
 editor behind it; a lock of the app then gives it up. The log says which screen showed, by name ("Unlock", "Editor", "Gone with a notice"), never the
 text, the database or the group.
+
+**Where it came from** (`core/card` `QuickNoteSource`, `app/quicknote` `QuickNoteIntent`, `QuickNoteApp`;
+keething-spec app.quick-note-source; the Mac's `QuickNoteSource`). The app is the sending or calling app named by
+`Activity.getReferrer()` (a share's sender, not the system's chooser; the selection menu's caller, Firefox's too, which
+does not start it for a result; a sender may name another app with `EXTRA_REFERRER`, accepted: it is only a tag), its
+label as the launcher shows it (`Chrome`, `Firefox`, `Gmail`). None for Keething itself, a referrer that is no app, an
+app that is not installed or not visible, or one without a label of its own (its package name is not a name). The tag
+is that name, a `,` or `;` in it a space, spelt as a tag of that name already in the database is (compared as tags
+are: case and accents aside), added once. The page comes only from a share, in the shapes the browsers give
+(`plans/android-notes.md` AQ0): a lone http(s) address shared is a page, its address the Website, and the note's text
+the subject (the page's title, which Chrome gives and Firefox gave by the AQ3 round, not yet in AQ0's) or, with none,
+the address too, since a note needs its text; Firefox's "Share via" and Chrome's "Including link: …" are no title; a
+text whose last line, after a line break and blanks, is an http(s) address with a text directive (`#:~:text=`: Chrome's
+shared selection, and the other Chromium browsers') gives that link to the Website and the rest as the text, the
+quotes the browser put around the selection taken off (only when the rest is wrapped in them). Anything else gives no
+page, an address in the middle of a text or a selected one (the selection menu) too: nothing is guessed. An address
+is `http` or `https` with a host, and kept whole: a `user:password@`, a token, and the text directive, which holds the
+selected words and a few around them (the Website is not protected; the owner's choice, P5). Android's browsers do not
+tell a private window (Chrome's incognito shares as a normal tab does), so none is left out for that. Both go into the
+quick note's editor as an ordinary tag and Website, the Website row shown (it stays while its address is taken out),
+a Website typed already kept; either can be taken out before Save, and a removed one is not saved. They travel with
+the text: held with it while the lock screen waits, dropped with it when the quick note is given up, in the editor's
+`NewNote` after; neither is printed (`QuickNoteSource` says nothing of them when printed).
 
 **For the phone checks**: `task notes:database -- <new.kdbx>` writes a fictitious database through the phone's own
 core (`core/vault` test `probe/MakeNotesDatabase.kt`, password `pw`): a protected note, an unprotected one, an entry

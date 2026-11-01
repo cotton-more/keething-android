@@ -99,7 +99,7 @@ internal class EntryEditorViewModel(
         private set
 
     var draft: EntryDraft by mutableStateOf(
-        editor?.start?.let { start -> note?.let { start.copy(notes = it.text) } ?: prefill?.invoke(start) ?: start } ?: EntryDraft(),
+        editor?.start?.let { start -> note?.draft(start, knownTags) ?: prefill?.invoke(start) ?: start } ?: EntryDraft(),
     )
         private set
 

@@ -1,6 +1,7 @@
 package dev.keething.android.quicknote
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -128,13 +129,24 @@ class QuickNoteActivity : ComponentActivity() {
         ownInFront = false
         // After the app's own start, where a stay away past the timeout locks first (SPEC §4): an open database is
         // open, and that lock is not counted against this quick note.
-        model.start(recreated) { QuickNoteIntent.text(intent.action, intent::getCharSequenceExtra) }
+        // The sending or calling app as the system names it (a share's sender, not the chooser; the selection menu's
+        // caller, Firefox's too, which does not start it for a result: plans/android-notes.md AQ0).
+        model.start(recreated) {
+            QuickNoteIntent.read(intent.action, intent::getCharSequenceExtra) { QuickNoteApp.name(referrer?.toString(), packageName, ::appLabel) }
+        }
     }
 
     override fun onStop() {
         super.onStop()
         // The fingerprint prompt is the system's window over this one: it does not stop it.
         if (!isChangingConfigurations) model.stopped(ownInFront)
+    }
+
+    /** An installed app's label as the launcher shows it; null when it is not installed (or not visible). */
+    private fun appLabel(packageName: String): String? = try {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0)).toString()
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
     }
 
     /** Every screen this one starts comes through here (`startActivity` too). */

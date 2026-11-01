@@ -6,7 +6,9 @@ import dev.keething.android.list.NewChoice
 import dev.keething.android.navigation.NavigationState
 import dev.keething.android.navigation.Screen
 import dev.keething.card.editing.EditorLayout
+import dev.keething.card.editing.EntryDraft
 import dev.keething.card.editing.GroupChoice
+import dev.keething.card.editing.QuickNoteSource
 import dev.keething.domain.vault.NoteDates
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultGroup
@@ -92,5 +94,27 @@ class NewNoteTest {
         navigation.open(screen)
         navigation.lockScreen(1, anyOpen = false)
         assertTrue(navigation.backStack.none { it is Screen.Editor }, "a lock takes the editor and the text with it")
+    }
+
+    @Test
+    fun aNoteFromTheClipboardAddsNoTagAndNoWebsite() {
+        // spec: app.quick-note-source/AC6
+        val draft = NewNote("Dune").draft(EntryDraft(), knownTags = listOf("Chrome", "Keething"))
+        assertEquals("Dune", draft.notes)
+        assertEquals(emptyList(), draft.tags, "the app being Keething itself")
+        assertEquals("", draft.url, "no clip carries a page (plans/android-notes.md AQ0)")
+        assertFalse(draft.websiteAdded)
+    }
+
+    @Test
+    fun aQuickNotesDraftHasItsTextTheAppsTagAsTheDatabaseSpellsItAndThePage() {
+        // spec: app.quick-note-source/AC1
+        val note = NewNote("Dune", quick = true, source = QuickNoteSource(app = "Chrome", page = "https://films.example.org/dune"))
+        val draft = note.draft(EntryDraft(), knownTags = listOf("work", "chrome"))
+        assertEquals("Dune", draft.notes)
+        assertEquals(listOf("chrome"), draft.tags)
+        assertEquals("https://films.example.org/dune", draft.url)
+        assertTrue(draft.websiteAdded)
+        assertFalse("films" in note.toString() || "Chrome" in note.toString())
     }
 }

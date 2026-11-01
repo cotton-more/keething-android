@@ -6,6 +6,7 @@ import dev.keething.android.quicknote.QuickNoteRun.Source
 import dev.keething.android.quicknote.QuickNoteRun.State
 import dev.keething.android.settings.AppSettings
 import dev.keething.android.settings.InMemorySettingsStore
+import dev.keething.card.editing.QuickNoteSource
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.databases.Databases
@@ -48,18 +49,22 @@ class QuickNoteRunTest {
     private class Fixture(var target: DatabaseId? = DatabaseId("P"), var open: Boolean = true) {
         val clipboard = CountingClipboard()
         val opened = mutableListOf<Pair<DatabaseId, String>>()
-        val run = QuickNoteRun(target = { target }, isOpen = { open }, openEditor = { database, text -> opened += database to text })
+        val sources = mutableListOf<QuickNoteSource>()
+        val run = QuickNoteRun(target = { target }, isOpen = { open }, openEditor = { database, text, source ->
+            opened += database to text
+            sources += source
+        })
         val personal = DatabaseId("P")
 
         fun fromClipboard() = run.start(Source.Clipboard(clipboard))
     }
 
-    /** Whether any of the run's fields holds [text] (a string, or a text handed over). */
+    /** Whether any of the run's fields holds [text] (a string, or a text handed over, its app or its page). */
     private fun QuickNoteRun.holds(text: String): Boolean = javaClass.declaredFields.any { field ->
         field.isAccessible = true
         when (val value = field.get(this)) {
             is String -> text in value
-            is Source.Given -> text in value.text
+            is Source.Given -> text in value.text || text in value.source.app.orEmpty() || text in value.source.page.orEmpty()
             else -> false
         }
     }
@@ -159,6 +164,52 @@ class QuickNoteRunTest {
         assertFalse(f.run.holds("Dune"), "handed to the editor, not kept")
     }
 
+    // Where it came from (app.quick-note-source)
+
+    private val chrome = QuickNoteSource(app = "Chrome", page = "https://films.example.org/festival")
+
+    @Test
+    fun theAppAndThePageGoToTheEditorWithTheText() {
+        // spec: app.quick-note-source/AC1
+        val f = Fixture()
+        f.run.start(Source.Given("Dune", chrome))
+        assertEquals(listOf(chrome), f.sources)
+        assertEquals("Chrome", f.sources.single().app)
+        assertEquals("https://films.example.org/festival", f.sources.single().page)
+    }
+
+    @Test
+    fun theyWaitForTheUnlockWithTheTextAndAreDroppedWhenItIsGivenUp() {
+        // spec: app.quick-note-source/AC3
+        val f = Fixture(open = false)
+        f.run.start(Source.Given("Dune", chrome))
+        assertTrue(f.run.holds("films.example.org") && f.run.holds("Chrome"), "held while the lock screen waits, as the text")
+        f.open = true
+        f.run.unlocked(f.personal)
+        assertEquals(listOf(chrome), f.sources, "kept through the unlock")
+        assertFalse(f.run.holds("films.example.org") || f.run.holds("Chrome"), "handed to the editor, not kept")
+
+        val given = Fixture(open = false)
+        given.run.start(Source.Given("Dune", chrome))
+        given.run.giveUp()
+        assertFalse(given.run.holds("films.example.org") || given.run.holds("Chrome"), "given up: nothing kept")
+        given.open = true
+        given.run.unlocked(given.personal)
+        assertTrue(given.sources.isEmpty())
+    }
+
+    @Test
+    fun theClipboardSaysNoAppAndNoPage() {
+        // spec: app.quick-note-source/AC4
+        val f = Fixture()
+        f.clipboard.text = "Dune"
+        f.fromClipboard()
+        assertEquals(listOf(QuickNoteSource()), f.sources)
+        val handed = Fixture()
+        handed.run.start(Source.Given("Dune"))
+        assertEquals(listOf(QuickNoteSource()), handed.sources, "a text handed over with nothing known")
+    }
+
     // Either way
 
     @Test
@@ -234,7 +285,7 @@ class QuickNoteRunTest {
         val opened = mutableListOf<String>()
         val run = QuickNoteRun(
             target = { QuickNoteTarget.resolve(settings.quickNoteDatabase.value, databases) }, isOpen = { false },
-            openEditor = { _, text -> opened += text },
+            openEditor = { _, text, _ -> opened += text },
         )
         run.start(Source.Given("Unforgettable words"))
         assertEquals(State.Unlocking(personal.id), run.state)

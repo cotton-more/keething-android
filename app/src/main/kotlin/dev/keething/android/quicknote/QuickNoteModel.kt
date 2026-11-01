@@ -66,8 +66,8 @@ internal class QuickNoteModel(
 
     val showing: StateFlow<Showing> = mutableShowing.asStateFlow()
 
-    private val run = QuickNoteRun(target, isOpen) { database, text ->
-        mutableShowing.value = Showing.Editor(database, NewNote(text, quick = true))
+    private val run = QuickNoteRun(target, isOpen) { database, text, source ->
+        mutableShowing.value = Showing.Editor(database, NewNote(text, quick = true, source = source))
     }
 
     /** What follows the database, the app's locks and the newer quick notes; ended when the screen goes. */
@@ -78,11 +78,11 @@ internal class QuickNoteModel(
      * (gives up). Again for the same screen (a configuration change): nothing. No text or no database leaves a quick
      * note already waiting alone.
      */
-    fun start(recreated: Boolean, text: () -> String?) {
+    fun start(recreated: Boolean, given: () -> Source.Given?) {
         if (showing.value != Showing.Nothing) return
         if (recreated) return finish(null)
         val locked = locks.value
-        run.start(Source.Given(text().orEmpty()))
+        run.start(given() ?: Source.Given(""))
         val database = when (val state = run.state) {
             is State.Unlocking -> state.database.also {
                 intoWindow(it)

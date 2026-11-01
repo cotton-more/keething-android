@@ -1,7 +1,9 @@
 package dev.keething.android.editor
 
 import dev.keething.android.clipboard.SystemClipboard
+import dev.keething.card.editing.EntryDraft
 import dev.keething.card.editing.EntryEditor
+import dev.keething.card.editing.QuickNoteSource
 import dev.keething.domain.vault.NoteDates
 import dev.keething.domain.vault.NoteText
 import dev.keething.domain.vault.Vault
@@ -19,12 +21,20 @@ internal class NewNote(
      * setting chose, so no Save into.
      */
     val quick: Boolean = false,
+    /** Where a quick note's text came from (keething-spec app.quick-note-source): the app's tag and the page. */
+    val source: QuickNoteSource = QuickNoteSource(),
 ) {
     override fun toString(): String = "NewNote"
 
     /** The editor it opens: a quick note's in the Inbox ([EntryEditor.createQuickNote]), else New note's in [groupId]. */
     fun editor(vault: Vault, groupId: String?, now: Instant, dates: NoteDates): EntryEditor =
         if (quick) EntryEditor.createQuickNote(vault, now, dates) else EntryEditor.createNote(vault, groupId, now, dates)
+
+    /**
+     * The draft its editor starts with: [start] with the text, and a quick note's app as a tag (spelt as the database's
+     * [knownTags] spell it) and page in the Website, all of them changes the user can take out before Save.
+     */
+    fun draft(start: EntryDraft, knownTags: List<String>): EntryDraft = source.applied(start.copy(notes = text), knownTags)
 
     /** Whether its editor offers Save into: not a quick note's, whose database the setting chose (app.quick-note AC1). */
     val offersSaveInto: Boolean get() = !quick

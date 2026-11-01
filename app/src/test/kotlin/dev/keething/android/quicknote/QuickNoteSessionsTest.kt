@@ -77,7 +77,7 @@ class QuickNoteSessionsTest {
             locks = MutableStateFlow(0),
             scope = backgroundScope,
         )
-        model.start(recreated = false) { "Dune\nArrival" }
+        model.start(recreated = false) { given("Dune\nArrival") }
         runCurrent()
         assertEquals(Showing.Unlock(personal), model.showing.value)
 

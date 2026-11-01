@@ -1,6 +1,7 @@
 package dev.keething.android.quicknote
 
 import dev.keething.android.quicknote.QuickNoteModel.Showing
+import dev.keething.card.editing.QuickNoteSource
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultGroup
@@ -67,21 +68,24 @@ class QuickNoteModelTest {
                 field.isAccessible = true
                 when (val value = field.get(model)) {
                     is String -> text in value
-                    is Showing.Editor -> text in value.note.text
-                    is MutableStateFlow<*> -> value.value?.let { it is Showing.Editor && text in it.note.text } == true
-                    is QuickNoteRun.Source.Given -> text in value.text
+                    is Showing.Editor -> value.note.holds(text)
+                    is MutableStateFlow<*> -> value.value?.let { it is Showing.Editor && it.note.holds(text) } == true
+                    is QuickNoteRun.Source.Given -> text in value.text || text in value.source.app.orEmpty() || text in value.source.page.orEmpty()
                     is QuickNoteRun -> holds(value, text, depth + 1)
                     else -> false
                 }
             }
     }
 
+    private fun dev.keething.android.editor.NewNote.holds(text: String) =
+        text in this.text || text in source.app.orEmpty() || text in source.page.orEmpty()
+
     // Open, locked, unlocked
 
     @Test
     fun anOpenDatabaseOpensTheQuickNotesEditorWithTheTextTrimmed() = runTest {
         val f = Fixture(this)
-        f.model.start(recreated = false) { "\n\n  Perfect Days (2023)\nWim Wenders \n\n" }
+        f.model.start(recreated = false) { given("\n\n  Perfect Days (2023)\nWim Wenders \n\n") }
         runCurrent()
         val editor = assertIs<Showing.Editor>(f.showing)
         assertEquals(personal, editor.database)
@@ -94,20 +98,20 @@ class QuickNoteModelTest {
     fun noTextOrABlankOneSaysNoTextToSaveAndNoDatabaseSaysSo() = runTest {
         for (text in listOf(null, "", " \n\t\n")) {
             val f = Fixture(this)
-            f.model.start(recreated = false) { text }
+            f.model.start(recreated = false) { given(text) }
             assertEquals(Showing.Gone("No text to save"), f.showing, "for ${text?.length} characters")
             assertTrue(f.intoWindow.isEmpty(), "no unlock asked for nothing")
         }
         val f = Fixture(this)
         f.target = null
-        f.model.start(recreated = false) { "Dune" }
+        f.model.start(recreated = false) { given("Dune") }
         assertEquals(Showing.Gone("No database to put the quick note in"), f.showing)
     }
 
     @Test
     fun aLockedDatabaseShowsItsLockScreenAWrongPasswordKeepsItAndTheUnlockOpensTheEditor() = runTest {
         val f = Fixture(this, open = false)
-        f.model.start(recreated = false) { "Dune" }
+        f.model.start(recreated = false) { given("Dune") }
         runCurrent()
         assertEquals(Showing.Unlock(personal), f.showing)
         f.state.value = SessionState.Unlocking
@@ -123,9 +127,28 @@ class QuickNoteModelTest {
     }
 
     @Test
+    fun theTagAndThePageReachTheEditorThroughTheUnlockAndAreGoneWithAQuickNoteGivenUp() = runTest {
+        // spec: app.quick-note-source/AC3
+        val chrome = QuickNoteSource(app = "Chrome", page = "https://films.example.org/festival")
+        val f = Fixture(this, open = false)
+        f.model.start(recreated = false) { given("Dune", chrome) }
+        runCurrent()
+        f.state.value = unlocked()
+        runCurrent()
+        assertEquals(chrome, assertIs<Showing.Editor>(f.showing).note.source)
+
+        val given = Fixture(this, open = false)
+        given.model.start(recreated = false) { given("Dune", chrome) }
+        runCurrent()
+        given.model.back()
+        runCurrent()
+        assertFalse(holds(given.model, "films.example.org") || holds(given.model, "Chrome"), "given up: nothing of them kept")
+    }
+
+    @Test
     fun aDatabaseOfTheListNotInTheWindowIsBroughtIntoItForItsLockScreen() = runTest {
         val f = Fixture(this, inWindow = false)
-        f.model.start(recreated = false) { "Dune" }
+        f.model.start(recreated = false) { given("Dune") }
         runCurrent()
         assertEquals(Showing.Unlock(personal), f.showing, "not open: its lock screen, not given up for not being there yet")
         assertEquals(listOf(personal), f.intoWindow)
@@ -141,7 +164,7 @@ class QuickNoteModelTest {
     @Test
     fun backAtTheLockScreenGivesUpAndALaterUnlockOpensNothingKeepingNothing() = runTest {
         val f = Fixture(this, open = false)
-        f.model.start(recreated = false) { "Films to watch: Dune" }
+        f.model.start(recreated = false) { given("Films to watch: Dune") }
         runCurrent()
         assertTrue(holds(f.model, "Films to watch"), "held while the lock screen waits (it came in the intent)")
         f.model.back()
@@ -155,7 +178,7 @@ class QuickNoteModelTest {
     @Test
     fun theScreenLeftGivesItUpButAScreenItOpenedItselfDoesNotUntilTheAppLocks() = runTest {
         val f = Fixture(this, open = false)
-        f.model.start(recreated = false) { "Dune" }
+        f.model.start(recreated = false) { given("Dune") }
         runCurrent()
         f.model.stopped(ownInFront = true)
         advanceTimeBy(60.minutes)
@@ -167,7 +190,7 @@ class QuickNoteModelTest {
         assertFalse(holds(f.model, "Dune"))
 
         val g = Fixture(this, open = false)
-        g.model.start(recreated = false) { "Dune" }
+        g.model.start(recreated = false) { given("Dune") }
         runCurrent()
         g.model.stopped(ownInFront = false)
         assertEquals(Showing.Gone(null), g.showing, "Home, another app, the screen off")
@@ -179,20 +202,20 @@ class QuickNoteModelTest {
     @Test
     fun theEditorLeftClosedOrLockedGivesItUpKeepingNothing() = runTest {
         val left = Fixture(this)
-        left.model.start(recreated = false) { "Dune" }
+        left.model.start(recreated = false) { given("Dune") }
         runCurrent()
         left.model.stopped(ownInFront = false)
         assertEquals(Showing.Gone(null), left.showing)
         assertFalse(holds(left.model, "Dune"))
 
         val closed = Fixture(this)
-        closed.model.start(recreated = false) { "Dune" }
+        closed.model.start(recreated = false) { given("Dune") }
         runCurrent()
         closed.model.editorClosed()
         assertEquals(Showing.Gone(null), closed.showing, "the editor's own X or Back, discarded")
 
         val locked = Fixture(this)
-        locked.model.start(recreated = false) { "Dune" }
+        locked.model.start(recreated = false) { given("Dune") }
         runCurrent()
         locked.state.value = SessionState.Locked(LockReason.Manual)
         runCurrent()
@@ -207,7 +230,7 @@ class QuickNoteModelTest {
     fun aLockCountedAfterTheStartGivesItUpAtTheLockScreenAndInTheEditor() = runTest {
         val waiting = Fixture(this, open = false)
         waiting.locks.value = 3
-        waiting.model.start(recreated = false) { "Dune" }
+        waiting.model.start(recreated = false) { given("Dune") }
         runCurrent()
         assertEquals(Showing.Unlock(personal), waiting.showing, "the locks before it are not its own")
         waiting.locks.value++
@@ -218,7 +241,7 @@ class QuickNoteModelTest {
         assertEquals(Showing.Gone(null), waiting.showing)
 
         val editing = Fixture(this)
-        editing.model.start(recreated = false) { "Dune" }
+        editing.model.start(recreated = false) { given("Dune") }
         runCurrent()
         editing.locks.value++
         runCurrent()
@@ -229,14 +252,14 @@ class QuickNoteModelTest {
     @Test
     fun theDatabaseGoneFromTheWindowGivesItUp() = runTest {
         val waiting = Fixture(this, open = false)
-        waiting.model.start(recreated = false) { "Dune" }
+        waiting.model.start(recreated = false) { given("Dune") }
         runCurrent()
         waiting.state.value = null
         runCurrent()
         assertEquals(Showing.Gone(null), waiting.showing, "removed from the list or closed while its lock screen waits")
 
         val editing = Fixture(this)
-        editing.model.start(recreated = false) { "Dune" }
+        editing.model.start(recreated = false) { given("Dune") }
         runCurrent()
         editing.state.value = null
         runCurrent()
@@ -248,10 +271,10 @@ class QuickNoteModelTest {
         val started = MutableStateFlow(0)
         val first = Fixture(this, open = false, started = started)
         val second = Fixture(this, open = false, started = started)
-        first.model.start(recreated = false) { "Dune" }
+        first.model.start(recreated = false) { given("Dune") }
         runCurrent()
         assertEquals(Showing.Unlock(personal), first.showing)
-        second.model.start(recreated = false) { "Arrival" }
+        second.model.start(recreated = false) { given("Arrival") }
         runCurrent()
         assertEquals(Showing.Gone(null), first.showing, "the newer one replaces it")
         assertFalse(holds(first.model, "Dune"))
@@ -262,15 +285,15 @@ class QuickNoteModelTest {
     fun aRequestWithNoTextOrNoDatabaseLeavesTheOneWaitingAlone() = runTest {
         val started = MutableStateFlow(0)
         val first = Fixture(this, open = false, started = started)
-        first.model.start(recreated = false) { "Dune" }
+        first.model.start(recreated = false) { given("Dune") }
         runCurrent()
         val blank = Fixture(this, started = started)
-        blank.model.start(recreated = false) { " \n " }
+        blank.model.start(recreated = false) { given(" \n ") }
         runCurrent()
         assertEquals(Showing.Gone("No text to save"), blank.showing)
         val nowhere = Fixture(this, started = started)
         nowhere.target = null
-        nowhere.model.start(recreated = false) { "Arrival" }
+        nowhere.model.start(recreated = false) { given("Arrival") }
         runCurrent()
         assertEquals(Showing.Gone("No database to put the quick note in"), nowhere.showing)
         assertEquals(Showing.Unlock(personal), first.showing, "nothing replaced it")
@@ -284,7 +307,7 @@ class QuickNoteModelTest {
         // Seen on the Pixel 6: the lock timeout ran out as the screen started; the window's flow still said open.
         val f = Fixture(this)
         f.sessionsSay = false
-        f.model.start(recreated = false) { "Dune" }
+        f.model.start(recreated = false) { given("Dune") }
         runCurrent()
         assertEquals(Showing.Unlock(personal), f.showing, "the sessions decide: locked")
         f.state.value = SessionState.Locked(LockReason.Timeout)
@@ -299,7 +322,7 @@ class QuickNoteModelTest {
     @Test
     fun aScreenReCreatedAfterItsProcessDiedGivesUpWithoutReadingTheIntent() = runTest {
         val f = Fixture(this)
-        f.model.start(recreated = true) { fail("the intent read again") }
+        f.model.start(recreated = true) { given(fail("the intent read again")) }
         assertEquals(Showing.Gone(null), f.showing)
         assertEquals(0, f.started.value, "nothing started")
     }
@@ -307,9 +330,9 @@ class QuickNoteModelTest {
     @Test
     fun startedAgainByTheSameScreenIsTheSameQuickNote() = runTest {
         val f = Fixture(this, open = false)
-        f.model.start(recreated = false) { "Dune" }
+        f.model.start(recreated = false) { given("Dune") }
         runCurrent()
-        f.model.start(recreated = true) { fail("read again") }
+        f.model.start(recreated = true) { given(fail("read again")) }
         runCurrent()
         assertEquals(Showing.Unlock(personal), f.showing, "a configuration change keeps the model and its quick note")
         assertEquals(1, f.started.value)
@@ -330,7 +353,7 @@ class QuickNoteModelTest {
         )
         for ((id, said) in listOf("inbox" to "Saved to Inbox", "films" to "Saved to Films", "top" to "Saved to Personal", "gone" to "Saved")) {
             val f = Fixture(this)
-            f.model.start(recreated = false) { "Films to watch" }
+            f.model.start(recreated = false) { given("Films to watch") }
             runCurrent()
             f.model.saved(vault, id)
             assertEquals(Showing.Gone(said), f.showing, id)

@@ -1,6 +1,7 @@
 package dev.keething.android.quicknote
 
 import dev.keething.android.clipboard.SystemClipboard
+import dev.keething.card.editing.QuickNoteSource
 import dev.keething.domain.vault.NoteText
 import dev.keething.vault.databases.DatabaseId
 
@@ -16,13 +17,16 @@ internal class QuickNoteRun(
     /** The quick notes' database ([dev.keething.vault.databases.QuickNoteTarget]). */
     private val target: () -> DatabaseId?,
     private val isOpen: (DatabaseId) -> Boolean,
-    /** Shows the quick note's editor in that database with the text. */
-    private val openEditor: (DatabaseId, String) -> Unit,
+    /** Shows the quick note's editor in that database with the text and where it came from. */
+    private val openEditor: (DatabaseId, String, QuickNoteSource) -> Unit,
 ) {
     /** Where the text comes from. Neither says anything of the text when printed. */
     sealed interface Source {
-        /** Handed over with the request: a share's or the selection menu's text. */
-        class Given(val text: String) : Source {
+        /**
+         * Handed over with the request: a share's or the selection menu's text, and where it came from (the app, a
+         * share's page), which waits for the unlock with it.
+         */
+        class Given(val text: String, val source: QuickNoteSource = QuickNoteSource()) : Source {
             override fun toString(): String = "Given"
         }
 
@@ -118,7 +122,8 @@ internal class QuickNoteRun(
             state = State.NoText(source is Source.Clipboard)
             return
         }
-        openEditor(database, text)
+        // The clipboard says no app, and no browser's clip carries a page (plans/android-notes.md AQ0).
+        openEditor(database, text, (source as? Source.Given)?.source ?: QuickNoteSource())
         state = State.Opened(database)
     }
 

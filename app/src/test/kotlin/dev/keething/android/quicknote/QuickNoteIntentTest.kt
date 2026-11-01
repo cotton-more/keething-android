@@ -1,55 +1,152 @@
 package dev.keething.android.quicknote
 
 import android.content.Intent
+import dev.keething.card.editing.QuickNoteSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * What a share or the selection menu hands over to Keething note (SPEC §6.4; keething-spec app.quick-note AC3; the
- * shapes seen in plans/android-notes.md AQ0).
+ * What a share or the selection menu hands over to Keething note (SPEC §6.4; keething-spec app.quick-note AC3,
+ * app.quick-note-source AC2, AC4, AC5; the shapes seen in plans/android-notes.md AQ0): the text, the page a browser
+ * gives with it, and the app.
  */
 class QuickNoteIntentTest {
-    private fun share(text: CharSequence?, subject: CharSequence? = null): String? =
-        QuickNoteIntent.text(Intent.ACTION_SEND, mapOf(Intent.EXTRA_TEXT to text, Intent.EXTRA_SUBJECT to subject)::get)
+    private class Read(val text: String, val app: String?, val page: String?)
+
+    private fun read(action: String?, extras: Map<String, CharSequence?>, app: String? = "Chrome"): Read? =
+        QuickNoteIntent.read(action, extras::get) { app }?.let { Read(it.text, it.source.app, it.source.page) }
+
+    private fun share(text: CharSequence?, subject: CharSequence? = null): Read? =
+        read(Intent.ACTION_SEND, mapOf(Intent.EXTRA_TEXT to text, Intent.EXTRA_SUBJECT to subject))
+
+    private fun selected(text: CharSequence?): Read? = read(Intent.ACTION_PROCESS_TEXT, mapOf(Intent.EXTRA_PROCESS_TEXT to text))
+
+    // The text (app.quick-note AC3)
 
     @Test
     fun aShareGivesItsTextAndTheSelectionMenuTheSelectedText() {
-        assertEquals("Perfect Days (2023)\nWim Wenders", share("Perfect Days (2023)\nWim Wenders"))
-        assertEquals("Dune", share(StringBuilder("Dune")), "a text with spans, as a string")
-        assertEquals("  Arrival \n", QuickNoteIntent.text(Intent.ACTION_PROCESS_TEXT, mapOf(Intent.EXTRA_PROCESS_TEXT to "  Arrival \n")::get), "as it came: the run trims it")
+        assertEquals("Perfect Days (2023)\nWim Wenders", share("Perfect Days (2023)\nWim Wenders")?.text)
+        assertEquals("Dune", share(StringBuilder("Dune"))?.text, "a text with spans, as a string")
+        assertEquals("  Arrival \n", selected("  Arrival \n")?.text, "as it came: the run trims it")
         assertEquals(
             "Dune",
-            QuickNoteIntent.text(Intent.ACTION_PROCESS_TEXT, mapOf(Intent.EXTRA_PROCESS_TEXT to "Dune", Intent.EXTRA_TEXT to "other")::get),
+            read(Intent.ACTION_PROCESS_TEXT, mapOf(Intent.EXTRA_PROCESS_TEXT to "Dune", Intent.EXTRA_TEXT to "other"))?.text,
             "the selection menu's own extra only",
         )
     }
 
     @Test
-    fun noTextHandedOverIsNone() {
-        assertNull(share(null), "a share without a text (the relaunch after an app update, AQ0)")
-        assertNull(QuickNoteIntent.text(Intent.ACTION_PROCESS_TEXT, emptyMap<String, CharSequence>()::get))
-        assertNull(QuickNoteIntent.text(null, mapOf(Intent.EXTRA_TEXT to "Dune")::get), "no action")
-        assertNull(QuickNoteIntent.text(Intent.ACTION_VIEW, mapOf(Intent.EXTRA_TEXT to "Dune")::get), "another action")
-        assertEquals(" \n ", share(" \n "), "a blank text as it came: the run says there is none")
+    fun noTextHandedOverIsNoneAndTheAppIsNotAsked() {
+        var asked = 0
+        val nothing = mapOf<String, CharSequence?>(Intent.EXTRA_SUBJECT to "Ten films")
+        for (action in listOf(Intent.ACTION_SEND, Intent.ACTION_PROCESS_TEXT, null, Intent.ACTION_VIEW)) {
+            assertNull(QuickNoteIntent.read(action, nothing::get) { asked++; "Chrome" }, "$action")
+        }
+        assertNull(QuickNoteIntent.read(null, mapOf(Intent.EXTRA_TEXT to "Dune")::get) { asked++; "Chrome" }, "no action")
+        assertNull(QuickNoteIntent.read(Intent.ACTION_VIEW, mapOf(Intent.EXTRA_TEXT to "Dune")::get) { asked++; "Chrome" }, "another action")
+        assertEquals(0, asked, "the relaunch after an app update (AQ0) tags nothing")
+        assertEquals(" \n ", share(" \n ")?.text, "a blank text as it came: the run says there is none")
+    }
+
+    // The app (app.quick-note-source AC1, AC4)
+
+    @Test
+    fun theAppComesWithBothWaysInAndUnknownIsNone() {
+        // spec: app.quick-note-source/AC1
+        assertEquals("Chrome", share("Dune")?.app)
+        assertEquals("Firefox", read(Intent.ACTION_PROCESS_TEXT, mapOf(Intent.EXTRA_PROCESS_TEXT to "Dune"), app = "Firefox")?.app)
+        assertNull(read(Intent.ACTION_SEND, mapOf(Intent.EXTRA_TEXT to "Dune"), app = null)?.app)
+    }
+
+    // The page (app.quick-note-source AC2, AC4, AC5)
+
+    @Test
+    fun aPageSharedWithItsTitleTheTitleIsTheTextTheAddressTheWebsite() {
+        // spec: app.quick-note-source/AC2
+        val page = "https://films.example.org/festival-2026"
+        val chrome = share(page, "Ten films from the festival")
+        assertEquals("Ten films from the festival", chrome?.text, "Chrome: the title as the subject (AQ0)")
+        assertEquals(page, chrome?.page)
+        assertEquals("Ten films", share("\n $page \n", " Ten films ")?.text, "blank lines and spaces around the address")
+        assertEquals(page, share("\n $page \n", " Ten films ")?.page, "the address without them")
+        assertEquals("HTTP://films.example.org/", share("HTTP://films.example.org/", "Ten films")?.page, "the scheme in any case")
+        assertEquals("http://192.168.1.1/admin", share("http://192.168.1.1/admin", "Router")?.page)
     }
 
     @Test
-    fun aSubjectIsTheFirstLineOnlyOverALoneHttpAddress() {
+    fun aPageSharedWithoutATitleTheAddressIsTheTextAndTheWebsite() {
+        // spec: app.quick-note-source/AC2
         val page = "https://films.example.org/festival-2026"
-        assertEquals("Ten films from the festival\n$page", share(page, "Ten films from the festival"), "a page shared from Chrome")
-        assertEquals("Ten films\n\n $page \n", share("\n $page \n", " Ten films "), "the address with blank lines and spaces around it is still alone")
-        assertEquals("Ten films\nHTTP://films.example.org/", share("HTTP://films.example.org/", "Ten films"), "the scheme in any case")
-        assertEquals("Router\nhttp://192.168.1.1/admin", share("http://192.168.1.1/admin", "Router"))
+        for (subject in listOf(null, "", "  ")) {
+            val firefox = share(page, subject)
+            assertEquals(page, firefox?.text, "Firefox: no title; a note needs its text")
+            assertEquals(page, firefox?.page)
+        }
+        for (line in listOf("Share via", "share via ", "Including link: https://films.example.org/")) {
+            val selected = share(page, line)
+            assertEquals(page, selected?.text, "a selected address shared: the browser's own line is no title ($line)")
+            assertEquals(page, selected?.page)
+        }
+        val app = share("https://youtu.be/dQw4w9WgXcQ?si=abc", null)
+        assertEquals("https://youtu.be/dQw4w9WgXcQ?si=abc", app?.page, "any app's lone address, the token in it too (AC5)")
+    }
 
-        val selection = "\"commonly used\"\n https://en.wikipedia.org/wiki/Touchscreen#:~:text=is%20commonly-,used,-for%20touch"
-        assertEquals(selection, share(selection, "Including link: https://en.wikipedia.org/"), "Chrome's line over a selection is not a title")
-        assertEquals("commonly used", share("commonly used", "Share via"), "Firefox's")
-        assertEquals("ftp://files.example.org/", share("ftp://files.example.org/", "Files"), "only http and https")
-        assertEquals("$page $page", share("$page $page", "Two"), "two addresses are not one alone")
-        assertEquals("see $page", share("see $page", "Ten films"), "an address in a sentence")
-        assertEquals(page, share(page, "  "), "a blank subject")
-        assertEquals(page, share(page), "no subject")
-        assertEquals("https://", share("https://", "Nothing"), "a scheme without an address")
+    @Test
+    fun chromesLinkToTheHighlightGoesToTheWebsiteAndItsQuotesComeOff() {
+        // spec: app.quick-note-source/AC2
+        val link = "https://en.wikipedia.org/wiki/Touchscreen#:~:text=is%20commonly-,used,-for%20touch"
+        val chrome = share("\"commonly used\"\n $link", "Including link: https://en.wikipedia.org/")
+        assertEquals("commonly used", chrome?.text, "the quotes Chrome put around the selection off, its subject not the text")
+        assertEquals(link, chrome?.page, "the whole address, the selection's words in its directive too (P5)")
+
+        val lines = share("\"A screen\nthat you touch\"\n $link\n")
+        assertEquals("A screen\nthat you touch", lines?.text, "a selection over several lines; a line break after the link")
+        assertEquals(link, lines?.page)
+
+        assertEquals("He said \"hi\"", share("\"He said \"hi\"\"\n $link")?.text, "only the outer quotes")
+        assertEquals("commonly used", share("commonly used\n $link")?.text, "no quotes: the text as it is")
+        assertEquals(link, share("commonly used\n $link")?.page)
+        assertEquals("commonly used", share("commonly used\n$link")?.text, "Chromium's shape without its space")
+    }
+
+    @Test
+    fun anAddressAnywhereElseIsTheTextsAndNothingIsGuessed() {
+        // spec: app.quick-note-source/AC4
+        val page = "https://films.example.org/festival-2026"
+        for (text in listOf(
+            "see $page", "$page $page", "Ten films\n $page", "Ten films\n$page", "$page\nTen films", "\"used\"\n $page#top",
+        )) {
+            val read = share(text, "Ten films")
+            assertEquals(text, read?.text, text)
+            assertNull(read?.page, text)
+        }
+        assertEquals("commonly used", share("commonly used", "Share via")?.text, "Firefox's selection: no address, its subject ignored")
+        assertNull(share("commonly used", "Share via")?.page)
+        assertNull(selected(page)?.page, "the selection menu gives no page, even a selected address")
+        assertEquals(page, selected(page)?.text)
+    }
+
+    @Test
+    fun onlyHttpAndHttpsWithAHost() {
+        // spec: app.quick-note-source/AC5
+        for (other in listOf("ftp://files.example.org/", "https://", "intent://films.example.org#Intent;end", "content://x/y")) {
+            val read = share(other, "Files")
+            assertEquals(other, read?.text, other)
+            assertNull(read?.page, other)
+        }
+        assertNull(share("\"used\"\n ftp://files.example.org/#:~:text=used")?.page, "Chrome's shape with another scheme")
+        val odd = share("https://exa<mple>.com/", "Odd page")
+        assertEquals("Odd page\nhttps://exa<mple>.com/", odd?.text, "no address for the Website: the title kept, over the text")
+        assertNull(odd?.page)
+        assertEquals("https://exa<mple>.com/", share("https://exa<mple>.com/", "Share via")?.text, "not over the browser's own line")
+        assertEquals("https://alex:hunter2@films.example.org/x?token=1", share("https://alex:hunter2@films.example.org/x?token=1")?.page, "kept whole")
+    }
+
+    @Test
+    fun itSaysNothingOfTheTextWhenPrinted() {
+        val given = QuickNoteIntent.read(Intent.ACTION_SEND, mapOf(Intent.EXTRA_TEXT to "Unforgettable")::get) { "Chrome" }
+        assertEquals("Given", given.toString())
+        assertEquals(QuickNoteSource(app = "Chrome"), given?.source)
     }
 }
