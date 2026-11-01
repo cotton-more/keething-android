@@ -42,6 +42,11 @@ first change there.
 - A bug that breaks a criterion goes on that criterion's coverage line (`partial` / `no` with a note), not into a
   separate list. A small thing no criterion covers goes to `checks/android.md`, or becomes a criterion or an idea.
   `OPEN.md` keeps only what needs the owner's decision.
+- The spec is self-contained (its FORMAT.md, "Self-contained"): what another session needs (a handover, a plan, a
+  research note, a decision) is written there, in the feature (shared criteria; this platform's *Platform notes*) or
+  `plans/`, never into this project's `.x/` or any other file outside version control. The spec points only at what is
+  committed here: SPEC.md by section, code and tests by their path from this repository's root. `./status --check`
+  fails on anything else.
 - A new idea from the owner (for either app): write it down there at once with
   `~/Projects/keething-spec/idea <area>.<name> "Title" [macos,android] "description"`.
 - That repository is committed separately from this one (its own commit, same rules: commit when the owner asks).
