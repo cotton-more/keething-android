@@ -23,8 +23,11 @@ runs one, arguments after `--` (`task test:module -- kdbx`).
 
     tools/build-apk.sh              # release build, signed; the keystore's password from the Keychain, else asked
     tools/build-apk.sh --install    # and installs it with adb on the connected phone
+    tools/build-apk.sh ~/KeePass    # into that folder instead (task apk -- ~/KeePass)
 
-The APK lands in `~/Downloads` as `Keething-<version>-<commit>.apk` (shrunk with R8, about 4 MB). It is
+The APK lands as `Keething-<version>-<commit>.apk` (shrunk with R8, about 4 MB) in the folder given, else in
+`KEETHING_APK_DIR` when it is set (in `~/.zshrc`, say `export KEETHING_APK_DIR=~/KeePass`: a folder that syncs to
+the phone, so every `task apk` reaches it), else in `~/Downloads`. It is
 signed with the keystore in `KEYSTORE` (default `~/.keystores/keething.jks`). The default keystore's password
 comes from the login Keychain item `keething-apk-keystore` when there is one (stored once with
 `security add-generic-password -a "$USER" -s keething-apk-keystore -w`, which prompts for it; since 2026-10-29), so
@@ -64,8 +67,8 @@ signed with the own key.
 
 Either way, an install over an older version signed with the same key keeps its settings.
 
-- **Through Syncthing**, no cable: copy the APK into a folder that syncs to the phone (for example
-  `cp ~/Downloads/Keething-*.apk ~/KeePass/`), open it on the phone in Files › that folder, allow Files to
+- **Through Syncthing**, no cable: build the APK into a folder that syncs to the phone (`task apk -- ~/KeePass`,
+  or `KEETHING_APK_DIR` set to it), open it on the phone in Files › that folder, allow Files to
   install apps when asked, then Install (or Update). Delete the APK from the folder afterwards.
 - **With adb**: over a USB cable, or over Wi-Fi with Developer options › Wireless debugging (see below):
   `tools/build-apk.sh --install`, or `adb install -r <apk>`.

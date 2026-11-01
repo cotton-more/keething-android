@@ -34,9 +34,9 @@ tasks:
       - ./gradlew :app:assembleDebug
 
   apk:
-    desc: The signed release APK into ~/Downloads (tools/build-apk.sh)
+    desc: "The signed release APK: task apk -- [folder] (default KEETHING_APK_DIR, else ~/Downloads; tools/build-apk.sh)"
     cmds:
-      - tools/build-apk.sh
+      - tools/build-apk.sh {{.CLI_ARGS}}
 
   apk:install:
     desc: The signed release APK, installed with adb on the connected phone
