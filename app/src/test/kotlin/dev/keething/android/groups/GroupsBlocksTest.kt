@@ -2,6 +2,7 @@ package dev.keething.android.groups
 
 import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseMark
+import dev.keething.card.editing.GroupChanges
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultGroup
@@ -88,5 +89,18 @@ class GroupsBlocksTest {
         assertEquals("!Personal @Bank ", p.search(p.overview.groups.first { it.id == "bank" }.search))
         assertEquals("!\"Work · Sync\" #dev ", w.search(w.overview.tags.first().search), "a label with a space is quoted")
         assertEquals("- !Personal ", p.search(GroupsOverview.RECYCLE_BIN_SEARCH), "the bin: a search starting with -")
+    }
+
+    // The owner, 2026-11-01: a full path one database has is free in another. Each block's changes are asked of its own
+    // vault, so Work's “Mail” refuses nothing in Personal (the ids of the root group even alike).
+    // spec: groups.manage/AC3
+    @Test
+    fun aNameTakenInOneDatabaseIsFreeInAnother() {
+        val (inWork, inPersonal) = blocks().of(listOf(work to workVault, personal to personalVault))
+            .map { GroupChanges.of(it.vault, Collator.getInstance(Locale.ENGLISH)) }
+
+        assertEquals(GroupChanges.Name.Taken(root, mail), inWork.create("root", "mail"))
+        assertEquals(GroupChanges.Name.Ok("Mail"), inPersonal.create("root", "Mail"), "the same full path, another database")
+        assertEquals(GroupChanges.Name.Ok("Mail"), inPersonal.rename("bank", "Mail"))
     }
 }

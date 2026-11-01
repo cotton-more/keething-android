@@ -574,19 +574,26 @@ private fun SaveInto(chosen: NewEntryDatabase, offered: List<NewEntryDatabase>, 
     }
 }
 
-/** Save into's sheet: the open databases (dot, label, folder; a check on the chosen one), those not open under them. */
+/**
+ * Save into's sheet: the open databases (dot, label, folder; a check on the [chosen] one), those not open under them.
+ * Also Groups & tags' New group while two or more are open, with its own [title] and [subtitle].
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SaveIntoSheet(offered: List<NewEntryDatabase>, chosen: DatabaseId, notOpen: String?, onChoose: (DatabaseId) -> Unit, onDismiss: () -> Unit) {
+internal fun SaveIntoSheet(
+    offered: List<NewEntryDatabase>,
+    chosen: DatabaseId?,
+    notOpen: String?,
+    onChoose: (DatabaseId) -> Unit,
+    onDismiss: () -> Unit,
+    title: String = "Save into",
+    subtitle: String = "The group, tags and username follow the database chosen.",
+) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.padding(horizontal = 8.dp)) {
-                Text("Save into", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "The group, tags and username follow the database chosen.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(title, style = MaterialTheme.typography.titleLarge)
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(Modifier.heightIn(max = 362.dp).clip(RoundedCornerShape(20.dp)).verticalScroll(rememberScrollState())) {
                 offered.forEachIndexed { index, database ->

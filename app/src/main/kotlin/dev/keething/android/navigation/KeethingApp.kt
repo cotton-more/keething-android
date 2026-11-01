@@ -759,6 +759,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                             onBack = navigation::back,
                             onSearch = navigation::search,
                             onLockScreen = { showLockScreen(it) },
+                            databases = sessions::newEntryDatabases,
                         )
                     }
                     entry<Screen.Settings> {

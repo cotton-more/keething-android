@@ -1,5 +1,9 @@
 package dev.keething.android.entry
 
+import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
+import dev.keething.android.groups.GroupPickerSheet
+import dev.keething.card.editing.GroupChoice
+import dev.keething.card.editing.GroupTree
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -190,6 +194,21 @@ internal fun EntryCardScreen(
     val now = rememberSecondsNow()
     var sharing by rememberSaveable { mutableStateOf(false) }
     var sending by rememberSaveable { mutableStateOf(false) }
+    // Move to group…'s picker: the groups when it opened (a sync meanwhile is the save's to refuse).
+    var movingTo by remember { mutableStateOf<Pair<GroupTree, GroupChoice>?>(null) }
+    movingTo?.let { (tree, current) ->
+        GroupPickerSheet(
+            tree = tree,
+            chosen = current,
+            made = "made with the move",
+            onChoose = { choice ->
+                movingTo = null
+                model.moveTo(choice)
+            },
+            onDismiss = { movingTo = null },
+            title = "Move to group",
+        )
+    }
     if (sending) {
         SendToRequestSheet(
             container = container,
@@ -304,6 +323,7 @@ internal fun EntryCardScreen(
                     CardMenu(
                         inRecycleBin = content.inRecycleBin,
                         onHistory = onHistory,
+                        onMove = { movingTo = model.groupsToMoveTo() },
                         onSend = { sending = true },
                         onDelete = { if (model.moveToRecycleBin()) onBack() },
                     )
@@ -355,9 +375,12 @@ internal fun EntryCardScreen(
     }
 }
 
-/** History, Send, Move to the recycle bin (at once; the list offers Undo). In the bin: History only. */
+/**
+ * History, Move to group… (plans/android-groups.md G6), Send, Move to the recycle bin (at once; the list offers Undo).
+ * In the bin: History only.
+ */
 @Composable
-private fun CardMenu(inRecycleBin: Boolean, onHistory: () -> Unit, onSend: () -> Unit, onDelete: () -> Unit) {
+private fun CardMenu(inRecycleBin: Boolean, onHistory: () -> Unit, onMove: () -> Unit, onSend: () -> Unit, onDelete: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -376,6 +399,7 @@ private fun CardMenu(inRecycleBin: Boolean, onHistory: () -> Unit, onSend: () ->
             }
             item("History", Icons.Rounded.History, onHistory)
             if (!inRecycleBin) {
+                item("Move to group…", Icons.AutoMirrored.Rounded.DriveFileMove, onMove)
                 item("Send to a request", Icons.AutoMirrored.Rounded.Send, onSend)
                 HorizontalDivider()
                 item("Move to the recycle bin", Icons.Rounded.DeleteOutline, onDelete)

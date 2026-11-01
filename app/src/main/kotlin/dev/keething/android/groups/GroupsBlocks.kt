@@ -13,7 +13,14 @@ import java.text.Collator
  * many entries it has) over its groups, recycle bin and tags. [several]: two or more are open, so a row's search keeps
  * this database's entries only.
  */
-internal class GroupsBlock(val mark: DatabaseMark, val overview: GroupsOverview, val entries: Int, private val several: Boolean) {
+internal class GroupsBlock(
+    val mark: DatabaseMark,
+    val overview: GroupsOverview,
+    val entries: Int,
+    private val several: Boolean,
+    /** What it was built from: the group's sheet, the name's dialog and Move to… ask it. */
+    val vault: Vault,
+) {
     val id: DatabaseId get() = mark.id
 
     /**
@@ -42,6 +49,6 @@ internal class GroupsBlocks(private val collator: Collator = Collator.getInstanc
             mark.id to (kept ?: (vault to GroupsOverview.of(vault, collator)))
         }
         built = overviews
-        return open.map { (mark, vault) -> GroupsBlock(mark, overviews.getValue(mark.id).second, vault.entries.size, open.size >= 2) }
+        return open.map { (mark, vault) -> GroupsBlock(mark, overviews.getValue(mark.id).second, vault.entries.size, open.size >= 2, vault) }
     }
 }

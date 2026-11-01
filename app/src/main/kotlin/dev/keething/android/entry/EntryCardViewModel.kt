@@ -1,5 +1,10 @@
 package dev.keething.android.entry
 
+import dev.keething.android.groups.GroupTexts
+import dev.keething.card.editing.EntryMove
+import dev.keething.card.editing.GroupChoice
+import dev.keething.card.editing.GroupTree
+import dev.keething.vault.session.SaveOutcome
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -359,6 +364,40 @@ internal class EntryCardViewModel(
                 bytes?.wipe()
             }
             mutableNotices.trySend(if (written) Notice("Saved $name") else Notice("Could not save ${name ?: "the attachment"}", isProblem = true))
+        }
+    }
+
+    /** The card's Move to group… saving: the menu waits. */
+    var movingEntry by mutableStateOf(false)
+        private set
+
+    /** Move to group…'s picker (plans/android-groups.md G6): the groups as they are now, and where the entry is; null in the bin. */
+    fun groupsToMoveTo(): Pair<GroupTree, GroupChoice>? {
+        val vault = unlockedVault() ?: return null
+        val entry = vault.entries.firstOrNull { it.id == entryId } ?: return null
+        return GroupTree.of(vault) to GroupChoice(entry.groupId)
+    }
+
+    /**
+     * Moves the entry where [choice] says at once, through the checked save (keething-spec groups.entry-group AC2, AC3,
+     * AC5–AC7): the snackbar says where it went and names the empty groups the move deleted.
+     */
+    fun moveTo(choice: GroupChoice) {
+        if (movingEntry) return
+        val vault = unlockedVault() ?: return
+        val entry = vault.entries.firstOrNull { it.id == entryId } ?: return
+        val edit = EntryMove.edit(entry, choice) ?: return
+        val tree = GroupTree.of(vault)
+        val pending = database.session.save(edit) ?: return problem(SAVE_BUSY)
+        movingEntry = true
+        viewModelScope.launch {
+            val outcome = pending.await()
+            movingEntry = false
+            val failure = outcome.problem(database.file)
+            mutableNotices.trySend(
+                failure?.let { Notice(it, isProblem = true) }
+                    ?: Notice(GroupTexts.entryMoved(tree, choice, (outcome as? SaveOutcome.Saved)?.deletedGroups.orEmpty())),
+            )
         }
     }
 

@@ -39,7 +39,8 @@ Goals (v1)
 - Entry card: title, group path, username, password (masked), URLs, one-time codes live with a
   countdown, notes, custom fields in file order with the Mac app's layout rules (sections, lists of codes,
   dates, links), attachments.
-- Groups & tags (§6.2): the group tree and the tags, each with how many entries it has; a tap lists them.
+- Groups & tags (§6.2): the group tree and the tags, each with how many entries it has; a tap lists them; groups
+  renamed, made, moved and deleted when empty there.
 - Copy any field; the clipboard is marked sensitive and cleared after 30 s.
 - Attachments: open and save a copy. One-time codes: show and copy (setting them up is optional, later).
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
@@ -75,8 +76,8 @@ databases side by side (in: the list, one list over several open, the chooser an
 §3.5, §6.2), KDBX
 3.1 (refused until then), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
 the owner on 2026-10-31; keething-spec `plans/android-groups.md`): an entry's group changed in the editor (in, §6.2)
-and from its card (a move), new groups made from the editor's group picker (in), groups renamed, made, moved and deleted when empty from
-Groups & tags (over every open database, a block each: in, §6.2); renaming tags and the recycle bin's groups stay with
+and from its card (a move: in), new groups made from the editor's group picker (in), groups renamed, made, moved and
+deleted when empty from Groups & tags (in; over every open database, a block each: in, §6.2); renaming tags and the recycle bin's groups stay with
 the Mac.
 
 ## 2. Architecture
@@ -338,8 +339,9 @@ Deleting for good, history, attachments, one-time codes (but that of an entry re
 recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
 `VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
 made, moved, deleted when empty; keething-spec `plans/android-groups.md` AG1, AG2). The editor makes an entry's move
-and its new groups (the group picker, §6.2; AG4), the received entries' screen new groups (§10); Groups & tags' changes
-and the card's Move to group… come with AG6.
+and its new groups (the group picker, §6.2; AG4), the received entries' screen new groups (§10), the card's Move to
+group… a move alone, its new groups too, and Groups & tags the groups' own changes (§6.2; AG6), each through the
+checked save.
 
 A one-time code written (`EntryEditing`, the Mac's alike) first removes every code field of the entry (the ten of
 §3.2), so one entry never holds two formats; a save that does not change the code leaves its fields as they are. The
@@ -1079,8 +1081,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
   open the browser, attachments open in another app / save to a folder, §4). Every row that copies on a tap
   has the same copy button (username, URL, code, custom fields alike). **Edit** is a button at the bottom
-  right, in reach of the thumb; the bar's ⋮ holds History, Send to a request (§10) and Move to the recycle bin
-  (at once, the list offering Undo). In the recycle bin: Restore in the bar, History under ⋮, no Edit. Custom fields are read by their
+  right, in reach of the thumb; the bar's ⋮ holds History, Move to group…, Send to a request (§10) and Move to the
+  recycle bin (at once, the list offering Undo). **Move to group…** (keething-spec groups.entry-group AC2 from the
+  card, `plans/android-groups.md` G6): the group picker titled "Move to group", the entry's group checked, new groups
+  offered as in the editor ("made with the move"); a group chosen moves the entry at once through the checked save
+  (no history snapshot, as KeePassXC moves one), the snackbar "Moved to “Archive › Japan”. The empty group “Travel ›
+  Japan › Hotels” was deleted." (the groups the move left empty, as in the editor); the group it is in already does
+  nothing. In the recycle bin: Restore in the bar, History under ⋮, no Edit. Custom fields are read by their
   types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. The header
   is compact: the icon (56 dp) beside the title, under the title one place chip (the owner, 2026-10-31): while two or more databases are open the entry's database
   first (a dot and its label in its colour on a soft fill of it), then the group's path, on one line cut as the list
@@ -1253,8 +1260,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   keeps its scroll position: the row fades out at once (not when the save is done) and the rows below close
   up; a failed save or Undo puts it back in its place. A vault read again (a save, a sync) is listed while
   the one before stays on screen, so no reload empties the list or scrolls it to the top.
-- **Groups & tags** (the folder in the list's header; the Mac's Groups & Tags window, §3.25 there, without changing
-  anything yet): **a block per open database**, in the window's order, even with one (keething-spec
+- **Groups & tags** (the folder in the list's header; the Mac's Groups & Tags window, §3.25 there, without the tags'
+  and the bin's groups' changes): **a block per open database**, in the window's order, even with one (keething-spec
   `plans/android-groups.md` G7). Its header (the database's dot, its label, "38 entries") stays pinned while its block
   scrolls; with two or more open a tap on it folds the block, kept folded while the app runs. In a block:
   **Groups** as segmented rows, "Top level" (the root group) first, then tree order
@@ -1269,6 +1276,24 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   another "Work" elsewhere in that database. Under the last block the window's databases not open, "Not open:"
   with each one's dot and label; a tap shows its lock screen, Back comes back here. Each block follows its
   database: read again (a save, a sync) it is built again, locked or closed alone it goes, opened it comes.
+  **Changing groups** (keething-spec groups.manage, `plans/android-groups.md` G5; `card/editing/GroupChanges`): a long
+  press on a group's row opens its sheet: its path, its database and what it holds ("Personal · 12 entries · 3 here",
+  "empty"), then **New group inside…**, **Rename…**, **Move to…** ("With everything in it") and, only when it holds no
+  entry (the Mac app's settings entry counted) and no group, **Delete** ("It is empty: deleted at once", no question:
+  nothing is lost). Top level's sheet has New group… only; the bin's row has none. **New group** is also in the bar (a
+  folder with +), at the top level; with two or more open it asks which database first (Save into's sheet, "New
+  group"). A name goes in a dialog ("Rename “Work”", "New group in “Work”", "New group at the top level"; Save, Cancel):
+  trimmed; the same name closes it without writing; an empty name ("A group needs a name.") or one the parent has in
+  any case or accents ("“Work” has a group “Mail” already.", "Top level has …") is refused under the field and the
+  dialog stays. **Move to…** opens the group picker titled "Move “Japan” to…" (its path and "12 entries, all go with
+  it" under it), existing groups only (no new groups; "Find a group"): a target it may not go to is greyed with why
+  ("The group itself", "Inside “Japan”", "It is here now", "“Archive” has a “Japan” already"); Top level is a target,
+  the bin never. Each change is saved at once, one at a time, through the checked save: "Saving…" under the row (in
+  the dialog, Save waits), then the snackbar "Renamed to “Mail”", "Made “Mail” in “Work”", "Moved “Old” into
+  “Archive”" / "to the top level", "Deleted the empty group “Work › Old”"; no Undo (as on the Mac). A save refused
+  (the file changed meanwhile: a group gone, a name taken, not empty any more) says why, in the dialog when there is
+  one, and the database is read again. Groups go by id, so of two groups of one name in one parent only the one
+  pressed changes.
 - **Used recovery codes** (a list of codes on the card, an entry outside the bin): copying a code offers **Mark
   as used** in its notice; a long press on a code offers "Mark as used" / "Mark as not used". The mark is
   written into the field's value, in front of the code: `used 2026-10-22 · 1234-5678` ("used" in any case, the

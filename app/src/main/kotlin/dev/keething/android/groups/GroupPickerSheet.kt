@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -84,6 +85,9 @@ import java.text.NumberFormat
  * groups; ‹ above them goes back up). Typing finds groups below the level at any depth by a part of their name, each by
  * its whole path, the part matched bold; a path can be typed with `/`. "+ New group …" takes the levels typed that are
  * not groups yet, made with the save ([made] says when); the keyboard's Done takes what is typed as it is.
+ *
+ * With [refusal] (Groups & tags' Move to…, plans/android-groups.md G5): existing groups only, no "+ New group"; a group
+ * [refusal] names a reason for is greyed with it and cannot be chosen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,7 +98,10 @@ internal fun GroupPickerSheet(
     onChoose: (GroupChoice) -> Unit,
     onDismiss: () -> Unit,
     title: String = "Group",
+    subtitle: String? = null,
+    refusal: ((groupId: String) -> String?)? = null,
 ) {
+    val canMake = refusal == null
     val picker = remember(tree) { GroupPicker(tree) }
     var field by remember { mutableStateOf(TextFieldValue()) }
     var entered by remember { mutableStateOf<GroupPicker.Entered?>(null) }
@@ -107,14 +114,17 @@ internal fun GroupPickerSheet(
         NoLearningKeyboard {
             Column(Modifier.fillMaxHeight().imePadding().navigationBarsPadding()) {
                 Row(Modifier.padding(start = 24.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                    Column(Modifier.weight(1f)) {
+                        Text(title, style = MaterialTheme.typography.titleLarge)
+                        subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
                     IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, contentDescription = "Close") }
                 }
                 TextField(
                     value = field,
                     onValueChange = { field = it },
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-                    placeholder = { Text("Find or make a group") },
+                    placeholder = { Text(if (canMake) "Find or make a group" else "Find a group") },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                     trailingIcon = if (field.text.isNotEmpty()) {
                         { IconButton(onClick = { field = TextFieldValue(); entered = null }) { Icon(Icons.Rounded.Close, contentDescription = "Clear") } }
@@ -130,7 +140,9 @@ internal fun GroupPickerSheet(
                         unfocusedIndicatorColor = Color.Transparent,
                     ),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { view.typed?.let(onChoose) }),
+                    keyboardActions = KeyboardActions(
+                        onDone = { view.typed?.takeIf { canMake || (it.newNames.isEmpty() && refusal?.invoke(it.groupId) == null) }?.let(onChoose) },
+                    ),
                 )
                 val level = view.level
                 if (level != null && !level.isRoot) {
@@ -166,6 +178,7 @@ internal fun GroupPickerSheet(
                             // From this row's group down: the levels above it are those of the row.
                             nowIn = if (holdsChosen) tree.levels(chosen!!)?.map { it.name }?.drop(maxOf(group.path.size - 1, 0)) else null,
                             chosen = chosen?.newNames?.isEmpty() == true && chosen.groupId == group.id,
+                            refused = refusal?.invoke(group.id),
                             shape = segmentShape(index, view.rows.size, outer = 18.dp),
                             enterLabel = "Go into ${GroupTexts.path(tree, row.node.group.id)}",
                             onChoose = { onChoose(GroupChoice(row.node.group.id)) },
@@ -176,12 +189,12 @@ internal fun GroupPickerSheet(
                             },
                         )
                     }
-                    GroupTexts.empty(tree, view)?.let { text ->
+                    GroupTexts.empty(tree, view, canMake)?.let { text ->
                         item(key = "empty") {
                             Text(text, Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    view.offer?.let { offer ->
+                    view.offer?.takeIf { canMake }?.let { offer ->
                         item(key = "new") { NewGroupsRow(GroupTexts.newGroups(offer.newNames), GroupTexts.newGroupsPlace(tree, offer, made)) { onChoose(offer) } }
                     }
                 }
@@ -192,7 +205,7 @@ internal fun GroupPickerSheet(
 
 /**
  * A group: by its name in a level ([subgroups] how many groups it holds, [nowIn] where the entry's group is below it),
- * by its whole path cut to fit in a search (the part matched bold); its › goes into it.
+ * by its whole path cut to fit in a search (the part matched bold); its › goes into it. [refused]: greyed, why under it.
  */
 @Composable
 private fun PickerRow(
@@ -202,6 +215,7 @@ private fun PickerRow(
     subgroups: String?,
     nowIn: List<String>?,
     chosen: Boolean,
+    refused: String?,
     shape: RoundedCornerShape,
     enterLabel: String,
     onChoose: () -> Unit,
@@ -222,11 +236,17 @@ private fun PickerRow(
             Modifier
                 .weight(1f)
                 .heightIn(min = 56.dp)
-                .clickable(onClick = onChoose, onClickLabel = "Choose")
+                .clickable(enabled = refused == null, onClick = onChoose, onClickLabel = "Choose")
+                .alpha(if (refused == null) 1f else 0.5f)
                 .padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(if (group.isRoot) Icons.Rounded.FolderOpen else Icons.Rounded.Folder, contentDescription = null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+            Icon(
+                if (group.isRoot) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
+                contentDescription = null,
+                Modifier.size(22.dp),
+                tint = if (refused == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (isLevel || group.isRoot) {
@@ -246,6 +266,7 @@ private fun PickerRow(
                     )
                 }
                 val supporting = MaterialTheme.typography.bodySmall
+                refused?.let { Text(it, style = supporting, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 subgroups?.let { Text(it, style = supporting, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 nowIn?.let {
                     PathText(it, style = supporting, color = MaterialTheme.colorScheme.primary, lead = AnnotatedString("Now in "))

@@ -8,7 +8,7 @@ import dev.keething.search.SearchNormalizer
 import java.text.Collator
 
 /**
- * What the Groups & tags screen shows (SPEC §6.2; the Mac's Groups & Tags window without its changes): the
+ * What the Groups & tags screen shows (SPEC §6.2; the Mac's Groups & Tags window, its changes in [GroupsViewModel]): the
  * group tree with how many entries are in each group, the recycle bin, the tags with their counts. Each row
  * has the search that lists its entries. The counts are those of the list: the Mac app's settings entry is
  * not one of them.

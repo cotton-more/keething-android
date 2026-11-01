@@ -1,5 +1,48 @@
 package dev.keething.android.groups
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
+import androidx.compose.material.icons.rounded.CreateNewFolder
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
+import dev.keething.android.editor.NewEntryDatabase
+import dev.keething.android.editor.SAVE_BUSY
+import dev.keething.android.editor.SaveIntoSheet
+import dev.keething.android.editor.problem
+import dev.keething.android.ui.NoLearningKeyboard
+import dev.keething.android.ui.Notice
+import dev.keething.android.ui.NoticeEffect
+import dev.keething.android.ui.NoticeHost
+import dev.keething.android.ui.PathText
+import dev.keething.card.editing.GroupChanges
+import dev.keething.card.editing.GroupTree
+import dev.keething.domain.vault.Entry
+import dev.keething.domain.vault.NewGroup
+import dev.keething.domain.vault.VaultEdit
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -88,9 +131,14 @@ import kotlinx.coroutines.withContext
 /**
  * A block per open database, in the window's order (keething-spec plans/android-groups.md G7): each built again when its
  * database is read again (a save, a sync), gone when it is closed or locked alone, there when one opens.
+ *
+ * The groups' changes (G5; groups.manage): a long press opens a group's [sheet]; New group and Rename ask for a name in a
+ * [dialog], Move to… opens the picker ([moving]), Delete goes at once. Each is asked of the database's groups as they
+ * are now ([GroupChanges]), then saved at once through the checked save, one at a time: the row says "Saving…"
+ * ([saving]), the snackbar how it went; a failure keeps the dialog with the reason. Overlays of a database that closes go.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal class GroupsViewModel(open: StateFlow<List<OpenDatabase>>) : ViewModel() {
+internal class GroupsViewModel(private val open: StateFlow<List<OpenDatabase>>) : ViewModel() {
     private val built = GroupsBlocks()
 
     val blocks: StateFlow<List<GroupsBlock>?> = open
@@ -98,6 +146,198 @@ internal class GroupsViewModel(open: StateFlow<List<OpenDatabase>>) : ViewModel(
         .distinctUntilChanged { a, b -> a.size == b.size && a.indices.all { a[it].first == b[it].first && a[it].second === b[it].second } }
         .mapLatest { databases -> withContext(Dispatchers.Default) { built.of(databases) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** A group of an open database. */
+    data class GroupRef(val database: DatabaseId, val groupId: String)
+
+    /** The name's dialog: a group renamed, or a new one made in [parentId]. */
+    sealed interface NameDialog {
+        val database: DatabaseId
+
+        data class Rename(override val database: DatabaseId, val groupId: String) : NameDialog
+
+        data class New(override val database: DatabaseId, val parentId: String) : NameDialog
+    }
+
+    var sheet: GroupRef? by mutableStateOf(null)
+        private set
+    var dialog: NameDialog? by mutableStateOf(null)
+        private set
+
+    /** Under the dialog's field: why the name is refused, or why its save failed. */
+    var dialogProblem: String? by mutableStateOf(null)
+        private set
+    var moving: GroupRef? by mutableStateOf(null)
+        private set
+
+    /** New group in the bar while two or more are open: which database first. */
+    var choosingDatabase: Boolean by mutableStateOf(false)
+        private set
+
+    /** The row whose change is being saved. */
+    var saving: GroupRef? by mutableStateOf(null)
+        private set
+
+    private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
+    val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
+
+    init {
+        viewModelScope.launch {
+            open.collect { databases ->
+                val ids = databases.mapTo(HashSet()) { it.mark.id }
+                if (sheet?.database !in ids) sheet = null
+                if (moving?.database !in ids) moving = null
+                if (dialog?.database !in ids) closeDialog()
+                if (databases.size < 2) choosingDatabase = false
+            }
+        }
+    }
+
+    fun openSheet(ref: GroupRef) {
+        sheet = ref
+    }
+
+    fun closeSheet() {
+        sheet = null
+    }
+
+    fun startRename(ref: GroupRef) {
+        sheet = null
+        dialogProblem = null
+        dialog = NameDialog.Rename(ref.database, ref.groupId)
+    }
+
+    fun startNewGroup(ref: GroupRef) {
+        sheet = null
+        choosingDatabase = false
+        dialogProblem = null
+        dialog = NameDialog.New(ref.database, ref.groupId)
+    }
+
+    /** The bar's New group: at the top level, of the one database open or of the one chosen. */
+    fun newGroupInBar() {
+        val databases = open.value
+        when {
+            databases.size >= 2 -> choosingDatabase = true
+            else -> databases.firstOrNull()?.let(::newGroupAtTop)
+        }
+    }
+
+    fun chooseDatabase(id: DatabaseId) {
+        choosingDatabase = false
+        open.value.firstOrNull { it.mark.id == id }?.let(::newGroupAtTop)
+    }
+
+    fun dismissDatabases() {
+        choosingDatabase = false
+    }
+
+    private fun newGroupAtTop(database: OpenDatabase) {
+        val root = database.unlocked.vault.groups.firstOrNull { it.isRoot } ?: return
+        startNewGroup(GroupRef(database.mark.id, root.id))
+    }
+
+    /** The name typed changed: the reason under it goes. */
+    fun edited() {
+        dialogProblem = null
+    }
+
+    /** Cancel, or Back: not while its save runs. */
+    fun closeDialog() {
+        if (saving != null && dialog != null && open.value.any { it.mark.id == dialog?.database }) return
+        dialog = null
+        dialogProblem = null
+    }
+
+    /** Save in the dialog: refused under the field, closed for the same name, else saved (AC1, AC3, AC8). */
+    fun submitName(typed: String) {
+        val dialog = dialog ?: return
+        if (saving != null) return
+        val database = open.value.firstOrNull { it.mark.id == dialog.database } ?: return closeDialog()
+        val vault = database.unlocked.vault
+        val changes = GroupChanges.of(vault)
+        val group = { id: String -> vault.groups.firstOrNull { it.id == id } }
+        when (dialog) {
+            is NameDialog.Rename -> when (val name = changes.rename(dialog.groupId, typed)) {
+                null -> dialogProblem = GONE
+                GroupChanges.Name.Unchanged -> closeDialog()
+                is GroupChanges.Name.Ok ->
+                    save(database, VaultEdit.RenameGroup(dialog.groupId, name.name), dialog.groupId, GroupTexts.renamed(name.name))
+                else -> dialogProblem = GroupTexts.nameProblem(name)
+            }
+            is NameDialog.New -> when (val name = changes.create(dialog.parentId, typed)) {
+                null -> dialogProblem = GONE
+                is GroupChanges.Name.Ok -> save(
+                    database,
+                    VaultEdit.CreateGroup(dialog.parentId, NewGroup(Entry.newId(), name.name)),
+                    dialog.parentId,
+                    GroupTexts.made(name.name, group(dialog.parentId)!!),
+                )
+                else -> dialogProblem = GroupTexts.nameProblem(name)
+            }
+        }
+    }
+
+    fun startMove(ref: GroupRef) {
+        sheet = null
+        moving = ref
+    }
+
+    fun closeMove() {
+        moving = null
+    }
+
+    /** Move to…'s target chosen: refused targets cannot be (the picker greys them), so this one is asked again only. */
+    fun move(targetId: String) {
+        val ref = moving ?: return
+        moving = null
+        val database = open.value.firstOrNull { it.mark.id == ref.database } ?: return
+        val vault = database.unlocked.vault
+        val group = vault.groups.firstOrNull { it.id == ref.groupId }
+        val target = vault.groups.firstOrNull { it.id == targetId }
+        if (group == null || target == null || !GroupChanges.of(vault).canMove(ref.groupId, targetId)) return notice(GONE)
+        save(database, VaultEdit.MoveGroup(ref.groupId, targetId), ref.groupId, GroupTexts.moved(group, target))
+    }
+
+    /** Delete on an empty group's sheet: at once, nothing is lost (AC6). */
+    fun delete(ref: GroupRef) {
+        sheet = null
+        val database = open.value.firstOrNull { it.mark.id == ref.database } ?: return
+        val vault = database.unlocked.vault
+        val group = vault.groups.firstOrNull { it.id == ref.groupId }
+        if (group == null || !GroupChanges.of(vault).canDelete(ref.groupId)) return notice(GONE)
+        save(database, VaultEdit.DeleteEmptyGroup(ref.groupId), ref.groupId, GroupTexts.deleted(group))
+    }
+
+    private fun save(database: OpenDatabase, edit: VaultEdit, row: String, done: String) {
+        val inDialog = dialog != null
+        val pending = database.database.session.save(edit)
+        if (pending == null) {
+            if (inDialog) dialogProblem = SAVE_BUSY else notice(SAVE_BUSY)
+            return
+        }
+        saving = GroupRef(database.mark.id, row)
+        viewModelScope.launch {
+            val problem = pending.await().problem(database.database.file)
+            saving = null
+            when {
+                problem == null -> {
+                    if (inDialog) closeDialog()
+                    mutableNotices.trySend(Notice(done))
+                }
+                inDialog && dialog != null -> dialogProblem = problem
+                else -> notice(problem)
+            }
+        }
+    }
+
+    private fun notice(problem: String) {
+        mutableNotices.trySend(Notice(problem, isProblem = true))
+    }
+
+    private companion object {
+        const val GONE = "That group is no longer there as it was (changed elsewhere?). Nothing was saved."
+    }
 }
 
 /**
@@ -105,7 +345,9 @@ internal class GroupsViewModel(open: StateFlow<List<OpenDatabase>>) : ViewModel(
  * the group tree with how many entries are in each group, the recycle bin, the tags with their counts. A row lists its
  * entries: [onSearch] gets the search to set on the list, that database's only while two or more are open. With two or
  * more a header's tap folds its block ([folded], kept while the app runs). Under the blocks the window's databases
- * [notOpen]; a tap shows one's lock screen ([onLockScreen]).
+ * [notOpen]; a tap shows one's lock screen ([onLockScreen]). A long press on a group's row opens its sheet: its changes
+ * ([GroupsViewModel]); New group in the bar makes one at the top level, with two or more open in the one chosen of
+ * [databases].
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -116,11 +358,14 @@ internal fun GroupsScreen(
     onBack: () -> Unit,
     onSearch: (String) -> Unit,
     onLockScreen: (DatabaseId) -> Unit,
+    databases: (List<OpenDatabase>) -> List<NewEntryDatabase>,
 ) {
     val model = viewModel { GroupsViewModel(open) }
     val blocks by model.blocks.collectAsStateWithLifecycle()
     val foldedIds by folded.collectAsStateWithLifecycle()
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
+    val snackbar = remember { SnackbarHostState() }
+    NoticeEffect(model.notices, snackbar)
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
@@ -130,6 +375,11 @@ internal fun GroupsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
                 },
+                actions = {
+                    IconButton(onClick = model::newGroupInBar, enabled = !blocks.isNullOrEmpty()) {
+                        Icon(Icons.Rounded.CreateNewFolder, contentDescription = "New group")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -137,6 +387,7 @@ internal fun GroupsScreen(
                 scrollBehavior = scroll,
             )
         },
+        snackbarHost = { NoticeHost(snackbar, Modifier.navigationBarsPadding()) },
     ) { padding ->
         val current = blocks
         // Under the bar, not behind it: a block's header is pinned to the list's top.
@@ -157,13 +408,179 @@ internal fun GroupsScreen(
                     stickyHeader(key = "head/${block.id.value}", contentType = "block header") {
                         BlockHeader(block, foldable, isOpen, onFold = { folded.update { if (isOpen) it + block.id else it - block.id } })
                     }
-                    if (isOpen) content(block, onSearch)
+                    if (isOpen) content(block, model.saving, onSearch, onHold = { model.openSheet(GroupsViewModel.GroupRef(block.id, it)) })
                     item(key = "end/${block.id.value}", contentType = "gap") { Spacer(Modifier.height(20.dp)) }
                 }
                 if (notOpen.isNotEmpty()) item(key = "not open") { NotOpenRow(notOpen, onLockScreen) }
             }
         }
     }
+    val shown = blocks.orEmpty()
+    model.sheet?.let { ref ->
+        val block = shown.firstOrNull { it.id == ref.database }
+        val row = block?.overview?.groups?.firstOrNull { it.id == ref.groupId }
+        if (block != null && row != null) GroupSheet(block, row, model, several = shown.size >= 2)
+    }
+    model.dialog?.let { dialog ->
+        shown.firstOrNull { it.id == dialog.database }?.let { NameDialog(it, dialog, model) }
+    }
+    model.moving?.let { ref ->
+        val block = shown.firstOrNull { it.id == ref.database }
+        val group = block?.vault?.groups?.firstOrNull { it.id == ref.groupId }
+        if (block != null && group != null) {
+            val tree = remember(block.vault) { GroupTree.of(block.vault) }
+            val changes = remember(block.vault) { GroupChanges.of(block.vault) }
+            GroupPickerSheet(
+                tree = tree,
+                chosen = null,
+                made = "",
+                onChoose = { model.move(it.groupId) },
+                onDismiss = model::closeMove,
+                title = GroupTexts.moveTitle(group),
+                subtitle = GroupTexts.moveSubtitle(group, tree.node(group.id)?.total ?: 0),
+                refusal = { target -> changes.moveRefusal(group.id, target)?.let { GroupTexts.moveRefusal(group, it) } },
+            )
+        }
+    }
+    if (model.choosingDatabase) {
+        SaveIntoSheet(
+            offered = databases(open.value),
+            chosen = null,
+            notOpen = notOpen.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Not open: ") { it.line.label.full },
+            onChoose = model::chooseDatabase,
+            onDismiss = model::dismissDatabases,
+            title = "New group",
+            subtitle = "At the top level of the database chosen.",
+        )
+    }
+}
+
+/**
+ * A group's sheet, opened by a long press (G5; the AG3 mock-up): its path, its database and what it holds; New group
+ * inside…, Rename…, Move to… and, when it is empty, Delete. Top level's has New group… only.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GroupSheet(block: GroupsBlock, row: GroupsOverview.GroupRow, model: GroupsViewModel, several: Boolean) {
+    val ref = GroupsViewModel.GroupRef(block.id, row.id)
+    val tree = remember(block.vault) { GroupTree.of(block.vault) }
+    val changes = remember(block.vault) { GroupChanges.of(block.vault) }
+    val subgroups = tree.node(row.id)?.subgroups ?: 0
+    ModalBottomSheet(onDismissRequest = model::closeSheet, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+            Row(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (row.isRoot) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
+                        contentDescription = null,
+                        Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (row.isRoot) {
+                        Text(GroupTexts.TOP_LEVEL, style = MaterialTheme.typography.titleLarge)
+                    } else {
+                        PathText(row.path, style = MaterialTheme.typography.titleLarge, prefixStyle = SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (several) {
+                            Box(Modifier.size(9.dp).clip(CircleShape).background(databaseColors(block.mark.colorIndex).dot))
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(
+                            GroupTexts.sheetMeta(block.mark.label.full, row.total, row.here, subgroups),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            val actions = buildList {
+                add(SheetAction(if (row.isRoot) "New group…" else "New group inside…", null, Icons.Rounded.CreateNewFolder) { model.startNewGroup(ref) })
+                if (changes.canChange(row.id)) {
+                    add(SheetAction("Rename…", null, Icons.Rounded.Edit) { model.startRename(ref) })
+                    add(SheetAction("Move to…", "With everything in it", Icons.AutoMirrored.Rounded.DriveFileMove) { model.startMove(ref) })
+                    if (changes.canDelete(row.id)) {
+                        add(SheetAction("Delete", "It is empty: deleted at once", Icons.Rounded.DeleteOutline, destructive = true) { model.delete(ref) })
+                    }
+                }
+            }
+            actions.forEachIndexed { index, action ->
+                val color = if (action.destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                Row(
+                    Modifier
+                        .padding(bottom = SegmentGap)
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .clip(segmentShape(index, actions.size))
+                        .background(MaterialTheme.extraColors.row)
+                        .clickable(onClick = action.act)
+                        .padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(action.icon, contentDescription = null, Modifier.size(22.dp), tint = if (action.destructive) color else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(16.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(action.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = color)
+                        action.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private class SheetAction(val label: String, val detail: String?, val icon: ImageVector, val destructive: Boolean = false, val act: () -> Unit)
+
+/**
+ * The name's dialog (G5; the AG3 mock-up): Rename "Rename “Work”", New "New group in “Work”"; Save and Cancel. A name
+ * refused, or a save that failed, is said under the field and the dialog stays; while it saves Save waits.
+ */
+@Composable
+private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, model: GroupsViewModel) {
+    val groups = block.vault.groups
+    val title = when (dialog) {
+        is GroupsViewModel.NameDialog.Rename -> groups.firstOrNull { it.id == dialog.groupId }?.let(GroupTexts::renameTitle)
+        is GroupsViewModel.NameDialog.New -> groups.firstOrNull { it.id == dialog.parentId }?.let(GroupTexts::newGroupTitle)
+    } ?: return
+    val start = (dialog as? GroupsViewModel.NameDialog.Rename)?.let { d -> groups.firstOrNull { it.id == d.groupId }?.name }.orEmpty()
+    var field by remember(dialog) { mutableStateOf(TextFieldValue(start, TextRange(0, start.length))) }
+    val focus = remember { FocusRequester() }
+    val saving = model.saving != null
+    val problem = model.dialogProblem
+    AlertDialog(
+        onDismissRequest = model::closeDialog,
+        title = { Text(title) },
+        text = {
+            NoLearningKeyboard {
+                OutlinedTextField(
+                    value = field,
+                    onValueChange = {
+                        if (it.text != field.text) model.edited()
+                        field = it
+                    },
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    label = { Text("Name") },
+                    singleLine = true,
+                    isError = problem != null,
+                    supportingText = problem?.let { { Text(it) } },
+                    enabled = !saving,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { model.submitName(field.text) }),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { model.submitName(field.text) }, enabled = !saving) { Text(if (saving) "Saving…" else "Save") }
+        },
+        dismissButton = { TextButton(onClick = model::closeDialog, enabled = !saving) { Text("Cancel") } },
+    )
+    LaunchedEffect(dialog) { focus.requestFocus() }
 }
 
 /** A block's header: its database's dot and label, how many entries it has; with two or more open, a tap folds it. */
@@ -253,7 +670,7 @@ private fun NotOpenRow(notOpen: List<NotOpenDatabase>, onLockScreen: (DatabaseId
     }
 }
 
-private fun LazyListScope.content(block: GroupsBlock, onSearch: (String) -> Unit) {
+private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.GroupRef?, onSearch: (String) -> Unit, onHold: (groupId: String) -> Unit) {
     val overview = block.overview
     val id = block.id.value
     item(key = "groups/$id", contentType = "header") { Box(Modifier.padding(top = 6.dp)) { SectionTitle("Groups") } }
@@ -261,11 +678,12 @@ private fun LazyListScope.content(block: GroupsBlock, onSearch: (String) -> Unit
         OverviewRow(
             icon = if (row.isRoot) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
             title = if (row.isRoot) "Top level" else row.name,
-            supporting = groupCounts(row),
+            supporting = if (saving == GroupsViewModel.GroupRef(block.id, row.id)) "Saving…" else groupCounts(row),
             count = row.total,
             indent = row.depth,
             shape = segmentShape(index, overview.groups.size),
             onClick = { onSearch(block.search(row.search)) },
+            onLongClick = { onHold(row.id) },
         )
     }
     if (overview.recycleBin > 0) {
@@ -322,6 +740,8 @@ private fun OverviewRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     indent: Int = 0,
+    /** A group's row: its sheet. */
+    onLongClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier
@@ -330,7 +750,12 @@ private fun OverviewRow(
             .heightIn(min = 56.dp)
             .clip(shape)
             .background(MaterialTheme.extraColors.row)
-            .clickable(onClick = onClick, onClickLabel = "Show the entries")
+            .combinedClickable(
+                onClick = onClick,
+                onClickLabel = "Show the entries",
+                onLongClick = onLongClick,
+                onLongClickLabel = if (onLongClick != null) "Change the group" else null,
+            )
             .padding(start = 16.dp + 20.dp * indent, end = 20.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
