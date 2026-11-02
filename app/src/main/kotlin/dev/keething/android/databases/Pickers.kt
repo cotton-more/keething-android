@@ -5,11 +5,17 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import dev.keething.android.storage.PersistedGrants
@@ -29,12 +35,18 @@ internal fun rememberFolderPicker(onCancelled: () -> Unit = {}, onPicked: (Provi
     val context = LocalContext.current
     val picked = rememberUpdatedState(onPicked)
     val cancelled = rememberUpdatedState(onCancelled)
+    var said by rememberSaveable { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(PickFolder) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult cancelled.value()
         val folder = ProviderFolder.of(context.contentResolver, uri.toString())
-        if (folder == null) return@rememberLauncherForActivityResult context.say(NOT_THE_PHONES_STORAGE)
-        if (context.take(uri, write = true)) picked.value(folder)
+        if (folder == null) {
+            said = NOT_THE_PHONES_STORAGE
+            return@rememberLauncherForActivityResult
+        }
+        said = context.take(uri, write = true)
+        if (said == null) picked.value(folder)
     }
+    said?.let { PickerSaid(it) { said = null } }
     return { start -> launcher.launch(start) }
 }
 
@@ -47,11 +59,18 @@ internal fun rememberFolderPicker(onCancelled: () -> Unit = {}, onPicked: (Provi
 internal fun rememberKeyFilePicker(onPicked: (FileLocation.Granted) -> Unit): (start: StoragePlace?) -> Unit {
     val context = LocalContext.current
     val picked = rememberUpdatedState(onPicked)
+    var said by rememberSaveable { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(PickFile) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val place = StoragePlaces.ofDocument(uri) ?: return@rememberLauncherForActivityResult context.say(NOT_THE_PHONES_STORAGE)
-        if (context.take(uri, write = false)) picked.value(FileLocation.Granted(uri.toString(), place))
+        val place = StoragePlaces.ofDocument(uri)
+        if (place == null) {
+            said = NOT_THE_PHONES_STORAGE
+            return@rememberLauncherForActivityResult
+        }
+        said = context.take(uri, write = false)
+        if (said == null) picked.value(FileLocation.Granted(uri.toString(), place))
     }
+    said?.let { PickerSaid(it) { said = null } }
     return { start -> launcher.launch(start) }
 }
 
@@ -60,18 +79,23 @@ private const val NOT_THE_PHONES_STORAGE =
     "Keething opens files on this phone's storage and its card only. Keep the database in a folder that Syncthing, " +
         "FolderSync or the cloud app's own offline folder keeps in sync, and choose that."
 
-private fun Context.say(text: String) {
-    Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+/** What a picker's choice came to, in full until OK: a toast is cut at two lines. */
+@Composable
+private fun PickerSaid(text: String, onOk: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onOk,
+        text = { Text(text) },
+        confirmButton = { TextButton(onClick = onOk) { Text("OK") } },
+    )
 }
 
-/** The picker's grant kept across restarts; false (said) when the system would not keep it. */
-private fun Context.take(uri: Uri, write: Boolean): Boolean = try {
+/** The picker's grant kept across restarts; null, or what to say when the system would not keep it. */
+private fun Context.take(uri: Uri, write: Boolean): String? = try {
     PersistedGrants(contentResolver).take(uri, write)
-    true
+    null
 } catch (failure: SecurityException) {
     Log.w("Grants", "a grant could not be kept: ${failure.javaClass.simpleName}")
-    say("Android did not let Keething keep its access to that place. Choose it again.")
-    false
+    "Android did not let Keething keep its access to that place. Choose it again."
 }
 
 /** Open document tree, starting at a place. */
