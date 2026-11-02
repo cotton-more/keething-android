@@ -277,6 +277,7 @@ class VaultSessionsTest {
         assertEquals(SessionState.Locked(LockReason.Manual), f.state(p))
         assertEquals(SessionState.Locked(LockReason.Manual), f.state(w))
         assertTrue(personal.isWiped() && work.isWiped(), "both vaults wiped in place")
+        runCurrent() // the watches close on io
         assertEquals(0, f.files.getValue("/a/p.kdbx").watching + f.files.getValue("/a/w.kdbx").watching, "neither file watched")
         assertEquals(listOf<LockReason>(LockReason.Manual), f.locks)
         assertEquals(listOf(p.id, w.id), f.sessions.windowIds, "locked, still in the window")

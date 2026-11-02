@@ -226,16 +226,19 @@ public class VaultSession(
             // Left in [waiting] until this try is over: the caller wipes what is there, whatever ends the unlock.
             val attempt = waiting.first()
             val result = open(attempt.key)
-            val copies = if (result is OpenResult.Opened) conflictCopies() else emptyList()
+            // The watch starts with the conflict copies' read, on [io]: both may be the storage provider's calls.
+            val opening = if (result is OpenResult.Opened) withContext(io) { copiesNow() to store.watch { scope.launch { fileChanged() } } } else null
             waiting.removeFirst()
             if (token != generation) {
+                opening?.second?.let(::closeWatch)
                 discard(result, attempt.key)
                 return null
             }
             when (result) {
                 is OpenResult.Opened -> {
                     key = attempt.key
-                    watch = store.watch { scope.launch { fileChanged() } }
+                    val (copies, started) = checkNotNull(opening)
+                    watch = started
                     adopt(result, copies)
                     // Told at once (the coordinator): a lock that caused wiped it all, and this unlock did not happen.
                     if (token != generation) return null
@@ -265,7 +268,7 @@ public class VaultSession(
     public fun lock(reason: LockReason = LockReason.Manual) {
         generation++
         settleJob?.cancel()
-        watch?.close()
+        watch?.let(::closeWatch)
         watch = null
         key?.wipe()
         key = null
@@ -461,8 +464,14 @@ public class VaultSession(
 
     private suspend fun open(key: DatabaseKey): OpenResult = withContext(io) { opener.open(store, key) }
 
-    private suspend fun conflictCopies(): List<ConflictCopy> =
-        withContext(io) { runCatching { store.conflictCopies() }.getOrDefault(emptyList()) }
+    private suspend fun conflictCopies(): List<ConflictCopy> = withContext(io) { copiesNow() }
+
+    private fun copiesNow(): List<ConflictCopy> = runCatching { store.conflictCopies() }.getOrDefault(emptyList())
+
+    /** Closed on [io]: closing may be the storage provider's call; it never waits for a save. */
+    private fun closeWatch(watch: AutoCloseable) {
+        scope.launch(io) { watch.close() }
+    }
 
     private fun discard(result: OpenResult, attempt: DatabaseKey) {
         attempt.wipe()

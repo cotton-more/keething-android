@@ -85,7 +85,8 @@ internal class Sessions(
     private val settings: AppSettings,
     private val settingsStore: SettingsStore,
     val list: DatabaseList,
-    private val storeAt: (File) -> DatabaseStore,
+    /** How a database of the list is reached: by its path, or through a granted folder (keething-spec databases.saf AC2). */
+    private val storeAt: (FileLocation) -> DatabaseStore,
     /** Each database's backups go into a folder of its own here, named by its id (SPEC §3.3 step 7). */
     private val backupsFolder: File,
     /** How a key file is reached wherever the list has it (keething-spec databases.saf AC9). */
@@ -97,6 +98,8 @@ internal class Sessions(
     private val lockAlarm: LockAlarm,
     /** The shared storage's root: a database's label says its folder from there. */
     private val storageRoot: String,
+    /** A grant the user gave for the list, given back unless the list takes it (keething-spec databases.saf AC14). */
+    offered: (grant: String) -> Unit,
 ) : DefaultLifecycleObserver {
     /** The fingerprint's switch and days for the app, and each database's stored password (SPEC §5). */
     val biometric = BiometricSetup(biometricStores, list, settingsStore, AndroidClock, biometricIo)
@@ -108,7 +111,7 @@ internal class Sessions(
     private val vaults = VaultSessions(list, scope, ::start, AndroidClock, lockTimeout = { settings.lockTimeout.value })
 
     /** Another database chosen, a file opened or located, a key file, Remove from List. */
-    val databases = CurrentDatabase(list, scope, vaults, biometric)
+    val databases = CurrentDatabase(list, scope, vaults, biometric, offered)
 
     /**
      * One fingerprint for every database of the window that can (plan AD13): the chooser's. Without all-files access no
@@ -304,8 +307,7 @@ internal class Sessions(
     }
 
     private fun start(record: DatabaseRecord, number: Int, keyFile: () -> FileLocation?, watching: CoroutineScope): DatabaseSession {
-        // Nothing adds a database through a grant before the app reaches files through them (databases.saf stage S3).
-        val store = storeAt(File(checkNotNull(record.path) { "a database through a grant" }))
+        val store = storeAt(record.file)
         val session = VaultSession(
             store = store,
             opener = VaultOpener(),

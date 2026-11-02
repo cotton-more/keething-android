@@ -11,7 +11,10 @@ import java.util.TreeSet
  * A granted folder in memory that behaves as stage S0 measured the phone's storage provider (keething-spec
  * features/databases/saf/plan.md §1): a name taken gives "name (1).ext" instead, never a file over another; a write
  * into an existing file keeps its tail; a rename keeps the file, its identity and its time; a file's time is the
- * clock's at its making and at each write, and the app cannot set it; a watch ends with the provider's process.
+ * clock's at its making and at each write, and the app cannot set it; a watch ends with the provider's process. Names
+ * are taken regardless of case (stage S3 measured it): a path finds its file in any case, a name taken in another case
+ * gives "name (1).ext", and a rename to the file's own name in another case too; a file keeps the spelling it was made
+ * with.
  *
  * The provider's notices come on another thread, so they wait here for [deliverNotices]. [beforeCall] runs before each
  * call of the port reaches the provider: a test fails the call there, ends the app's process there ([ProcessEnded]),
@@ -42,10 +45,10 @@ public class FakeGrantedFolder(
         }
     }
 
-    private val files = TreeMap<String, Stored>()
-    private val folders = TreeSet(setOf(""))
+    private val files = TreeMap<String, Stored>(String.CASE_INSENSITIVE_ORDER)
+    private val folders = TreeSet(String.CASE_INSENSITIVE_ORDER).apply { add("") }
     private val watches = mutableListOf<Watch>()
-    private val noticed = TreeSet<String>()
+    private val noticed = TreeSet(String.CASE_INSENSITIVE_ORDER)
     private val made = mutableListOf<Call>()
     private var inodes = 0L
 
@@ -73,8 +76,9 @@ public class FakeGrantedFolder(
 
     override fun list(folder: String): List<FolderItem>? = call(Call(Operation.LIST, folder)) {
         if (folder !in folders) return@call null
-        folders.filter { it.isNotEmpty() && it != folder && folderOf(it) == folder }.map { FolderItem(nameOf(it), true) } +
-            files.keys.filter { folderOf(it) == folder }.map { FolderItem(nameOf(it), false) }
+        folders.filter { it.isNotEmpty() && !it.equals(folder, ignoreCase = true) && folderOf(it).equals(folder, ignoreCase = true) }
+            .map { FolderItem(nameOf(it), true) } +
+            files.keys.filter { folderOf(it).equals(folder, ignoreCase = true) }.map { FolderItem(nameOf(it), false) }
     }
 
     override fun version(path: String): FileVersion? = call(Call(Operation.VERSION, path)) { files[path]?.version() }
@@ -105,10 +109,11 @@ public class FakeGrantedFolder(
     }
 
     override fun rename(path: String, name: String): String = call(Call(Operation.RENAME, path, name)) {
-        val stored = files.remove(path) ?: throw NoSuchFileException(path)
+        if (path !in files) throw NoSuchFileException(path)
         val folder = folderOf(path)
+        // The name is found free or not with the file still there: its own name in another case is taken.
         val given = freeName(folder, name)
-        files[pathIn(folder, given)] = stored
+        files[pathIn(folder, given)] = checkNotNull(files.remove(path))
         noticed += folder
         given
     }
@@ -135,7 +140,7 @@ public class FakeGrantedFolder(
 
     private fun stamp(): Instant = now() - stampLag
 
-    /** As Android names a file whose name is taken: "name (1).ext", then "(2)"… */
+    /** As Android names a file whose name is taken, case aside: "name (1).ext", then "(2)"… */
     private fun freeName(folder: String, name: String): String {
         fun taken(candidate: String) = pathIn(folder, candidate).let { it in files || it in folders }
         if (!taken(name)) return name
@@ -184,7 +189,7 @@ public class FakeGrantedFolder(
 
     /** The names of the files in [folder]. */
     @Synchronized
-    public fun names(folder: String = ""): List<String> = files.keys.filter { folderOf(it) == folder }.map(::nameOf)
+    public fun names(folder: String = ""): List<String> = files.keys.filter { folderOf(it).equals(folder, ignoreCase = true) }.map(::nameOf)
 
     /** The provider's notices of what changed since the last ones, to the watches still alive. */
     public fun deliverNotices() {

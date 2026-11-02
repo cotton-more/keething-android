@@ -30,16 +30,16 @@ internal class SharedFolderWatcher(private val single: FolderWatcher) : FolderWa
         }
         var closed = false
         return AutoCloseable {
-            val stop = synchronized(lock) {
+            synchronized(lock) {
                 if (closed) return@AutoCloseable
                 closed = true
                 val shared = folders.getValue(key)
                 shared.listeners.remove(onEvent)
                 if (shared.listeners.isNotEmpty()) return@AutoCloseable
                 folders.remove(key)
-                shared.handle
+                // Stopped under the lock: a watch of the folder started meanwhile would be stopped with it (one per path).
+                shared.handle?.close()
             }
-            stop?.close()
         }
     }
 }

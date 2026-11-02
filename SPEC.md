@@ -167,12 +167,16 @@ be swapped without touching anything else. Two implementations are planned:
   replaced by a rename is simply the file at that path. It can write a temporary file in the same folder
   and rename it over the database (atomic, as the Mac app's `replaceItemAt`), and `FileObserver` on the
   folder sees Syncthing's renames.
-- **Google Play build (and fallback): the Storage Access Framework** with access to the **folder** (`ACTION_OPEN_DOCUMENT_TREE`,
-  persisted), the file looked up by name on every read — never a persisted single-document URI, which is
-  what goes stale. SAF cannot rename over an existing file, so writing is in place (truncate + write): a
-  sync could pick up a half-written file. Play allows all-files access only for file managers, backup,
-  antivirus and similar apps, so a password manager is expected to be refused it; a Play build would use
-  this one. For the side-loaded build it is only a fallback if all-files access turns out not to work.
+- **The Storage Access Framework** (keething-spec databases.saf; replaces all-files access, stage S4 of its plan): a
+  **folder** the user granted (`ACTION_OPEN_DOCUMENT_TREE`, persisted; never a single file's grant for a database, which
+  a sync's replace ends), the file addressed by the folder's grant and its path inside at every call (`ProviderFolder`,
+  the phone's storage provider only: its document ids are paths). A save writes a new file beside the database, renames
+  the database aside, renames the new one in and deletes the old one (`FolderDatabaseStore`; the provider cannot rename
+  over a file, and a write in place could be sent half-written), noted in the app's storage first so that a save the
+  app did not finish is put right, at the database's next read and at the app's start. The version is `Os.fstat` on
+  the provider's descriptor (device, inode, size, time). Names are taken regardless of case. Until stage S4 brings its
+  screens, a database is added through a granted folder only in the debug build's storage probe; the list's databases
+  by path are reached as above.
 
 **The list of databases** (keething-spec databases.list; `core/vault` `DatabaseList`, the Mac's): the databases this
 phone knows, each remembered by **where its file is** (`FileLocation`: its **path**, standardized: `.` and `..`
@@ -326,6 +330,11 @@ keeps the new time. The way out is in §3.3 step 7.
   1 s (`FileObserverFolderWatcher`). One watch per folder, shared by every open database in it
   (`SharedFolderWatcher`): Android keeps one inotify watch per path in the process, so a second `FileObserver` of
   a folder takes the first one's events and stopping either stops both.
+- A database through a granted folder (§3.1) is watched through the provider (`ProviderFolder.watch`): a
+  `ContentObserver` on an open cursor of the folder's children (the provider watches a folder only while one is open),
+  held through an unstable client so that the provider's process ending does not end the app's; its notices then
+  stop without a word, and the watch starts again at the next read or version check (the return to the foreground).
+  Each burst of notices is given at once and again 1 s after the last.
 - One Syncthing replace brings several events (rename, then the modification time); a reload decrypts the
   file with Argon2 again, so the reload waits for the folder to be quiet for 1.5 s and runs once. A version
   that failed to open (damaged) is not read again until the file changes.

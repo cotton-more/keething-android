@@ -1,5 +1,6 @@
 package dev.keething.android.storageprobe
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -34,6 +35,9 @@ internal data class ProbeState(
     /** A fingerprint spike step runs (AD5). */
     val fingerprintBusy: Boolean = false,
     val watchingUnlocks: Boolean = false,
+    /** The folder granted for the probe of databases through grants (stage S3), and the files in it. */
+    val grantedFolder: String? = null,
+    val grantedFiles: List<String> = emptyList(),
     val log: List<String> = emptyList(),
 )
 
@@ -46,6 +50,7 @@ internal class StorageProbeViewModel(
     private val settings: ProbeSettings,
     newFileAt: (File) -> PathNewFile,
     private val fingerprint: FingerprintProbe,
+    grantProbe: (log: (String) -> Unit) -> GrantProbe,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ProbeState())
     val state: StateFlow<ProbeState> = mutableState.asStateFlow()
@@ -60,6 +65,21 @@ internal class StorageProbeViewModel(
         fingerprint.sink = ::log
         mutableState.update { it.copy(watchingUnlocks = fingerprint.watchingUnlocks) }
     }
+
+    private val grants = grantProbe(::log)
+
+    fun grantFolder(tree: Uri) = io {
+        val files = grants.granted(tree)
+        mutableState.update { it.copy(grantedFolder = grants.folder?.place?.toString(), grantedFiles = files) }
+    }
+
+    fun openGranted(name: String) = grants.open(name)
+
+    fun keyFileGranted(name: String) = grants.keyFile(name)
+
+    fun caseTest() = io { grants.caseTest() }
+
+    fun missingTest() = io { grants.missingTest() }
 
     fun refreshAccess() {
         mutableState.update { it.copy(allFilesAccess = AllFilesAccess.isGranted()) }

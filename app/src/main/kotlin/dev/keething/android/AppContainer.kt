@@ -40,6 +40,16 @@ import dev.keething.android.storage.FileObserverFolderWatcher
 import dev.keething.android.storage.PathDatabaseStore
 import dev.keething.android.storage.PathKeyFileSource
 import dev.keething.android.storage.PathNewFile
+import dev.keething.android.storage.PersistedGrants
+import dev.keething.android.storage.ProviderFile
+import dev.keething.android.storage.ProviderFolder
+import dev.keething.android.storage.UnreachableFolder
+import dev.keething.android.storageprobe.GrantProbe
+import dev.keething.domain.storage.GrantedFolder
+import dev.keething.vault.databases.FileLocation
+import dev.keething.vault.databases.GrantKeeper
+import dev.keething.vault.storage.FolderDatabaseStore
+import dev.keething.vault.storage.SaveNotes
 import dev.keething.android.storage.SharedFolderWatcher
 import dev.keething.android.storage.SharedStorage
 import dev.keething.android.storageprobe.FingerprintProbe
@@ -76,12 +86,36 @@ internal class AppContainer(context: Context) {
 
     private val folderWatcher = SharedFolderWatcher(FileObserverFolderWatcher())
 
+    /** A database by its path, with all-files access: the list's records of before databases.saf, and the probe's. */
     val databaseStoreAt: (File) -> DatabaseStore = { file -> PathDatabaseStore(file, folderWatcher, AndroidClock) }
+
+    private val resolver = context.contentResolver
+
+    /** The grants the app holds, kept by the system (keething-spec databases.saf AC14). */
+    private val grants = PersistedGrants(resolver)
+
+    /** A granted folder by its grant; one not of the phone's storage cannot be reached (AC12). */
+    private val folderOf: (grant: String) -> GrantedFolder? = { ProviderFolder.of(resolver, it) }
+
+    /** The saves through granted folders, noted before they touch the folder (AC5): one for the whole app. */
+    private val saveNotes = SaveNotes(File(context.filesDir, "saves"))
+
+    /** A database of the list, by its path or through a granted folder (AC2). */
+    private fun databaseStoreOf(file: FileLocation): DatabaseStore = when (file) {
+        is FileLocation.ByPath -> databaseStoreAt(File(file.path))
+        is FileLocation.InFolder -> FolderDatabaseStore(folderOf(file.grant) ?: UnreachableFolder(file.grant), file.path, saveNotes, AndroidClock)
+        is FileLocation.Granted -> throw IllegalArgumentException("a database is never reached through a grant to the file alone")
+    }
 
     /** A new database or key file at a path; owner-only in the app's own storage, shared storage has no permissions. */
     val newFileAt: (File) -> PathNewFile = { file -> PathNewFile(file, ownerOnly = !SharedStorage.contains(file)) }
 
     private val settingsStore = SharedPreferencesSettingsStore(context.getSharedPreferences("settings", Context.MODE_PRIVATE))
+
+    private val databaseList = DatabaseList(settingsStore)
+
+    /** Gives back each grant the list no longer needs (AC14); before anything can change the list. */
+    private val grantKeeper = GrantKeeper(databaseList, grants, saveNotes, appScope, Dispatchers.IO)
 
     val settings = AppSettings(settingsStore)
 
@@ -99,13 +133,13 @@ internal class AppContainer(context: Context) {
      * files the one database of before left there stay as they were.
      */
     val sessions = Sessions(
-        settings, settingsStore, DatabaseList(settingsStore), databaseStoreAt, File(context.filesDir, "backups"),
-        // Through grants from databases.saf stage S3; until then nothing is kept through one.
-        KeyFiles(folder = { null }, file = { null }, byPath = { PathKeyFileSource(File(it)) }), biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path,
+        settings, settingsStore, databaseList, ::databaseStoreOf, File(context.filesDir, "backups"),
+        KeyFiles(folder = folderOf, file = { ProviderFile.of(resolver, it) }, byPath = { PathKeyFileSource(File(it)) }),
+        biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path, grantKeeper::offered,
     )
 
     /** What a new database's Create is making (plan AD7): an ended process's leftovers go at the next start. */
-    private val creationNote = CreationNote(File(context.filesDir, "creating.note"))
+    private val creationNote = CreationNote(File(context.filesDir, "creating.note"), folderOf)
 
     /** The New database screen (SPEC §6.2), kept by the app: Create goes on when the screen is gone. */
     val newDatabases: NewDatabases = NewDatabases { newDatabase(context) }
@@ -173,6 +207,9 @@ internal class AppContainer(context: Context) {
     /** The fingerprint spike of the debug probe (plans/android-databases.md AD5); for the whole process, as unlocks are. */
     val fingerprintProbe by lazy { FingerprintProbe(context, FingerprintPrompt(context)) }
 
+    /** The debug probe of databases through a granted folder, before their screens (databases.saf stage S3). */
+    fun grantProbe(log: (String) -> Unit): GrantProbe = GrantProbe(resolver, grants, { sessions.databases }, log)
+
     /** Attachments opened in another app; what a process that died left behind goes at once (SPEC §4). */
     val attachmentFiles = AttachmentFiles(File(context.cacheDir, "attachments")).also(AttachmentFiles::clear)
 
@@ -237,12 +274,28 @@ internal class AppContainer(context: Context) {
     init {
         // A small file, almost never there: read at once, before any Create can note anything.
         val listed = sessions.list.records.flatMap { listOfNotNull(it.file, it.keyFile) }
+        // A file made in a granted folder is reached through the provider here, on the main thread: only after a process
+        // ended in the middle of a Create.
         runCatching { creationNote.leftovers { made -> listed.any(made::isSameFile) } }.getOrNull()?.let { newDatabases.notCreated = it }
+        putRightAndSweep()
         // A lock takes New database's form, with what was typed, unless it is being created.
         sessions.locks.onLock = newDatabases::locked
         clearOnLock()
         followTheLockWithTheRequests()
         keepStoredEntries()
+    }
+
+    /**
+     * At the start, after a Create's leftovers (they are reached through their grants): every save through a granted
+     * folder that a stopped process left is put right, listed or not (keething-spec databases.saf AC5; a removed
+     * database's unsettled save keeps its grant until then), then every grant held that the list does not use goes
+     * (AC14).
+     */
+    private fun putRightAndSweep() {
+        appScope.launch {
+            withContext(Dispatchers.IO) { FolderDatabaseStore.putRightStoppedSaves(saveNotes, folderOf, AndroidClock) }
+            grantKeeper.sweep()
+        }
     }
 
     /**

@@ -796,6 +796,74 @@ class FolderDatabaseStoreTest {
 
     private fun nameOfPath(path: String) = path.substringAfterLast('/')
 
+    // Names in another case (stage S3: the storage takes names regardless of case)
+
+    @Test
+    fun aDatabaseSpelledInAnotherCaseOnTheStorageIsReadAndSavedUnderTheListsSpelling() {
+        folder.put("Sync/personal.KDBX", old, earlier)
+
+        assertContentEquals(old, found(store.read()).bytes)
+        store.replace(new, store.version())
+
+        assertEquals(listOf("Personal.kdbx"), folder.names("Sync"), "one file, nothing of the save left")
+        assertContentEquals(new, folder.bytesOf(DATABASE))
+    }
+
+    @Test
+    fun aStoppedSaveOfADatabaseSpelledInAnotherCaseIsPutRight() {
+        folder.put("Sync/personal.kdbx", old, earlier)
+        folder.beforeCall = { if (it.operation == Operation.RENAME && it.name == "Personal.kdbx") throw ProcessEnded() }
+        assertFailsWith<ProcessEnded> { store.replace(new) }
+        folder.beforeCall = {}
+
+        val read = found(storeAt("Sync/PERSONAL.kdbx").read())
+
+        assertContentEquals(new, read.bytes)
+        assertEquals(StoppedSave.FINISHED, read.stoppedSave, "the note found by the path in another case")
+        assertEquals(1, folder.names("Sync").size)
+    }
+
+    // A stopped save put right at the app's start (S1's handover, stage S3)
+
+    @Test
+    fun aStoppedSaveIsPutRightAtTheAppsStartWithoutAReadAndSaidAtTheNextOne() {
+        folder.put(DATABASE, old, earlier)
+        folder.put("Sync/Work.kdbx", old, earlier)
+        folder.beforeCall = { if (it.operation == Operation.RENAME && it.name == "Personal.kdbx") throw ProcessEnded() }
+        assertFailsWith<ProcessEnded> { storeAt(DATABASE).replace(new) }
+        folder.beforeCall = { if (it.operation == Operation.DELETE) throw ProcessEnded() }
+        assertFailsWith<ProcessEnded> { storeAt("Sync/Work.kdbx").replace(new) }
+        folder.beforeCall = {}
+
+        FolderDatabaseStore.putRightStoppedSaves(SaveNotes(notesDirectory), { grant -> folder.takeIf { grant == it.id } }, time)
+
+        assertEquals(listOf("Personal.kdbx", "Work.kdbx"), folder.names("Sync").sorted(), "no file of either save is left")
+        assertContentEquals(new, folder.bytesOf(DATABASE))
+        assertContentEquals(new, folder.bytesOf("Sync/Work.kdbx"))
+        val read = found(storeAt(DATABASE).read())
+        assertEquals(StoppedSave.FINISHED, read.stoppedSave, "said at the next read")
+    }
+
+    @Test
+    fun aStoppedSaveWhoseGrantIsGoneOrFailsAtTheStartIsLeftForItsRead() {
+        folder.put(DATABASE, old, earlier)
+        folder.beforeCall = { if (it.operation == Operation.RENAME && it.name == "Personal.kdbx") throw ProcessEnded() }
+        assertFailsWith<ProcessEnded> { storeAt(DATABASE).replace(new) }
+        folder.beforeCall = {}
+        val files = folder.names("Sync").sorted()
+
+        FolderDatabaseStore.putRightStoppedSaves(SaveNotes(notesDirectory), { null }, time)
+        assertEquals(files, folder.names("Sync").sorted(), "no folder: nothing touched")
+
+        folder.beforeCall = { if (it.operation == Operation.RENAME) throw java.nio.file.AccessDeniedException(it.path) }
+        FolderDatabaseStore.putRightStoppedSaves(SaveNotes(notesDirectory), { folder }, time)
+        folder.beforeCall = {}
+
+        val read = found(storeAt(DATABASE).read())
+        assertContentEquals(new, read.bytes)
+        assertEquals(StoppedSave.FINISHED, read.stoppedSave)
+    }
+
     @Test
     fun aStoppedSaveWaitsForItsGrantToComeBack() {
         folder.put(DATABASE, old, earlier)

@@ -69,6 +69,9 @@ public class SaveNotes(private val directory: File) {
         all().filterNot { listed(it.folder, it.path) }.map { it.folder to it.path }.distinct().forEach { (folder, path) -> forget(folder, path) }
     }
 
+    /** Each database whose saves left a note, by its grant and path: one per database, case aside. */
+    internal fun databases(): List<Pair<String, String>> = all().distinctBy { key(it.folder, it.path) }.map { it.folder to it.path }
+
     /** Whether a save of a database in the grant [folder] left it to put right, or is under way: its grant is kept. */
     public fun unsettled(folder: String): Boolean = all().any { it.folder == folder && !it.settled }
 

@@ -124,6 +124,7 @@ class VaultSessionTest {
         assertEquals(SessionState.Locked(LockReason.Manual), f.session.state.value)
         assertTrue(vault.entries.all { it.password.isWiped })
         assertNull(f.session.attachment(entry.id, "att.bin"))
+        runCurrent() // the watch closes on io
         assertEquals(0, f.store.watching)
         f.store.change(fixtureBytes("kdbx4-aes-argon2d"))
         advanceTimeBy(10.seconds)

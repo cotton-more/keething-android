@@ -1,6 +1,7 @@
 package dev.keething.android.storage
 
 import java.io.File
+import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -52,6 +53,25 @@ class SharedFolderWatcherTest {
     }
 
     @Test
+    fun aWatchStartedWhileTheLastOneOfItsFolderStopsKeepsHearing() {
+        // Sessions start and close their watches off the main thread (databases.saf stage S3), so the two can meet.
+        val first = watcher.watch(sync) {}
+        val heard = mutableListOf<String?>()
+        var second: Thread? = null
+        android.beforeStop = {
+            android.beforeStop = {}
+            second = thread { watcher.watch(sync) { synchronized(heard) { heard += it } } }
+            second.join(200)
+        }
+
+        first.close()
+        second!!.join()
+        android.report(sync, "a.kdbx")
+
+        assertEquals(listOf<String?>("a.kdbx"), heard)
+    }
+
+    @Test
     fun eachFolderItsOwnWatch() {
         val heard = mutableListOf<String>()
         watcher.watch(sync) { heard += "sync:$it" }
@@ -73,15 +93,21 @@ private class OneWatchPerPath : FolderWatcher {
     var started = 0
         private set
 
-    override fun watch(folder: File, onEvent: (fileName: String?) -> Unit): AutoCloseable {
+    /** Runs as a watch begins to stop, before the path's watch is gone. */
+    @Volatile var beforeStop: () -> Unit = {}
+
+    override fun watch(folder: File, onEvent: (fileName: String?) -> Unit): AutoCloseable = synchronized(this) {
         started++
         observers[folder.path] = onEvent
-        return AutoCloseable { observers.remove(folder.path) }
+        AutoCloseable {
+            beforeStop()
+            synchronized(this) { observers.remove(folder.path) }
+        }
     }
 
     fun report(folder: File, fileName: String?) {
-        observers[folder.path]?.invoke(fileName)
+        synchronized(this) { observers[folder.path] }?.invoke(fileName)
     }
 
-    fun watching(folder: File): Int = if (folder.path in observers) 1 else 0
+    fun watching(folder: File): Int = synchronized(this) { if (folder.path in observers) 1 else 0 }
 }

@@ -24,6 +24,19 @@ class FakeGrantedFolderTest {
     }
 
     @Test
+    fun namesAreTakenRegardlessOfCaseAsStageS3MeasuredThem() {
+        folder.put("Sync/probe-case.tmp", byteArrayOf(1))
+        folder.put("Sync/probe-other.tmp", byteArrayOf(2))
+        folder.put("Sync/probe-self.tmp", byteArrayOf(3))
+
+        assertEquals("probe-CASE (1).tmp", folder.create("Sync", "probe-CASE.tmp"))
+        assertEquals("probe-Case (2).tmp", folder.rename("Sync/probe-other.tmp", "probe-Case.tmp"))
+        assertEquals("probe-SELF (1).tmp", folder.rename("Sync/probe-self.tmp", "probe-SELF.tmp"), "never a rename in case alone")
+        assertEquals(folder.versionOf("Sync/probe-case.tmp"), folder.version("SYNC/PROBE-CASE.TMP"), "a path finds its file in any case")
+        assertEquals(setOf("probe-case.tmp", "probe-CASE (1).tmp", "probe-Case (2).tmp", "probe-SELF (1).tmp"), folder.list("sync")?.map { it.name }?.toSet())
+    }
+
+    @Test
     fun aWriteOverALongerFileKeepsItsTail() {
         folder.put("Sync/a.bin", byteArrayOf(1, 2, 3, 4))
 

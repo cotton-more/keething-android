@@ -432,5 +432,24 @@ public class FolderDatabaseStore(
          * downloads into.
          */
         public fun temporaryFileName(): String = ".syncthing.keething-${UUID.randomUUID()}.tmp"
+
+        /**
+         * At the app's start: every save a stopped process left is put right (AC5), of each database whose grant
+         * [folders] still reaches, listed or not, without waiting for its next read. Syncthing removes a temporary file
+         * older than a day by its time, the old file aside keeps the database's, and the database's name missing reaches
+         * the other devices as a deletion. Which way each went is said at the database's next read. A save that cannot
+         * be put right now (no grant, a failure) is left for that read.
+         */
+        public fun putRightStoppedSaves(notes: SaveNotes, folders: (grant: String) -> GrantedFolder?, clock: Clock) {
+            for ((grant, path) in notes.databases()) {
+                val folder = folders(grant) ?: continue
+                val store = FolderDatabaseStore(folder, path, notes, clock)
+                try {
+                    store.lock.withLock { store.putRight() }
+                } catch (_: IOException) {
+                    // Its read tries again.
+                }
+            }
+        }
     }
 }

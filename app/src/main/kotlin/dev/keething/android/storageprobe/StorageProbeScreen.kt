@@ -40,7 +40,7 @@ internal fun StorageProbeScreen(container: AppContainer) {
     val viewModel: StorageProbeViewModel = viewModel(
         factory = viewModelFactory {
             initializer {
-                StorageProbeViewModel(container.databaseStoreAt, container.probeSettings, container.newFileAt, container.fingerprintProbe)
+                StorageProbeViewModel(container.databaseStoreAt, container.probeSettings, container.newFileAt, container.fingerprintProbe, container::grantProbe)
             }
         },
     )
@@ -48,6 +48,9 @@ internal fun StorageProbeScreen(container: AppContainer) {
     val context = LocalContext.current
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let(FolderPaths::of)?.let(viewModel::chooseFolder)
+    }
+    val grantFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let(viewModel::grantFolder)
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.checkOnReturn() }
 
@@ -94,6 +97,26 @@ internal fun StorageProbeScreen(container: AppContainer) {
                             FilledTonalButton(viewModel::read) { Text("Read") }
                             FilledTonalButton(viewModel::rewriteDatabase) { Text("Rewrite") }
                             FilledTonalButton(viewModel::writeTestFile) { Text("Write test file") }
+                        }
+                    }
+                }
+            }
+            item {
+                Section("Through a granted folder (S3)") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton({ grantFolder.launch(null) }) { Text("Grant a folder") }
+                        if (state.grantedFolder != null) FilledTonalButton(viewModel::caseTest) { Text("Case test") }
+                        if (state.grantedFolder != null) FilledTonalButton(viewModel::missingTest) { Text("Missing test") }
+                    }
+                    state.grantedFolder?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    state.grantedFiles.forEach { name ->
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(name, Modifier.padding(top = 12.dp))
+                            if (name.endsWith(".kdbx", ignoreCase = true)) {
+                                FilledTonalButton({ viewModel.openGranted(name) }) { Text("Open") }
+                            } else {
+                                FilledTonalButton({ viewModel.keyFileGranted(name) }) { Text("Key file") }
+                            }
                         }
                     }
                 }
