@@ -1,5 +1,6 @@
 package dev.keething.android
 
+import dev.keething.android.about.AboutPage
 import dev.keething.android.editor.NewEntryPlaces
 import dev.keething.android.editor.savedText
 import dev.keething.domain.vault.VaultGroup
@@ -166,6 +167,9 @@ internal class AppContainer(context: Context) {
 
     /** The New database screen (SPEC §6.2), kept by the app: Create goes on when the screen is gone. */
     val newDatabases: NewDatabases = NewDatabases { newDatabase(context) }
+
+    /** About over the app, reached with every database locked too (SPEC §6.2). */
+    val about: AboutPage = AboutPage()
 
     /**
      * A form for New database: Save in starts at the current database's folder, then the list's other granted folders

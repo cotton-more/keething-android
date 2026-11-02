@@ -1,5 +1,6 @@
 package dev.keething.android.settings
 
+import dev.keething.android.about.BuildInfo
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
@@ -171,7 +172,10 @@ internal fun SettingsScreen(
             }
         }
         Group("About") {
-            Text("Keething for Android. Passwords and codes are set in Google Sans Code (SIL Open Font License 1.1).", style = MaterialTheme.typography.bodyMedium)
+            val info = remember { BuildInfo.read(context.assets) }
+            Text("Keething for Android ${info.versionText}.", style = MaterialTheme.typography.bodyMedium)
+            Text("Passwords and codes are set in Google Sans Code (SIL Open Font License 1.1).", style = MaterialTheme.typography.bodyMedium)
+            FilledTonalButton(onClick = { container.about.shown = true }) { Text("About Keething") }
         }
     }
 }

@@ -917,8 +917,9 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   back) they count from now: it is a reminder, not a barrier, the fingerprint already says who it is. Never is there
   for those who type the password elsewhere every day (the Mac app); Settings then says in red that a forgotten
   password opens its database for nobody.
-- **Settings**: the app's switch with "Each database whose Use fingerprint is on opens with it: turn it on under its
-  password on the lock screen, or on its page in Databases. Turning this off deletes all their stored passwords." (or
+- **Settings**: the app's switch with "Each database whose Use fingerprint is on opens with it: its lock screen offers
+  it once, by the fingerprint beside the password, and its page in Databases turns it on or off. Turning this off
+  deletes all their stored passwords." (or
   why the phone cannot), and the days while it is on. A database's page: Use fingerprint with what it does now: "Not
   available: …" when the phone cannot, "Off: its password is typed every time." (with the app's off, the words
   above), "The fingerprint opens it, and nothing is stored." (its key
@@ -1439,6 +1440,15 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build (the fingerprint spike, and what the storage provider does with names in a folder granted there).
+  Last **About**: "Keething for Android 0.0.1 · build 1.", the font's licence, and About Keething.
+- **About** (keething-spec app.about; the owner, 2026-11-02): the logo, "Keething", "for Android", then Version "0.0.1 ·
+  build 1" (the version code said as a build, the owner), Built "2 November 2026, 20:06" (the phone's time zone) and Commit "becc85f", or "becc85f with uncommitted
+  changes", selectable for a bug report; Back returns to what was shown. Reached with every database locked: an ⓘ in
+  the top corner of the welcome, the chooser and a lock screen (not in the chooser's run, nor over another app), and
+  About Keething in Settings. It covers the app as New database does. The facts are the asset `build-info.properties`,
+  written by Gradle at every build (`app/build.gradle.kts`, `BuildInfo`): not BuildConfig, so nothing compiled changes
+  with the time and the configuration cache keeps no time of its own; the time is SOURCE_DATE_EPOCH's when it is set
+  (F-Droid's reproducible build), else the build's.
 - **Launcher shortcuts** (long press on the icon; static, `res/xml/shortcuts.xml`): "Codes", then "Note from
   clipboard" (a quick note, §6.4). Codes: unlock, then
   the list titled "Codes" with only the entries with a one-time code, by title, each row's live code a

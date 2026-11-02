@@ -62,6 +62,8 @@ import dev.keething.android.settings.SettingsScreen
 import dev.keething.android.databases.DatabasePageScreen
 import dev.keething.android.databases.NewDatabaseScreen
 import dev.keething.android.databases.WelcomeScreen
+import dev.keething.android.about.AboutScreen
+import dev.keething.android.about.WithAboutCorner
 import dev.keething.vault.databases.DatabaseId
 import android.os.Environment
 import dev.keething.android.databases.DatabaseText
@@ -426,9 +428,15 @@ internal fun KeethingApp(container: AppContainer) {
             NewDatabaseScreen(form, onClose = container.newDatabases::close)
             return@Surface
         }
+        // About over whatever was shown (Settings, a lock screen, the welcome), back to it.
+        if (container.about.shown) {
+            AboutScreen(onClose = { container.about.shown = false })
+            return@Surface
+        }
+        val openAbout = { container.about.shown = true }
         val current = database
         if (current == null) {
-            WelcomeScreen(container)
+            WithAboutCorner(openAbout) { WelcomeScreen(container) }
             return@Surface
         }
         val state by container.sessions.state.collectAsStateWithLifecycle()
@@ -510,20 +518,22 @@ internal fun KeethingApp(container: AppContainer) {
         ) { showing ->
             when (showing) {
                 Shown.VAULT -> VaultScreens(container, current, navigation)
-                Shown.LOCK_SCREEN -> LockScreen(
-                    container = container,
-                    database = current,
-                    onBack = back,
-                    onChose = { shown ->
-                        // Nothing open: its lock screen in place of the chooser, Back to it; else Back to the one before.
-                        if (openIds.isEmpty()) {
-                            navigation.lockAsked = container.sessions.list.currentId
-                        } else if (navigation.lockBack == null) {
-                            navigation.lockBack = shown
-                        }
-                    },
-                )
-                Shown.CHOOSER -> Chooser(container, navigation)
+                Shown.LOCK_SCREEN -> WithAboutCorner(openAbout) {
+                    LockScreen(
+                        container = container,
+                        database = current,
+                        onBack = back,
+                        onChose = { shown ->
+                            // Nothing open: its lock screen in place of the chooser, Back to it; else Back to the one before.
+                            if (openIds.isEmpty()) {
+                                navigation.lockAsked = container.sessions.list.currentId
+                            } else if (navigation.lockBack == null) {
+                                navigation.lockBack = shown
+                            }
+                        },
+                    )
+                }
+                Shown.CHOOSER -> WithAboutCorner(openAbout) { Chooser(container, navigation) }
                 // The database the run asks, followed as it moves on (a Skip), with that run; each its own screen.
                 Shown.RUN -> asked?.let { (askedRun, id) ->
                     container.sessions.session(id)?.let { database ->

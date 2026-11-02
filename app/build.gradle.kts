@@ -1,6 +1,56 @@
+import java.io.ByteArrayOutputStream
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import javax.inject.Inject
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+/**
+ * What About says of this build (SPEC §6.2 "About"): its version, when it was built and from which commit, with
+ * uncommitted changes or not. Written at every build, as the asset `build-info.properties`, not as BuildConfig fields:
+ * nothing compiled changes with the time, and the configuration cache keeps no time of its own. F-Droid's reproducible
+ * build sets SOURCE_DATE_EPOCH: its time is then the build's, so the same source makes the same APK.
+ */
+abstract class BuildInfo : DefaultTask() {
+    @get:Input
+    abstract val versionName: Property<String>
+
+    @get:Input
+    abstract val versionCode: Property<Int>
+
+    @get:Internal
+    abstract val repository: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @get:Inject
+    abstract val exec: ExecOperations
+
+    @TaskAction
+    fun write() {
+        fun git(vararg args: String): String? {
+            val out = ByteArrayOutputStream()
+            val result = exec.exec {
+                commandLine("git", *args)
+                workingDir = repository.get().asFile
+                standardOutput = out
+                errorOutput = ByteArrayOutputStream()
+                isIgnoreExitValue = true
+            }
+            return out.toString().trim().takeIf { result.exitValue == 0 }
+        }
+        val commit = git("rev-parse", "--short", "HEAD").orEmpty()
+        val dirty = git("status", "--porcelain")?.isNotEmpty() == true
+        val built = System.getenv("SOURCE_DATE_EPOCH")?.toLongOrNull()?.let(Instant::ofEpochSecond) ?: Instant.now().truncatedTo(ChronoUnit.SECONDS)
+        // Written by hand: Properties.store would add a time of its own.
+        output.file("build-info.properties").get().asFile.writeText(
+            "version=${versionName.get()}\nversionCode=${versionCode.get()}\nbuilt=$built\ncommit=$commit\ndirty=$dirty\n",
+        )
+    }
 }
 
 android {
@@ -35,6 +85,19 @@ android {
             it.inputs.dir(fixtures).withPropertyName("fixtures")
             it.systemProperty("keething.fixtures", fixtures.absolutePath)
         }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val info = tasks.register<BuildInfo>("${variant.name}BuildInfo") {
+            versionName.set(android.defaultConfig.versionName)
+            versionCode.set(android.defaultConfig.versionCode)
+            repository.set(rootProject.layout.projectDirectory)
+            // The time and the working tree change with every build.
+            outputs.upToDateWhen { false }
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(info, BuildInfo::output)
     }
 }
 
