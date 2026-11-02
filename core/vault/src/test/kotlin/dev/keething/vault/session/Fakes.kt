@@ -1,6 +1,7 @@
 package dev.keething.vault.session
 
 import dev.keething.domain.storage.ConflictCopy
+import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
@@ -47,11 +48,12 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
 
     override fun version(): FileVersion? = current
 
-    override fun replace(bytes: ByteArray) {
+    override fun replace(bytes: ByteArray, expected: FileVersion?) {
         if (failNextReplace) {
             failNextReplace = false
             throw IOException("disk full")
         }
+        if (expected != null && expected != current) throw DatabaseChangedException("changed since $expected")
         replaced++
         change(bytes.copyOf())
     }

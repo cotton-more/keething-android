@@ -2,6 +2,7 @@ package dev.keething.vault.saving
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseBackups
+import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.vault.Vault
@@ -52,7 +53,11 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             }
             try {
                 backups.keep(original, store.fileName, now)
-                store.replace(made.file)
+                store.replace(made.file, current.version)
+            } catch (_: DatabaseChangedException) {
+                // Changed since that read (a sync, at the last moment) and nothing was replaced: read it again, as above.
+                made.discard()
+                return@repeat
             } catch (failure: Exception) {
                 made.discard()
                 throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))

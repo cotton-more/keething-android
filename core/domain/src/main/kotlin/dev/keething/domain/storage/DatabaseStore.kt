@@ -1,5 +1,7 @@
 package dev.keething.domain.storage
 
+import java.io.IOException
+
 /**
  * How the app reaches the database file (SPEC §3.1), so the way of reaching it can change without
  * touching anything else. The functions block on file I/O; call them off the main thread.
@@ -14,12 +16,14 @@ public interface DatabaseStore {
     public fun version(): FileVersion?
 
     /**
-     * Makes [bytes] the database's content. Nothing that watches the folder (Syncthing) may ever see a
-     * half-written database where the storage allows that, and the new file must look changed to it even
-     * with the same size: a modification time it tells from the old one. Throws an [java.io.IOException]
-     * also when the content was replaced but the new time could not be made sure of.
+     * Makes [bytes] the database's content, in place of the file at the version [expected] (null: whatever is
+     * there). Nothing that watches the folder (Syncthing) may ever see a half-written database where the
+     * storage allows that, and the new file must look changed to it even with the same size: a modification
+     * time it tells from the old one. Throws a [DatabaseChangedException] when the file is not, or is no
+     * longer, at [expected] (nothing replaced), and an [IOException] also when the content was replaced but
+     * the new time could not be made sure of.
      */
-    public fun replace(bytes: ByteArray)
+    public fun replace(bytes: ByteArray, expected: FileVersion? = null)
 
     /** Syncthing's conflict copies of the database in its folder, newest first. */
     public fun conflictCopies(): List<ConflictCopy>
@@ -30,4 +34,16 @@ public interface DatabaseStore {
      * no calls; one change may cause more than one.
      */
     public fun watch(onChange: () -> Unit): AutoCloseable
+
+    /**
+     * The app said the [DatabaseRead.Found.stoppedSave] of a read: reads say it no more. Until then each read says it,
+     * so a read that shows nothing (a save's own, an unlock with a wrong password) does not take it away.
+     */
+    public fun stoppedSaveSaid() {}
 }
+
+/**
+ * The database file changed (a sync replaced it) while [DatabaseStore.replace] was getting ready to replace it: nothing
+ * was replaced, and the change is to be made again on the file as it is now.
+ */
+public class DatabaseChangedException(message: String) : IOException(message)

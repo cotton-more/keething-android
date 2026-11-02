@@ -2,8 +2,10 @@ package dev.keething.vault.saving
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseBackups
+import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
+import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
@@ -45,9 +47,13 @@ class VaultSaverTest {
         val kept = mutableListOf<ByteArray>()
         var fail = false
 
+        /** Runs while a backup is written, the last thing before the replace: another device changing the file then. */
+        var whileKeeping: (Int) -> Unit = {}
+
         override fun keep(database: ByteArray, fileName: String, at: Instant) {
             if (fail) throw IOException("no room")
             kept += database.copyOf()
+            whileKeeping(kept.size)
         }
     }
 
@@ -287,6 +293,50 @@ class VaultSaverTest {
         assertEquals("from the phone", vault.titled("Entry <one> ü").notes)
         assertEquals("from the Mac", vault.titled("Second renamed").notes, "the other change is kept")
         assertContentEquals(elsewhere.content, backups.kept.single(), "the backup is the file it replaced")
+    }
+
+    @Test
+    fun aFileASyncReplacedWhileTheStoreWasReplacingItIsReadAgainAndTheEditAppliedOnTopOfIt() {
+        val key = key()
+        val elsewhere = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        val other = unlock(elsewhere, key).titled("Second renamed")
+        saved(VaultSaver(elsewhere, FakeBackups()).save(VaultEdit.Update(other.id, other.lastModified, EntryChanges(notes = "from the Mac")), key, now))
+        val fake = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        val mine = unlock(fake, key).titled("Entry <one> ü")
+        // The store found the file changed just before its rename (keething-spec databases.saf AC4, AC6): nothing replaced.
+        var replaces = 0
+        val store = object : DatabaseStore by fake {
+            override fun replace(bytes: ByteArray, expected: FileVersion?) {
+                if (++replaces == 1) {
+                    fake.change(elsewhere.content)
+                    throw DatabaseChangedException("a sync replaced it")
+                }
+                fake.replace(bytes)
+            }
+        }
+
+        val vault = saved(VaultSaver(store, backups).save(VaultEdit.Update(mine.id, mine.lastModified, EntryChanges(notes = "from the phone")), key, now))
+
+        assertEquals("from the phone", vault.titled("Entry <one> ü").notes)
+        assertEquals("from the Mac", vault.titled("Second renamed").notes, "the other change is kept")
+        assertEquals(1, fake.replaced)
+    }
+
+    @Test
+    fun aFileChangedWhileItWasBackedUpIsNotReplacedButReadAgainAndTheEditAppliedOnTopOfIt() {
+        val key = key()
+        val elsewhere = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        val other = unlock(elsewhere, key).titled("Second renamed")
+        saved(VaultSaver(elsewhere, FakeBackups()).save(VaultEdit.Update(other.id, other.lastModified, EntryChanges(notes = "from the Mac")), key, now))
+        val store = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        val mine = unlock(store, key).titled("Entry <one> ü")
+        // After the saver's last look at the file, before the store replaces it (keething-spec databases.saf AC4).
+        backups.whileKeeping = { kept -> if (kept == 1) store.change(elsewhere.content) }
+
+        val vault = saved(VaultSaver(store, backups).save(VaultEdit.Update(mine.id, mine.lastModified, EntryChanges(notes = "from the phone")), key, now))
+
+        assertEquals("from the phone", vault.titled("Entry <one> ü").notes)
+        assertEquals("from the Mac", vault.titled("Second renamed").notes, "the other change is kept")
     }
 
     @Test

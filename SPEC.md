@@ -415,8 +415,8 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    themselves (the Mac goes by path and does not offer such a group). The recycle bin's own groups are checked too:
    as before for an entry's edit (but the bin a recycled entry makes, in the root group), and a group's edit takes them along when the
    bin is inside the group changed, its entries' paths with them.
-6. If the file on disk changed meanwhile (byte for byte), do it all again on the new file (once more, then
-   fail).
+6. If the file on disk changed meanwhile (byte for byte, and by its version once more as the store replaces it),
+   do it all again on the new file (once more, then fail).
 7. Back up the old file into app-private storage (`filesDir/backups/<database id>/`, `<name> <local date and
    time>.kdbx`, `_2`… for more within a second, numbered after the last one there; the newest 10 in the database's
    folder, whatever the file was called, other files left alone, so two `Personal.kdbx` keep theirs apart and a

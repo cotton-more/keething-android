@@ -9,6 +9,8 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.kotlinx.coroutines.test)
+    // FakeGrantedFolder: a granted folder as the phone's storage provider behaves.
+    testImplementation(testFixtures(project(":core:domain")))
     // Every file a test writes is checked against KeePass's KDBX_XML.xsd (core:kdbx SchemaCheck).
     testImplementation(testFixtures(project(":core:kdbx")))
 }

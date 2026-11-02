@@ -41,7 +41,7 @@ class QuickNoteSessionsTest {
 
         override fun version(): FileVersion = version
 
-        override fun replace(bytes: ByteArray): Unit = throw IOException("read only")
+        override fun replace(bytes: ByteArray, expected: FileVersion?): Unit = throw IOException("read only")
 
         override fun conflictCopies(): List<ConflictCopy> = emptyList()
 

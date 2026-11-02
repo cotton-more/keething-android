@@ -1,6 +1,7 @@
 package dev.keething.android.storage
 
 import dev.keething.domain.storage.ConflictCopy
+import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
@@ -69,8 +70,9 @@ internal class PathDatabaseStore(
         )
     }
 
-    override fun replace(bytes: ByteArray) {
+    override fun replace(bytes: ByteArray, expected: FileVersion?) {
         val replaced = version()
+        if (expected != null && replaced != expected) throw DatabaseChangedException("${database.name} changed since it was read")
         val temporary = File(folder, temporaryFileName())
         try {
             FileOutputStream(temporary).use { stream ->

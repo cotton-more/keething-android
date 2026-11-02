@@ -262,7 +262,7 @@ internal class FileStore(private val file: File) : DatabaseStore {
 
     override fun version(): FileVersion = FileVersion(file.length(), Instant.ofEpochMilli(file.lastModified()), null)
 
-    override fun replace(bytes: ByteArray) {
+    override fun replace(bytes: ByteArray, expected: FileVersion?) {
         val temporary = File(file.parentFile, ".probe.tmp")
         temporary.writeBytes(bytes)
         Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)

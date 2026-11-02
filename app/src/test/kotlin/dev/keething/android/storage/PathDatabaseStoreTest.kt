@@ -1,10 +1,12 @@
 package dev.keething.android.storage
 
+import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.time.Clock
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
 import java.time.Instant
 import kotlin.test.AfterTest
@@ -98,6 +100,20 @@ class PathDatabaseStoreTest {
 
         assertFailsWith<IOException> { store.replace(byteArrayOf(2)) }
         assertContentEquals(byteArrayOf(2), database.readBytes())
+    }
+
+    @Test
+    fun replaceRefusesAFileNoLongerAtTheVersionTheSaveWasMadeOn() {
+        database.writeBytes(byteArrayOf(1))
+        val expected = store.version()
+        // A sync's replace: a new file renamed over the database.
+        val synced = File(folder, ".syncthing.vault.kdbx.tmp").apply { writeBytes(byteArrayOf(9, 9)) }
+        Files.move(synced.toPath(), database.toPath(), StandardCopyOption.ATOMIC_MOVE)
+
+        assertFailsWith<DatabaseChangedException> { store.replace(byteArrayOf(2), expected) }
+
+        assertContentEquals(byteArrayOf(9, 9), database.readBytes())
+        assertEquals(listOf("vault.kdbx"), folder.list()?.toList())
     }
 
     @Test
