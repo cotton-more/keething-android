@@ -1,4 +1,6 @@
 .gradle/
+# The Kotlin compiler's sessions while it builds: else a build that compiles reads as one with uncommitted changes.
+.kotlin/
 build/
 */build/
 local.properties
