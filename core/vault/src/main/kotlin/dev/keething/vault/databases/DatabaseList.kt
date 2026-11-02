@@ -1,7 +1,7 @@
 package dev.keething.vault.databases
 
 import dev.keething.domain.settings.SettingsStore
-import java.io.File
+import dev.keething.domain.storage.StoragePlace
 import java.text.Normalizer
 import java.time.Instant
 import java.util.Locale
@@ -34,14 +34,15 @@ public data class DatabaseId(val value: String) {
 }
 
 /**
- * A database of the list (SPEC §3.1; Mac `DatabaseRecord`): what this phone remembers of it. Nothing secret: paths
- * and choices only.
+ * A database of the list (SPEC §3.1; Mac `DatabaseRecord`): what this phone remembers of it. Nothing secret: where its
+ * files are, and choices.
  */
 public data class DatabaseRecord(
     val id: DatabaseId,
-    val path: String,
-    /** Remembered by its path, not its contents: read at every unlock (keething-spec kdbx.key-files AC8). */
-    val keyFilePath: String? = null,
+    /** Where the database is (keething-spec databases.saf AC2, AC13). */
+    val file: FileLocation,
+    /** Remembered by where it is, not its contents: read at every unlock (keething-spec kdbx.key-files AC8, databases.saf AC9). */
+    val keyFile: FileLocation? = null,
     /** The file's own name (`Meta/DatabaseName`) as last read; null: the file name says it. */
     val name: String? = null,
     /** The file's own colour (`Meta/Color`) as last read, `#RRGGBB`; null: one of the palette's. */
@@ -56,14 +57,20 @@ public data class DatabaseRecord(
     /** Checked in the chooser, as at the last unlock of several (plan AD13). */
     val checkedInChooser: Boolean = true,
 ) {
-    public val fileName: String get() = path.substringAfterLast('/')
+    public val fileName: String get() = file.fileName
+
+    /** The database's path while the app reaches files by path (until databases.saf stage S3); null for one through a grant. */
+    public val path: String? get() = (file as? FileLocation.ByPath)?.path
+
+    /** The key file's path, as [path]; null for none, or one through a grant. */
+    public val keyFilePath: String? get() = (keyFile as? FileLocation.ByPath)?.path
 
     /** The name it goes by: its own, else the file name without `.kdbx`. */
     public val displayName: String
         get() = name?.takeIf { it.isNotBlank() } ?: fileName.let { if (it.lowercase().endsWith(".kdbx")) it.dropLast(5) else it }
 
     /** Opens with its key file alone: nothing to type, nothing for the fingerprint to store. */
-    public val isPasswordless: Boolean get() = keyFilePath != null && opensWithoutPassword
+    public val isPasswordless: Boolean get() = keyFile != null && opensWithoutPassword
 
     public companion object {
         /**
@@ -148,15 +155,50 @@ public class DatabaseList(
     }
 
     /**
-     * The record of the file at [path]: the one there is (the same file, however the path is written), or a new one at
-     * the end of the list. The first one becomes current.
+     * The record of [file]: the one there is (the same file, however it is reached: [FileLocation.isSameFile]), or a new
+     * one at the end of the list. The first one becomes current.
      */
-    public fun add(path: String, useBiometric: Boolean = false): DatabaseRecord {
-        val standardized = standardized(path)
-        records.firstOrNull { standardized(it.path) == standardized }?.let { return it }
-        val record = DatabaseRecord(makeId(), standardized, useBiometric = useBiometric)
+    public fun add(file: FileLocation, useBiometric: Boolean = false): DatabaseRecord {
+        recordOf(file)?.let { return it }
+        val record = DatabaseRecord(makeId(), file, useBiometric = useBiometric)
         change(Databases(records + record, currentId ?: record.id))
         return record
+    }
+
+    /**
+     * A new database at [file] with its [keyFile], at the end of the list, in place of the record of that file there was
+     * (another database whose file is gone): one change, so nothing that follows the list sees the file's grant unused
+     * in between (keething-spec databases.saf AC14). The removed one current, the new one is. The removed record, or null.
+     */
+    public fun replace(file: FileLocation, keyFile: FileLocation?, useBiometric: Boolean): Pair<DatabaseRecord, DatabaseRecord?> {
+        val old = recordOf(file)
+        val record = DatabaseRecord(makeId(), file, keyFile, useBiometric = useBiometric)
+        val left = records.filter { it.id != old?.id }
+        change(Databases(left + record, currentId?.takeIf { id -> left.any { it.id == id } } ?: record.id))
+        return record to old
+    }
+
+    /** [add] of the file at [path], standardized: as the app adds a database while it reaches files by path (until databases.saf stage S3). */
+    public fun add(path: String, useBiometric: Boolean = false): DatabaseRecord = add(FileLocation.byPath(path), useBiometric)
+
+    /** The database of the list that is [file], however it is reached; null for none. */
+    public fun recordOf(file: FileLocation): DatabaseRecord? = records.firstOrNull { it.file.isSameFile(file) }
+
+    /** The grants the list's databases and key files are reached through (keething-spec databases.saf AC14). */
+    public val grantsInUse: Set<String> get() = records.flatMap { listOfNotNull(it.file.grant, it.keyFile?.grant) }.toSet()
+
+    /**
+     * [place] reached through a folder the list's databases or key files are already reached through, which holds it
+     * (keething-spec databases.saf AC3, AC9: nothing more is asked for): [prefer]'s folder when it holds it (a database's
+     * own, for its key file), else the first in the list's order. Null when none holds it.
+     */
+    public fun inGrantedFolder(place: StoragePlace, prefer: FileLocation? = null): FileLocation.InFolder? {
+        val folders = listOfNotNull(prefer) + records.flatMap { listOfNotNull(it.file, it.keyFile) }
+        for (folder in folders.filterIsInstance<FileLocation.InFolder>()) {
+            val path = place.inside(folder.folder) ?: continue
+            if (path.isNotEmpty()) return FileLocation.InFolder(folder.grant, folder.folder, path)
+        }
+        return null
     }
 
     /**
@@ -208,12 +250,44 @@ public class DatabaseList(
         public const val STORE_KEY: String = "databases"
 
         /** The same file however its path is written: `.` and `..` resolved, doubled and trailing `/` dropped. */
-        public fun standardized(path: String): String = File(path).normalize().path
+        public fun standardized(path: String): String = FileLocation.standardized(path)
+
+        /**
+         * A database's file or key file: by path as before databases.saf (`"path"`, `"keyFilePath"`: the list of before
+         * reads as it is, AC13), else an object under `"file"` or `"keyFile"`: a granted folder's address, the folder's
+         * place on the storage and the path inside it (`grant`, `volume`, `folder`, `path`), or a file granted alone
+         * (`grant`, `volume`, `place`).
+         */
+        private fun MutableMap<String, Any>.putLocation(pathKey: String, objectKey: String, location: FileLocation?) {
+            when (location) {
+                null -> Unit
+                is FileLocation.ByPath -> put(pathKey, location.path)
+                is FileLocation.InFolder -> put(
+                    objectKey,
+                    mapOf("grant" to location.grant, "volume" to location.folder.volume, "folder" to location.folder.path, "path" to location.path),
+                )
+                is FileLocation.Granted -> put(objectKey, mapOf("grant" to location.grant, "volume" to location.at.volume, "place" to location.at.path))
+            }
+        }
+
+        private fun Map<*, *>.location(pathKey: String, objectKey: String): FileLocation? {
+            val located = field<Map<*, *>>(objectKey)?.let { map ->
+                val grant = map.field<String>("grant") ?: throw Unreadable()
+                val volume = map.field<String>("volume") ?: throw Unreadable()
+                val folder = map.field<String>("folder")
+                if (folder != null) {
+                    FileLocation.InFolder(grant, StoragePlace(volume, folder), map.field<String>("path")?.takeIf { it.isNotEmpty() } ?: throw Unreadable())
+                } else {
+                    FileLocation.Granted(grant, StoragePlace(volume, map.field<String>("place") ?: throw Unreadable()))
+                }
+            }
+            return located ?: field<String>(pathKey)?.let(FileLocation::ByPath)
+        }
 
         private fun encode(record: DatabaseRecord): Map<String, Any> = buildMap {
             put("id", record.id.value)
-            put("path", record.path)
-            record.keyFilePath?.let { put("keyFilePath", it) }
+            putLocation("path", "file", record.file)
+            putLocation("keyFilePath", "keyFile", record.keyFile)
             record.name?.let { put("name", it) }
             record.color?.let { put("color", it) }
             put("useBiometric", record.useBiometric)
@@ -225,7 +299,8 @@ public class DatabaseList(
         }
 
         /**
-         * Null when the text is not a list: not JSON, a record without `id` or `path`, a field of the wrong type.
+         * Null when the text is not a list: not JSON, a record without `id` or a file (`path` or `file`), a field of the
+         * wrong type.
          * Fields missing (an older or newer list) read as their defaults; unknown ones are ignored.
          */
         private fun decode(raw: String): Databases? = try {
@@ -242,8 +317,8 @@ public class DatabaseList(
 
         private fun record(map: Map<*, *>): DatabaseRecord = DatabaseRecord(
             id = DatabaseId(map.field<String>("id") ?: throw Unreadable()),
-            path = map.field<String>("path") ?: throw Unreadable(),
-            keyFilePath = map.field<String>("keyFilePath"),
+            file = map.location("path", "file") ?: throw Unreadable(),
+            keyFile = map.location("keyFilePath", "keyFile"),
             name = map.field<String>("name"),
             color = map.field<String>("color"),
             useBiometric = map.field<Boolean>("useBiometric") ?: false,

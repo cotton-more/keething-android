@@ -26,7 +26,7 @@ import dev.keething.android.ui.AppLogo
 import dev.keething.android.ui.ButtonLabel
 import androidx.compose.foundation.text.input.clearText
 import dev.keething.vault.databases.DatabaseId
-import dev.keething.vault.databases.DatabaseList
+import dev.keething.vault.databases.FileLocation
 import java.io.File
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -197,7 +197,7 @@ internal fun LockScreen(
     var locateProblem by remember(database.number) { mutableStateOf<String?>(null) }
     val folder = database.file.parentFile
     val openOther = rememberFilePicker { file ->
-        if (container.sessions.list.record(database.id)?.let { DatabaseList.standardized(file.path) == it.path } != true) {
+        if (container.sessions.list.record(database.id)?.file?.isSameFile(FileLocation.byPath(file.path)) != true) {
             leave()
             databases.open(file.path)
             onChose(database.id)

@@ -9,6 +9,7 @@ import dev.keething.domain.settings.SettingsStore
 import dev.keething.domain.storage.KeyFileSource
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
+import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.FakeClock
@@ -66,7 +67,7 @@ class BiometricUnlockTest {
         /** Another database of the list, with its own file and session. */
         fun add(path: String, database: ByteArray? = fixtureBytes("kdbx4-aes-aeskdf"), keyFile: KeyFileSource? = null): Database {
             val record = list.add(path, useBiometric = true)
-            if (keyFile != null) list.update(record.id) { it.copy(keyFilePath = "/keys/${keyFile.fileName}") }
+            if (keyFile != null) list.update(record.id) { it.copy(keyFile = FileLocation.ByPath("/keys/${keyFile.fileName}")) }
             val session = VaultSession(
                 store = FakeStore(database),
                 opener = VaultOpener(),
@@ -76,7 +77,7 @@ class BiometricUnlockTest {
                 io = fileReads,
                 keyFile = { keyFile },
             )
-            val biometric = BiometricUnlock(record.id, session, setup, list, scope.backgroundScope, scope.backgroundScope, fileExists = { it !in missing })
+            val biometric = BiometricUnlock(record.id, session, setup, list, scope.backgroundScope, scope.backgroundScope, fileExists = { (it as FileLocation.ByPath).path !in missing })
             return Database(record.id, session, biometric)
         }
 

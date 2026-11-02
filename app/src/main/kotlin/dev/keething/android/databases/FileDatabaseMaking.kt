@@ -1,15 +1,16 @@
 package dev.keething.android.databases
 
-import dev.keething.android.storage.CreationNote
 import dev.keething.android.storage.PathKeyFileSource
 import dev.keething.android.storage.PathNewFile
 import dev.keething.domain.encryption.DatabaseEncryption
 import dev.keething.domain.encryption.MeasuredEncryption
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.NewFile
+import dev.keething.vault.creating.CreationNote
 import dev.keething.vault.creating.DatabaseCreator
 import dev.keething.vault.creating.DerivedKey
 import dev.keething.vault.creating.EncryptionMeasurement
+import dev.keething.vault.databases.FileLocation
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -37,7 +38,7 @@ internal class FileDatabaseMaking(
 
     override fun createKeyFile(path: String): Secret {
         val file = File(path)
-        val target = note.noting(newFileAt(file), path)
+        val target = note.noting(newFileAt(file), FileLocation.ByPath(path))
         val key = creator.createKeyFile(target, PathKeyFileSource(file))
         synchronized(madeKeyFiles) { madeKeyFiles[path] = target }
         return key
@@ -51,7 +52,7 @@ internal class FileDatabaseMaking(
 
     override fun create(path: String, name: String, password: Secret, keyFile: Secret?, measured: MeasuredEncryption): DerivedKey {
         val file = File(path)
-        return creator.create(note.noting(newFileAt(file), path), name, password, keyFile, measured)
+        return creator.create(note.noting(newFileAt(file), FileLocation.ByPath(path)), name, password, keyFile, measured)
     }
 
     override fun end(made: Boolean) {

@@ -1,7 +1,7 @@
 package dev.keething.android.databases
 
-import dev.keething.android.storage.CreationNote
 import dev.keething.android.storage.PathNewFile
+import dev.keething.vault.creating.CreationNote
 import dev.keething.domain.encryption.DatabaseEncryption
 import dev.keething.domain.encryption.DatabaseEncryption.Cipher
 import dev.keething.domain.encryption.DatabaseEncryption.KeyDerivation

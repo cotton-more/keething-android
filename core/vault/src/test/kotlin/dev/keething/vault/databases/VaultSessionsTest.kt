@@ -77,10 +77,10 @@ class VaultSessionsTest {
         private val setup = BiometricSetup(FakePasswordStores(), list, settings, clock, io)
 
         private val factory = SessionFactory { record, number, _, watching ->
-            val store = files.getOrPut(record.path) { FakeStore(null) }
-            val session = VaultSession(store, VaultOpener(), { _, _, _ -> }, clock, scope.backgroundScope, ios[record.path] ?: io)
+            val store = files.getOrPut(record.path!!) { FakeStore(null) }
+            val session = VaultSession(store, VaultOpener(), { _, _, _ -> }, clock, scope.backgroundScope, ios[record.path!!] ?: io)
             val biometric = BiometricUnlock(record.id, session, setup, list, scope.backgroundScope, watching, fileExists = { true })
-            DatabaseSession(number, record.id, File(record.path), store, session, biometric)
+            DatabaseSession(number, record.id, record.file, store, session, biometric)
         }
 
         /** Every state the app was told, in order (the first is the one it started with). */
@@ -464,7 +464,7 @@ class VaultSessionsTest {
         val personal = f.vault(p)
         f.files["/b/p.kdbx"] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
 
-        f.list.update(p.id) { it.copy(path = "/b/p.kdbx") }
+        f.list.update(p.id) { it.copy(file = FileLocation.ByPath("/b/p.kdbx")) }
 
         val after = assertNotNull(f.sessions.session(p.id))
         assertNotSame(before, after)

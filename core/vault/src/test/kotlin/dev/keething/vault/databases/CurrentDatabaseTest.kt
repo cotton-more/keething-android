@@ -29,6 +29,10 @@ import dev.keething.vault.session.keyFileBytes
 import java.io.File
 import java.io.IOException
 import java.time.Instant
+import dev.keething.domain.storage.StoragePlace
+import dev.keething.domain.storage.Grants
+import dev.keething.vault.storage.SaveNotes
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -52,6 +56,9 @@ import kotlinx.coroutines.test.runTest
  * The current database and its session (plan AD4): the Mac's D4 `DatabaseListModelTests` for choosing, opening,
  * locating, a key file and Remove from List, each database with its own stored password (plan AD5).
  */
+/** What the fakes are found by: a path, or the location written out. */
+private fun key(file: FileLocation): String = (file as? FileLocation.ByPath)?.path ?: file.toString()
+
 class CurrentDatabaseTest {
     private class Fixture(scope: TestScope, val settings: MapSettings = MapSettings()) {
         val list = DatabaseList(settings, makeId = { DatabaseId("db-${++ids}") })
@@ -67,7 +74,7 @@ class CurrentDatabaseTest {
         val setup = BiometricSetup(passwords, list, settings, clock, io)
 
         private val factory = SessionFactory { record, number, keyFilePath, watching ->
-            val store = files.getOrPut(record.path) { FakeStore(null) }
+            val store = files.getOrPut(key(record.file)) { FakeStore(null) }
             val session = VaultSession(
                 store = store,
                 opener = VaultOpener(),
@@ -75,16 +82,21 @@ class CurrentDatabaseTest {
                 clock = clock,
                 scope = scope.backgroundScope,
                 io = io,
-                keyFile = { keyFilePath()?.let { keyFiles.getOrPut(it) { FakeKeyFile(null, File(it).name) } } },
+                keyFile = { keyFilePath()?.let { keyFiles.getOrPut(key(it)) { FakeKeyFile(null, it.fileName) } } },
             )
             val biometric = BiometricUnlock(
                 record.id, session, setup, list, scope.backgroundScope, watching, fileExists = { true }, appLocks = { sessions.lockCount },
             )
-            DatabaseSession(number, record.id, File(record.path), store, session, biometric)
+            DatabaseSession(number, record.id, record.file, store, session, biometric)
         }
 
         val sessions: VaultSessions by lazy { VaultSessions(list, scope.backgroundScope, factory, clock, lockTimeout = { 5.minutes }, now = clock::now) }
-        val databases: CurrentDatabase by lazy { CurrentDatabase(list, scope.backgroundScope, sessions, setup) }
+        /** The grants told to the keeper, in order. */
+        val offered = mutableListOf<String>()
+        var keeper: GrantKeeper? = null
+        val databases: CurrentDatabase by lazy {
+            CurrentDatabase(list, scope.backgroundScope, sessions, setup, offered = { grant -> offered += grant; keeper?.offered(grant) })
+        }
 
         val shown: DatabaseSession get() = assertNotNull(databases.current.value)
 
@@ -94,7 +106,7 @@ class CurrentDatabaseTest {
             val record = list.add(path)
             keyFile?.let { (keyPath, content) ->
                 keyFiles[keyPath] = FakeKeyFile(content, File(keyPath).name)
-                list.update(record.id) { it.copy(keyFilePath = keyPath) }
+                list.update(record.id) { it.copy(keyFile = FileLocation.ByPath(keyPath)) }
             }
             return list.record(record.id)!!
         }
@@ -828,4 +840,148 @@ class CurrentDatabaseTest {
         advanceTimeBy(1.seconds)
         assertNotNull(assertIs<SessionState.Unlocked>(f.shown.state()).keyDerivation, "a typed password derives")
     }
+
+    // Folders the user granted (keething-spec databases.saf AC9, AC13, AC14)
+
+    private val sync = StoragePlace(StoragePlace.PRIMARY, "Sync")
+
+    private fun Fixture.addInFolder(file: FileLocation.InFolder): DatabaseRecord {
+        files[key(file)] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        return list.add(file)
+    }
+
+    @Test
+    fun aKeyFileChosenAloneInAFolderTheListReachesIsReachedThroughItAndItsOwnGrantIsOffered() = runTest {
+        val f = Fixture(this)
+        val personal = f.addInFolder(FileLocation.InFolder("grant-sync", sync, "KeePass/Personal.kdbx"))
+
+        f.databases.setKeyFile(personal.id, FileLocation.Granted("grant-key", StoragePlace("primary", "sync/Keys/personal.keyx")))
+
+        assertEquals(FileLocation.InFolder("grant-sync", sync, "Keys/personal.keyx"), f.list.record(personal.id)?.keyFile)
+        assertEquals(listOf("grant-key"), f.offered, "given back: the list does not take it")
+
+        val outside = FileLocation.Granted("grant-stick", StoragePlace("1234-5678", "keys/personal.keyx"))
+        f.databases.setKeyFile(personal.id, outside)
+        assertEquals(outside, f.list.record(personal.id)?.keyFile, "in no folder of the list: its own grant")
+    }
+
+    @Test
+    fun anOldRecordsFolderMustHoldItsFileAndThenReachesItAndItsKeyFileWithEverythingElseKept() = runTest {
+        val f = Fixture(this)
+        val old = f.add(
+            "/storage/emulated/0/Sync/KeePass/Personal.kdbx",
+            keyFile = "/storage/emulated/0/Sync/Keys/personal.keyx" to keyFileBytes("keyx.keyx"),
+        )
+        f.list.update(old.id) { it.copy(name = "Mine", color = "#112233", useBiometric = true, opensWithoutPassword = true) }
+        assertEquals(old.id, f.shown.id)
+        val before = f.list.record(old.id)!!
+
+        assertEquals("That folder does not hold Personal.kdbx.", f.databases.folderGranted(old.id, "grant-download", StoragePlace("primary", "Download")))
+        assertEquals(before, f.list.record(old.id), "nothing changed")
+        assertEquals(
+            "That folder does not hold Personal.kdbx.",
+            f.databases.folderGranted(old.id, "grant-keepass", StoragePlace("primary", "Sync/KeePass/Personal.kdbx")),
+            "the file itself is no folder",
+        )
+
+        assertNull(f.databases.folderGranted(old.id, "grant-sync", StoragePlace("primary", "sync")))
+
+        val after = f.list.record(old.id)!!
+        assertEquals(FileLocation.InFolder("grant-sync", StoragePlace("primary", "sync"), "KeePass/Personal.kdbx"), after.file)
+        assertEquals(FileLocation.InFolder("grant-sync", StoragePlace("primary", "sync"), "Keys/personal.keyx"), after.keyFile, "asked once: its key file too")
+        assertEquals(before.copy(file = after.file, keyFile = after.keyFile), after, "its id, name, colour and choices")
+        assertEquals(listOf("grant-download", "grant-keepass", "grant-sync"), f.offered)
+    }
+
+    @Test
+    fun anOldRecordsKeyFileInNoFolderOfTheListStaysByItsPath() = runTest {
+        val f = Fixture(this)
+        val old = f.add("/storage/emulated/0/Sync/Personal.kdbx", keyFile = "/storage/1234-5678/personal.keyx" to keyFileBytes("keyx.keyx"))
+
+        assertNull(f.databases.folderGranted(old.id, "grant-sync", sync))
+
+        assertEquals(FileLocation.InFolder("grant-sync", sync, "Personal.kdbx"), f.list.record(old.id)?.file)
+        assertEquals(FileLocation.ByPath("/storage/1234-5678/personal.keyx"), f.list.record(old.id)?.keyFile, "Choose key file… then (AC10)")
+    }
+
+    @Test
+    fun anOldRecordOffThePhonesStorageCannotBeGivenAFolder() = runTest {
+        val f = Fixture(this)
+        val odd = f.add("/a/Personal.kdbx")
+        assertEquals("Personal.kdbx is not on the phone's storage.", f.databases.folderGranted(odd.id, "grant-sync", sync))
+        assertEquals(FileLocation.ByPath("/a/Personal.kdbx"), f.list.record(odd.id)?.file)
+    }
+
+    @Test
+    fun theSameFileThroughAnotherGrantIsTheDatabaseThereIsAndCannotBeLocatedTwice() = runTest {
+        val f = Fixture(this)
+        val personal = f.addInFolder(FileLocation.InFolder("grant-sync", sync, "KeePass/Personal.kdbx"))
+        val crypto = f.add("/storage/emulated/0/Crypto.kdbx", bytes = null)
+
+        assertEquals(personal.id, f.databases.open(FileLocation.InFolder("grant-keepass", StoragePlace("primary", "Sync/KeePass"), "personal.kdbx")))
+        assertEquals(2, f.list.records.size)
+        assertEquals(
+            "That file is already in the list as “Personal”.",
+            f.databases.locate(crypto.id, FileLocation.InFolder("grant-top", StoragePlace("primary", ""), "Sync/KeePass/Personal.kdbx")),
+        )
+        assertEquals(listOf("grant-keepass", "grant-top"), f.offered, "neither taken: both given back")
+    }
+
+    @Test
+    fun locatingIntoAGrantedFolderStartsTheSessionOfTheFileThere() = runTest {
+        val f = Fixture(this)
+        val crypto = f.add("/storage/1234-5678/Crypto.kdbx", bytes = null)
+        val there = FileLocation.InFolder("grant-sync", sync, "Crypto.kdbx")
+        f.files[key(there)] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        val before = f.shown
+
+        assertNull(f.databases.locate(crypto.id, there))
+
+        assertEquals(there, f.list.record(crypto.id)?.file)
+        assertTrue(f.shown !== before, "a new session for the file there")
+        assertEquals(there, f.shown.location)
+        assertTrue(typed(f, "pw"))
+    }
+
+    @Test
+    fun aNewDatabaseOverAGoneOnesFileKeepsItsFolderGrantAndItsKeyFileGoesThroughTheFolder() = runTest {
+        val f = Fixture(this)
+        val grants = object : Grants {
+            val givenBack = mutableListOf<String>()
+
+            override fun held(): Set<String> = setOf("grant-sync", "grant-key")
+
+            override fun giveBack(grant: String) {
+                givenBack += grant
+            }
+        }
+        val notesFolder = java.nio.file.Files.createTempDirectory("current-database-test").toFile()
+        // The keeper's io runs at once, as a thread of its own may while the main thread waits in Create.
+        f.keeper = GrantKeeper(f.list, grants, SaveNotes(notesFolder), backgroundScope, UnconfinedTestDispatcher(testScheduler))
+        val file = FileLocation.InFolder("grant-sync", sync, "Personal.kdbx")
+        val gone = f.addInFolder(file)
+        f.storedPassword("old")
+        f.files[key(file)] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+
+        val typed = Secret.of("pw")
+        val created = f.databases.created(
+            FileLocation.InFolder("grant-sync", sync, "personal.kdbx"),
+            FileLocation.Granted("grant-key", StoragePlace("primary", "Sync/Keys/personal.keyx")),
+            useBiometric = false,
+            key = madeWith(),
+            password = typed,
+        ) { false }
+        typed.wipe()
+        runCurrent()
+
+        val record = f.list.record(created.id)!!
+        assertTrue(created.id != gone.id, "another database")
+        assertEquals(listOf(created.id), f.list.records.map { it.id })
+        assertEquals(FileLocation.InFolder("grant-sync", sync, "Keys/personal.keyx"), record.keyFile, "through the folder the list reaches (AC9)")
+        assertEquals(listOf("grant-key"), grants.givenBack, "the folder's grant stays; the key file's own goes")
+        assertEquals(listOf("grant-sync", "grant-key"), f.offered)
+        assertNull(f.stored(gone.id), "the gone one's stored password went")
+        notesFolder.deleteRecursively()
+    }
 }
+

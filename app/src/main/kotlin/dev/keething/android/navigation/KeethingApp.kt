@@ -64,9 +64,11 @@ import dev.keething.android.databases.DatabasePageScreen
 import dev.keething.android.databases.NewDatabaseScreen
 import dev.keething.android.databases.WelcomeScreen
 import dev.keething.vault.databases.DatabaseId
+import android.os.Environment
+import dev.keething.android.databases.DatabaseText
+import dev.keething.vault.creating.CreationNote
 import dev.keething.vault.databases.EntryRef
 import dev.keething.android.sharing.AnswerScreen
-import dev.keething.android.storage.CreationNote
 import dev.keething.android.sharing.AskScreen
 import dev.keething.android.sharing.ChooseEntriesScreen
 import dev.keething.android.sharing.MadeAnswer
@@ -550,7 +552,7 @@ private fun Chooser(container: AppContainer, navigation: NavigationState) {
         onPauseOrDispose {}
     }
     val context = LocalContext.current
-    val folder = { id: DatabaseId? -> id?.let(sessions.list::record)?.let { File(it.path).parentFile } }
+    val folder = { id: DatabaseId? -> id?.let(sessions.list::record)?.let { File(DatabaseText.pathOf(it.file, Environment.getExternalStorageDirectory().path)).parentFile } }
     // Its lock screen in place of the chooser, Back to it.
     val openOther = rememberFilePicker { file -> navigation.lockAsked = sessions.databases.open(file.path) }
     // Kept across a rotation while the picker is up.
@@ -586,7 +588,7 @@ private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit)
                     "Keething was closed while writing it, so nothing of it was kept. Create it again."
                 } else {
                     "Keething was closed while writing it. This may be left of it, written in part: " +
-                        left.kept.joinToString(", ") + ". Delete it if it is not yours, then create the database again."
+                        left.kept.joinToString(", ") { DatabaseText.pathOf(it, Environment.getExternalStorageDirectory().path) } + ". Delete it if it is not yours, then create the database again."
                 },
             )
         },

@@ -7,6 +7,7 @@ import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
+import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.SessionFactory
@@ -84,25 +85,25 @@ class WindowFingerprintTest {
         val missing = mutableSetOf<String>()
 
         private val factory = SessionFactory { record, number, keyFilePath, watching ->
-            val store = files.getOrPut(record.path) { FakeStore(null) }
+            val store = files.getOrPut(record.path!!) { FakeStore(null) }
             val session = VaultSession(
                 store = store,
                 opener = VaultOpener(),
                 backups = { _, _, _ -> },
                 clock = clock,
                 scope = scope.backgroundScope,
-                io = ios[record.path] ?: io,
-                keyFile = { keyFilePath()?.let { keyFiles[it] } },
+                io = ios[record.path!!] ?: io,
+                keyFile = { keyFilePath()?.let { it as FileLocation.ByPath }?.path?.let { keyFiles[it] } },
             )
             val biometric = BiometricUnlock(
                 record.id, session, setup, list, scope.backgroundScope, watching,
-                fileExists = { it !in missing }, appLocks = { sessions.lockCount },
+                fileExists = { (it as FileLocation.ByPath).path !in missing }, appLocks = { sessions.lockCount },
             )
-            DatabaseSession(number, record.id, File(record.path), store, session, biometric)
+            DatabaseSession(number, record.id, record.file, store, session, biometric)
         }
 
         val sessions: VaultSessions by lazy { VaultSessions(list, scope.backgroundScope, factory, clock, lockTimeout = { 5.minutes }, now = clock::now) }
-        val fingerprint: WindowFingerprint by lazy { WindowFingerprint(sessions, setup, list, fileExists = { it !in missing }) }
+        val fingerprint: WindowFingerprint by lazy { WindowFingerprint(sessions, setup, list, fileExists = { (it as FileLocation.ByPath).path !in missing }) }
 
         /**
          * A database of the list whose file opens with "pw" unless [bytes] say otherwise, in the window, its fingerprint
@@ -158,8 +159,8 @@ class WindowFingerprintTest {
         val keyOnly = f.add("/db/KeyOnly.kdbx", bytes = keyFileBytes("keyfile-only.kdbx"))
         val empty = f.add("/db/Empty.kdbx")
         val elsewhere = f.add("/db/Elsewhere.kdbx", stored = "pw", inWindow = false)
-        f.list.update(noKey.id) { it.copy(keyFilePath = "/stick/taxes.keyx") }
-        f.list.update(keyOnly.id) { it.copy(keyFilePath = "/keys/keyx.keyx", opensWithoutPassword = true) }
+        f.list.update(noKey.id) { it.copy(keyFile = FileLocation.ByPath("/stick/taxes.keyx")) }
+        f.list.update(keyOnly.id) { it.copy(keyFile = FileLocation.ByPath("/keys/keyx.keyx"), opensWithoutPassword = true) }
         f.keyFiles["/keys/keyx.keyx"] = FakeKeyFile(keyFileBytes("keyx.keyx"), "keyx.keyx")
         f.missing += listOf("/stick/Gone.kdbx", "/stick/taxes.keyx")
         f.typed(due, daysAgo = 15)
@@ -244,7 +245,7 @@ class WindowFingerprintTest {
         val personal = f.add("/db/Personal.kdbx", stored = "pw")
         val work = f.add("/db/Work.kdbx", stored = "pw")
         val keyOnly = f.add("/db/KeyOnly.kdbx", bytes = keyFileBytes("keyfile-only.kdbx"))
-        f.list.update(keyOnly.id) { it.copy(keyFilePath = "/keys/keyx.keyx", opensWithoutPassword = true) }
+        f.list.update(keyOnly.id) { it.copy(keyFile = FileLocation.ByPath("/keys/keyx.keyx"), opensWithoutPassword = true) }
         f.keyFiles["/keys/keyx.keyx"] = FakeKeyFile(keyFileBytes("keyx.keyx"), "keyx.keyx")
         f.stores.several = SeveralOpening.KeyInvalidated
 
@@ -314,7 +315,7 @@ class WindowFingerprintTest {
         val f = fixture()
         val keyOnly = f.add("/db/KeyOnly.kdbx", bytes = keyFileBytes("keyfile-only.kdbx"))
         f.add("/db/Empty.kdbx")
-        f.list.update(keyOnly.id) { it.copy(keyFilePath = "/keys/keyx.keyx", opensWithoutPassword = true) }
+        f.list.update(keyOnly.id) { it.copy(keyFile = FileLocation.ByPath("/keys/keyx.keyx"), opensWithoutPassword = true) }
         f.keyFiles["/keys/keyx.keyx"] = FakeKeyFile(keyFileBytes("keyx.keyx"), "keyx.keyx")
         f.typed(keyOnly, daysAgo = 30)
 
@@ -526,7 +527,7 @@ class WindowFingerprintTest {
         val personal = f.add("/db/Personal.kdbx", stored = "pw")
         val work = f.add("/db/Work.kdbx")
         val keyOnly = f.add("/db/KeyOnly.kdbx", bytes = keyFileBytes("keyfile-only.kdbx"))
-        f.list.update(keyOnly.id) { it.copy(keyFilePath = "/keys/keyx.keyx", opensWithoutPassword = true) }
+        f.list.update(keyOnly.id) { it.copy(keyFile = FileLocation.ByPath("/keys/keyx.keyx"), opensWithoutPassword = true) }
         f.keyFiles["/keys/keyx.keyx"] = FakeKeyFile(keyFileBytes("keyx.keyx"), "keyx.keyx")
 
         assertFalse(f.fingerprint.canUnlockAny(among = listOf(work.id)), "nothing stored for Work, the others not looked at")

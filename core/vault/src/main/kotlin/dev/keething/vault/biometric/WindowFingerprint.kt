@@ -8,10 +8,10 @@ import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.databases.VaultSessions
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.session.SessionState
-import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -46,7 +46,7 @@ public class WindowFingerprint(
     private val sessions: VaultSessions,
     private val setup: BiometricSetup,
     private val list: DatabaseList,
-    private val fileExists: (String) -> Boolean = { File(it).isFile },
+    private val fileExists: (FileLocation) -> Boolean = FileLocation::isThereByPath,
 ) {
     private val mutableRunning = MutableStateFlow(false)
 
@@ -204,8 +204,8 @@ public class WindowFingerprint(
     private fun whyNot(record: DatabaseRecord): FingerprintOutcome? {
         if (!record.useBiometric) return FingerprintOutcome.NotAvailable("it is turned off for this database")
         // It could not open: asking for a finger only to fail is noise (keething-spec unlock.key-file AC3).
-        if (!fileExists(record.path)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
-        record.keyFilePath?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(File(it).name)) }
+        if (!fileExists(record.file)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
+        record.keyFile?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }
         if (setup.isDue(record)) return FingerprintOutcome.PasswordDue
         return null
     }

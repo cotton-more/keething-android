@@ -3,7 +3,7 @@ package dev.keething.android.databases
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import dev.keething.android.storage.CreationNote
+import dev.keething.vault.creating.CreationNote
 
 /**
  * The New database screen for the whole app (SPEC §6.2): open from the welcome, the lock screen's sheet or Settings ›

@@ -30,19 +30,23 @@ import kotlinx.coroutines.launch
 public class DatabaseSession(
     public val number: Int,
     public val id: DatabaseId,
-    public val file: File,
+    /** Where its file is, as the list had it when the session started: located elsewhere, a new session. */
+    public val location: FileLocation,
     public val store: DatabaseStore,
     public val session: VaultSession,
     public val biometric: BiometricUnlock,
-)
+) {
+    /** The file as the app's words name it while it reaches files by path (until databases.saf stage S3): its path, else its name. */
+    public val file: File get() = File((location as? FileLocation.ByPath)?.path ?: location.fileName)
+}
 
 /** Builds a database's session; the app picks the file store, the backups and how a key file is read. */
 public fun interface SessionFactory {
     /**
-     * [keyFilePath] is the database's key file as the list has it at each unlock; [scope] ends when the session is
-     * dropped (for watching it).
+     * [keyFile] is the database's key file as the list has it at each unlock; [scope] ends when the session is dropped
+     * (for watching it).
      */
-    public fun start(record: DatabaseRecord, number: Int, keyFilePath: () -> String?, scope: CoroutineScope): DatabaseSession
+    public fun start(record: DatabaseRecord, number: Int, keyFile: () -> FileLocation?, scope: CoroutineScope): DatabaseSession
 }
 
 /** The app's state over the window's databases (the Mac's `SessionsState`): what the screens show. */
@@ -288,7 +292,7 @@ public class VaultSessions(
         val window = list.window
         var dropped = false
         for ((id, started) in sessions.toList()) {
-            if (window.any { it.id == id && it.path == started.database.file.path }) continue
+            if (window.any { it.id == id && it.file == started.database.location }) continue
             drop(id, started)
             dropped = true
         }
@@ -303,7 +307,7 @@ public class VaultSessions(
     private fun start(record: DatabaseRecord): Started {
         val watching = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext.job))
         val id = record.id
-        val database = factory.start(record, ++made, { list.record(id)?.keyFilePath }, watching)
+        val database = factory.start(record, ++made, { list.record(id)?.keyFile }, watching)
         database.session.onStateChange = { changed(id, it) }
         return Started(database, watching)
     }

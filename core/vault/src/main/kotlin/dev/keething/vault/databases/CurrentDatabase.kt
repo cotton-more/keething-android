@@ -7,7 +7,7 @@ import dev.keething.vault.creating.DerivedKey
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
-import java.io.File
+import dev.keething.domain.storage.StoragePlace
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +22,9 @@ import kotlinx.coroutines.launch
  * Each database keeps its own stored password for the fingerprint (plan AD5): choosing another keeps each one's, and
  * Remove from List deletes the removed one's ([biometric]).
  *
+ * A grant the user gives for a file or folder here is told to [offered] first ([GrantKeeper.offered]): given back when
+ * the list does not take it (keething-spec databases.saf AC14).
+ *
  * Call it on [scope]'s thread (the main thread).
  */
 public class CurrentDatabase(
@@ -29,6 +32,7 @@ public class CurrentDatabase(
     private val scope: CoroutineScope,
     private val sessions: VaultSessions,
     private val biometric: BiometricSetup,
+    private val offered: (grant: String) -> Unit = {},
 ) {
     public val current: StateFlow<DatabaseSession?> = sessions.current
 
@@ -43,11 +47,15 @@ public class CurrentDatabase(
      * window, its fingerprint off until it is turned on for it (the owner's choice at plan AD5), and becomes current;
      * nothing closes. Its id.
      */
-    public fun open(path: String): DatabaseId {
-        val record = list.add(path)
+    public fun open(file: FileLocation): DatabaseId {
+        file.grant?.let(offered)
+        val record = list.add(file)
         show(record.id)
         return record.id
     }
+
+    /** [open] of the file at [path], as the app opens one while it reaches files by path (until databases.saf stage S3). */
+    public fun open(path: String): DatabaseId = open(FileLocation.byPath(path))
 
     /**
      * Close (keething-spec databases.several-open AC4, databases.not-open AC4): out of the window, locked, still in the
@@ -88,23 +96,57 @@ public class CurrentDatabase(
      * new file's: open, it locks first (its vault was the old file's); locked, the old file's reason goes. Why not, when
      * that file is another database of the list.
      */
-    public fun locate(id: DatabaseId, path: String): String? {
-        val standardized = DatabaseList.standardized(path)
-        val other = list.records.firstOrNull { it.id != id && DatabaseList.standardized(it.path) == standardized }
+    public fun locate(id: DatabaseId, file: FileLocation): String? {
+        file.grant?.let(offered)
+        val other = list.records.firstOrNull { it.id != id && it.file.isSameFile(file) }
         if (other != null) return "That file is already in the list as “${other.displayName}”."
-        list.update(id) { it.copy(path = standardized) }
+        list.update(id) { it.copy(file = file) }
         return null
     }
 
+    /** [locate] at [path], as the app locates a file while it reaches files by path (until databases.saf stage S3). */
+    public fun locate(id: DatabaseId, path: String): String? = locate(id, FileLocation.byPath(path))
+
     /**
-     * Choose…, Change… or Forget (null) a database's key file. Whether it opened without a password was the old key's.
-     * Locked, what its lock screen said goes (a "wrong password" said without the key file, a key file not there); a
-     * stored password it rejects is kept until something opens it.
+     * Choose…, Change… or Forget (null) a database's key file. A key file granted alone in a folder the list already
+     * reaches is reached through that folder, the database's own first (keething-spec databases.saf AC9): its own grant
+     * is not kept. Whether it opened without a password was the old key's. Locked, what its lock screen said goes (a
+     * "wrong password" said without the key file, a key file not there); a stored password it rejects is kept until
+     * something opens it.
      */
-    public fun setKeyFile(id: DatabaseId, path: String?) {
-        list.update(id) { it.copy(keyFilePath = path?.let { DatabaseList.standardized(it) }, opensWithoutPassword = false) }
+    public fun setKeyFile(id: DatabaseId, keyFile: FileLocation?) {
+        keyFile?.grant?.let(offered)
+        val record = list.record(id) ?: return
+        val reached = (keyFile as? FileLocation.Granted)?.let { list.inGrantedFolder(it.at, prefer = record.file) } ?: keyFile
+        list.update(id) { it.copy(keyFile = reached, opensWithoutPassword = false) }
         biometric.keyFileChanged(id)
         if (sessions.session(id)?.session?.state?.value is SessionState.Locked) sessions.lock(id, LockReason.Initial)
+    }
+
+    /** [setKeyFile] at [path], as the app chooses one while it reaches files by path (until databases.saf stage S3). */
+    public fun setKeyFile(id: DatabaseId, path: String) {
+        setKeyFile(id, FileLocation.byPath(path))
+    }
+
+    /**
+     * An old record's one question (keething-spec databases.saf AC13): the folder chosen for a database the list kept by
+     * its path, granted as [grant] at [folder] on the storage. It must hold the file at that path; the database is then
+     * reached through it, with its id, its stored password, its backups and its choices, and so is its key file when a
+     * folder of the list holds that one too. Its session follows, as at [locate]. Why not, or null.
+     */
+    public fun folderGranted(id: DatabaseId, grant: String, folder: StoragePlace): String? {
+        offered(grant)
+        val record = list.record(id) ?: return "That database is not in the list any more."
+        val before = record.file as? FileLocation.ByPath ?: return null
+        val place = before.place ?: return "${record.fileName} is not on the phone's storage."
+        val path = place.inside(folder)?.takeIf { it.isNotEmpty() } ?: return "That folder does not hold ${record.fileName}."
+        val file = FileLocation.InFolder(grant, folder, path)
+        val keyFile = when (val key = record.keyFile) {
+            is FileLocation.ByPath -> key.place?.let { list.inGrantedFolder(it, prefer = file) } ?: key
+            else -> key
+        }
+        list.update(id) { it.copy(file = file, keyFile = keyFile) }
+        return null
     }
 
     /**
@@ -119,31 +161,28 @@ public class CurrentDatabase(
 
     /**
      * A database just made (keething-spec databases.new-database AC8–AC10; the Mac's `DatabaseListModel.created`). A
-     * record of the list at its path (its file gone, even the current one, which closes) is another database: it goes
-     * first with its stored password, so the new one takes nothing of it (its id, backups, stored password). The new
-     * one joins the list and the window with its key file and its Use fingerprint, becomes current (nothing closes) and
+     * record of the list at its path (its file gone, even the current one, which closes) is another database: it goes, in
+     * the same change of the list as the new one joins it, and its stored password after, so the new one takes nothing of
+     * it (its id, backups, stored password). The new one joins the list and the window with its key file (one granted
+     * alone in a folder the list reaches goes through that folder, keething-spec databases.saf AC9) and its Use fingerprint, becomes current (nothing closes) and
      * opens with [key], the key it was made with, as a typed unlock of [password] (its days start; stored for the fingerprint when chosen). A lock since
      * Create was tapped ([lockedSince], asked once the list has it) leaves it locked and wipes [key]. The caller may
      * wipe [password] as soon as this returns.
      */
     public suspend fun created(
-        path: String,
-        keyFilePath: String?,
+        file: FileLocation,
+        keyFile: FileLocation?,
         useBiometric: Boolean,
         key: DerivedKey,
         password: Secret,
         lockedSince: () -> Boolean,
     ): Created {
-        val standardized = DatabaseList.standardized(path)
-        val old = list.records.firstOrNull { DatabaseList.standardized(it.path) == standardized }
-        var problem: String? = null
-        if (old != null) {
-            list.remove(old.id)
-            problem = biometric.forget(old.id)
-        }
-        val record = list.add(standardized, useBiometric = useBiometric)
-        list.update(record.id) { it.copy(keyFilePath = keyFilePath?.let(DatabaseList::standardized)) }
+        listOfNotNull(file.grant, keyFile?.grant).forEach(offered)
+        val reached = (keyFile as? FileLocation.Granted)?.let { list.inGrantedFolder(it.at, prefer = file) } ?: keyFile
+        // One change: the old record out and the new one in with its key file, so no grant looks unused in between.
+        val (record, old) = list.replace(file, reached, useBiometric)
         show(record.id)
+        val problem = old?.let { biometric.forget(it.id) }
         val database = current.value?.takeIf { it.id == record.id }
         if (database == null || lockedSince()) {
             key.wipe()
@@ -151,6 +190,16 @@ public class CurrentDatabase(
         }
         return Created(record.id, database.biometric.unlockCreated(key, password), problem)
     }
+
+    /** [created] at [path] and [keyFilePath], as the app makes a database while it reaches files by path (until databases.saf stage S3). */
+    public suspend fun created(
+        path: String,
+        keyFilePath: String?,
+        useBiometric: Boolean,
+        key: DerivedKey,
+        password: Secret,
+        lockedSince: () -> Boolean,
+    ): Created = created(FileLocation.byPath(path), keyFilePath?.let(FileLocation::byPath), useBiometric, key, password, lockedSince)
 
     /** What [created] did: the new database's [id], how its opening ends (null: not opened), why an old one's stored password stayed. */
     public class Created(public val id: DatabaseId, public val opened: Deferred<UnlockOutcome>?, public val problem: String?)
@@ -164,13 +213,13 @@ public class CurrentDatabase(
      * [password] as soon as this returns. How it ends; null when nothing was started (the vault was not locked).
      */
     public fun unlock(database: DatabaseSession, password: Secret): Deferred<UnlockOutcome>? {
-        val keyFile = list.record(database.id)?.keyFilePath
+        val keyFile = list.record(database.id)?.keyFile
         val nothingTyped = password.isEmpty()
         val outcome = database.biometric.unlock(password) ?: return null
         if (keyFile == null) return outcome
         scope.launch {
             val ended = outcome.await()
-            if (list.record(database.id)?.keyFilePath != keyFile) return@launch
+            if (list.record(database.id)?.keyFile != keyFile) return@launch
             when {
                 ended == UnlockOutcome.Opened -> list.update(database.id) { it.copy(opensWithoutPassword = nothingTyped) }
                 nothingTyped && ended is UnlockOutcome.Failed && ended.failure.isWrongKey ->
@@ -187,7 +236,7 @@ public class CurrentDatabase(
      * open a database out of the window or the list, one opening already, nor one whose file or key file is not there
      * ([fileExists]), looked at when the run reaches it.
      */
-    public fun run(ids: List<DatabaseId>, locks: () -> Int, fileExists: (String) -> Boolean): UnlockRun {
+    public fun run(ids: List<DatabaseId>, locks: () -> Int, fileExists: (FileLocation) -> Boolean): UnlockRun {
         val began = locks()
         return UnlockRun(
             ids = ids,
@@ -211,12 +260,12 @@ public class CurrentDatabase(
     }
 
     /** Why typing cannot open [id] now: it is skipped by itself in the run; null: it can be asked. */
-    private fun whyTypingCannotOpen(id: DatabaseId, fileExists: (String) -> Boolean): String? {
+    private fun whyTypingCannotOpen(id: DatabaseId, fileExists: (FileLocation) -> Boolean): String? {
         val record = list.record(id) ?: return "not in the list"
         if (!record.inWindow) return "closed"
         if (sessions.session(id)?.session?.state?.value == SessionState.Unlocking) return "opening"
-        if (!fileExists(record.path)) return "not found"
-        record.keyFilePath?.takeUnless(fileExists)?.let { return "${File(it).name} not there" }
+        if (!fileExists(record.file)) return "not found"
+        record.keyFile?.takeUnless(fileExists)?.let { return "${it.fileName} not there" }
         return null
     }
 }

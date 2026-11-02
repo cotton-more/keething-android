@@ -13,8 +13,8 @@ import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.databases.CurrentDatabase
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.session.SessionState
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,7 +82,7 @@ internal class LockViewModel(
 
     private suspend fun fingerprintCanOpen(): Boolean = withContext(Dispatchers.IO) {
         val record = list.record(database.id) ?: return@withContext false
-        File(record.path).isFile && record.keyFilePath?.let { File(it).isFile } != false
+        FileLocation.isThereByPath(record.file) && record.keyFile?.let(FileLocation::isThereByPath) != false
     }
 
     /** The lock screen's "Use fingerprint next time": this database's own switch, so the password typed next is stored. */
@@ -111,7 +111,7 @@ internal class LockViewModel(
      * run takes it (plan AD13), and wipes it after its try.
      */
     fun unlock(through: ((Secret) -> Unit)? = null) {
-        if (password.text.isEmpty() && list.record(database.id)?.keyFilePath == null) return
+        if (password.text.isEmpty() && list.record(database.id)?.keyFile == null) return
         val secret = Secret.of(password.text.toString())
         lastAttemptByFingerprint = false
         typedHere = true

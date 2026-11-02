@@ -36,7 +36,6 @@ import dev.keething.android.sharing.CodePictures
 import dev.keething.android.sharing.FileSharingStore
 import dev.keething.android.sharing.SharingKey
 import dev.keething.android.storage.AllFilesAccess
-import dev.keething.android.storage.CreationNote
 import dev.keething.android.storage.FileObserverFolderWatcher
 import dev.keething.android.storage.PathDatabaseStore
 import dev.keething.android.storage.PathKeyFileSource
@@ -49,11 +48,13 @@ import dev.keething.android.ui.Notice
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.sharing.message.PartCollector
 import dev.keething.sharing.requests.ShareRequests
+import dev.keething.vault.creating.CreationNote
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.EntryRef
 import dev.keething.vault.databases.SessionsState
 import dev.keething.vault.databases.StoredEntryIds
+import dev.keething.vault.storage.KeyFiles
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -99,7 +100,8 @@ internal class AppContainer(context: Context) {
      */
     val sessions = Sessions(
         settings, settingsStore, DatabaseList(settingsStore), databaseStoreAt, File(context.filesDir, "backups"),
-        ::PathKeyFileSource, biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path,
+        // Through grants from databases.saf stage S3; until then nothing is kept through one.
+        KeyFiles(folder = { null }, file = { null }, byPath = { PathKeyFileSource(File(it)) }), biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path,
     )
 
     /** What a new database's Create is making (plan AD7): an ended process's leftovers go at the next start. */
@@ -113,7 +115,7 @@ internal class AppContainer(context: Context) {
         val root = Environment.getExternalStorageDirectory()
         val list = sessions.list
         val folders = (listOfNotNull(list.current) + list.records)
-            .mapNotNull { File(it.path).parentFile?.takeIf(File::isDirectory)?.path }
+            .mapNotNull { record -> record.path?.let(::File)?.parentFile?.takeIf(File::isDirectory)?.path }
             .distinct()
         val model = NewDatabaseModel(
             making = FileDatabaseMaking(newFileAt, creationNote),
@@ -234,8 +236,8 @@ internal class AppContainer(context: Context) {
 
     init {
         // A small file, almost never there: read at once, before any Create can note anything.
-        val listed = sessions.list.records.flatMap { listOfNotNull(it.path, it.keyFilePath) }.map(DatabaseList::standardized).toSet()
-        runCatching { creationNote.leftovers { DatabaseList.standardized(it) in listed } }.getOrNull()?.let { newDatabases.notCreated = it }
+        val listed = sessions.list.records.flatMap { listOfNotNull(it.file, it.keyFile) }
+        runCatching { creationNote.leftovers { made -> listed.any(made::isSameFile) } }.getOrNull()?.let { newDatabases.notCreated = it }
         // A lock takes New database's form, with what was typed, unless it is being created.
         sessions.locks.onLock = newDatabases::locked
         clearOnLock()

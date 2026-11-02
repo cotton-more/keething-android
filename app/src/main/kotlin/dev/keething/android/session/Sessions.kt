@@ -18,11 +18,12 @@ import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
 import dev.keething.domain.settings.SettingsStore
 import dev.keething.domain.storage.DatabaseStore
-import dev.keething.domain.storage.KeyFileSource
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.biometric.WindowFingerprint
+import dev.keething.vault.databases.FileLocation
+import dev.keething.vault.storage.KeyFiles
 import dev.keething.vault.databases.CurrentDatabase
 import dev.keething.domain.vault.Entry
 import dev.keething.vault.databases.DatabaseId
@@ -87,7 +88,8 @@ internal class Sessions(
     private val storeAt: (File) -> DatabaseStore,
     /** Each database's backups go into a folder of its own here, named by its id (SPEC §3.3 step 7). */
     private val backupsFolder: File,
-    private val keyFileAt: (File) -> KeyFileSource,
+    /** How a key file is reached wherever the list has it (keething-spec databases.saf AC9). */
+    private val keyFiles: KeyFiles,
     biometricStores: BiometricPasswordStores,
     private val scope: CoroutineScope,
     /** One task at a time: the fingerprint's saves and deletes stay in order. */
@@ -183,7 +185,7 @@ internal class Sessions(
 
     /** The [open] databases as a new entry sees them: where it can go (keething-spec databases.one-list AC4, AC5). */
     fun newEntryDatabases(open: List<OpenDatabase>): List<NewEntryDatabase> = open.map {
-        NewEntryDatabase(it.database.id, it.database.number, it.unlocked.vault, it.mark, DatabaseText.folder(it.database.file.path, storageRoot))
+        NewEntryDatabase(it.database.id, it.database.number, it.unlocked.vault, it.mark, DatabaseText.folder(DatabaseText.pathOf(it.database.location, storageRoot), storageRoot))
     }
 
     /** The window's databases as the screens name them, in the window's order: Save into names those not open. */
@@ -301,9 +303,9 @@ internal class Sessions(
         vaults.movedToBackground()
     }
 
-    private fun start(record: DatabaseRecord, number: Int, keyFilePath: () -> String?, watching: CoroutineScope): DatabaseSession {
-        val file = File(record.path)
-        val store = storeAt(file)
+    private fun start(record: DatabaseRecord, number: Int, keyFile: () -> FileLocation?, watching: CoroutineScope): DatabaseSession {
+        // Nothing adds a database through a grant before the app reaches files through them (databases.saf stage S3).
+        val store = storeAt(File(checkNotNull(record.path) { "a database through a grant" }))
         val session = VaultSession(
             store = store,
             opener = VaultOpener(),
@@ -311,7 +313,7 @@ internal class Sessions(
             clock = AndroidClock,
             scope = scope,
             io = Dispatchers.IO,
-            keyFile = { keyFilePath()?.let { keyFileAt(File(it)) } },
+            keyFile = { keyFile()?.let(keyFiles::at) },
         )
         // Which states the session went through (names only, never data): how a lock came about.
         watching.launch { session.state.collect { Log.i(TAG, "${record.id.fileName.take(8)} ${it.describe()}") } }
@@ -321,11 +323,11 @@ internal class Sessions(
         watching.launch {
             fingerprint.state.map { it.copy(prompting = false, opening = false) }.distinctUntilChanged().collect { Log.i(TAG, it.describe()) }
         }
-        return DatabaseSession(number, record.id, file, store, session, fingerprint)
+        return DatabaseSession(number, record.id, record.file, store, session, fingerprint)
     }
 
     /** A file is there; without all-files access nothing can be known: the run asks, and its lock screen says to allow it. */
-    private fun isThere(path: String): Boolean = !AllFilesAccess.isGranted() || File(path).isFile
+    private fun isThere(file: FileLocation): Boolean = !AllFilesAccess.isGranted() || FileLocation.isThereByPath(file)
 
     private fun BiometricState.describe(): String = "fingerprint: " + listOfNotNull(
         if (appEnabled) "on" else "off",

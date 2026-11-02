@@ -1,7 +1,10 @@
-package dev.keething.android.storage
+package dev.keething.vault.creating
 
+import dev.keething.domain.storage.GrantedFolder
 import dev.keething.domain.storage.NewFile
 import dev.keething.domain.storage.NewFilePlace
+import dev.keething.domain.storage.StoragePlace
+import dev.keething.vault.databases.FileLocation
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
@@ -12,30 +15,32 @@ import java.security.MessageDigest
  * ends it, a crash, a short foreground service that did not hold), and a key file without its database, or a database
  * that never joined the list, would be left behind. At the next start [leftovers] removes what the note names that
  * Create made — only a file still empty or byte for byte as written, never one someone else put there — and says the
- * database's name. Blocking file I/O: call it off the main thread.
+ * database's name. A file is noted by where it is: its path, or its grant and its path inside the granted folder, which
+ * [folders] reaches again (null: the grant is gone) (keething-spec databases.saf AC11). Blocking file I/O: call it off the
+ * main thread.
  */
-internal class CreationNote(private val file: File) {
+public class CreationNote(private val file: File, private val folders: (grant: String) -> GrantedFolder? = { null }) {
     /**
      * Creating [name] begins: a section of its own, after what an earlier Create of this process left noted (a file it
      * could not remove), which stays for the next start.
      */
     @Synchronized
-    fun begin(name: String) {
+    public fun begin(name: String) {
         write(read().orEmpty() + (NAME + escape(name)))
     }
 
-    /** [path] is about to be made with [bytes]: noted first, so a process ended while it is written still finds it. */
+    /** [file] is about to be made with [bytes]: noted first, so a process ended while it is written still finds it. */
     @Synchronized
-    fun making(path: String, bytes: ByteArray) {
+    public fun making(file: FileLocation, bytes: ByteArray) {
         val lines = read() ?: return
-        write(lines + listOf(MADE + escape(path) + SEPARATOR + digest(bytes) + SEPARATOR + bytes.size))
+        write(lines + listOf(line(Noted(file, digest(bytes), bytes.size.toLong()))))
     }
 
-    /** [path] was not made after all (a file was there), or was removed again: nothing to remove at the next start. */
+    /** [file] was not made after all (a file was there), or was removed again: nothing to remove at the next start. */
     @Synchronized
-    fun notMade(path: String) {
+    public fun notMade(file: FileLocation) {
         val lines = read() ?: return
-        write(lines.filterNot { it.startsWith(MADE) && unescape(it.removePrefix(MADE).substringBefore(SEPARATOR)) == path })
+        write(lines.filterNot { noted(it)?.file == file })
     }
 
     /**
@@ -44,7 +49,7 @@ internal class CreationNote(private val file: File) {
      * next start.
      */
     @Synchronized
-    fun end(made: Boolean) {
+    public fun end(made: Boolean) {
         val lines = read() ?: return
         val start = lines.indexOfLast { it.startsWith(NAME) }.coerceAtLeast(0)
         val section = lines.subList(start, lines.size)
@@ -53,7 +58,7 @@ internal class CreationNote(private val file: File) {
     }
 
     /** What an ended Create left: the database's [name] (the last one not made; empty when the note had none), and the files noted that are still there. */
-    data class Leftover(val name: String, val kept: List<String>)
+    public data class Leftover(val name: String, val kept: List<FileLocation>)
 
     /**
      * A note an ended process left: the files it names that are still as Create wrote them (or empty: ended between
@@ -63,28 +68,48 @@ internal class CreationNote(private val file: File) {
      * nothing is said of it. Null when there was no note, or nothing to say.
      */
     @Synchronized
-    fun leftovers(listed: (String) -> Boolean = { false }): Leftover? {
+    public fun leftovers(listed: (FileLocation) -> Boolean = { false }): Leftover? {
         val lines = read() ?: return null
         var name: String? = null
-        val kept = mutableListOf<String>()
+        val kept = mutableListOf<FileLocation>()
         for (section in sections(lines)) {
-            if (section.files.any { listed(it.path) }) continue
+            if (section.files.any { listed(it.file) }) continue
             name = section.name
             for (noted in section.files) {
-                val made = File(noted.path)
-                if (!made.isFile) continue
-                val mine = made.length() == 0L || made.length() == noted.size && runCatching { digest(made.readBytes()) }.getOrNull() == noted.digest
-                // Read-only (a key file) is no obstacle to removing it from its folder.
-                if (!mine || !made.delete()) kept += made.path
+                if (!removeIfMine(noted)) kept += noted.file
             }
         }
         file.delete()
         return name?.let { Leftover(it, kept) }
     }
 
+    /**
+     * Removes [noted]'s file when it is still as Create wrote it, or empty. False when a file is there that could not be
+     * told for Create's or could not be removed (its grant gone too).
+     */
+    private fun removeIfMine(noted: Noted): Boolean = when (val at = noted.file) {
+        is FileLocation.ByPath -> {
+            val made = File(at.path)
+            !made.isFile || run {
+                val mine = made.length() == 0L || made.length() == noted.size && runCatching { digest(made.readBytes()) }.getOrNull() == noted.digest
+                // Read-only (a key file) is no obstacle to removing it from its folder.
+                mine && made.delete()
+            }
+        }
+        is FileLocation.InFolder -> try {
+            val folder = folders(at.grant) ?: throw IOException("the folder's grant is gone")
+            val bytes = folder.read(at.path)?.bytes
+            bytes == null || (bytes.isEmpty() || bytes.size.toLong() == noted.size && digest(bytes) == noted.digest) && folder.delete(at.path)
+        } catch (_: IOException) {
+            false
+        }
+        // A new file is never made through a grant to that file alone.
+        is FileLocation.Granted -> false
+    }
+
     private class Section(val name: String, val files: MutableList<Noted> = mutableListOf())
 
-    private class Noted(val path: String, val digest: String, val size: Long)
+    private class Noted(val file: FileLocation, val digest: String, val size: Long)
 
     /** Each Create's name and files, in order; files noted before any name are a section without one. */
     private fun sections(lines: List<String>): List<Section> {
@@ -92,36 +117,63 @@ internal class CreationNote(private val file: File) {
         for (line in lines) {
             if (line.startsWith(NAME)) {
                 sections += Section(unescape(line.removePrefix(NAME)))
-            } else if (line.startsWith(MADE)) {
-                val parts = line.removePrefix(MADE).split(SEPARATOR)
-                val size = parts.getOrNull(2)?.toLongOrNull() ?: continue
-                if (parts.size != 3) continue
-                (sections.lastOrNull() ?: Section("").also(sections::add)).files += Noted(unescape(parts[0]), parts[1], size)
+            } else {
+                val noted = noted(line) ?: continue
+                (sections.lastOrNull() ?: Section("").also(sections::add)).files += noted
             }
         }
         return sections
     }
 
-    /** [target] made at [path] with what it is about to write noted first. */
-    fun noting(target: NewFile, path: String): NewFile = object : NewFile {
+    /**
+     * A made file's line: `made <path>` (by path), `made-in <grant> <volume> <folder> <path>` (in a granted folder),
+     * then the SHA-256 and the size, separated by tabs.
+     */
+    private fun line(noted: Noted): String {
+        val at = when (val file = noted.file) {
+            is FileLocation.ByPath -> MADE + escape(file.path)
+            is FileLocation.InFolder -> MADE_IN + listOf(file.grant, file.folder.volume, file.folder.path, file.path).joinToString(SEPARATOR, transform = ::escape)
+            is FileLocation.Granted -> throw IllegalArgumentException("a new file is never made through a grant to that file alone")
+        }
+        return at + SEPARATOR + noted.digest + SEPARATOR + noted.size
+    }
+
+    /** The made file a line names; null for a name's line, or one that cannot be read. */
+    private fun noted(line: String): Noted? {
+        val (parts, file) = when {
+            line.startsWith(MADE) -> line.removePrefix(MADE).split(SEPARATOR).let { parts ->
+                if (parts.size != 3) return null
+                parts.drop(1) to FileLocation.ByPath(unescape(parts[0]))
+            }
+            line.startsWith(MADE_IN) -> line.removePrefix(MADE_IN).split(SEPARATOR).map(::unescape).let { parts ->
+                if (parts.size != 6) return null
+                parts.drop(4) to FileLocation.InFolder(parts[0], StoragePlace(parts[1], parts[2]), parts[3])
+            }
+            else -> return null
+        }
+        return Noted(file, parts[0], parts[1].toLongOrNull() ?: return null)
+    }
+
+    /** [target] made at [file] with what it is about to write noted first. */
+    public fun noting(target: NewFile, file: FileLocation): NewFile = object : NewFile {
         override val fileName: String get() = target.fileName
 
         override fun check(): NewFilePlace = target.check()
 
         override fun create(bytes: ByteArray, readOnly: Boolean) {
-            making(path, bytes)
+            making(file, bytes)
             try {
                 target.create(bytes, readOnly)
             } catch (failure: Exception) {
                 // Refused or failed: [target] left nothing, or what is there is not this one's.
-                notMade(path)
+                notMade(file)
                 throw failure
             }
         }
 
         override fun removeCreated() {
             target.removeCreated()
-            notMade(path)
+            notMade(file)
         }
     }
 
@@ -142,6 +194,7 @@ internal class CreationNote(private val file: File) {
     private companion object {
         const val NAME = "name "
         const val MADE = "made "
+        const val MADE_IN = "made-in "
         const val SEPARATOR = "\t"
 
         /** A tab or a line break in a name or a path stays one field of one line. */

@@ -50,10 +50,10 @@ class UnlockRunTest {
         var locks = 0
 
         private val factory = SessionFactory { record, number, _, watching ->
-            val store = files.getOrPut(record.path) { FakeStore(null) }
+            val store = files.getOrPut(record.path!!) { FakeStore(null) }
             val session = VaultSession(store, VaultOpener(), { _, _, _ -> }, clock, scope.backgroundScope, io)
             val biometric = BiometricUnlock(record.id, session, setup, list, scope.backgroundScope, watching, fileExists = { true })
-            DatabaseSession(number, record.id, File(record.path), store, session, biometric)
+            DatabaseSession(number, record.id, record.file, store, session, biometric)
         }
 
         val sessions: VaultSessions by lazy { VaultSessions(list, scope.backgroundScope, factory, clock, lockTimeout = { 5.minutes }, now = clock::now) }
@@ -72,7 +72,7 @@ class UnlockRunTest {
         }
 
         fun run(vararg records: DatabaseRecord): UnlockRun =
-            databases.run(records.map { it.id }, locks = { locks }, fileExists = { it !in missing }).also { run ->
+            databases.run(records.map { it.id }, locks = { locks }, fileExists = { (it as FileLocation.ByPath).path !in missing }).also { run ->
                 run.onEnd = { ends += it }
                 run.start()
             }

@@ -175,13 +175,24 @@ be swapped without touching anything else. Two implementations are planned:
   this one. For the side-loaded build it is only a fallback if all-files access turns out not to work.
 
 **The list of databases** (keething-spec databases.list; `core/vault` `DatabaseList`, the Mac's): the databases this
-phone knows, each remembered by its **path** (standardized: `.` and `..` resolved, so the same file however written is
-the same database) with an **id** of its own given when it joins the list (a UUID, never the file's: a KDBX header has
-no stable id and a copy keeps every UUID), its key file's path, and choices; nothing secret. Kept as JSON under the
-setting `databases`: `{"current": <id>, "databases": [record…], "version": 1}` (a record: `id`, `path`, `keyFilePath`,
-`name`, `color`, `useBiometric`, `opensWithoutPassword`, `lastOpened` in seconds since 1970, `inWindow`,
-`checkedInChooser`; written with sorted keys). A record without `id` or `path`, a field of another type or text that is
-not JSON makes the list **unreadable**: it is kept under `databases.unreadable.<seconds>`, never overwritten, and the
+phone knows, each remembered by **where its file is** (`FileLocation`: its **path**, standardized: `.` and `..`
+resolved; or, from keething-spec databases.saf, a **folder the user granted** and the path inside it) with an **id** of
+its own given when it joins the list (a UUID, never the file's: a KDBX header has no stable id and a copy keeps every
+UUID), where its key file is (by path, in a granted folder, or a file granted alone), and choices; nothing secret.
+**The same file is the same database however it is reached**: the same place on the storage (its volume, `primary` or
+a card's id, and the path from its top, as the storage provider names it), case aside, as the storage takes names, so a
+path of before, a folder granted and another folder inside it reach one database; paths off the storage compare as
+written. Kept as JSON under the setting `databases`: `{"current": <id>, "databases": [record…], "version": 1}` (a
+record: `id`, `path` or `file`, `keyFilePath` or `keyFile`, `name`, `color`, `useBiometric`, `opensWithoutPassword`,
+`lastOpened` in seconds since 1970, `inWindow`, `checkedInChooser`; written with sorted keys). `path` and `keyFilePath`
+are by path, as every record before databases.saf, which reads as it is; `file` and `keyFile` are objects: a granted
+folder's address, its place and the path inside (`grant`, `volume`, `folder`, `path`), or a key file granted alone
+(`grant`, `volume`, `place`). The app still adds by path until databases.saf stage S3. An old record's folder, once
+granted, must hold its file at that path; the record then reaches it, and its key file when a folder of the list holds
+that, through the folder (`CurrentDatabase.folderGranted`, AC13). A key file granted alone in a folder the list already
+reaches goes through that folder, the database's own first (AC9). A grant nothing of the list is reached through any
+more is given back (`GrantKeeper`, AC14), with the notes of a removed database's saves that leave nothing to put right.
+A record without `id` or a file, a field of another type or text that is not JSON makes the list **unreadable**: it is kept under `databases.unreadable.<seconds>`, never overwritten, and the
 list starts empty; any other field missing reads as its default, unknown ones are ignored. The first database added
 is current: the one the lock screen shows. **The window** (`inWindow`, kept with the list) is the databases side by
 side, each with a session of its own (§4); the current one is always in it. **Opening or choosing another database
@@ -570,8 +581,10 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   own; its notification is not shown without the notification permission, which is not asked) keeps the process while
   it runs: removing the app from recents would otherwise end the process in the middle (the owner's choice at AD7's
   start; to be looked into: `.x/RESEARCH-ad7-app-ended-while-creating.md`, not versioned). What a process that ended
-  anyway left (a crash, the system's own kill) is cleaned up at the next start: **`CreationNote`** (`filesDir/creating.note`)
-  names each file before it is written, with its SHA-256 and size; a file it names that is still empty or byte for byte
+  anyway left (a crash, the system's own kill) is cleaned up at the next start: **`CreationNote`** (`core/vault`,
+  `filesDir/creating.note`) names each file before it is written, by its path or its grant and its path in the granted
+  folder (`FolderNewFile`, keething-spec databases.saf AC11: a name the provider gives otherwise, "Family (1).kdbx", is
+  removed again and the name said taken), with its SHA-256 and size; a file it names that is still empty or byte for byte
   as written is removed, any other is someone else's and stays, and the app says "“Family Shared” was not created" ("Keething
   was closed while writing it, so nothing of it was kept. Create it again."). A Create whose files the list already
   names (the process ended between the record joining the list and the note's end) was made: its files stay, nothing

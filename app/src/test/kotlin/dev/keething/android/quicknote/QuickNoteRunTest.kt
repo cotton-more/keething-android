@@ -9,6 +9,7 @@ import dev.keething.android.settings.InMemorySettingsStore
 import dev.keething.card.editing.QuickNoteSource
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseRecord
+import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.databases.Databases
 import dev.keething.vault.databases.QuickNoteTarget
 import kotlin.test.Test
@@ -277,7 +278,7 @@ class QuickNoteRunTest {
     fun nothingOfTheTextIsStoredInTheSettingsOrKeptByTheRun() {
         val store = InMemorySettingsStore()
         val settings = AppSettings(store)
-        val personal = DatabaseRecord(DatabaseId("P"), "/a/Personal.kdbx")
+        val personal = DatabaseRecord(DatabaseId("P"), FileLocation.ByPath("/a/Personal.kdbx"))
         settings.chooseQuickNoteDatabase(personal.id)
         val before = store.snapshot()
 

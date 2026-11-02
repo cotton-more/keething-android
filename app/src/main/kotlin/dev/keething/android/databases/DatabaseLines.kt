@@ -1,9 +1,11 @@
 package dev.keething.android.databases
 
+import dev.keething.domain.storage.StoragePlace
 import dev.keething.search.SearchNormalizer
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.databases.Databases
+import dev.keething.vault.databases.FileLocation
 import java.io.File
 import java.time.Duration
 import java.time.Instant
@@ -215,6 +217,18 @@ internal object DatabaseText {
     /** The folder a file is in, from the shared storage's [root] ("Sync/KeePass"); the root itself "Internal storage". */
     fun folder(path: String, root: String): String = abbreviated(File(path).parent ?: "/", root)
 
+    /**
+     * Where [location] is, as the path on the phone the app's words and pickers use while it reaches files by path (until
+     * databases.saf stage S3): its own path, else its place on the storage under the shared storage's [root] (a card's
+     * under `/storage`). The file is never reached by it.
+     */
+    fun pathOf(location: FileLocation, root: String): String {
+        if (location is FileLocation.ByPath) return location.path
+        val place = location.place ?: return location.fileName
+        val top = if (place.volume == StoragePlace.PRIMARY) root.trimEnd('/') else "/storage/${place.volume}"
+        return if (place.path.isEmpty()) top else "$top/${place.path}"
+    }
+
     /** A path from the shared storage's [root] (only the root itself, not a folder whose name starts like it). */
     fun abbreviated(path: String, root: String): String {
         val base = root.trimEnd('/')
@@ -261,7 +275,7 @@ internal object DatabaseText {
             } else {
                 val fileName = SearchNormalizer.normalize(record.fileName)
                 val sameFile = alike.any { it.id != record.id && SearchNormalizer.normalize(it.fileName) == fileName }
-                DatabaseLabel(record.displayName, if (sameFile) folder(record.path, root) else record.fileName)
+                DatabaseLabel(record.displayName, if (sameFile) folder(pathOf(record.file, root), root) else record.fileName)
             }
             record.id to label
         }
@@ -297,18 +311,21 @@ private fun Databases.line(
     now: Instant,
     zone: ZoneId,
 ): DatabaseLine {
-    val missing = files.exists(record.path) == false
-    val modified = if (missing) null else files.modified(record.path)
+    // A file through a grant is looked at by its read.
+    val missing = record.path?.let(files::exists) == false
+    val modified = if (missing) null else record.path?.let(files::modified)
+    val path = DatabaseText.pathOf(record.file, root)
     return DatabaseLine(
         id = record.id,
         label = label,
         fileName = record.fileName,
-        path = record.path,
-        folder = DatabaseText.folder(record.path, root),
+        path = path,
+        folder = DatabaseText.folder(path, root),
         status = if (missing) "not found" else modified?.let { DatabaseText.changed(it, now, zone) },
         isMissing = missing,
-        keyFile = record.keyFilePath?.let {
-            KeyFileLine(File(it).name, DatabaseText.folder(it, root), it, isMissing = files.exists(it) == false)
+        keyFile = record.keyFile?.let { keyFile ->
+            val keyPath = DatabaseText.pathOf(keyFile, root)
+            KeyFileLine(keyFile.fileName, DatabaseText.folder(keyPath, root), keyPath, isMissing = record.keyFilePath?.let(files::exists) == false)
         },
         isCurrent = record.id == currentId,
         lastOpened = record.lastOpened,
@@ -321,7 +338,7 @@ private fun Databases.line(
 /** What the lock screen shows of [line]'s database. */
 internal fun DatabaseRecord.lockScreen(line: DatabaseLine): LockScreenDatabase {
     val key = line.keyFile
-    val removable = path.startsWith("/storage/") && !path.startsWith("/storage/emulated/")
+    val removable = file.place?.let { it.volume != StoragePlace.PRIMARY } == true
     return LockScreenDatabase(
         line = line,
         problem = if (!line.isMissing && key != null && key.isMissing) "${line.name} needs its key file: ${key.name} is not in ${key.folder}." else null,
@@ -332,7 +349,7 @@ internal fun DatabaseRecord.lockScreen(line: DatabaseLine): LockScreenDatabase {
             removable -> "$fileName is not in ${line.folder}. Put the card in, or locate the file."
             else -> "$fileName is not in ${line.folder} any more. Locate the file, or choose another database."
         },
-        passwordPlaceholder = if (keyFilePath == null) "Master password" else "Master password, if it has one",
-        needsPassword = keyFilePath == null,
+        passwordPlaceholder = if (keyFile == null) "Master password" else "Master password, if it has one",
+        needsPassword = keyFile == null,
     )
 }

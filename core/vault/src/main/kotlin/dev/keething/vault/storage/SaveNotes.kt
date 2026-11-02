@@ -1,6 +1,7 @@
 package dev.keething.vault.storage
 
 import dev.keething.domain.storage.StoppedSave
+import dev.keething.domain.storage.StoragePlace.Companion.folded
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -12,6 +13,7 @@ import java.util.Properties
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * The saves under way, each noted in the app's own storage before it touches the database's folder (keething-spec
@@ -45,12 +47,32 @@ public class SaveNotes(private val directory: File) {
         earlier
     }
 
-    /** What saves of the database at [path] in the grant [folder] left, the last begun last; a note that cannot be read is left alone. */
+    /**
+     * What saves of the database at [path] in the grant [folder] left, the last begun last; a note that cannot be read is
+     * left alone. The path's case aside, as the storage takes names.
+     */
     internal fun left(folder: String, path: String): List<SaveNote> =
-        directory.listFiles { file -> file.name.endsWith(SUFFIX) }.orEmpty()
-            .mapNotNull(::read)
-            .filter { it.folder == folder && it.path == path }
-            .sortedWith(compareBy<SaveNote> { it.begun }.thenBy { it.name })
+        all().filter { it.folder == folder && folded(it.path) == folded(path) }.sortedWith(compareBy<SaveNote> { it.begun }.thenBy { it.name })
+
+    /**
+     * The database at [path] in the grant [folder] left the list (keething-spec databases.saf AC14): the notes of its saves
+     * that leave nothing to put right go (one put right and not yet said). One whose folder still needs putting right
+     * stays, and keeps its grant ([unsettled]): a stopped save, or one over whose old file, a whole copy of the database,
+     * stayed in the folder (a sync app other than Syncthing would send it). Waits for a read or save of it under way.
+     */
+    public fun forget(folder: String, path: String) {
+        lockOf(folder, path).withLock { left(folder, path).filter { it.settled }.forEach(SaveNote::end) }
+    }
+
+    /** [forget] of every database whose notes are here and that [listed] does not name: at the app's start. */
+    public fun forgetAllBut(listed: (folder: String, path: String) -> Boolean) {
+        all().filterNot { listed(it.folder, it.path) }.map { it.folder to it.path }.distinct().forEach { (folder, path) -> forget(folder, path) }
+    }
+
+    /** Whether a save of a database in the grant [folder] left it to put right, or is under way: its grant is kept. */
+    public fun unsettled(folder: String): Boolean = all().any { it.folder == folder && !it.settled }
+
+    private fun all(): List<SaveNote> = directory.listFiles { file -> file.name.endsWith(SUFFIX) }.orEmpty().mapNotNull(::read)
 
     private fun read(file: File): SaveNote? {
         val properties = Properties()
@@ -102,7 +124,8 @@ public class SaveNotes(private val directory: File) {
         /** One read or save of the database at [path] in the grant [folder] at a time in the process, however many stores reach it. */
         fun lockOf(folder: String, path: String): ReentrantLock = locks.computeIfAbsent(key(folder, path)) { ReentrantLock() }
 
-        private fun key(folder: String, path: String) = "$folder\u0000$path"
+        /** The path's case aside: the storage takes names so, and two spellings of one name are one database. */
+        private fun key(folder: String, path: String) = "$folder\u0000${folded(path)}"
 
         fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     }
@@ -137,6 +160,12 @@ public class SaveNotes(private val directory: File) {
         }
 
         val name: String get() = file.name
+
+        /**
+         * Nothing left in the folder to put right: put right, and said only until the app says it. One over whose old
+         * file stayed is not: that file, a whole copy of the database, goes at the next read.
+         */
+        val settled: Boolean get() = said != null
         var temporary: String = temporary
             private set
         var aside: String = aside

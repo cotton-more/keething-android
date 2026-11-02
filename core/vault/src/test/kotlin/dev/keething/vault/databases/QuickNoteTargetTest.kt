@@ -29,8 +29,8 @@ class QuickNoteTargetTest {
 
     @Test
     fun noCurrentOneTheListsFirst() {
-        val personal = DatabaseRecord(DatabaseId("P"), "/a/Personal.kdbx")
-        val work = DatabaseRecord(DatabaseId("W"), "/a/Work.kdbx")
+        val personal = DatabaseRecord(DatabaseId("P"), FileLocation.ByPath("/a/Personal.kdbx"))
+        val work = DatabaseRecord(DatabaseId("W"), FileLocation.ByPath("/a/Work.kdbx"))
         assertEquals(personal.id, QuickNoteTarget.resolve(null, Databases(listOf(personal, work), currentId = null)))
         assertEquals(personal.id, QuickNoteTarget.resolve(null, Databases(listOf(personal, work), currentId = DatabaseId("gone"))), "a current one not in the list")
         assertEquals(work.id, QuickNoteTarget.resolve(work.id, Databases(listOf(personal, work), currentId = null)))
