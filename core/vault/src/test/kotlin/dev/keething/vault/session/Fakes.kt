@@ -5,6 +5,7 @@ import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
+import dev.keething.domain.storage.StoppedSave
 import dev.keething.domain.storage.KeyFileRead
 import dev.keething.domain.storage.KeyFileSource
 import dev.keething.domain.time.Clock
@@ -39,11 +40,21 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
     private val watchers = mutableListOf<() -> Unit>()
     val watching: Int get() = watchers.size
 
+    /** A save the app did not finish, put right: said by every read until [stoppedSaveSaid]. */
+    var stoppedSave: StoppedSave? = null
+    var stoppedSavesSaid = 0
+        private set
+
     override fun read(): DatabaseRead {
         reads++
         beforeRead(reads)
         val stored = bytes ?: return DatabaseRead.Missing
-        return DatabaseRead.Found(stored.copyOf(), current!!)
+        return DatabaseRead.Found(stored.copyOf(), current!!, stoppedSave)
+    }
+
+    override fun stoppedSaveSaid() {
+        stoppedSave = null
+        stoppedSavesSaid++
     }
 
     override fun version(): FileVersion? = current

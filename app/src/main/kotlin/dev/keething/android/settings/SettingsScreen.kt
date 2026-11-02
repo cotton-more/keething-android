@@ -181,7 +181,7 @@ private const val MIB = 1024 * 1024
 /** "Quick notes go to" (SPEC §6.4; keething-spec app.quick-note AC1): Current database or one of the list, with its dot. */
 @Composable
 private fun QuickNotesSetting(container: AppContainer) {
-    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list) }
+    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list, container.databaseFiles) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
     val setting by container.settings.quickNoteDatabase.collectAsStateWithLifecycle()
     val destination = QuickNoteDestination(setting, screens?.lines)

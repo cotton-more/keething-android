@@ -131,7 +131,7 @@ public class BiometricUnlock(
     private val list: DatabaseList,
     private val scope: CoroutineScope,
     states: CoroutineScope,
-    private val fileExists: (FileLocation) -> Boolean = FileLocation::isThereByPath,
+    private val fileExists: (FileLocation) -> Boolean = FileLocation::isReachable,
     private val appLocks: () -> Int = { 0 },
 ) {
     private var prompting = false

@@ -1,5 +1,7 @@
 package dev.keething.android.databases
 
+import dev.keething.domain.storage.StoragePlace
+import dev.keething.vault.databases.FileLocation
 import dev.keething.android.session.FingerprintOffers
 import dev.keething.android.session.Visit
 import dev.keething.android.settings.InMemorySettingsStore
@@ -34,8 +36,9 @@ import kotlinx.coroutines.test.runTest
 class WindowChooserTest {
     private val list = DatabaseList(InMemorySettingsStore(), makeId = { DatabaseId("db-${++ids}") })
     private var ids = 0
-    private val personal = list.add("/storage/emulated/0/Sync/Personal.kdbx").id
-    private val work = list.add("/storage/emulated/0/Sync/Work.kdbx").id
+    private val sync = StoragePlace(StoragePlace.PRIMARY, "Sync")
+    private val personal = list.add(FileLocation.InFolder("grant-sync", sync, "Personal.kdbx")).id
+    private val work = list.add(FileLocation.InFolder("grant-sync", sync, "Work.kdbx")).id
 
     private val off = BiometricState(appEnabled = false, databaseEnabled = false)
     private val locked = SessionState.Locked(LockReason.Initial)

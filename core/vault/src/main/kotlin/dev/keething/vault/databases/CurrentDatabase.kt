@@ -43,19 +43,21 @@ public class CurrentDatabase(
     }
 
     /**
-     * Open a database… / Open other…: the file joins the list (once: the same file is the same database) and the
-     * window, its fingerprint off until it is turned on for it (the owner's choice at plan AD5), and becomes current;
-     * nothing closes. Its id.
+     * Open a database… / Open other…: the file joins the list (once: the same file is the same database, and one the
+     * list kept by its path is reached as opened from now on) and the window, its fingerprint off until it is turned on
+     * for it (the owner's choice at plan AD5), and becomes current; nothing closes. Its id.
      */
     public fun open(file: FileLocation): DatabaseId {
         file.grant?.let(offered)
+        // An old record's own file, opened through a folder: that record, reached through it from now on (AC13).
+        list.recordOf(file)?.takeIf { it.file is FileLocation.ByPath && file !is FileLocation.ByPath }?.let { old ->
+            list.update(old.id) { it.copy(file = file) }
+        }
         val record = list.add(file)
         show(record.id)
+        adoptOldRecords()
         return record.id
     }
-
-    /** [open] of the file at [path], as the app opens one while it reaches files by path (until databases.saf stage S3). */
-    public fun open(path: String): DatabaseId = open(FileLocation.byPath(path))
 
     /**
      * Close (keething-spec databases.several-open AC4, databases.not-open AC4): out of the window, locked, still in the
@@ -101,11 +103,9 @@ public class CurrentDatabase(
         val other = list.records.firstOrNull { it.id != id && it.file.isSameFile(file) }
         if (other != null) return "That file is already in the list as “${other.displayName}”."
         list.update(id) { it.copy(file = file) }
+        adoptOldRecords()
         return null
     }
-
-    /** [locate] at [path], as the app locates a file while it reaches files by path (until databases.saf stage S3). */
-    public fun locate(id: DatabaseId, path: String): String? = locate(id, FileLocation.byPath(path))
 
     /**
      * Choose…, Change… or Forget (null) a database's key file. A key file granted alone in a folder the list already
@@ -121,18 +121,15 @@ public class CurrentDatabase(
         list.update(id) { it.copy(keyFile = reached, opensWithoutPassword = false) }
         biometric.keyFileChanged(id)
         if (sessions.session(id)?.session?.state?.value is SessionState.Locked) sessions.lock(id, LockReason.Initial)
-    }
-
-    /** [setKeyFile] at [path], as the app chooses one while it reaches files by path (until databases.saf stage S3). */
-    public fun setKeyFile(id: DatabaseId, path: String) {
-        setKeyFile(id, FileLocation.byPath(path))
+        adoptOldRecords()
     }
 
     /**
      * An old record's one question (keething-spec databases.saf AC13): the folder chosen for a database the list kept by
      * its path, granted as [grant] at [folder] on the storage. It must hold the file at that path; the database is then
      * reached through it, with its id, its stored password, its backups and its choices, and so is its key file when a
-     * folder of the list holds that one too. Its session follows, as at [locate]. Why not, or null.
+     * folder of the list holds that one too. Every other old record the folder holds follows ([adoptOldRecords]). Its
+     * session follows, as at [locate]. Why not, or null.
      */
     public fun folderGranted(id: DatabaseId, grant: String, folder: StoragePlace): String? {
         offered(grant)
@@ -146,7 +143,21 @@ public class CurrentDatabase(
             else -> key
         }
         list.update(id) { it.copy(file = file, keyFile = keyFile) }
+        adoptOldRecords()
         return null
+    }
+
+    /**
+     * Old records through the folders the list is reached through (keething-spec databases.saf AC3, AC13): each database
+     * or key file the list kept by its path that such a folder holds is reached through it, with everything else kept,
+     * and nothing is asked for it. After each folder the list takes, and at the app's start.
+     */
+    public fun adoptOldRecords() {
+        for (record in list.records) {
+            val file = (record.file as? FileLocation.ByPath)?.place?.let { list.inGrantedFolder(it) } ?: record.file
+            val keyFile = record.keyFile?.let { key -> (key as? FileLocation.ByPath)?.place?.let { list.inGrantedFolder(it, prefer = file) } ?: key }
+            if (file != record.file || keyFile != record.keyFile) list.update(record.id) { it.copy(file = file, keyFile = keyFile) }
+        }
     }
 
     /**
@@ -182,6 +193,7 @@ public class CurrentDatabase(
         // One change: the old record out and the new one in with its key file, so no grant looks unused in between.
         val (record, old) = list.replace(file, reached, useBiometric)
         show(record.id)
+        adoptOldRecords()
         val problem = old?.let { biometric.forget(it.id) }
         val database = current.value?.takeIf { it.id == record.id }
         if (database == null || lockedSince()) {
@@ -190,16 +202,6 @@ public class CurrentDatabase(
         }
         return Created(record.id, database.biometric.unlockCreated(key, password), problem)
     }
-
-    /** [created] at [path] and [keyFilePath], as the app makes a database while it reaches files by path (until databases.saf stage S3). */
-    public suspend fun created(
-        path: String,
-        keyFilePath: String?,
-        useBiometric: Boolean,
-        key: DerivedKey,
-        password: Secret,
-        lockedSince: () -> Boolean,
-    ): Created = created(FileLocation.byPath(path), keyFilePath?.let(FileLocation::byPath), useBiometric, key, password, lockedSince)
 
     /** What [created] did: the new database's [id], how its opening ends (null: not opened), why an old one's stored password stayed. */
     public class Created(public val id: DatabaseId, public val opened: Deferred<UnlockOutcome>?, public val problem: String?)

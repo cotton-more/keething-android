@@ -21,13 +21,12 @@ import dev.keething.android.databases.DatabaseTile
 import dev.keething.android.databases.DatabasesSheet
 import dev.keething.android.databases.KeyFileLine
 import dev.keething.android.databases.RemoveFromListDialog
-import dev.keething.android.databases.rememberFilePicker
+import dev.keething.android.databases.rememberFileActions
+import dev.keething.android.databases.Reach
 import dev.keething.android.ui.AppLogo
 import dev.keething.android.ui.ButtonLabel
 import androidx.compose.foundation.text.input.clearText
 import dev.keething.vault.databases.DatabaseId
-import dev.keething.vault.databases.FileLocation
-import java.io.File
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -71,7 +70,6 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -110,7 +108,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
 import dev.keething.vault.databases.DatabaseSession
-import dev.keething.android.storage.AllFilesAccess
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.ui.SecretTextMenu
 import dev.keething.android.ui.dotsAtLineEnd
@@ -162,16 +159,15 @@ internal fun LockScreen(
         }
         LockViewModel(database, databases, container.sessions.list, offers)
     }
-    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list) }
+    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list, container.databaseFiles) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
     // Its own, current or not (the run's database is not made current).
     val lock = screens?.lines?.firstOrNull { it.id == database.id }?.let { line -> container.sessions.list.record(database.id)?.lockScreen(line) }
     // Its name as last read from the file, before the lines (the files looked at) are there.
-    val name = lock?.line?.name ?: container.sessions.list.record(database.id)?.displayName ?: database.file.name
+    val name = lock?.line?.name ?: container.sessions.list.record(database.id)?.displayName ?: database.location.fileName
     val session by model.session.collectAsStateWithLifecycle()
     val biometric by model.biometric.collectAsStateWithLifecycle()
     val fingerprintNotice by model.fingerprintNotice.collectAsStateWithLifecycle()
-    val accessGranted by model.accessGranted.collectAsStateWithLifecycle()
     val timeout by container.settings.lockTimeout.collectAsStateWithLifecycle()
     val visit by container.sessions.visit.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -193,18 +189,19 @@ internal fun LockScreen(
     // Per session: nothing of this database's sheet, dialog or Locate… stays on the next one's lock screen.
     var sheet by remember(database.number) { mutableStateOf(false) }
     var removing by remember(database.number) { mutableStateOf(false) }
-    // What the last Locate… could not do ("That file is already in the list as …").
+    // What the last Locate… or folder chosen could not do ("That file is already in the list as …").
     var locateProblem by remember(database.number) { mutableStateOf<String?>(null) }
-    val folder = database.file.parentFile
-    val openOther = rememberFilePicker { file ->
-        if (container.sessions.list.record(database.id)?.file?.isSameFile(FileLocation.byPath(file.path)) != true) {
-            leave()
-            databases.open(file.path)
-            onChose(database.id)
-        }
-    }
-    val locate = rememberFilePicker { file -> locateProblem = databases.locate(database.id, file.path) }
-    val chooseKeyFile = rememberFilePicker { file -> databases.setKeyFile(database.id, file.path) }
+    // Open other…: another database shown here (this one's own file chosen again changes nothing).
+    val files = rememberFileActions(
+        container,
+        onOpened = { id ->
+            if (id != database.id) {
+                leave()
+                onChose(database.id)
+            }
+        },
+        onProblem = { locateProblem = it },
+    )
 
     if (sheet) {
         DatabasesSheet(
@@ -219,7 +216,7 @@ internal fun LockScreen(
             },
             onOpenOther = {
                 sheet = false
-                openOther(folder)
+                files.open()
             },
             onNew = {
                 sheet = false
@@ -235,7 +232,7 @@ internal fun LockScreen(
     }
     if (removing) {
         RemoveFromListDialog(
-            name = lock?.line?.name ?: database.file.name,
+            name = lock?.line?.name ?: database.location.fileName,
             onRemove = {
                 removing = false
                 leave()
@@ -282,7 +279,7 @@ internal fun LockScreen(
         // why the fingerprint is not offered or its stored password went (also when one fingerprint for several said
         // it, plan AD13), what was typed here aside; then why it is locked. In the run a wrong password is said over the
         // field instead.
-        val reasonNotice = reason?.notice(timeout, database.file)
+        val reasonNotice = reason?.notice(timeout, lock?.line?.path ?: database.location.fileName)
         val dueNotice = biometric.reminderDays?.takeIf { biometric.isSetUp && biometric.passwordDue }?.let(::passwordDueNotice)
         val setUpAgain = biometric.setUpAgain?.takeIf { biometric.enabled && !biometric.stored }?.notice()
         val notice = locateProblem?.let { LockNotice(it, isProblem = true) }
@@ -296,12 +293,6 @@ internal fun LockScreen(
         notice?.let {
             Spacer(Modifier.height(12.dp))
             ReasonChip(it)
-        }
-        if (!accessGranted) {
-            Spacer(Modifier.height(12.dp))
-            FilledTonalButton(onClick = { context.startActivity(AllFilesAccess.settingsIntent(context)) }) {
-                Text("Allow all-files access")
-            }
         }
     }
     val wayInContent = @Composable {
@@ -318,29 +309,27 @@ internal fun LockScreen(
                 }
                 // Not known yet (the files are being looked at): nothing rather than a field that goes again.
                 lock == null -> Spacer(Modifier.height(56.dp))
-                lock.showsLocate -> NotFound(lock.missingText.orEmpty(), othersAbove = run == null && purpose == null, onLocate = {
-                    locateProblem = null
-                    locate(folder)
+                lock.showsLocate -> NotFound(lock.missingText.orEmpty(), lock.locateLabel, othersAbove = run == null && purpose == null, onLocate = {
+                    files.locate(database.id, lock.line.reach == Reach.NO_ACCESS)
                 })
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     // Typing hides it: the keyboard leaves no room, and the user chose the password. Not in the run.
                     val offersFingerprint = biometric.canUnlock && lock.offersFingerprint && run == null
                     AnimatedVisibility(visible = offersFingerprint && !WindowInsets.isImeVisible) {
                         FingerprintButton(
-                            enabled = accessGranted && !biometric.prompting,
+                            enabled = !biometric.prompting,
                             // A database that opens with its key file alone has Unlock in place of the field.
                             otherWay = if (lock.showsPasswordField) "or type the password" else "or use its key file",
                             onClick = model::unlockWithFingerprint,
                         )
                     }
                     // The run's: "Wrong password … Type it again, or skip it."
-                    runState?.failure?.let { RunFailure(it.describe(database.file) + " Type it again, or skip it.") }
+                    runState?.failure?.let { RunFailure(it.describe(lock.line.path) + " Type it again, or skip it.") }
                     // The run's: bound to this database, never tried on the next one asked.
                     val unlock = { model.unlock(run?.let { { secret: Secret -> container.chooser.type(database.id, secret) } }) }
                     if (lock.showsPasswordField) {
                         PasswordRow(
                             model = model,
-                            enabled = accessGranted,
                             placeholder = lock.passwordPlaceholder,
                             needsPassword = lock.needsPassword,
                             // Not while the fingerprint is offered (the keyboard would cover it), nor before it is known.
@@ -349,13 +338,13 @@ internal fun LockScreen(
                             modifier = Modifier.offset { IntOffset(shake.value.roundToInt(), 0) },
                         )
                     } else {
-                        KeyFileAlone(enabled = accessGranted, onUnlock = unlock)
+                        KeyFileAlone(onUnlock = unlock)
                     }
                     val keyFile = lock.line.keyFile
                     if (keyFile != null) {
-                        KeyFileRow(keyFile, onChange = { chooseKeyFile(File(keyFile.path).parentFile ?: folder) })
+                        KeyFileRow(keyFile, onChange = { files.chooseKeyFile(database.id) })
                     } else if (lock.offersKeyFile) {
-                        TextButton(onClick = { chooseKeyFile(folder) }, modifier = Modifier.padding(top = 4.dp)) {
+                        TextButton(onClick = { files.chooseKeyFile(database.id) }, modifier = Modifier.padding(top = 4.dp)) {
                             ButtonLabel("Key file…", Icons.Rounded.Key, iconSize = 18.dp, gap = 8.dp)
                         }
                     }
@@ -467,7 +456,7 @@ private fun RunFailure(text: String) {
 
 /** A database that opens with its key file alone (keething-spec unlock.key-file AC5): nothing to type. */
 @Composable
-private fun KeyFileAlone(enabled: Boolean, onUnlock: () -> Unit) {
+private fun KeyFileAlone(onUnlock: () -> Unit) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             "It opens with its key file alone: nothing to type.",
@@ -476,7 +465,7 @@ private fun KeyFileAlone(enabled: Boolean, onUnlock: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onUnlock, enabled = enabled, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+        Button(onClick = onUnlock, modifier = Modifier.fillMaxWidth().height(56.dp)) {
             ButtonLabel("Unlock", Icons.Rounded.LockOpen, iconSize = 20.dp)
         }
     }
@@ -495,7 +484,7 @@ private fun KeyFileRow(keyFile: KeyFileLine, onChange: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(keyFile.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                if (keyFile.isMissing) "not there · ${keyFile.folder}" else keyFile.folder,
+                keyFile.detail,
                 style = MaterialTheme.typography.bodySmall,
                 color = tint,
                 maxLines = 1,
@@ -507,11 +496,12 @@ private fun KeyFileRow(keyFile: KeyFileLine, onChange: () -> Unit) {
 }
 
 /**
- * A file not found (keething-spec databases.list AC5): said in place of the field, with Locate…; [othersAbove]: another
- * database can be chosen above.
+ * A file not found (keething-spec databases.list AC5), not reached any more or kept by its path (databases.saf AC10,
+ * AC13): said in place of the field, with Locate… or Choose its folder… ([button]); [othersAbove]: another database can
+ * be chosen above.
  */
 @Composable
-private fun NotFound(text: String, othersAbove: Boolean, onLocate: () -> Unit) {
+private fun NotFound(text: String, button: String, othersAbove: Boolean, onLocate: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -519,7 +509,7 @@ private fun NotFound(text: String, othersAbove: Boolean, onLocate: () -> Unit) {
     ) {
         Icon(Icons.Rounded.FindInPage, contentDescription = null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.error)
         Text(text, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-        Button(onClick = onLocate) { ButtonLabel("Locate…", Icons.Rounded.Search, iconSize = 20.dp) }
+        Button(onClick = onLocate) { ButtonLabel(button, Icons.Rounded.Search, iconSize = 20.dp) }
         if (othersAbove) {
             Text("or choose another database above", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -635,7 +625,6 @@ private fun ReasonChip(notice: LockNotice) {
 @Composable
 private fun PasswordRow(
     model: LockViewModel,
-    enabled: Boolean,
     placeholder: String,
     needsPassword: Boolean,
     focusAtOnce: Boolean,
@@ -646,16 +635,15 @@ private fun PasswordRow(
     val focus = remember { FocusRequester() }
     val passwordWanted by model.passwordWanted.collectAsStateWithLifecycle()
     val wantedBefore = remember { model.passwordWanted.value }
-    LaunchedEffect(enabled, focusAtOnce) { if (enabled && focusAtOnce) focus.requestFocus() }
+    LaunchedEffect(focusAtOnce) { if (focusAtOnce) focus.requestFocus() }
     // "Use password" in the fingerprint prompt, since this screen appeared.
-    LaunchedEffect(passwordWanted) { if (enabled && passwordWanted > wantedBefore) focus.requestFocus() }
+    LaunchedEffect(passwordWanted) { if (passwordWanted > wantedBefore) focus.requestFocus() }
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         // Copying is off in a secure field; other apps' items in its menu ("Ask Gemini") go too.
         SecretTextMenu(copyable = false, modifier = Modifier.weight(1f)) {
             SecureTextField(
                 state = model.password,
                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                enabled = enabled,
                 placeholder = { Text(placeholder) },
                 textStyle = if (revealed) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
                 textObfuscationMode = if (revealed) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
@@ -689,7 +677,7 @@ private fun PasswordRow(
         FilledIconButton(
             onClick = onUnlock,
             // Without a key file an empty field opens nothing (keething-spec unlock.lock-screen AC2).
-            enabled = enabled && (!needsPassword || model.password.text.isNotEmpty()),
+            enabled = !needsPassword || model.password.text.isNotEmpty(),
             modifier = Modifier.size(56.dp),
             shape = RoundedCornerShape(20.dp),
             colors = IconButtonDefaults.filledIconButtonColors(

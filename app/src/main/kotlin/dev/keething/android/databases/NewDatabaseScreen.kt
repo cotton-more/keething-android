@@ -1,14 +1,7 @@
 package dev.keething.android.databases
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.DocumentsContract
-import android.widget.Toast
+import dev.keething.domain.storage.StoragePlace
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContract
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,13 +70,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -94,8 +85,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import dev.keething.android.storage.AllFilesAccess
-import dev.keething.android.storage.FolderPaths
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.ButtonLabel
@@ -105,7 +94,6 @@ import dev.keething.domain.encryption.DatabaseEncryption
 import dev.keething.domain.encryption.DatabaseEncryption.Cipher
 import dev.keething.domain.encryption.DatabaseEncryption.KeyDerivation
 import dev.keething.generator.Strength
-import java.io.File
 import kotlin.math.roundToInt
 
 /**
@@ -129,12 +117,12 @@ internal fun NewDatabaseScreen(model: NewDatabaseModel, onClose: () -> Unit) {
 
 @Composable
 private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
-    val context = LocalContext.current
-    // Coming back from Settings or another app: all-files access may have been granted, a file made or moved.
+    // Coming back from another app: a file made or moved.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.lookAgain() }
-    val pickFolder = rememberFolderPicker(context, model::chooseFolder)
-    val pickKeyFolder = rememberFolderPicker(context) { model.chooseKeyFile(NewDatabaseModel.KeyFileChoice.New(it)) }
-    val pickKeyFile = rememberFilePicker { model.chooseKeyFile(NewDatabaseModel.KeyFileChoice.Existing(it.path)) }
+    // Each place chosen is granted (keething-spec databases.saf AC11); what the form does not use is given back.
+    val pickFolder = rememberFolderPicker { model.chooseFolder(model.folderGranted(GrantedPlace(it.id, it.place))) }
+    val pickKeyFolder = rememberFolderPicker { model.chooseKeyFile(NewDatabaseModel.KeyFileChoice.New(model.folderGranted(GrantedPlace(it.id, it.place)))) }
+    val pickKeyFile = rememberKeyFilePicker { model.chooseKeyFile(NewDatabaseModel.KeyFileChoice.Existing(model.keyFileGranted(it))) }
 
     Column(
         Modifier
@@ -160,7 +148,7 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
             placeholder = "Personal, Work, Family…",
             isError = model.nameIsTaken,
         )
-        SaveIn(model) { pickFolder(File(model.folder)) }
+        SaveIn(model) { pickFolder(model.folder?.let(StoragePlace::ofPath)) }
         Text(
             model.pathText,
             Modifier.padding(horizontal = 16.dp),
@@ -187,7 +175,8 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
         )
 
         Spacer(Modifier.height(4.dp))
-        KeyFileSection(model, onMake = { pickKeyFolder(File(model.documents)) }, onHave = { pickKeyFile(File(model.documents)) })
+        // A key file is kept apart from the database: the pickers start in Documents.
+        KeyFileSection(model, onMake = { pickKeyFolder(DOCUMENTS) }, onHave = { pickKeyFile(DOCUMENTS) })
         if (model.offersFingerprint) {
             SwitchRow(Icons.Rounded.Fingerprint, "Unlock it with the fingerprint", null, model.useFingerprint) { model.useFingerprint = it }
         }
@@ -214,9 +203,6 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
         // Read once a frame: each one looks at the files.
         val blockers = model.blockers
         val why = blockers.firstOrNull()?.takeIf { it != model.problem }
-        if (blockers.firstOrNull() == NewDatabaseModel.NO_ACCESS) {
-            FilledTonalButton(onClick = { context.startActivity(AllFilesAccess.settingsIntent(context)) }) { Text("Allow all-files access…") }
-        }
         Row(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
                 why.orEmpty(),
@@ -256,7 +242,7 @@ private fun fieldColors() = TextFieldDefaults.colors(
     errorContainerColor = MaterialTheme.colorScheme.errorContainer,
 )
 
-/** Save in: the list's folders (the current one's first), Documents, Other folder…. */
+/** Save in: the list's granted folders (the current one's first), Other folder…; with none yet, Choose a folder…. */
 @Composable
 private fun SaveIn(model: NewDatabaseModel, onOther: () -> Unit) {
     var open by remember { mutableStateOf(false) }
@@ -267,7 +253,8 @@ private fun SaveIn(model: NewDatabaseModel, onOther: () -> Unit) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .clickable { open = true }
+                // Nothing granted yet: the picker at once.
+                .clickable { if (model.folders.isEmpty()) onOther() else open = true }
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -275,7 +262,7 @@ private fun SaveIn(model: NewDatabaseModel, onOther: () -> Unit) {
             Icon(Icons.Rounded.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {
                 Text("Save in", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(chosen?.title ?: model.folder, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+                Text(chosen?.title ?: model.folder ?: "Choose a folder…", style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
             }
             Icon(Icons.Rounded.ExpandMore, contentDescription = "Choose the folder", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -568,29 +555,5 @@ private fun CreatingDialog(model: NewDatabaseModel) {
     )
 }
 
-/** The system's folder picker, opening in [start]; the app keeps the folder's path (SPEC §3.1), a place without one is said. */
-@Composable
-private fun rememberFolderPicker(context: Context, onPicked: (String) -> Unit): (start: File?) -> Unit {
-    val picked = rememberUpdatedState(onPicked)
-    val launcher = rememberLauncherForActivityResult(OpenFolder) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val folder = FolderPaths.of(uri)
-        if (folder == null) {
-            Toast.makeText(context, "Choose a folder on the phone's storage: Keething keeps its path, and this one has none.", Toast.LENGTH_LONG).show()
-        } else {
-            picked.value(folder.path)
-        }
-    }
-    return { start -> launcher.launch(start) }
-}
-
-/** Open document tree, starting in a folder. */
-private object OpenFolder : ActivityResultContract<File?, Uri?>() {
-    private val tree = ActivityResultContracts.OpenDocumentTree()
-
-    override fun createIntent(context: Context, input: File?): Intent = tree.createIntent(context, null).apply {
-        FolderPaths.initialUri(input)?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
-    }
-
-    override fun parseResult(resultCode: Int, intent: Intent?): Uri? = tree.parseResult(resultCode, intent)
-}
+/** Where the key file pickers start: the phone's Documents folder. */
+private val DOCUMENTS = StoragePlace(StoragePlace.PRIMARY, "Documents")

@@ -17,10 +17,10 @@
         android:name="android.hardware.camera"
         android:required="false" />
 
-    <!-- The database is reached by its path in the Syncthing folder (SPEC §3.1, side-loaded build). -->
-    <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
+    <!--
+    No storage permission (keething-spec databases.saf AC1): every database and key file is reached through a folder or
+    a file the user chose in the system's picker (SPEC §3.1).
+    -->
 
     <!--
     Autofill (SPEC §7): the websites an app is verified for are shown only to an app that can see it. A fill

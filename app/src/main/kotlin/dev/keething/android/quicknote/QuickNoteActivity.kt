@@ -95,7 +95,7 @@ class QuickNoteActivity : ComponentActivity() {
         }
     }
 
-    /** A screen this one started is in front (a key file picker, Locate…, all-files access): not the app left. */
+    /** A screen this one started is in front (a key file picker, Locate…'s folder picker): not the app left. */
     private var ownInFront = false
 
     override fun onCreate(savedInstanceState: Bundle?) {

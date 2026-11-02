@@ -46,7 +46,7 @@ public class WindowFingerprint(
     private val sessions: VaultSessions,
     private val setup: BiometricSetup,
     private val list: DatabaseList,
-    private val fileExists: (FileLocation) -> Boolean = FileLocation::isThereByPath,
+    private val fileExists: (FileLocation) -> Boolean = FileLocation::isReachable,
 ) {
     private val mutableRunning = MutableStateFlow(false)
 

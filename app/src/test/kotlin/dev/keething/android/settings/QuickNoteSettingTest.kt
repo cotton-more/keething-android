@@ -1,5 +1,6 @@
 package dev.keething.android.settings
 
+import dev.keething.android.databases.Reach
 import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseLine
 import dev.keething.vault.databases.DatabaseId
@@ -22,7 +23,7 @@ class QuickNoteSettingTest {
         path = "/storage/emulated/0/Sync/$name.kdbx",
         folder = "Sync",
         status = null,
-        isMissing = false,
+        reach = Reach.THERE,
         keyFile = null,
         isCurrent = current,
         lastOpened = null,

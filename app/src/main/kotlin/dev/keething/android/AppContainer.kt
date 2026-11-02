@@ -19,9 +19,11 @@ import dev.keething.android.clipboard.SensitiveClipboard
 import dev.keething.android.databases.CreatingService
 import dev.keething.android.databases.DatabaseText
 import dev.keething.android.databases.FileDatabaseMaking
+import dev.keething.android.databases.GrantedNewDatabaseFiles
+import dev.keething.android.databases.NewDatabasePlaces
+import dev.keething.android.databases.grantedFolders
 import dev.keething.android.databases.NewDatabaseModel
 import dev.keething.android.databases.NewDatabases
-import dev.keething.android.databases.PhoneNewDatabaseFiles
 import dev.keething.android.databases.WindowChooser
 import dev.keething.android.generator.PasswordGeneratorState
 import dev.keething.android.list.RecentEntries
@@ -35,25 +37,20 @@ import dev.keething.android.settings.SharedPreferencesSettingsStore
 import dev.keething.android.sharing.CodePictures
 import dev.keething.android.sharing.FileSharingStore
 import dev.keething.android.sharing.SharingKey
-import dev.keething.android.storage.AllFilesAccess
-import dev.keething.android.storage.FileObserverFolderWatcher
-import dev.keething.android.storage.PathDatabaseStore
-import dev.keething.android.storage.PathKeyFileSource
-import dev.keething.android.storage.PathNewFile
 import dev.keething.android.storage.PersistedGrants
 import dev.keething.android.storage.ProviderFile
 import dev.keething.android.storage.ProviderFolder
 import dev.keething.android.storage.UnreachableFolder
+import dev.keething.android.storage.GrantedFiles
+import dev.keething.android.storage.NeedsFolderStore
+import dev.keething.android.databases.DatabaseFiles
 import dev.keething.android.storageprobe.GrantProbe
 import dev.keething.domain.storage.GrantedFolder
 import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.databases.GrantKeeper
 import dev.keething.vault.storage.FolderDatabaseStore
 import dev.keething.vault.storage.SaveNotes
-import dev.keething.android.storage.SharedFolderWatcher
-import dev.keething.android.storage.SharedStorage
 import dev.keething.android.storageprobe.FingerprintProbe
-import dev.keething.android.storageprobe.ProbeSettings
 import dev.keething.android.ui.Notice
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.sharing.message.PartCollector
@@ -66,6 +63,8 @@ import dev.keething.vault.databases.SessionsState
 import dev.keething.vault.databases.StoredEntryIds
 import dev.keething.vault.storage.KeyFiles
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import dev.keething.android.databases.GrantedPlace
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -84,11 +83,6 @@ internal class AppContainer(context: Context) {
     /** Lives as long as the process; work that must outlast a screen runs here, on the main thread. */
     private val appScope: CoroutineScope = MainScope()
 
-    private val folderWatcher = SharedFolderWatcher(FileObserverFolderWatcher())
-
-    /** A database by its path, with all-files access: the list's records of before databases.saf, and the probe's. */
-    val databaseStoreAt: (File) -> DatabaseStore = { file -> PathDatabaseStore(file, folderWatcher, AndroidClock) }
-
     private val resolver = context.contentResolver
 
     /** The grants the app holds, kept by the system (keething-spec databases.saf AC14). */
@@ -100,15 +94,21 @@ internal class AppContainer(context: Context) {
     /** The saves through granted folders, noted before they touch the folder (AC5): one for the whole app. */
     private val saveNotes = SaveNotes(File(context.filesDir, "saves"))
 
-    /** A database of the list, by its path or through a granted folder (AC2). */
+    /** A database of the list through its granted folder (AC2); one kept by its path is never read by it (AC1, AC13). */
     private fun databaseStoreOf(file: FileLocation): DatabaseStore = when (file) {
-        is FileLocation.ByPath -> databaseStoreAt(File(file.path))
+        is FileLocation.ByPath -> NeedsFolderStore(file.fileName)
         is FileLocation.InFolder -> FolderDatabaseStore(folderOf(file.grant) ?: UnreachableFolder(file.grant), file.path, saveNotes, AndroidClock)
         is FileLocation.Granted -> throw IllegalArgumentException("a database is never reached through a grant to the file alone")
     }
 
-    /** A new database or key file at a path; owner-only in the app's own storage, shared storage has no permissions. */
-    val newFileAt: (File) -> PathNewFile = { file -> PathNewFile(file, ownerOnly = !SharedStorage.contains(file)) }
+    /** A key file granted alone, by its grant; one not of the phone's storage cannot be reached (AC12). */
+    private val fileOf: (grant: String) -> ProviderFile? = { ProviderFile.of(resolver, it) }
+
+    /** The list's files looked at through their grants, never opened (SPEC §6.2). */
+    val databaseFiles: DatabaseFiles = GrantedFiles(folderOf, fileOf)
+
+    /** How a key file is reached wherever the list has it (AC9). */
+    private val keyFiles = KeyFiles(folder = folderOf, file = fileOf)
 
     private val settingsStore = SharedPreferencesSettingsStore(context.getSharedPreferences("settings", Context.MODE_PRIVATE))
 
@@ -116,6 +116,19 @@ internal class AppContainer(context: Context) {
 
     /** Gives back each grant the list no longer needs (AC14); before anything can change the list. */
     private val grantKeeper = GrantKeeper(databaseList, grants, saveNotes, appScope, Dispatchers.IO)
+
+    /**
+     * A grant the user gave in a picker for the list (a folder, a key file): given back after the list's next change
+     * unless the list is reached through it then (AC14). On the main thread.
+     */
+    fun offerGrant(grant: String) {
+        grantKeeper.offered(grant)
+    }
+
+    /** A grant given again in a picker, in use by what asked for it until it offers it again (AC14). On the main thread. */
+    fun grantTaken(grant: String) {
+        grantKeeper.taken(grant)
+    }
 
     val settings = AppSettings(settingsStore)
 
@@ -133,39 +146,53 @@ internal class AppContainer(context: Context) {
      * files the one database of before left there stay as they were.
      */
     val sessions = Sessions(
-        settings, settingsStore, databaseList, ::databaseStoreOf, File(context.filesDir, "backups"),
-        KeyFiles(folder = folderOf, file = { ProviderFile.of(resolver, it) }, byPath = { PathKeyFileSource(File(it)) }),
+        settings, settingsStore, databaseList, ::databaseStoreOf, File(context.filesDir, "backups"), keyFiles,
         biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path, grantKeeper::offered,
     )
 
     /** What a new database's Create is making (plan AD7): an ended process's leftovers go at the next start. */
     private val creationNote = CreationNote(File(context.filesDir, "creating.note"), folderOf)
 
+    /** Opened once the start has dealt with an ended Create's leftovers: a Create's note waits for it. */
+    private val leftoversDealtWith = CountDownLatch(1)
+
     /** The New database screen (SPEC §6.2), kept by the app: Create goes on when the screen is gone. */
     val newDatabases: NewDatabases = NewDatabases { newDatabase(context) }
 
-    /** A form for New database: Save in starts at the current database's folder, then the list's, then Documents. */
+    /**
+     * A form for New database: Save in starts at the current database's folder, then the list's other granted folders
+     * (keething-spec databases.saf AC11); with none, a folder is chosen first. What the form granted and did not use is
+     * given back (AC14).
+     */
     private fun newDatabase(context: Context): NewDatabaseModel {
-        val root = Environment.getExternalStorageDirectory()
+        val root = Environment.getExternalStorageDirectory().path
         val list = sessions.list
-        val folders = (listOfNotNull(list.current) + list.records)
-            .mapNotNull { record -> record.path?.let(::File)?.parentFile?.takeIf(File::isDirectory)?.path }
-            .distinct()
+        val current = list.current?.file as? FileLocation.InFolder
+        val folders = listOfNotNull(current?.let { GrantedPlace(it.grant, it.folder) }) + list.state.value.grantedFolders()
+        val places = NewDatabasePlaces(root, folders.distinctBy { it.grant })
+        // The current database's own folder first, then each granted folder as granted.
+        val starts = listOfNotNull(current?.place?.parent?.let { DatabaseText.pathOf(it, root) }) + places.listedPaths
         val model = NewDatabaseModel(
-            making = FileDatabaseMaking(newFileAt, creationNote),
-            folders = folders,
-            documents = File(root, Environment.DIRECTORY_DOCUMENTS).path,
-            root = root.path,
-            files = PhoneNewDatabaseFiles(root, AllFilesAccess::isGranted),
+            making = FileDatabaseMaking(places, folderOf, keyFiles, creationNote, ready = leftoversDealtWith::await),
+            folders = starts.distinct(),
+            root = root,
+            files = GrantedNewDatabaseFiles(places, folderOf, appScope, Dispatchers.IO) { file -> fileOf(file.grant)?.isThere() == true },
             offersFingerprint = sessions.biometric.state.value.enabled,
             scope = appScope,
             io = Dispatchers.IO,
             lockCount = { sessions.lockCount },
         )
+        val offerTaken = { places.taken.forEach(grantKeeper::offered) }
+        model.folderGranted = { folder -> grantKeeper.taken(folder.grant); places.folderGranted(folder) }
+        model.keyFileGranted = { file -> grantKeeper.taken(file.grant); places.keyFileGranted(file) }
         model.onCreating = { creating -> if (creating) CreatingService.start(context) else CreatingService.stop(context) }
+        model.onClosed = offerTaken
         model.onCreated = { made ->
             try {
-                sessions.created(made)?.let { Log.w("Creating", "an old record's stored password stayed: $it") }
+                // Offered first: the list's change below keeps those it is reached through, the others go.
+                offerTaken()
+                val file = checkNotNull(places.inFolder(made.path)) { "made where no grant reaches" }
+                sessions.created(made, file, made.keyFilePath?.let(places::keyFile))?.let { Log.w("Creating", "an old record's stored password stayed: $it") }
             } finally {
                 newDatabases.created(model)
             }
@@ -202,13 +229,11 @@ internal class AppContainer(context: Context) {
     val systemClipboard = AndroidSystemClipboard(context)
     val clipboard = SensitiveClipboard(systemClipboard, ClipboardClearAlarm(context), appScope)
 
-    val probeSettings = ProbeSettings(context.getSharedPreferences("storage-probe", Context.MODE_PRIVATE))
-
     /** The fingerprint spike of the debug probe (plans/android-databases.md AD5); for the whole process, as unlocks are. */
     val fingerprintProbe by lazy { FingerprintProbe(context, FingerprintPrompt(context)) }
 
-    /** The debug probe of databases through a granted folder, before their screens (databases.saf stage S3). */
-    fun grantProbe(log: (String) -> Unit): GrantProbe = GrantProbe(resolver, grants, { sessions.databases }, log)
+    /** The debug probe of what the storage provider does with names in a granted folder (databases.saf stage S3). */
+    fun grantProbe(log: (String) -> Unit): GrantProbe = GrantProbe(resolver, grants, log)
 
     /** Attachments opened in another app; what a process that died left behind goes at once (SPEC §4). */
     val attachmentFiles = AttachmentFiles(File(context.cacheDir, "attachments")).also(AttachmentFiles::clear)
@@ -272,12 +297,9 @@ internal class AppContainer(context: Context) {
     val answerParts = PartCollector()
 
     init {
-        // A small file, almost never there: read at once, before any Create can note anything.
-        val listed = sessions.list.records.flatMap { listOfNotNull(it.file, it.keyFile) }
-        // A file made in a granted folder is reached through the provider here, on the main thread: only after a process
-        // ended in the middle of a Create.
-        runCatching { creationNote.leftovers { made -> listed.any(made::isSameFile) } }.getOrNull()?.let { newDatabases.notCreated = it }
-        putRightAndSweep()
+        // The list's records of before databases.saf that a granted folder already holds: nothing to ask for them (AC13).
+        sessions.databases.adoptOldRecords()
+        dealWithLeftovers()
         // A lock takes New database's form, with what was typed, unless it is being created.
         sessions.locks.onLock = newDatabases::locked
         clearOnLock()
@@ -286,13 +308,20 @@ internal class AppContainer(context: Context) {
     }
 
     /**
-     * At the start, after a Create's leftovers (they are reached through their grants): every save through a granted
-     * folder that a stopped process left is put right, listed or not (keething-spec databases.saf AC5; a removed
-     * database's unsettled save keeps its grant until then), then every grant held that the list does not use goes
-     * (AC14).
+     * At the start: what an ended Create left (a small note, almost never there; its files reached through their grants,
+     * off the main thread, and a Create waits for it), then every save through a granted folder that a stopped process
+     * left is put right, listed or not (keething-spec databases.saf AC5; a removed database's unsettled save keeps its
+     * grant until then), then every grant held that the list does not use goes (AC14).
      */
-    private fun putRightAndSweep() {
+    private fun dealWithLeftovers() {
+        val listed = sessions.list.records.flatMap { listOfNotNull(it.file, it.keyFile) }
         appScope.launch {
+            try {
+                withContext(Dispatchers.IO) { runCatching { creationNote.leftovers { made -> listed.any(made::isSameFile) } }.getOrNull() }
+                    ?.let { newDatabases.notCreated = it }
+            } finally {
+                leftoversDealtWith.countDown()
+            }
             withContext(Dispatchers.IO) { FolderDatabaseStore.putRightStoppedSaves(saveNotes, folderOf, AndroidClock) }
             grantKeeper.sweep()
         }

@@ -17,6 +17,7 @@ import dev.keething.generator.Strength
 import dev.keething.generator.SystemRandom
 import dev.keething.vault.creating.CreateFailure
 import dev.keething.vault.creating.DerivedKey
+import dev.keething.vault.databases.FileLocation
 import java.io.File
 import java.util.Locale
 import kotlin.coroutines.cancellation.CancellationException
@@ -63,22 +64,30 @@ internal interface DatabaseMaking {
     fun end(made: Boolean)
 }
 
-/** What New database looks at on the phone's storage. Quick: called while the screen draws. */
+/**
+ * What New database looks at on the phone's storage, through the folders and files the user granted (keething-spec
+ * databases.saf AC11): each named by its path on the phone, the form's words. Called while the screen draws: what is
+ * read is kept until [lookAgain].
+ */
 internal interface NewDatabaseFiles {
-    /** Anything at [path]: a file, a folder, a link. */
+    /** Anything at [path], a file or a folder, its name case aside; false where no grant reaches. */
     fun exists(path: String): Boolean
 
     fun isFolder(path: String): Boolean
 
-    /** [folder] is in a folder Syncthing syncs: it, or one above it, has Syncthing's `.stfolder` marker. */
+    /** [folder] is in a folder Syncthing syncs: it, or one above it the grant reaches, has Syncthing's `.stfolder` marker. */
     fun syncs(folder: String): Boolean
 
-    /** Keething may write to the shared storage (all-files access). */
-    fun writable(): Boolean
+    /** What was read is read again: a file made or moved meanwhile. */
+    fun lookAgain() {}
+
+    /** [read] is called on the main thread whenever something asked before is known: the form asks again. */
+    fun whenRead(read: () -> Unit) {}
 }
 
 /** A database just made, for the app to open (keething-spec databases.new-database AC8). */
 internal class CreatedDatabase(
+    /** Where it was made, by its path on the phone (the form's words): the app knows which grant reaches it. */
     val path: String,
     val keyFilePath: String?,
     /** The key it was made with, derived: its first opening derives nothing. */
@@ -102,10 +111,11 @@ internal class CreatedDatabase(
  */
 internal class NewDatabaseModel(
     private val making: DatabaseMaking,
-    /** The list's databases' folders, the current one's first: where Save in starts. */
+    /**
+     * The folders granted for the list's databases, the current one's first: where Save in starts (keething-spec
+     * databases.saf AC11). None: a folder is chosen first.
+     */
     folders: List<String>,
-    /** The phone's Documents folder: offered, and where a new key file starts. */
-    val documents: String,
     /** The shared storage's root, for the words ("Sync/KeePass"). */
     private val root: String,
     private val files: NewDatabaseFiles,
@@ -141,7 +151,7 @@ internal class NewDatabaseModel(
         data class Existing(val path: String) : KeyFileChoice
     }
 
-    /** A folder of Save in; [note]: "this database’s" for the current one's. */
+    /** A folder of Save in, granted; [note]: "this database’s" for the current one's. */
     data class Folder(val path: String, val title: String, val note: String? = null)
 
     enum class Match { MATCHES, DIFFERS }
@@ -155,10 +165,20 @@ internal class NewDatabaseModel(
     /** Creating begins (true) and ends (false): the app keeps its process alive meanwhile. */
     var onCreating: (Boolean) -> Unit = {}
 
+    /** The form closed without a database made: the app gives back what was granted for it alone. */
+    var onClosed: () -> Unit = {}
+
+    /** A folder granted in a picker of the form: the path the form names it by (the app keeps which grant reaches it). */
+    var folderGranted: (GrantedPlace) -> String = { it.place.toString() }
+
+    /** A key file granted alone in the form's picker: the path the form names it by. */
+    var keyFileGranted: (FileLocation.Granted) -> String = { it.at.toString() }
+
     var name: String by mutableStateOf("")
         private set
 
-    var folder: String by mutableStateOf(folders.firstOrNull() ?: documents)
+    /** Null until one is chosen: nothing is granted yet. */
+    var folder: String? by mutableStateOf(folders.firstOrNull())
         private set
 
     var folders: List<Folder> by mutableStateOf(emptyList())
@@ -212,8 +232,9 @@ internal class NewDatabaseModel(
     /** Counts [lookAgain]: what is read of the files is read again. */
     private var looked by mutableIntStateOf(0)
 
-    /** The screen is shown again: access may have been granted, a file made or moved meanwhile. */
+    /** The screen is shown again: a file made or moved meanwhile. */
     fun lookAgain() {
+        files.lookAgain()
         looked++
     }
 
@@ -232,8 +253,9 @@ internal class NewDatabaseModel(
     private var creation: Job? = null
 
     init {
-        val paths = (folders + documents).map { File(it).path }.distinct()
-        this.folders = paths.mapIndexed { i, path -> folderAt(path, isCurrent = i == 0 && folders.isNotEmpty()) }
+        files.whenRead { looked++ }
+        val paths = folders.map { File(it).path }.distinct()
+        this.folders = paths.mapIndexed { i, path -> folderAt(path, isCurrent = i == 0) }
     }
 
     // Name and place
@@ -254,10 +276,11 @@ internal class NewDatabaseModel(
         }
 
     /** Where it will be; null without a name. */
-    val path: String? get() = fileName?.let { File(folder, it).path }
+    val path: String? get() = folder?.let { folder -> fileName?.let { File(folder, it).path } }
 
     /** Under Save in: "Sync/KeePass/Family Shared.kdbx" (the folder and "…" while there is no name). */
-    val pathText: String get() = path?.let(::shown) ?: "${shown(folder)}/…"
+    val pathText: String
+        get() = path?.let(::shown) ?: folder?.let { "${shown(it)}/…" } ?: "Keething saves only in a folder you choose."
 
     /** A file is already where it would go (or Create found one): the name is red, and the line says why. */
     val nameIsTaken: Boolean get() = path?.let(::there) == true || failure?.takeIf { it.form == form() }?.onName == true
@@ -453,13 +476,14 @@ internal class NewDatabaseModel(
     val blockers: List<String>
         get() {
             val why = mutableListOf<String>()
-            if (!looked.let { files.writable() }) why += NO_ACCESS
+            val folder = folder
+            if (folder == null) why += "Choose the folder to save it in."
             val fileName = fileName
             if (fileName == null) why += "Name it."
             // A file name has 255 bytes at most (UTF-8: a Cyrillic letter is two).
             if (fileName != null && fileName.encodeToByteArray().size > 255) why += "The name is too long for a file name: shorten it."
             if (nameIsTaken && fileName != null) why += takenText(fileName)
-            if (!folderThere(folder)) why += "That folder is not there any more. Choose another."
+            if (folder != null && !folderThere(folder)) why += "That folder is not there any more. Choose another."
             if (password.text.isEmpty()) {
                 why += "Type a master password."
             } else if (match != Match.MATCHES) {
@@ -547,6 +571,7 @@ internal class NewDatabaseModel(
         suggestion = null
         password.clearText()
         again.clearText()
+        onClosed()
     }
 
     /** The Encryption page's measurement, done (the tests wait for it). */
@@ -672,15 +697,14 @@ internal class NewDatabaseModel(
     }
 
     private fun takenText(fileName: String): String =
-        "There is already a $fileName in ${shown(folder)}. A database is never replaced: choose another name or folder."
+        "There is already a $fileName in ${folder?.let(::shown)}. A database is never replaced: choose another name or folder."
 
     /** What the form holds now: a failure is shown until it changes (the name, the folder, the password, a key file, the encryption). */
     private fun form(): Int = listOf(name, folder, password.text.toString(), keyFile, requiresKeyFile, encryption).hashCode()
 
     private fun shown(path: String): String = DatabaseText.abbreviated(path, root)
 
-    private fun folderAt(path: String, isCurrent: Boolean): Folder =
-        Folder(path, if (path == documents) "Documents" else shown(path), "this database’s".takeIf { isCurrent })
+    private fun folderAt(path: String, isCurrent: Boolean): Folder = Folder(path, shown(path), "this database’s".takeIf { isCurrent })
 
     private fun encryptionChanged() {
         val e = encryption.clamped
@@ -729,9 +753,6 @@ internal class NewDatabaseModel(
     }
 
     companion object {
-        /** The first reason while Keething may not write to the shared storage: the screen offers to allow it. */
-        const val NO_ACCESS: String = "Keething may not write to the phone's storage: allow all-files access."
-
         /** "1 s", "0.5 s", "2.5 s". */
         fun seconds(value: Double): String {
             val rounded = Math.round(value * 10) / 10.0

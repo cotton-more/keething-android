@@ -77,6 +77,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -140,7 +141,8 @@ import dev.keething.android.ui.Notice
 import dev.keething.android.databases.NotOpenDatabase
 import dev.keething.android.databases.NotOpenLine
 import dev.keething.android.databases.NotOpenSheet
-import dev.keething.android.databases.rememberFilePicker
+import dev.keething.android.databases.rememberFileActions
+import dev.keething.android.databases.Reach
 import dev.keething.vault.databases.DatabaseId
 import androidx.compose.material.icons.rounded.Storage
 import dev.keething.android.ui.NoticeEffect
@@ -213,15 +215,7 @@ internal fun EntryListScreen(
     NoticeEffect(remember { container.windowNotices.receiveAsFlow() }, snackbar)
     // A chip's long press: its sheet (keething-spec databases.not-open AC5).
     var sheetOf by rememberSaveable { mutableStateOf<String?>(null) }
-    val databases = container.sessions.databases
-    val locate = rememberFilePicker { file ->
-        sheetOf?.let { id -> databases.locate(DatabaseId(id), file.path)?.let { container.windowNotices.trySend(Notice(it, isProblem = true)) } }
-        sheetOf = null
-    }
-    val chooseKeyFile = rememberFilePicker { file ->
-        sheetOf?.let { id -> databases.setKeyFile(DatabaseId(id), file.path) }
-        sheetOf = null
-    }
+    val files = rememberFileActions(container, onProblem = { problem -> problem?.let { container.windowNotices.trySend(Notice(it, isProblem = true)) } })
     notOpen.firstOrNull { it.id.value == sheetOf }?.let { database ->
         NotOpenSheet(
             database,
@@ -230,8 +224,14 @@ internal fun EntryListScreen(
                 sheetOf = null
                 onLockScreen(database.id)
             },
-            onLocate = { locate(java.io.File(database.line.path).parentFile) },
-            onChooseKeyFile = { chooseKeyFile(database.line.keyFile?.path?.let { java.io.File(it).parentFile }) },
+            onLocate = {
+                sheetOf = null
+                files.locate(database.id, database.line.reach == Reach.NO_ACCESS)
+            },
+            onChooseKeyFile = {
+                sheetOf = null
+                files.chooseKeyFile(database.id)
+            },
             onClose = {
                 sheetOf = null
                 onCloseDatabase(database.id)
@@ -335,7 +335,7 @@ internal fun EntryListScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
             ) {
                 for (banner in state.banners) {
-                    item(key = banner.key) { Banner(title = banner.title, text = banner.text) }
+                    item(key = banner.key) { Banner(title = banner.title, text = banner.text, onDismiss = banner.onDismiss) }
                 }
                 if (state.preparing) {
                     item(key = "preparing") {
@@ -550,16 +550,18 @@ private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit, onDatabase
 }
 
 @Composable
-private fun Banner(title: String, text: String) {
+private fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null) {
     val colors = MaterialTheme.extraColors
     Row(
         Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(20.dp)).background(colors.warnContainer).padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = colors.onWarnContainer)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = colors.onWarnContainer)
             Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onWarnContainer)
+            // Said once read: OK, and it is not said again (keething-spec databases.saf AC5).
+            onDismiss?.let { TextButton(onClick = it, modifier = Modifier.align(Alignment.End)) { Text("OK", color = colors.onWarnContainer) } }
         }
     }
 }

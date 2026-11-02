@@ -8,7 +8,6 @@ import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.VaultSession
-import java.io.File
 import java.time.Instant
 import kotlin.time.Duration
 import kotlinx.coroutines.CoroutineScope
@@ -35,10 +34,7 @@ public class DatabaseSession(
     public val store: DatabaseStore,
     public val session: VaultSession,
     public val biometric: BiometricUnlock,
-) {
-    /** The file as the app's words name it while it reaches files by path (until databases.saf stage S3): its path, else its name. */
-    public val file: File get() = File((location as? FileLocation.ByPath)?.path ?: location.fileName)
-}
+) {}
 
 /** Builds a database's session; the app picks the file store, the backups and how a key file is read. */
 public fun interface SessionFactory {

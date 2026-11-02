@@ -2,6 +2,7 @@ package dev.keething.android.storage
 
 import android.content.ContentResolver
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import dev.keething.domain.storage.GrantedFile
 import dev.keething.domain.storage.Grants
@@ -20,6 +21,19 @@ internal class ProviderFile(private val resolver: ContentResolver, private val u
         resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("the provider gave no file")
     } catch (_: FileNotFoundException) {
         null
+    } catch (failure: SecurityException) {
+        throw AccessDeniedException(id, null, failure.message).apply { initCause(failure) }
+    } catch (failure: RuntimeException) {
+        throw IOException(failure.message ?: failure.javaClass.simpleName, failure)
+    }
+
+    /**
+     * Whether the file is there, asked of the provider without reading it: false when it has none. Throws an
+     * [AccessDeniedException] when the grant is gone (a sync replaced the file), an [IOException] for any other failure.
+     */
+    fun isThere(): Boolean = try {
+        // The provider gives no cursor for a document that is not there.
+        resolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID), null, null, null)?.use { it.moveToFirst() } ?: false
     } catch (failure: SecurityException) {
         throw AccessDeniedException(id, null, failure.message).apply { initCause(failure) }
     } catch (failure: RuntimeException) {

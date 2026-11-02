@@ -6,7 +6,6 @@ import androidx.compose.foundation.text.input.clearText
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.keething.android.session.Visit
-import dev.keething.android.storage.AllFilesAccess
 import dev.keething.domain.secret.Secret
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.FingerprintOutcome
@@ -15,12 +14,10 @@ import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.session.SessionState
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 internal class LockViewModel(
     private val database: DatabaseSession,
@@ -58,12 +55,8 @@ internal class LockViewModel(
     /** Counts the times the fingerprint prompt was closed without a fingerprint: the password field takes the focus. */
     val passwordWanted: StateFlow<Int> = mutablePasswordWanted.asStateFlow()
 
-    private val mutableAccessGranted = MutableStateFlow(AllFilesAccess.isGranted())
-    val accessGranted: StateFlow<Boolean> = mutableAccessGranted.asStateFlow()
-
-    /** On every return to the screen: the access may have been granted, a fingerprint added or removed. */
+    /** On every return to the screen: a fingerprint may have been added or removed. */
     fun refresh() {
-        mutableAccessGranted.value = AllFilesAccess.isGranted()
         viewModelScope.launch { database.biometric.refresh() }
     }
 
@@ -76,13 +69,13 @@ internal class LockViewModel(
     fun offerFingerprint(visit: Visit) {
         if (!offersFingerprint(visit)) return
         viewModelScope.launch {
-            if (database.biometric.refresh().canUnlock && AllFilesAccess.isGranted() && fingerprintCanOpen()) fingerprint()
+            if (database.biometric.refresh().canUnlock && fingerprintCanOpen()) fingerprint()
         }
     }
 
-    private suspend fun fingerprintCanOpen(): Boolean = withContext(Dispatchers.IO) {
-        val record = list.record(database.id) ?: return@withContext false
-        FileLocation.isThereByPath(record.file) && record.keyFile?.let(FileLocation::isThereByPath) != false
+    private fun fingerprintCanOpen(): Boolean {
+        val record = list.record(database.id) ?: return false
+        return FileLocation.isReachable(record.file) && record.keyFile?.let(FileLocation::isReachable) != false
     }
 
     /** The lock screen's "Use fingerprint next time": this database's own switch, so the password typed next is stored. */

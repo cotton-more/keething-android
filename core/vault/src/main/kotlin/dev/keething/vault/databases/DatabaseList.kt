@@ -59,12 +59,6 @@ public data class DatabaseRecord(
 ) {
     public val fileName: String get() = file.fileName
 
-    /** The database's path while the app reaches files by path (until databases.saf stage S3); null for one through a grant. */
-    public val path: String? get() = (file as? FileLocation.ByPath)?.path
-
-    /** The key file's path, as [path]; null for none, or one through a grant. */
-    public val keyFilePath: String? get() = (keyFile as? FileLocation.ByPath)?.path
-
     /** The name it goes by: its own, else the file name without `.kdbx`. */
     public val displayName: String
         get() = name?.takeIf { it.isNotBlank() } ?: fileName.let { if (it.lowercase().endsWith(".kdbx")) it.dropLast(5) else it }
@@ -178,9 +172,6 @@ public class DatabaseList(
         return record to old
     }
 
-    /** [add] of the file at [path], standardized: as the app adds a database while it reaches files by path (until databases.saf stage S3). */
-    public fun add(path: String, useBiometric: Boolean = false): DatabaseRecord = add(FileLocation.byPath(path), useBiometric)
-
     /** The database of the list that is [file], however it is reached; null for none. */
     public fun recordOf(file: FileLocation): DatabaseRecord? = records.firstOrNull { it.file.isSameFile(file) }
 
@@ -248,9 +239,6 @@ public class DatabaseList(
 
     public companion object {
         public const val STORE_KEY: String = "databases"
-
-        /** The same file however its path is written: `.` and `..` resolved, doubled and trailing `/` dropped. */
-        public fun standardized(path: String): String = FileLocation.standardized(path)
 
         /**
          * A database's file or key file: by path as before databases.saf (`"path"`, `"keyFilePath"`: the list of before

@@ -10,16 +10,16 @@ import java.nio.file.AccessDeniedException
 /**
  * How the app reaches a key file wherever the list has it (keething-spec kdbx.key-files AC8, databases.saf AC9): never
  * copied, read again at every unlock. In a granted folder by its path there ([folder]), granted alone through its own
- * grant ([file]), from before databases.saf by its path ([byPath]). A grant that cannot be reached (null: gone, or the
- * app's data cleared) reads as [KeyFileRead.AccessDenied] (AC10).
+ * grant ([file]). A grant that cannot be reached (null: gone, or the app's data cleared) reads as
+ * [KeyFileRead.AccessDenied] (AC10), and so does one the list kept by its path before databases.saf, which is never
+ * read by it (AC1) until a folder of the list holds it or another is chosen (AC13).
  */
 public class KeyFiles(
     private val folder: (grant: String) -> GrantedFolder?,
     private val file: (grant: String) -> GrantedFile?,
-    private val byPath: (path: String) -> KeyFileSource,
 ) {
     public fun at(location: FileLocation): KeyFileSource = when (location) {
-        is FileLocation.ByPath -> byPath(location.path)
+        is FileLocation.ByPath -> Granted(location.fileName) { throw AccessDeniedException(location.fileName) }
         is FileLocation.InFolder -> Granted(location.fileName) {
             (folder(location.grant) ?: throw AccessDeniedException(location.fileName)).read(location.path)?.bytes
         }

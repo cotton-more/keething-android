@@ -4,6 +4,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
+import dev.keething.domain.storage.StoppedSave
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.Vault
@@ -36,7 +37,7 @@ public sealed interface OpenFailure {
     /** No file at the place (Syncthing may be replacing it, SPEC §3.2). */
     public data object Missing : OpenFailure
 
-    /** The file is there but may not be read (the all-files access was revoked). */
+    /** The file may not be read: its grant is gone, or it is kept by its path and its folder not chosen yet. */
     public data object AccessDenied : OpenFailure
 
     /** A database the app does not read (KDBX 3, Twofish…): [what]. */
@@ -60,6 +61,8 @@ internal class OpenedVault(
     val version: FileVersion,
     /** How long the key derivation took; null when the key derived before was used. */
     val keyDerivation: Duration?,
+    /** A save the app did not finish, put right before this read and not said yet (keething-spec databases.saf AC5). */
+    val stoppedSave: StoppedSave? = null,
 )
 
 internal sealed interface OpenResult {
@@ -83,7 +86,7 @@ public open class VaultOpener {
         } catch (_: OutOfMemoryError) {
             return OpenResult.Failed(OpenFailure.OutOfMemory)
         }
-        return OpenResult.Opened(database.toOpenedVault(found.version))
+        return OpenResult.Opened(database.toOpenedVault(found.version, stoppedSave = found.stoppedSave))
     }
 
     /**
@@ -142,7 +145,7 @@ public sealed interface HistoryResult {
  * The vault of a database read, with its attachments; [version] is the file's that was read. [assembled] is its
  * vault when it was made already (a save's read-back).
  */
-internal fun KdbxDatabase.toOpenedVault(version: FileVersion, assembled: Vault? = null): OpenedVault {
+internal fun KdbxDatabase.toOpenedVault(version: FileVersion, assembled: Vault? = null, stoppedSave: StoppedSave? = null): OpenedVault {
     val vault = assembled ?: try {
         VaultAssembler.assemble(document, binaries.map(Secret::size))
     } catch (failure: RuntimeException) {
@@ -152,7 +155,7 @@ internal fun KdbxDatabase.toOpenedVault(version: FileVersion, assembled: Vault? 
     val indexes = document.entries.associate { entry ->
         entry.uuid to entry.attachments.mapNotNull { ref -> ref.ref?.let { ref.name to it } }.toMap()
     }
-    return OpenedVault(vault, AttachmentContents(binaries, indexes), version, keyDerivation)
+    return OpenedVault(vault, AttachmentContents(binaries, indexes), version, keyDerivation, stoppedSave)
 }
 
 internal fun KdbxException.toOpenFailure(): OpenFailure = when (this) {

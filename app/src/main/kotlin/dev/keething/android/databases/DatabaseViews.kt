@@ -1,14 +1,6 @@
 package dev.keething.android.databases
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.os.Environment
-import android.provider.DocumentsContract
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContract
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -39,13 +31,11 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -56,15 +46,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.keething.android.storage.AllFilesAccess
-import dev.keething.android.storage.FolderPaths
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.segmentShape
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.Databases
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.time.Duration.Companion.seconds
@@ -88,9 +75,8 @@ internal data class DatabaseScreens(val lines: List<DatabaseLine>, val lockScree
  * screen asks again each time it comes back (a card put in, a key file moved back).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal class DatabaseLinesModel(list: DatabaseList) : ViewModel() {
+internal class DatabaseLinesModel(list: DatabaseList, private val files: DatabaseFiles) : ViewModel() {
     private val refreshes = MutableStateFlow(0)
-    private val files = DatabaseFiles.live(AllFilesAccess::isGranted)
     private val root = Environment.getExternalStorageDirectory().path
 
     val screens: StateFlow<DatabaseScreens?> = combine(list.state, refreshes) { databases, _ -> databases }
@@ -99,7 +85,7 @@ internal class DatabaseLinesModel(list: DatabaseList) : ViewModel() {
                 val screens = look(databases)
                 emit(screens)
                 // Not found may be the moment Syncthing replaces the file (SPEC §3.2): once more a little later.
-                if (screens.lockScreen?.line?.isMissing == true) {
+                if (screens.lockScreen?.line?.reach == Reach.NOT_FOUND) {
                     delay(SYNC_REPLACE)
                     emit(look(databases))
                 }
@@ -108,7 +94,7 @@ internal class DatabaseLinesModel(list: DatabaseList) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private suspend fun look(databases: Databases): DatabaseScreens = withContext(Dispatchers.IO) {
-        val lines = databases.lines(files, root, Instant.now(), ZoneId.systemDefault())
+        val lines = databases.lines(files.lookedAt(databases), root, Instant.now(), ZoneId.systemDefault())
         DatabaseScreens(lines, databases.current?.let { current -> lines.firstOrNull { it.id == current.id }?.let(current::lockScreen) })
     }
 
@@ -171,37 +157,6 @@ internal fun DatabaseLabelText(label: DatabaseLabel, style: TextStyle, modifier:
         label.addition?.let { withStyle(SpanStyle(color = secondary, fontWeight = FontWeight.Normal)) { append(" · $it") } }
     }
     Text(text, modifier, style = style, fontWeight = fontWeight, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
-}
-
-/**
- * The system picker for a file anywhere on the phone (a database, a key file), opening in [folder] when given; the
- * app keeps the file's path, not the picker's grant (SPEC §3.1). A file whose place has no path is said and dropped.
- */
-@Composable
-internal fun rememberFilePicker(onPicked: (File) -> Unit): (folder: File?) -> Unit {
-    val context = LocalContext.current
-    val picked = rememberUpdatedState(onPicked)
-    val launcher = rememberLauncherForActivityResult(OpenFile) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val file = FolderPaths.fileOf(uri)
-        if (file == null) context.noPath() else picked.value(file)
-    }
-    return { folder -> launcher.launch(folder) }
-}
-
-private fun Context.noPath() {
-    Toast.makeText(this, "Choose the file from the phone's storage: Keething keeps its path, and this one has none.", Toast.LENGTH_LONG).show()
-}
-
-/** Open document, any type (a key file can be any file; a database need not end in .kdbx), in a folder to start in. */
-private object OpenFile : ActivityResultContract<File?, Uri?>() {
-    private val document = ActivityResultContracts.OpenDocument()
-
-    override fun createIntent(context: Context, input: File?): Intent = document.createIntent(context, arrayOf("*/*")).apply {
-        FolderPaths.initialUri(input)?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
-    }
-
-    override fun parseResult(resultCode: Int, intent: Intent?): Uri? = document.parseResult(resultCode, intent)
 }
 
 /** Remove “…” from the list?: asked first (SPEC §6.2). */

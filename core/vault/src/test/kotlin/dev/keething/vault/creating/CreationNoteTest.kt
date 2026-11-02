@@ -209,6 +209,16 @@ class CreationNoteTest {
     }
 
     @Test
+    fun aFileInAGrantedFolderACreateCouldNotRemoveStaysNotedForTheNextStart() {
+        note.begin("Stuck")
+        notedInFolder("Stuck.keyx").create("key".encodeToByteArray(), readOnly = true)
+        note.end(made = false)
+
+        assertEquals(CreationNote.Leftover("Stuck", emptyList()), note.leftovers(), "its section kept: the next start removes it")
+        assertEquals(emptyList(), granted.names())
+    }
+
+    @Test
     fun anEmptyFileTheProviderMadeBeforeTheProcessEndedGoesAndAPartWrittenOneIsKept() {
         note.begin("New")
         note.making(inFolder("New.kdbx"), "the whole file".encodeToByteArray())

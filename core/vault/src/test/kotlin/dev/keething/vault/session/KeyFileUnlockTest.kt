@@ -95,7 +95,7 @@ class KeyFileUnlockTest {
         denied.keyFile!!.denied = true
         denied.unlock("pw")
         runCurrent()
-        assertEquals(OpenFailure.KeyFileUnusable("Keething may not read work.keyx (allow all-files access)"), denied.failure)
+        assertEquals(OpenFailure.KeyFileUnusable("Keething may not read work.keyx any more: choose it again"), denied.failure)
         assertEquals(0, denied.store.reads)
 
         val failing = Fixture(this, FakeStore(keyfileDatabase()), object : FakeKeyFile(null) {

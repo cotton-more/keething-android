@@ -22,8 +22,8 @@ public sealed interface FileLocation {
     public val grant: String?
 
     /**
-     * By its file path, with all-files access: every database and key file of the list before databases.saf (AC13),
-     * and those the app adds while it still reaches files by path (until stage S3).
+     * By its file path: every database and key file of the list before databases.saf, which the app reached with
+     * all-files access. Never read now (AC1): its place says which folder to ask for (AC13).
      */
     public data class ByPath(val path: String) : FileLocation {
         override val fileName: String get() = path.substringAfterLast('/')
@@ -57,13 +57,11 @@ public sealed interface FileLocation {
 
     public companion object {
         /**
-         * Whether the file is there as far as a path tells, for a check before an unlock: a file reached through a grant
-         * is looked at by its read, which says what is wrong (true here).
+         * Whether an unlock could reach the file, for a check before it: not one kept by its path, which needs its folder
+         * first (keething-spec databases.saf AC1, AC13); one reached through a grant is looked at by its read, which says
+         * what is wrong (true here).
          */
-        public fun isThereByPath(location: FileLocation): Boolean = (location as? ByPath)?.let { File(it.path).isFile } ?: true
-
-        /** The file at [path], standardized: `.` and `..` resolved, doubled and trailing `/` dropped. */
-        public fun byPath(path: String): ByPath = ByPath(standardized(path))
+        public fun isReachable(location: FileLocation): Boolean = location !is ByPath
 
         /** The same file however its path is written: `.` and `..` resolved, doubled and trailing `/` dropped. */
         public fun standardized(path: String): String = File(path).normalize().path

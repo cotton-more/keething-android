@@ -28,7 +28,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -92,9 +91,9 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import dev.keething.android.databases.ChooserScreen
-import dev.keething.android.databases.rememberFilePicker
+import dev.keething.android.databases.rememberFileActions
+import dev.keething.android.databases.Reach
 import dev.keething.vault.session.SessionState
-import java.io.File
 
 /**
  * The screens of the open databases. An entry's screens name it by its ref ([EntryRef.text]: the same UUID in two
@@ -536,12 +535,12 @@ internal fun KeethingApp(container: AppContainer) {
     }
 }
 
-/** The chooser with its sheets: the system picker for Open other… and Locate…, New database (plan AD13). */
+/** The chooser with its sheets: Open other… and Locate… (a folder, then its files), New database (plan AD13). */
 @Composable
 private fun Chooser(container: AppContainer, navigation: NavigationState) {
     val sessions = container.sessions
     val chooser = container.chooser
-    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, chooser.skipped) }
+    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, chooser.skipped, container.databaseFiles) }
     val rows by windowModel.chooser.collectAsStateWithLifecycle()
     val note by chooser.note.collectAsStateWithLifecycle()
     val busy by chooser.busy.collectAsStateWithLifecycle()
@@ -552,26 +551,21 @@ private fun Chooser(container: AppContainer, navigation: NavigationState) {
         onPauseOrDispose {}
     }
     val context = LocalContext.current
-    val folder = { id: DatabaseId? -> id?.let(sessions.list::record)?.let { File(DatabaseText.pathOf(it.file, Environment.getExternalStorageDirectory().path)).parentFile } }
-    // Its lock screen in place of the chooser, Back to it.
-    val openOther = rememberFilePicker { file -> navigation.lockAsked = sessions.databases.open(file.path) }
-    // Kept across a rotation while the picker is up.
-    var locating by rememberSaveable { mutableStateOf<String?>(null) }
-    val locate = rememberFilePicker { file ->
-        locating?.let { id -> sessions.databases.locate(DatabaseId(id), file.path)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
-    }
+    // Open other…: its lock screen in place of the chooser, Back to it. What Locate… refused is said.
+    val files = rememberFileActions(
+        container,
+        onOpened = { navigation.lockAsked = it },
+        onProblem = { problem -> problem?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } },
+    )
     ChooserScreen(
         rows = rows,
         note = note,
         busy = busy,
         onToggle = chooser::toggle,
-        onLocate = { id ->
-            locating = id.value
-            locate(folder(id))
-        },
+        onLocate = { id -> files.locate(id, rows?.firstOrNull { it.id == id }?.line?.reach == Reach.NO_ACCESS) },
         onUnlock = chooser::start,
         onFingerprint = chooser::unlockWithFingerprint,
-        onOpenOther = { openOther(folder(sessions.list.currentId)) },
+        onOpenOther = files.open,
         onNewDatabase = container.newDatabases::open,
     )
 }
@@ -607,7 +601,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
     val sessions = container.sessions
     val open by sessions.open.collectAsStateWithLifecycle()
     // The window's databases not open and ⋮ › Databases (plan AD12).
-    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, container.chooser.skipped) }
+    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, container.chooser.skipped, container.databaseFiles) }
     val overview by windowModel.overview.collectAsStateWithLifecycle()
     val refreshes = rememberCoroutineScope()
     LifecycleResumeEffect(Unit) {

@@ -65,7 +65,6 @@ import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.segmentShape
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.vault.databases.DatabaseId
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
@@ -78,11 +77,10 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) -> Unit) {
-    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list) }
+    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list, container.databaseFiles) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { linesModel.refresh() }
-    val current by container.sessions.current.collectAsStateWithLifecycle()
-    val open = rememberFilePicker { file -> container.sessions.databases.open(file.path) }
+    val files = rememberFileActions(container)
     val lines = screens?.lines.orEmpty()
     val fingerprint by container.sessions.biometric.state.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -123,7 +121,7 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
             }
         }
         Row {
-            TextButton(onClick = { open(current?.file?.parentFile) }) {
+            TextButton(onClick = files.open) {
                 ButtonLabel("Open a database…", Icons.Rounded.FolderOpen, iconSize = 18.dp, gap = 8.dp)
             }
             TextButton(onClick = container.newDatabases::open) {
@@ -141,7 +139,7 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
 @Composable
 internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack: () -> Unit) {
     val databases = container.sessions.databases
-    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list) }
+    val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list, container.databaseFiles) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { linesModel.refresh() }
     val line = screens?.lines?.firstOrNull { it.id == id }
@@ -152,10 +150,8 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
     val context = LocalContext.current
     var removing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
-    val locate = rememberFilePicker { file -> problem = databases.locate(id, file.path) }
-    val chooseKeyFile = rememberFilePicker { file -> databases.setKeyFile(id, file.path) }
+    val files = rememberFileActions(container, onProblem = { problem = it })
     val root = remember { Environment.getExternalStorageDirectory().path }
-    val folder = File(line.path).parentFile
 
     if (removing) {
         RemoveFromListDialog(
@@ -192,12 +188,14 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Rounded.FindInPage, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                    Text("Not found at ${DatabaseText.abbreviated(line.path, root)}", color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text(
+                        container.sessions.list.record(id)?.lockScreen(line)?.missingText ?: "Not found at ${DatabaseText.abbreviated(line.path, root)}",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
                 }
-                FilledTonalButton(onClick = {
-                    problem = null
-                    locate(folder)
-                }) { ButtonLabel("Locate…", Icons.Rounded.Search, iconSize = 18.dp, gap = 8.dp) }
+                FilledTonalButton(onClick = { files.locate(id, line.reach == Reach.NO_ACCESS) }) {
+                    ButtonLabel(if (line.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…", Icons.Rounded.Search, iconSize = 18.dp, gap = 8.dp)
+                }
             }
         }
         Section("Key file") {
@@ -209,8 +207,7 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                     Text(
                         when {
                             key == null -> "It opens with its password alone"
-                            key.isMissing -> "not there · ${key.folder}"
-                            else -> key.folder
+                            else -> key.detail
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (key?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -218,13 +215,13 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = { chooseKeyFile(key?.path?.let { File(it).parentFile } ?: folder) }) {
+                FilledTonalButton(onClick = { files.chooseKeyFile(id) }) {
                     Text(if (key == null) "Choose…" else "Change…")
                 }
                 if (key != null) TextButton(onClick = { databases.setKeyFile(id, null) }) { Text("Forget") }
             }
             Text(
-                "Remembered here by its path, not its contents. It must be there at every unlock, the fingerprint too.",
+                "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It must be there at every unlock, the fingerprint too.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

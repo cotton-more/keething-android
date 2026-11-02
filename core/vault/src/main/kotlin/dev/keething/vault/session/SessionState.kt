@@ -1,6 +1,7 @@
 package dev.keething.vault.session
 
 import dev.keething.domain.storage.ConflictCopy
+import dev.keething.domain.storage.StoppedSave
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultGroup
 import dev.keething.vault.opening.OpenFailure
@@ -63,5 +64,10 @@ public sealed interface SessionState {
         val reloadFailure: OpenFailure? = null,
         /** How long the last key derivation took; null when the key derived before was used. */
         val keyDerivation: Duration? = null,
+        /**
+         * A save the app did not finish (it ended in the middle) was put right, this way (keething-spec databases.saf AC5):
+         * said until [VaultSession.stoppedSaveSaid].
+         */
+        val stoppedSave: StoppedSave? = null,
     ) : SessionState
 }

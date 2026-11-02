@@ -159,6 +159,6 @@ private fun ChooserRowView(row: ChooserRow, shape: RoundedCornerShape, enabled: 
             DatabaseLabelText(row.line.label, name)
             Text(row.opensWith, style = MaterialTheme.typography.bodyMedium, color = how, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (row.offersLocate) TextButton(onClick = onLocate, enabled = enabled) { Text("Locate…") }
+        if (row.offersLocate) TextButton(onClick = onLocate, enabled = enabled) { Text(if (row.line.reach == Reach.NEEDS_FOLDER) "Folder…" else "Locate…") }
     }
 }

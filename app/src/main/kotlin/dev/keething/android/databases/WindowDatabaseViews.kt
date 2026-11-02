@@ -103,7 +103,7 @@ private val NotOpenState.icon: ImageVector
         NotOpenState.Opening -> Icons.Rounded.Sync
         is NotOpenState.FingerprintPaused -> Icons.Rounded.PauseCircle
         is NotOpenState.FingerprintToSetUp -> Icons.Rounded.Fingerprint
-        NotOpenState.NotFound -> Icons.Rounded.SearchOff
+        is NotOpenState.NotFound -> Icons.Rounded.SearchOff
         is NotOpenState.NeedsKeyFile -> Icons.Rounded.Key
         is NotOpenState.CannotBeRead -> Icons.Rounded.ErrorOutline
         NotOpenState.WrongPassword -> Icons.Rounded.WarningAmber
@@ -183,7 +183,8 @@ internal fun NotOpenLine(notOpen: List<NotOpenDatabase>, typing: Boolean, onTap:
 
 /**
  * A database not open, its sheet (keething-spec databases.not-open AC5): its tile, name and folder, its whole say, then
- * Unlock… (not when its file is not found or cannot be read), Locate… (not found), Choose key file… (it has one), Close
+ * Unlock… (not when its file is not found or cannot be read), Locate… (not found, no access) or Choose its folder… (kept
+ * by its path), Choose key file… (it has one), Close
  * (not the window's last).
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -215,9 +216,11 @@ internal fun NotOpenSheet(
                 Icon(state.icon, contentDescription = null, Modifier.size(20.dp), tint = state.color())
                 Text(database.say, style = MaterialTheme.typography.bodyMedium)
             }
-            val unreadable = state == NotOpenState.NotFound || state is NotOpenState.CannotBeRead
+            val unreadable = state is NotOpenState.NotFound || state is NotOpenState.CannotBeRead
             SheetRow(Icons.Rounded.LockOpen, "Unlock…", enabled = !unreadable, onClick = onUnlock)
-            if (state == NotOpenState.NotFound) SheetRow(Icons.Rounded.Search, "Locate…", onClick = onLocate)
+            if (state is NotOpenState.NotFound) {
+                SheetRow(Icons.Rounded.Search, if (state.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…", onClick = onLocate)
+            }
             if (line.keyFile != null) SheetRow(Icons.Rounded.Key, "Choose key file…", onClick = onChooseKeyFile)
             SheetRow(
                 Icons.Rounded.Close,
@@ -446,7 +449,7 @@ private fun SwipeToClose(canClose: Boolean, onClose: () -> Unit, shape: androidx
     }
 }
 
-/** ⋮ › Databases with its sheets, its notices and the system picker for Open database…. */
+/** ⋮ › Databases with its sheets, its notices and Open database… (a folder, then its files). */
 @Composable
 internal fun WindowDatabasesScreen(
     container: dev.keething.android.AppContainer,
@@ -462,7 +465,7 @@ internal fun WindowDatabasesScreen(
     val snackbar = remember { SnackbarHostState() }
     dev.keething.android.ui.NoticeEffect(remember { container.windowNotices.receiveAsFlow() }, snackbar)
     var sheet by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
-    val openOther = rememberFilePicker { file -> onOpened(databases.open(file.path)) }
+    val files = rememberFileActions(container, onOpened = onOpened)
     overview?.open?.firstOrNull { it.id.value == sheet }?.let { line ->
         val showOnly = FilterCompletion.token(FilterKind.DATABASE, line.label.full)
         OpenDatabaseSheet(
@@ -496,6 +499,6 @@ internal fun WindowDatabasesScreen(
         },
         onClose = onClose,
         onNew = container.newDatabases::open,
-        onOpenOther = { openOther(null) },
+        onOpenOther = files.open,
     )
 }

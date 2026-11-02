@@ -1,5 +1,7 @@
 package dev.keething.android.list
 
+import dev.keething.domain.storage.StoppedSave
+import dev.keething.android.session.file
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
@@ -54,7 +56,11 @@ internal data class ListUiState(
 )
 
 /** A warning over the list about one open database. */
-internal data class ListBanner(val key: String, val title: String, val text: String)
+internal data class ListBanner(val key: String, val title: String, val text: String, val onDismiss: (() -> Unit)? = null) {
+    override fun equals(other: Any?): Boolean = other is ListBanner && other.key == key && other.title == title && other.text == text
+
+    override fun hashCode(): Int = listOf(key, title, text).hashCode()
+}
 
 /** What a long press on a row offers (SPEC §6.2), read from the entry when the sheet opens. */
 internal data class QuickActions(
@@ -179,11 +185,23 @@ internal class EntryListViewModel(
                         "(device ${newest.deviceId}) — merge it in KeePassXC (Database › Merge), then delete it.",
                 )
             },
+            // keething-spec databases.saf AC5: which way, said until OK.
+            database.unlocked.stoppedSave?.let { stopped ->
+                ListBanner(
+                    key = "stopped-save/${database.database.id}",
+                    title = if (named) "${database.mark.label.name}: the last save was put right" else "The last save was put right",
+                    text = "Keething was closed while it saved ${file.name}. " + when (stopped) {
+                        StoppedSave.FINISHED -> "The save was finished: the file has the change."
+                        StoppedSave.UNDONE -> "It could not be finished, so the file is as it was before (or as a sync made it since): make the change again if it is missing."
+                    },
+                    onDismiss = database.database.session::stoppedSaveSaid,
+                )
+            },
             database.unlocked.reloadFailure?.let { failure ->
                 ListBanner(
                     key = "reload/${database.database.id}",
                     title = if (named) "${database.mark.label.name}: showing the version read before" else "Showing the version read before",
-                    text = failure.describe(file),
+                    text = failure.describe(file.path),
                 )
             },
         )

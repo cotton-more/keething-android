@@ -79,4 +79,6 @@ dependencies {
 
     testImplementation(libs.kotlin.test.junit5)
     testImplementation(libs.kotlinx.coroutines.test)
+    // FakeGrantedFolder: New database's files through a granted folder, as the phone's storage provider behaves.
+    testImplementation(testFixtures(project(":core:domain")))
 }

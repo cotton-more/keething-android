@@ -3,7 +3,6 @@ package dev.keething.android.databases
 import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.keething.android.storage.AllFilesAccess
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.session.SessionState
@@ -31,9 +30,9 @@ internal class WindowDatabasesModel(
     list: DatabaseList,
     window: StateFlow<List<WindowDatabase>>,
     skipped: StateFlow<Set<DatabaseId>>,
+    private val files: DatabaseFiles,
 ) : ViewModel() {
     private val refreshes = MutableStateFlow(0)
-    private val files = DatabaseFiles.live(AllFilesAccess::isGranted)
     private val root = Environment.getExternalStorageDirectory().path
 
     /** What was looked at last: ⋮ › Databases' sections and the chooser's rows. */
@@ -42,7 +41,7 @@ internal class WindowDatabasesModel(
     private val looked: StateFlow<Looked?> = combine(list.state, window, skipped, refreshes) { databases, states, skippedIds, _ -> Triple(databases, states, skippedIds) }
         .mapLatest { (databases, states, skippedIds) ->
             withContext(Dispatchers.IO) {
-                val lines = databases.lines(files, root, Instant.now(), ZoneId.systemDefault())
+                val lines = databases.lines(files.lookedAt(databases), root, Instant.now(), ZoneId.systemDefault())
                 val notOpen = NotOpenDatabases.of(states, lines, skippedIds)
                 val overview = DatabasesOverview.of(
                     lines = lines,

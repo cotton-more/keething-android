@@ -130,7 +130,7 @@ class NewDatabaseModelTest {
     }
 
     private class FakeFiles(val there: MutableSet<String>, val synced: Set<String> = emptySet()) : NewDatabaseFiles {
-        var granted = true
+        var lookedAgain = 0
 
         override fun exists(path: String): Boolean = path in there
 
@@ -138,7 +138,9 @@ class NewDatabaseModelTest {
 
         override fun syncs(folder: String): Boolean = synced.any { folder == it || folder.startsWith("$it/") }
 
-        override fun writable(): Boolean = granted
+        override fun lookAgain() {
+            lookedAgain++
+        }
     }
 
     /** SplitMix64, as the generator's tests. */
@@ -167,7 +169,6 @@ class NewDatabaseModelTest {
         val model = NewDatabaseModel(
             making = making,
             folders = folders,
-            documents = "$ROOT/Documents",
             root = ROOT,
             files = files,
             offersFingerprint = offersFingerprint,
@@ -222,22 +223,36 @@ class NewDatabaseModelTest {
     }
 
     @Test
-    fun saveInStartsAtTheCurrentDatabasesFolderDocumentsOfferedAnotherJoins() = runTest {
+    fun saveInStartsAtTheCurrentDatabasesFolderTheGrantedOnesOfferedAnotherJoins() = runTest {
         val f = Fixture(this, folders = listOf("$ROOT/Sync/KeePass", "$ROOT/Work", "$ROOT/Sync/KeePass"))
         val m = f.model
         assertEquals("$ROOT/Sync/KeePass", m.folder)
-        assertEquals(listOf("Sync/KeePass", "Work", "Documents"), m.folders.map { it.title })
+        assertEquals(listOf("Sync/KeePass", "Work"), m.folders.map { it.title })
         assertEquals("this database’s", m.folders.first().note)
         m.chooseFolder("$ROOT/Taxes/")
         assertEquals("$ROOT/Taxes", m.folder)
         assertEquals("Taxes", m.folders.last().title)
         m.chooseFolder("$ROOT/Work")
-        assertEquals(4, m.folders.size, "a folder already offered is not added again")
+        assertEquals(3, m.folders.size, "a folder already offered is not added again")
+    }
 
-        val first = Fixture(this, folders = emptyList()).model
-        assertEquals("$ROOT/Documents", first.folder, "the first start: Documents")
-        assertEquals(listOf("Documents"), first.folders.map { it.title })
+    @Test
+    fun withNoFolderGrantedYetOneIsChosenFirst() = runTest {
+        // spec: databases.saf/AC11
+        val f = Fixture(this, folders = emptyList())
+        val first = f.model
+        f.fill()
+        assertNull(first.folder, "nothing granted: no folder guessed")
+        assertEquals(emptyList(), first.folders)
+        assertNull(first.path)
+        assertEquals("Keething saves only in a folder you choose.", first.pathText)
+        assertEquals("Choose the folder to save it in.", first.blockers.first())
+        assertFalse(first.canCreate)
+
+        first.chooseFolder("$ROOT/Documents")
+        assertEquals("Documents/Family Shared.kdbx", first.pathText)
         assertNull(first.folders.single().note)
+        assertTrue(first.canCreate)
     }
 
     @Test
@@ -252,16 +267,14 @@ class NewDatabaseModelTest {
     }
 
     @Test
-    fun withoutAllFilesAccessCreateWaitsAndSaysWhy() = runTest {
+    fun comingBackTheFilesAreLookedAtAgain() = runTest {
         val f = Fixture(this)
         f.fill()
-        f.files.granted = false
+        assertTrue(f.model.canCreate)
+        f.files.there += "$ROOT/Sync/KeePass/Family Shared.kdbx"
         f.model.lookAgain()
-        assertEquals("Keething may not write to the phone's storage: allow all-files access.", f.model.blockers.first())
-        assertFalse(f.model.canCreate)
-        f.files.granted = true
-        f.model.lookAgain()
-        assertTrue(f.model.canCreate, "granted in Settings, back on the screen")
+        assertEquals(1, f.files.lookedAgain, "what the grants gave is read again")
+        assertTrue(f.model.nameIsTaken)
     }
 
     // The key (the Mac's D9: required, a weak one allowed)
@@ -578,7 +591,7 @@ class NewDatabaseModelTest {
         val failing = object : DatabaseMaking by g.making {
             override fun measure(encryption: DatabaseEncryption, checkCancelled: () -> Unit): MeasuredEncryption = throw IllegalStateException("clock")
         }
-        val m = NewDatabaseModel(failing, listOf("$ROOT/Sync/KeePass"), "$ROOT/Documents", ROOT, g.files, true, this, StandardTestDispatcher(testScheduler), { 0 })
+        val m = NewDatabaseModel(failing, listOf("$ROOT/Sync/KeePass"), ROOT, g.files, true, this, StandardTestDispatcher(testScheduler), { 0 })
         m.changeName("Family")
         m.password.setTextAndPlaceCursorAtEnd("pw")
         m.again.setTextAndPlaceCursorAtEnd("pw")

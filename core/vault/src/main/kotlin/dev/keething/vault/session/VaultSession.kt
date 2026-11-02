@@ -192,7 +192,7 @@ public class VaultSession(
         val bytes = when (read) {
             is KeyFileRead.Found -> read.bytes
             KeyFileRead.Missing -> return OpenFailure.KeyFileMissing(source.fileName)
-            KeyFileRead.AccessDenied -> return OpenFailure.KeyFileUnusable("Keething may not read ${source.fileName} (allow all-files access)")
+            KeyFileRead.AccessDenied -> return OpenFailure.KeyFileUnusable("Keething may not read ${source.fileName} any more: choose it again")
         }
         val fileKey = try {
             KeyFile.key(bytes)
@@ -306,6 +306,17 @@ public class VaultSession(
 
     /** A copy of one attachment's bytes (the caller wipes it); null when locked or there is none. */
     public fun attachment(entryId: String, name: String): Secret? = attachments?.bytes(entryId, name)
+
+    /**
+     * The app said that a save it did not finish was put right ([SessionState.Unlocked.stoppedSave], keething-spec
+     * databases.saf AC5): the store says it no more.
+     */
+    public fun stoppedSaveSaid() {
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return
+        if (unlocked.stoppedSave == null) return
+        set(unlocked.copy(stoppedSave = null))
+        scope.launch(io) { runCatching { store.stoppedSaveSaid() } }
+    }
 
     /** The folder watcher saw a change: read the file again once the folder is quiet. */
     public fun fileChanged() {
@@ -456,7 +467,9 @@ public class VaultSession(
         (mutableState.value as? SessionState.Unlocked)?.vault?.let(retiredVaults::add)
         loadedVersion = opened.version
         triedVersion = opened.version
-        val unlocked = SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation)
+        // A stopped save put right stays said until the app said it, whatever the reads after it say.
+        val stoppedSave = opened.stoppedSave ?: (mutableState.value as? SessionState.Unlocked)?.stoppedSave
+        val unlocked = SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation, stoppedSave = stoppedSave)
         set(unlocked)
         // The same contents read again: the state keeps the equal one before, so this copy is nobody's.
         if (mutableState.value !== unlocked) opened.vault.wipe()

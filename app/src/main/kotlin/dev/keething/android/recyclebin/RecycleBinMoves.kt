@@ -1,5 +1,6 @@
 package dev.keething.android.recyclebin
 
+import dev.keething.android.session.file
 import dev.keething.android.editor.SAVE_BUSY
 import dev.keething.android.editor.problem
 import dev.keething.vault.databases.DatabaseSession

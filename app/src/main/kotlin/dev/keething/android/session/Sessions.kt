@@ -12,7 +12,6 @@ import dev.keething.android.databases.marks
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import dev.keething.android.settings.AppSettings
-import dev.keething.android.storage.AllFilesAccess
 import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
@@ -113,10 +112,7 @@ internal class Sessions(
     /** Another database chosen, a file opened or located, a key file, Remove from List. */
     val databases = CurrentDatabase(list, scope, vaults, biometric, offered)
 
-    /**
-     * One fingerprint for every database of the window that can (plan AD13): the chooser's. Without all-files access no
-     * file can be seen, so none is asked for.
-     */
+    /** One fingerprint for every database of the window that can (plan AD13): the chooser's. */
     val windowFingerprint = WindowFingerprint(vaults, biometric, list)
 
     /** The current database's session: the one the lock screen shows. */
@@ -144,7 +140,7 @@ internal class Sessions(
         }
         .combine(list.state.map { it.marks(storageRoot) }.distinctUntilChanged()) { states, marks ->
             states.mapNotNull { (database, state) ->
-                (state as? SessionState.Unlocked)?.let { OpenDatabase(database, it, marks[database.id] ?: DatabaseMark(database.id, DatabaseLabel(database.file.name), 0)) }
+                (state as? SessionState.Unlocked)?.let { OpenDatabase(database, it, marks[database.id] ?: DatabaseMark(database.id, DatabaseLabel(database.location.fileName), 0)) }
             }
         }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
@@ -159,7 +155,7 @@ internal class Sessions(
         return ids.mapNotNull { id ->
             val database = vaults.session(id) ?: return@mapNotNull null
             val unlocked = database.session.state.value as? SessionState.Unlocked ?: return@mapNotNull null
-            OpenDatabase(database, unlocked, marks[id] ?: DatabaseMark(id, DatabaseLabel(database.file.name), 0))
+            OpenDatabase(database, unlocked, marks[id] ?: DatabaseMark(id, DatabaseLabel(database.location.fileName), 0))
         }
     }
 
@@ -247,7 +243,7 @@ internal class Sessions(
      * The chooser's run over [ids] (plan AD13): the app's locks end it ([locks]: a stay away past the timeout with nothing
      * open counts too).
      */
-    fun run(ids: List<DatabaseId>): UnlockRun = databases.run(ids, locks = { locks.count }, fileExists = ::isThere)
+    fun run(ids: List<DatabaseId>): UnlockRun = databases.run(ids, locks = { locks.count }, fileExists = FileLocation::isReachable)
 
     /** The vault on the window's first open database, unless the current one is open: after the chooser or its run. */
     fun showOpened() {
@@ -264,12 +260,12 @@ internal class Sessions(
 
     /**
      * A new database made on the New database screen joins the list, becomes current and opens with the key it was made
-     * with, unless the app locked since Create was tapped ([made]'s lock count). Made while the app was in the
-     * background, its timeout starts with its opening, and the alarm with it. Why an old record's stored password could
-     * not be deleted, or null.
+     * with, unless the app locked since Create was tapped ([made]'s lock count); [file] and [keyFile]: where it and its
+     * key file are, through their grants. Made while the app was in the background, its timeout starts with its opening,
+     * and the alarm with it. Why an old record's stored password could not be deleted, or null.
      */
-    suspend fun created(made: CreatedDatabase): String? =
-        databases.created(made.path, made.keyFilePath, made.useFingerprint, made.key, made.password) {
+    suspend fun created(made: CreatedDatabase, file: FileLocation, keyFile: FileLocation?): String? =
+        databases.created(file, keyFile, made.useFingerprint, made.key, made.password) {
             locks.lockedSince(made.lockCount, settings.lockTimeout.value)
         }.problem
 
@@ -327,9 +323,6 @@ internal class Sessions(
         }
         return DatabaseSession(number, record.id, record.file, store, session, fingerprint)
     }
-
-    /** A file is there; without all-files access nothing can be known: the run asks, and its lock screen says to allow it. */
-    private fun isThere(file: FileLocation): Boolean = !AllFilesAccess.isGranted() || FileLocation.isThereByPath(file)
 
     private fun BiometricState.describe(): String = "fingerprint: " + listOfNotNull(
         if (appEnabled) "on" else "off",

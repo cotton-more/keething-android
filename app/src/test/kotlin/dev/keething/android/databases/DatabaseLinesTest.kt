@@ -21,15 +21,25 @@ import kotlin.test.assertTrue
 class DatabaseLinesTest {
     private val root = "/storage/emulated/0"
     private val now = Instant.parse("2026-10-26T12:00:00Z")
-    private val personal = DatabaseRecord(DatabaseId("p"), FileLocation.ByPath("$root/Sync/KeePass/Personal.kdbx"))
 
-    /** The files that are there, and when each changed. */
-    private val there = mutableMapOf(personal.path to now.minusSeconds(2 * 3600))
-    private var access = true
-    private val files = object : DatabaseFiles {
-        override fun exists(path: String): Boolean? = if (access) path in there else null
+    /** The file at [path] on the phone through a folder granted at the top of its volume (for the words, as any other). */
+    private fun at(path: String): FileLocation.InFolder {
+        val place = checkNotNull(StoragePlace.ofPath(path))
+        return FileLocation.InFolder("grant-${place.volume}", StoragePlace(place.volume, ""), place.path)
+    }
 
-        override fun modified(path: String): Instant? = there[path]
+    private fun pathOf(file: FileLocation?): String = DatabaseText.pathOf(checkNotNull(file), root)
+
+    private val personal = DatabaseRecord(DatabaseId("p"), at("$root/Sync/KeePass/Personal.kdbx"))
+
+    /** The files that are there, by their paths on the phone, and when each changed; the grants gone. */
+    private val there = mutableMapOf(pathOf(personal.file) to now.minusSeconds(2 * 3600))
+    private val gone = mutableSetOf<String>()
+    private val files = DatabaseFiles { location ->
+        when {
+            location.grant in gone -> FileLook(Reach.NO_ACCESS)
+            else -> there[pathOf(location)]?.let { FileLook(Reach.THERE, it) } ?: FileLook(Reach.NOT_FOUND)
+        }
     }
 
     private fun lines(vararg records: DatabaseRecord, current: DatabaseRecord = records.first()) =
@@ -47,7 +57,7 @@ class DatabaseLinesTest {
         assertEquals("Personal", lock.line.name)
         assertEquals("P", lock.line.initial)
         assertEquals("Sync/KeePass · changed 2 hours ago", lock.line.detail)
-        assertEquals(personal.path, lock.line.path)
+        assertEquals("$root/Sync/KeePass/Personal.kdbx", lock.line.path)
         assertTrue(lock.line.isCurrent)
         assertNull(lock.line.keyFile)
         assertFalse(lock.line.isMissing)
@@ -91,13 +101,13 @@ class DatabaseLinesTest {
 
     @Test
     fun withAKeyFileItsLineIsUnderTheFieldUnlockNeedsNothingTypedAndThePlaceholderSaysSo() {
-        val work = DatabaseRecord(DatabaseId("w"), FileLocation.ByPath("$root/Sync/Work/Work.kdbx"), keyFile = FileLocation.ByPath("$root/Documents/Keys/work.keyx"))
-        there[work.path] = now.minusSeconds(86_400)
-        there[work.keyFilePath!!] = now
+        val work = DatabaseRecord(DatabaseId("w"), at("$root/Sync/Work/Work.kdbx"), keyFile = at("$root/Documents/Keys/work.keyx"))
+        there[pathOf(work.file)] = now.minusSeconds(86_400)
+        there[pathOf(work.keyFile)] = now
 
         val lock = lockScreen(work, personal)
 
-        assertEquals(KeyFileLine("work.keyx", "Documents/Keys", "$root/Documents/Keys/work.keyx", isMissing = false), lock.line.keyFile)
+        assertEquals(KeyFileLine("work.keyx", "Documents/Keys", "$root/Documents/Keys/work.keyx", reach = Reach.THERE), lock.line.keyFile)
         assertNull(lock.problem)
         assertTrue(lock.showsPasswordField && lock.offersFingerprint)
         assertFalse(lock.needsPassword || lock.offersKeyFile)
@@ -106,8 +116,8 @@ class DatabaseLinesTest {
 
     @Test
     fun aKeyFileThatIsNotThereIsSaidBeforeAnythingIsTypedAndNoFingerprintIsAsked() {
-        val work = DatabaseRecord(DatabaseId("w"), FileLocation.ByPath("$root/Sync/Work/Work.kdbx"), keyFile = FileLocation.ByPath("$root/Documents/Keys/work.keyx"))
-        there[work.path] = now
+        val work = DatabaseRecord(DatabaseId("w"), at("$root/Sync/Work/Work.kdbx"), keyFile = at("$root/Documents/Keys/work.keyx"))
+        there[pathOf(work.file)] = now
 
         val lock = lockScreen(work)
 
@@ -119,9 +129,9 @@ class DatabaseLinesTest {
 
     @Test
     fun oneThatOpensWithItsKeyFileAloneShowsNoFieldUnlockIsEnough() {
-        val keys = DatabaseRecord(DatabaseId("k"), FileLocation.ByPath("$root/Documents/Taxes/Taxes.kdbx"), keyFile = FileLocation.ByPath("$root/k/taxes.keyx"), opensWithoutPassword = true)
-        there[keys.path] = now
-        there[keys.keyFilePath!!] = now
+        val keys = DatabaseRecord(DatabaseId("k"), at("$root/Documents/Taxes/Taxes.kdbx"), keyFile = at("$root/k/taxes.keyx"), opensWithoutPassword = true)
+        there[pathOf(keys.file)] = now
+        there[pathOf(keys.keyFile)] = now
 
         val lock = lockScreen(keys)
 
@@ -135,7 +145,7 @@ class DatabaseLinesTest {
 
     @Test
     fun aFileNotFoundSaysSoWithLocateInPlaceOfTheField() {
-        val crypto = DatabaseRecord(DatabaseId("c"), FileLocation.ByPath("$root/Download/Crypto.kdbx"), keyFile = FileLocation.ByPath("$root/k/c.keyx"))
+        val crypto = DatabaseRecord(DatabaseId("c"), at("$root/Download/Crypto.kdbx"), keyFile = at("$root/k/c.keyx"))
 
         val lock = lockScreen(crypto, personal)
 
@@ -145,30 +155,63 @@ class DatabaseLinesTest {
         assertNull(lock.problem, "the file first: its key file is said once it is back")
         assertEquals("Download · not found", lock.line.detail)
 
-        val card = DatabaseRecord(DatabaseId("s"), FileLocation.ByPath("/storage/1234-5678/Crypto.kdbx"))
+        val card = DatabaseRecord(DatabaseId("s"), at("/storage/1234-5678/Crypto.kdbx"))
         assertEquals("Crypto.kdbx is not in /storage/1234-5678. Put the card in, or locate the file.", lockScreen(card).missingText)
     }
 
     @Test
-    fun withoutAllFilesAccessNothingIsSaidMissing() {
-        access = false
-        val work = DatabaseRecord(DatabaseId("w"), FileLocation.ByPath("$root/Sync/Work/Work.kdbx"), keyFile = FileLocation.ByPath("$root/k/work.keyx"))
+    fun aGrantGoneSaysNoAccessWithLocateAndAKeyFilesSaysChooseItAgain() {
+        // spec: databases.saf/AC10
+        val work = DatabaseRecord(DatabaseId("w"), at("$root/Sync/Work/Work.kdbx"), keyFile = FileLocation.Granted("grant-key", StoragePlace("primary", "k/work.keyx")))
+        there[pathOf(work.file)] = now
+        there[pathOf(work.keyFile)] = now
+        gone += "grant-primary"
 
         val lock = lockScreen(work)
+        assertEquals(Reach.NO_ACCESS, lock.line.reach)
+        assertTrue(lock.showsLocate && lock.line.isMissing)
+        assertEquals("Locate…", lock.locateLabel)
+        assertEquals(
+            "Keething can no longer reach Sync/Work: renamed, moved or deleted on a device, or its access taken back. Locate the file to choose its folder again.",
+            lock.missingText,
+        )
+        assertEquals("Sync/Work · no access", lock.line.detail)
+        assertEquals("No access · Sync/Work", lock.line.settingsDetail)
 
-        assertFalse(lock.line.isMissing || lock.line.keyFile!!.isMissing)
-        assertNull(lock.problem)
-        assertNull(lock.missingText)
-        assertEquals("Sync/Work", lock.line.detail)
+        gone.clear()
+        gone += "grant-key"
+        val key = lockScreen(work)
+        assertFalse(key.line.isMissing)
+        assertEquals(Reach.NO_ACCESS, key.line.keyFile?.reach)
+        assertEquals("no access · k", key.line.keyFile?.detail)
+        assertEquals("Keething may not read work.keyx any more: choose it again.", key.problem)
+        assertFalse(key.offersFingerprint)
+    }
+
+    @Test
+    fun aRecordKeptByItsPathIsNeverLookedAtAndAsksForItsFolder() {
+        // spec: databases.saf/AC13
+        val old = DatabaseRecord(DatabaseId("o"), FileLocation.ByPath("$root/Sync/KeePass/Old.kdbx"), keyFile = FileLocation.ByPath("$root/Sync/Keys/old.keyx"))
+        val looked = mutableListOf<FileLocation>()
+        val lock = old.lockScreen(Databases(listOf(old), old.id).lines({ looked += it; FileLook(Reach.THERE) }, root, now, ZoneOffset.UTC).single())
+
+        assertEquals(emptyList(), looked, "nothing by its path (AC1)")
+        assertEquals(Reach.NEEDS_FOLDER, lock.line.reach)
+        assertTrue(lock.showsLocate && !lock.showsPasswordField && !lock.offersFingerprint)
+        assertEquals("Choose its folder…", lock.locateLabel)
+        assertEquals("Keething now opens files only in folders you choose. Choose Sync/KeePass, the folder of Old.kdbx: it is asked once.", lock.missingText)
+        assertEquals("Sync/KeePass · needs its folder", lock.line.detail)
+        assertEquals("needs its folder", lock.line.sheetDetail)
+        assertEquals(Reach.NO_ACCESS, lock.line.keyFile?.reach, "its folder may hold it; else Choose key file… (AC10)")
     }
 
     // The sheet and Settings
 
     @Test
     fun theSheetAndSettingsListEveryDatabaseWithItsFolderOrThatItIsNotFound() {
-        val work = DatabaseRecord(DatabaseId("w"), FileLocation.ByPath("$root/Sync/Work/Work.kdbx"), keyFile = FileLocation.ByPath("$root/k/work.keyx"))
-        val crypto = DatabaseRecord(DatabaseId("c"), FileLocation.ByPath("$root/Download/Crypto.kdbx"))
-        there[work.path] = now
+        val work = DatabaseRecord(DatabaseId("w"), at("$root/Sync/Work/Work.kdbx"), keyFile = at("$root/k/work.keyx"))
+        val crypto = DatabaseRecord(DatabaseId("c"), at("$root/Download/Crypto.kdbx"))
+        there[pathOf(work.file)] = now
 
         val lines = lines(personal, work, crypto)
 
@@ -182,7 +225,7 @@ class DatabaseLinesTest {
     // Names and colours (keething-spec databases.name-colour; the Mac's D7b cases)
 
     private fun record(id: String, path: String, name: String? = null, color: String? = null) =
-        DatabaseRecord(DatabaseId(id), FileLocation.ByPath("$root/$path"), name = name, color = color)
+        DatabaseRecord(DatabaseId(id), at("$root/$path"), name = name, color = color)
 
     @Test
     fun twoNamedAlikeEachAddTheirFileNameWithFileNamesAlikeTooTheirFolder() {
@@ -282,11 +325,15 @@ class DatabaseLinesTest {
 
         val lock = lockScreen(work)
 
-        assertEquals("Sync/Work", lock.line.detail, "when it changed: said by its read")
-        assertEquals("$root/Sync/Work/Work.kdbx", lock.line.path, "where its pickers open")
-        assertFalse(lock.line.isMissing, "looked at by its read")
-        assertEquals(KeyFileLine("work.keyx", "Sync/Keys", "$root/Sync/Keys/work.keyx", isMissing = false), lock.line.keyFile)
-        assertEquals("Master password, if it has one", lock.passwordPlaceholder)
+        assertEquals("Sync/Work · not found", lock.line.detail, "looked at through its grant")
+        there[pathOf(work.file)] = now.minusSeconds(60)
+        there[pathOf(work.keyFile)] = now
+        val found = lockScreen(work)
+        assertEquals("Sync/Work · changed 1 minute ago", found.line.detail)
+        assertEquals("$root/Sync/Work/Work.kdbx", found.line.path, "its words")
+        assertFalse(found.line.isMissing)
+        assertEquals(KeyFileLine("work.keyx", "Sync/Keys", "$root/Sync/Keys/work.keyx", reach = Reach.THERE), found.line.keyFile)
+        assertEquals("Master password, if it has one", found.passwordPlaceholder)
     }
 
     @Test
@@ -295,14 +342,15 @@ class DatabaseLinesTest {
         assertEquals(listOf("Personal · Sync/KeePass", "Personal · Archive"), lines(personal, archive).map { it.label.full })
 
         val top = DatabaseRecord(DatabaseId("t"), FileLocation.InFolder("grant-top", StoragePlace(StoragePlace.PRIMARY, ""), "Top.kdbx"))
-        assertEquals("Internal storage", lockScreen(top).line.detail)
+        there[pathOf(top.file)] = now.minusSeconds(3 * 86_400)
+        assertEquals("Internal storage · changed 3 days ago", lockScreen(top).line.detail)
 
         val card = DatabaseRecord(DatabaseId("s"), FileLocation.InFolder("grant-card", StoragePlace("1234-5678", "KeePass"), "Crypto.kdbx"))
         assertEquals("/storage/1234-5678/KeePass/Crypto.kdbx", lockScreen(card).line.path)
         assertEquals("Crypto.kdbx", lockScreen(card).line.fileName)
         assertEquals(
             "Crypto.kdbx is not in /storage/1234-5678/KeePass. Put the card in, or locate the file.",
-            card.lockScreen(lockScreen(card).line.copy(isMissing = true)).missingText,
+            card.lockScreen(lockScreen(card).line.copy(reach = Reach.NOT_FOUND)).missingText,
         )
     }
 }

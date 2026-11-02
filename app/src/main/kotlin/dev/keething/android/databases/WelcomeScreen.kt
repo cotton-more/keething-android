@@ -37,7 +37,7 @@ import dev.keething.android.ui.ButtonLabel
  */
 @Composable
 internal fun WelcomeScreen(container: AppContainer) {
-    val pick = rememberFilePicker { file -> container.sessions.databases.open(file.path) }
+    val files = rememberFileActions(container)
     Column(
         Modifier
             .fillMaxSize()
@@ -66,14 +66,14 @@ internal fun WelcomeScreen(container: AppContainer) {
             Button(onClick = container.newDatabases::open, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                 ButtonLabel("Create a new database…", Icons.Rounded.Add, iconSize = 20.dp)
             }
-            FilledTonalButton(onClick = { pick(null) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+            FilledTonalButton(onClick = files.open, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                 ButtonLabel("Open a database…", Icons.Rounded.FolderOpen, iconSize = 20.dp)
             }
         }
         Spacer(Modifier.height(24.dp))
         Text(
             "Already use KeePass, KeePassXC, KeePassDX or Strongbox? Open your database: it stays theirs too, and " +
-                "Keething writes it in their format.",
+                "Keething writes it in their format. Keething asks for the folder it is in, and opens nothing else.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

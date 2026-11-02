@@ -32,7 +32,7 @@ internal fun SaveFailure.describe(file: File): String = when (this) {
     SaveFailure.GroupNotEmpty -> "The group is not empty any more (changed elsewhere?). Nothing was deleted."
     is SaveFailure.CannotOpen -> when (failure) {
         OpenFailure.WrongPassword -> "The database's password was changed elsewhere. Nothing was saved."
-        else -> "Nothing was saved: " + failure.describe(file).replaceFirstChar(Char::lowercase)
+        else -> "Nothing was saved: " + failure.describe(file.path).replaceFirstChar(Char::lowercase)
     }
 }
 

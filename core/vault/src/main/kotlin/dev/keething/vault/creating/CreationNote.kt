@@ -53,7 +53,8 @@ public class CreationNote(private val file: File, private val folders: (grant: S
         val lines = read() ?: return
         val start = lines.indexOfLast { it.startsWith(NAME) }.coerceAtLeast(0)
         val section = lines.subList(start, lines.size)
-        val kept = if (made || section.none { it.startsWith(MADE) }) lines.subList(0, start) else lines
+        // Any file it noted, by path or in a granted folder.
+        val kept = if (made || section.none { noted(it) != null }) lines.subList(0, start) else lines
         if (kept.isEmpty()) file.delete() else write(kept)
     }
 

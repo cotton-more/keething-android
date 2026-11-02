@@ -4,7 +4,6 @@ import dev.keething.domain.storage.FakeGrantedFolder
 import dev.keething.domain.storage.FakeGrantedFolder.Operation
 import dev.keething.domain.storage.GrantedFile
 import dev.keething.domain.storage.KeyFileRead
-import dev.keething.domain.storage.KeyFileSource
 import dev.keething.domain.storage.NewFilePlace
 import dev.keething.domain.storage.StoragePlace
 import dev.keething.vault.creating.CreateFailure
@@ -108,7 +107,7 @@ class FolderNewFileTest {
     @Test
     fun aNewKeyFileIsCreatedInAGrantedFolderReadsBackThroughItAndIsNeverMadeOverAnother() {
         val creator = DatabaseCreator(now = { Instant.parse("2026-11-02T12:00:00Z") })
-        val keyFiles = KeyFiles(folder = { if (it == folder.id) folder else null }, file = { null }, byPath = { error("not by path") })
+        val keyFiles = KeyFiles(folder = { if (it == folder.id) folder else null }, file = { null })
         val keyAt = FileLocation.InFolder(folder.id, StoragePlace(StoragePlace.PRIMARY, "Sync"), "family.keyx")
 
         val key = creator.createKeyFile(FolderNewFile(folder, "family.keyx"), keyFiles.at(keyAt))
@@ -129,7 +128,7 @@ class FolderNewFileTest {
     @Test
     fun aKeyFileInAGrantedFolderIsReadByItsPathThereAndSaysWhenItIsNotThereOrTheGrantIsGone() {
         folder.put("Keys/family.keyx", "key".encodeToByteArray())
-        val keyFiles = KeyFiles(folder = { if (it == folder.id) folder else null }, file = { null }, byPath = { error("not by path") })
+        val keyFiles = KeyFiles(folder = { if (it == folder.id) folder else null }, file = { null })
         val source = keyFiles.at(FileLocation.InFolder(folder.id, sync, "Keys/family.keyx"))
 
         assertEquals("family.keyx", source.fileName)
@@ -144,7 +143,7 @@ class FolderNewFileTest {
     @Test
     fun aKeyFileGrantedAloneIsReadThroughItsOwnGrantWhichASyncsReplaceEnds() {
         val file = File("grant-key", "key".encodeToByteArray())
-        val keyFiles = KeyFiles(folder = { null }, file = { if (it == file.id) file else null }, byPath = { error("not by path") })
+        val keyFiles = KeyFiles(folder = { null }, file = { if (it == file.id) file else null })
         val source = keyFiles.at(FileLocation.Granted(file.id, StoragePlace(StoragePlace.PRIMARY, "Download/stick.keyx")))
 
         assertEquals("stick.keyx", source.fileName)
@@ -157,13 +156,12 @@ class FolderNewFileTest {
     }
 
     @Test
-    fun aKeyFileByItsPathIsTheAppsOwn() {
-        val own = object : KeyFileSource {
-            override val fileName: String = "old.keyx"
+    fun aKeyFileKeptByItsPathIsNeverReadByItAndSaysNoAccess() {
+        // spec: databases.saf/AC1
+        val keyFiles = KeyFiles(folder = { error("not through a folder") }, file = { error("not through a grant") })
+        val source = keyFiles.at(FileLocation.ByPath("/storage/emulated/0/old.keyx"))
 
-            override fun read(): KeyFileRead = KeyFileRead.Found(byteArrayOf(1))
-        }
-        val keyFiles = KeyFiles(folder = { null }, file = { null }, byPath = { path -> own.takeIf { path == "/storage/emulated/0/old.keyx" }!! })
-        assertEquals(own, keyFiles.at(FileLocation.ByPath("/storage/emulated/0/old.keyx")))
+        assertEquals("old.keyx", source.fileName)
+        assertEquals(KeyFileRead.AccessDenied, source.read(), "its folder is asked for, or Choose key file… (AC10, AC13)")
     }
 }

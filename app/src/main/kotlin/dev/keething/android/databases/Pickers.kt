@@ -1,0 +1,97 @@
+package dev.keething.android.databases
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalContext
+import dev.keething.android.storage.PersistedGrants
+import dev.keething.android.storage.ProviderFolder
+import dev.keething.android.storage.StoragePlaces
+import dev.keething.domain.storage.StoragePlace
+import dev.keething.vault.databases.FileLocation
+
+/**
+ * The system's folder picker, opening at a place (keething-spec databases.saf AC2): the folder chosen is granted for good
+ * (read and write, kept across restarts) and given to [onPicked]. A folder of another app's provider is refused and said
+ * (AC12). [onCancelled]: the picker closed without a folder (Android refuses the storage's top level and `Download`
+ * itself there, AC3).
+ */
+@Composable
+internal fun rememberFolderPicker(onCancelled: () -> Unit = {}, onPicked: (ProviderFolder) -> Unit): (start: StoragePlace?) -> Unit {
+    val context = LocalContext.current
+    val picked = rememberUpdatedState(onPicked)
+    val cancelled = rememberUpdatedState(onCancelled)
+    val launcher = rememberLauncherForActivityResult(PickFolder) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult cancelled.value()
+        val folder = ProviderFolder.of(context.contentResolver, uri.toString())
+        if (folder == null) return@rememberLauncherForActivityResult context.say(NOT_THE_PHONES_STORAGE)
+        if (context.take(uri, write = true)) picked.value(folder)
+    }
+    return { start -> launcher.launch(start) }
+}
+
+/**
+ * The system's file picker for a key file (keething-spec databases.saf AC9), any type, opening at a place: the file is
+ * granted alone, for reading, kept across restarts; one in a folder the list reaches goes through that folder instead
+ * (the list does that, and gives this grant back). Another app's provider is refused and said (AC12).
+ */
+@Composable
+internal fun rememberKeyFilePicker(onPicked: (FileLocation.Granted) -> Unit): (start: StoragePlace?) -> Unit {
+    val context = LocalContext.current
+    val picked = rememberUpdatedState(onPicked)
+    val launcher = rememberLauncherForActivityResult(PickFile) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val place = StoragePlaces.ofDocument(uri) ?: return@rememberLauncherForActivityResult context.say(NOT_THE_PHONES_STORAGE)
+        if (context.take(uri, write = false)) picked.value(FileLocation.Granted(uri.toString(), place))
+    }
+    return { start -> launcher.launch(start) }
+}
+
+/** What Keething opens, said when a picker gave another app's folder or file (keething-spec databases.saf AC12). */
+private const val NOT_THE_PHONES_STORAGE =
+    "Keething opens files on this phone's storage and its card only. Keep the database in a folder that Syncthing, " +
+        "FolderSync or the cloud app's own offline folder keeps in sync, and choose that."
+
+private fun Context.say(text: String) {
+    Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+}
+
+/** The picker's grant kept across restarts; false (said) when the system would not keep it. */
+private fun Context.take(uri: Uri, write: Boolean): Boolean = try {
+    PersistedGrants(contentResolver).take(uri, write)
+    true
+} catch (failure: SecurityException) {
+    Log.w("Grants", "a grant could not be kept: ${failure.javaClass.simpleName}")
+    say("Android did not let Keething keep its access to that place. Choose it again.")
+    false
+}
+
+/** Open document tree, starting at a place. */
+private object PickFolder : ActivityResultContract<StoragePlace?, Uri?>() {
+    private val tree = ActivityResultContracts.OpenDocumentTree()
+
+    override fun createIntent(context: Context, input: StoragePlace?): Intent = tree.createIntent(context, null).apply {
+        StoragePlaces.initialUri(input)?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
+    }
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? = tree.parseResult(resultCode, intent)
+}
+
+/** Open document, any type (a key file can be any file), starting at a place. */
+private object PickFile : ActivityResultContract<StoragePlace?, Uri?>() {
+    private val document = ActivityResultContracts.OpenDocument()
+
+    override fun createIntent(context: Context, input: StoragePlace?): Intent = document.createIntent(context, arrayOf("*/*")).apply {
+        StoragePlaces.initialUri(input)?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
+    }
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? = document.parseResult(resultCode, intent)
+}

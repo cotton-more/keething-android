@@ -29,7 +29,7 @@ internal data class ChooserRow(
 
     val id: DatabaseId get() = line.id
 
-    /** Not found: Locate… beside it. */
+    /** Not found, no access, or its folder to choose: Locate… beside it. */
     val offersLocate: Boolean get() = line.isMissing
 }
 
@@ -54,9 +54,11 @@ internal object ChooserRows {
 
         if (session is SessionState.Unlocked) return row("Open", ChooserRow.Glyph.OPEN, ChooserRow.Tone.PLAIN, canCheck = false)
         if (session is SessionState.Unlocking) return row("Opening…", ChooserRow.Glyph.OPENING, ChooserRow.Tone.PLAIN, canCheck = false)
-        if (line.isMissing) return row("Not found", ChooserRow.Glyph.NOT_FOUND, ChooserRow.Tone.PROBLEM, canCheck = false)
+        line.reachWord?.let { return row(it.replaceFirstChar(Char::uppercaseChar), ChooserRow.Glyph.NOT_FOUND, ChooserRow.Tone.PROBLEM, canCheck = false) }
         val key = line.keyFile
-        if (key != null && key.isMissing) return row("${key.name} not there", ChooserRow.Glyph.KEY_FILE, ChooserRow.Tone.PROBLEM, canCheck = false)
+        if (key != null && key.isMissing) {
+            return row("${key.name} " + if (key.reach == Reach.NOT_FOUND) "not there" else "no access", ChooserRow.Glyph.KEY_FILE, ChooserRow.Tone.PROBLEM, canCheck = false)
+        }
         when (((session as? SessionState.Locked)?.reason as? LockReason.UnlockFailed)?.failure) {
             is OpenFailure.Unsupported, is OpenFailure.Damaged, OpenFailure.AccessDenied, OpenFailure.OutOfMemory ->
                 return row("Cannot be read", ChooserRow.Glyph.UNREADABLE, ChooserRow.Tone.PROBLEM, canCheck = false)

@@ -4,14 +4,13 @@ import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.biometric.SetUpAgain
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.session.LockReason
-import java.io.File
 import kotlin.time.Duration
 
 /** What the lock screen says about why it is locked (SPEC §6: the reason of the last lock, as a chip). */
 internal data class LockNotice(val text: String, val isProblem: Boolean)
 
-/** Nothing to say at the start and after the lock button: the user knows. */
-internal fun LockReason.notice(timeout: Duration, file: File): LockNotice? = when (this) {
+/** Nothing to say at the start and after the lock button: the user knows. [file]: the database's path, for the words. */
+internal fun LockReason.notice(timeout: Duration, file: String): LockNotice? = when (this) {
     LockReason.Initial, LockReason.Manual -> null
     LockReason.Timeout -> LockNotice("Locked after ${timeout.minutesText()} in the background", isProblem = false)
     LockReason.PasswordChanged -> LockNotice("The database password was changed. Enter the new one.", isProblem = true)
@@ -46,15 +45,16 @@ internal fun SetUpAgain.notice(): LockNotice = when (this) {
 internal fun passwordDueNotice(days: Int): LockNotice =
     LockNotice("It has been $days days: type the master password, so it is not forgotten.", isProblem = false)
 
-internal fun OpenFailure.describe(file: File): String = when (this) {
+/** Why it did not open; [file]: the database's path on the phone, for the words. */
+internal fun OpenFailure.describe(file: String): String = when (this) {
     // The file cannot tell a typo from a missing key file (keething-spec unlock.key-file AC4).
     OpenFailure.WrongPassword -> "Wrong password — or this database needs a key file."
     OpenFailure.WrongPasswordOrKeyFile -> "Wrong password or key file."
     OpenFailure.WrongKeyFile -> "This key file does not open the database (or it needs a password too)."
     is OpenFailure.KeyFileMissing -> "The key file $name is not there."
     is OpenFailure.KeyFileUnusable -> "The key file cannot be used: $why."
-    OpenFailure.Missing -> "There is no database at ${file.path}. Syncthing may be replacing it: try again in a moment."
-    OpenFailure.AccessDenied -> "Keething may not read the file: allow all-files access."
+    OpenFailure.Missing -> "There is no database at $file. Syncthing may be replacing it: try again in a moment."
+    OpenFailure.AccessDenied -> "Keething may not read the file any more: locate it to choose its folder again."
     is OpenFailure.Unsupported -> "This database cannot be opened: $what."
     // Damaged is not a wrong password (SPEC §3.2): a sync may have caught the file half-written.
     is OpenFailure.Damaged -> "The file is damaged or not completely synced yet ($detail)."

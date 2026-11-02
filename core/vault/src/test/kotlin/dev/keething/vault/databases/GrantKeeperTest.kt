@@ -117,6 +117,25 @@ class GrantKeeperTest {
     }
 
     @Test
+    fun aGrantOfferedThenGivenAgainInAPickerIsNotGivenBackUntilOfferedAgain() = runTest {
+        // spec: databases.saf/AC14
+        val f = fixture("grant-sync", "grant-keepass")
+        val personal = f.list.add(FileLocation.InFolder("grant-sync", sync, "Personal.kdbx"))
+        runCurrent()
+
+        f.keeper.offered("grant-keepass") // a form closed without using it, no change of the list since
+        f.keeper.taken("grant-keepass") // the same folder chosen in the next form
+        f.list.update(personal.id) { it.copy(name = "Mine") }
+        runCurrent()
+        assertEquals(emptyList(), f.grants.givenBack, "the form still uses it")
+
+        f.keeper.offered("grant-keepass")
+        f.list.update(personal.id) { it.copy(name = "Personal") }
+        runCurrent()
+        assertEquals(listOf("grant-keepass"), f.grants.givenBack)
+    }
+
+    @Test
     fun theSweepAtTheStartGivesBackEveryGrantHeldThatTheListDoesNotUse() = runTest {
         val f = fixture("grant-sync", "grant-left-in-a-picker", "grant-key")
         f.list.add(FileLocation.InFolder("grant-sync", sync, "Personal.kdbx")).also { personal ->

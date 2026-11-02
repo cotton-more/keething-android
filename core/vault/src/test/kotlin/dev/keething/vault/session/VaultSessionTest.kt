@@ -28,6 +28,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import dev.keething.domain.storage.StoppedSave
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
@@ -165,6 +166,40 @@ class VaultSessionTest {
     }
 
     // Reloads (SPEC §3.2)
+
+    @Test
+    fun aSaveTheAppDidNotFinishPutRightIsSaidUntilTheAppSaidIt() = runTest {
+        // spec: databases.saf/AC5
+        val f = fixture()
+        f.store.stoppedSave = StoppedSave.UNDONE
+        f.session.unlock(Secret.of("pw"))
+        runCurrent()
+        assertEquals(StoppedSave.UNDONE, f.unlockedState.stoppedSave, "which way, from the read")
+
+        val entry = f.vault.entries.first()
+        assertIs<SaveOutcome.Saved>(assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "x")))).await())
+        assertEquals(StoppedSave.UNDONE, f.unlockedState.stoppedSave, "a save's own reading keeps it")
+
+        f.store.change(fixtureBytes("kdbx4-aes-argon2d"))
+        f.session.reload()
+        runCurrent()
+        assertEquals(StoppedSave.UNDONE, f.unlockedState.stoppedSave, "a read after it keeps saying it")
+        assertEquals(0, f.store.stoppedSavesSaid)
+
+        f.session.stoppedSaveSaid()
+        runCurrent()
+        assertNull(f.unlockedState.stoppedSave)
+        assertEquals(1, f.store.stoppedSavesSaid, "the store says it no more")
+        f.session.reload()
+        runCurrent()
+        assertNull(f.unlockedState.stoppedSave)
+
+        f.store.stoppedSave = StoppedSave.FINISHED
+        f.session.lock()
+        f.session.unlock(Secret.of("pw"))
+        runCurrent()
+        assertEquals(StoppedSave.FINISHED, f.unlockedState.stoppedSave, "another one, at the next unlock")
+    }
 
     @Test
     fun aChangeIsReadOnceTheFolderIsQuiet() = runTest {

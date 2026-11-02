@@ -1,5 +1,7 @@
 package dev.keething.vault.biometric
 
+import dev.keething.vault.databases.add
+import dev.keething.vault.databases.path
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
 import dev.keething.domain.biometric.SeveralOpening

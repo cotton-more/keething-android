@@ -31,8 +31,8 @@ class NotOpenDatabasesTest {
         path = "/storage/emulated/0/Sync/$name.kdbx",
         folder = "Sync",
         status = null,
-        isMissing = missing,
-        keyFile = keyFile?.let { KeyFileLine(it, "Keys", "/storage/emulated/0/Keys/$it", isMissing = keyMissing) },
+        reach = if (missing) Reach.NOT_FOUND else Reach.THERE,
+        keyFile = keyFile?.let { KeyFileLine(it, "Keys", "/storage/emulated/0/Keys/$it", reach = if (keyMissing) Reach.NOT_FOUND else Reach.THERE) },
         isCurrent = false,
         lastOpened = lastOpened,
         modified = null,
@@ -66,7 +66,7 @@ class NotOpenDatabasesTest {
         val notOpen = NotOpenDatabases.of(window, lines, skipped = emptySet())
         assertEquals(listOf("Work", "Family", "Crypto", "Taxes"), notOpen.map { it.line.name }, "open ones and those out of the window are not there")
         assertEquals(
-            listOf(NotOpenState.Locked, NotOpenState.FingerprintPaused(14), NotOpenState.NotFound, NotOpenState.NeedsKeyFile("taxes.keyx", null)),
+            listOf(NotOpenState.Locked, NotOpenState.FingerprintPaused(14), NotOpenState.NotFound(), NotOpenState.NeedsKeyFile("taxes.keyx", null)),
             notOpen.map { it.state },
         )
         assertEquals(listOf("Locked", "Fingerprint paused", "Not found", "Needs its key file"), notOpen.map { it.state.word })
@@ -87,7 +87,7 @@ class NotOpenDatabasesTest {
     @Test
     fun theStateIsTheFirstThatApplies() {
         assertEquals(NotOpenState.Opening, state(SessionState.Unlocking, line("Work", missing = true)), "opening first")
-        assertEquals(NotOpenState.NotFound, state(failed(OpenFailure.WrongPassword), line("Work", missing = true)), "the file not there wins over an old failure")
+        assertEquals(NotOpenState.NotFound(), state(failed(OpenFailure.WrongPassword), line("Work", missing = true)), "the file not there wins over an old failure")
         assertEquals(NotOpenState.Locked, state(failed(OpenFailure.Missing)), "the file is back: its old not found is not said")
         assertEquals(NotOpenState.Locked, state(failed(OpenFailure.KeyFileMissing("work.keyx")), line("Work", keyFile = "work.keyx")), "its key file is back")
         assertEquals(
@@ -153,7 +153,7 @@ class NotOpenDatabasesTest {
         val old = line("Old", lastOpened = Instant.ofEpochSecond(100))
         val club = line("Club", lastOpened = Instant.ofEpochSecond(200))
         val never = line("Never")
-        val notOpen = listOf(NotOpenDatabase(work, NotOpenState.Locked), NotOpenDatabase(crypto, NotOpenState.NotFound))
+        val notOpen = listOf(NotOpenDatabase(work, NotOpenState.Locked), NotOpenDatabase(crypto, NotOpenState.NotFound()))
         val sections = DatabasesOverview.of(
             lines = listOf(personal, work, crypto, old, club, never),
             window = listOf(personal.id, work.id, crypto.id),

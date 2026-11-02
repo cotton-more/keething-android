@@ -905,6 +905,71 @@ class CurrentDatabaseTest {
     }
 
     @Test
+    fun everyOldRecordAFolderOfTheListHoldsIsReachedThroughItWithNothingAsked() = runTest {
+        // spec: databases.saf/AC13
+        val f = Fixture(this)
+        val personal = f.add("/storage/emulated/0/Sync/KeePass/Personal.kdbx")
+        val work = f.add("/storage/emulated/0/Sync/KeePass/Work.kdbx")
+        val crypto = f.add("/storage/emulated/0/Download/Crypto.kdbx", keyFile = "/storage/emulated/0/Sync/Keys/crypto.keyx" to keyFileBytes("keyx.keyx"))
+        f.list.update(work.id) { it.copy(name = "Job", useBiometric = true) }
+        val workBefore = f.list.record(work.id)!!
+
+        assertNull(f.databases.folderGranted(personal.id, "grant-sync", sync))
+
+        assertEquals(FileLocation.InFolder("grant-sync", sync, "KeePass/Work.kdbx"), f.list.record(work.id)?.file, "not asked again")
+        assertEquals(workBefore.copy(file = f.list.record(work.id)!!.file), f.list.record(work.id), "its id, name and choices")
+        assertEquals(FileLocation.InFolder("grant-sync", sync, "Keys/crypto.keyx"), f.list.record(crypto.id)?.keyFile)
+        assertEquals(FileLocation.ByPath("/storage/emulated/0/Download/Crypto.kdbx"), f.list.record(crypto.id)?.file, "in no folder of the list")
+    }
+
+    @Test
+    fun aDatabaseOpenedThroughAFolderTakesTheOldRecordsItHolds() = runTest {
+        val f = Fixture(this)
+        val old = f.add("/storage/emulated/0/Sync/KeePass/Personal.kdbx")
+        f.databases.adoptOldRecords()
+        assertEquals(FileLocation.ByPath("/storage/emulated/0/Sync/KeePass/Personal.kdbx"), f.list.record(old.id)?.file, "no folder holds it yet")
+
+        val family = FileLocation.InFolder("grant-keepass", StoragePlace("primary", "Sync/KeePass"), "Family.kdbx")
+        f.files[key(family)] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        f.databases.open(family)
+
+        assertEquals(FileLocation.InFolder("grant-keepass", StoragePlace("primary", "Sync/KeePass"), "Personal.kdbx"), f.list.record(old.id)?.file)
+        assertEquals(setOf("grant-keepass"), f.list.grantsInUse)
+    }
+
+    @Test
+    fun anOldRecordsOwnFileOpenedThroughAFolderIsThatRecordReachedThroughIt() = runTest {
+        // spec: databases.saf/AC13
+        val f = Fixture(this)
+        val old = f.add("/storage/emulated/0/Sync/KeePass/Personal.kdbx", keyFile = "/storage/emulated/0/Sync/Keys/personal.keyx" to keyFileBytes("keyx.keyx"))
+        f.list.update(old.id) { it.copy(useBiometric = true) }
+        val there = FileLocation.InFolder("grant-sync", sync, "KeePass/personal.kdbx")
+
+        assertEquals(old.id, f.databases.open(there))
+
+        assertEquals(there, f.list.record(old.id)?.file, "not kept by its path any more")
+        assertEquals(FileLocation.InFolder("grant-sync", sync, "Keys/personal.keyx"), f.list.record(old.id)?.keyFile)
+        assertEquals(true, f.list.record(old.id)?.useBiometric)
+        assertEquals(setOf("grant-sync"), f.list.grantsInUse, "the grant is taken")
+    }
+
+    @Test
+    fun anOldRecordWhoseFolderCannotBeGivenIsLocatedWithEverythingKept() = runTest {
+        // spec: databases.saf/AC13 (a database directly in Download: Android gives no app Download itself)
+        val f = Fixture(this)
+        val old = f.add("/storage/emulated/0/Download/Personal.kdbx")
+        f.list.update(old.id) { it.copy(useBiometric = true, name = "Mine") }
+        val moved = FileLocation.InFolder("grant-keepass", StoragePlace("primary", "Download/KeePass"), "Personal.kdbx")
+        f.files[key(moved)] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+
+        assertNull(f.databases.locate(old.id, moved))
+
+        assertEquals(moved, f.list.record(old.id)?.file)
+        assertEquals("Mine", f.list.record(old.id)?.name)
+        assertEquals(true, f.list.record(old.id)?.useBiometric)
+    }
+
+    @Test
     fun anOldRecordOffThePhonesStorageCannotBeGivenAFolder() = runTest {
         val f = Fixture(this)
         val odd = f.add("/a/Personal.kdbx")

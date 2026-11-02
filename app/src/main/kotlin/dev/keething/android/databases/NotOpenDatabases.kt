@@ -41,8 +41,13 @@ internal sealed interface NotOpenState {
         override val tone = Tone.WARNING
     }
 
-    data object NotFound : NotOpenState {
-        override val word = "Not found"
+    /** Its file cannot be reached: not found, no access any more, or its folder not chosen yet ([reach]). */
+    data class NotFound(val reach: Reach = Reach.NOT_FOUND) : NotOpenState {
+        override val word = when (reach) {
+            Reach.NO_ACCESS -> "No access"
+            Reach.NEEDS_FOLDER -> "Needs its folder"
+            else -> "Not found"
+        }
         override val tone = Tone.PROBLEM
     }
 
@@ -92,13 +97,17 @@ internal data class NotOpenDatabase(val line: DatabaseLine, val state: NotOpenSt
                 SetUpAgain.PASSWORD_REJECTED -> "Fingerprint to set up again: the stored password was not accepted"
                 null -> "Fingerprint to set up: type its password once"
             }
-            NotOpenState.NotFound -> "Not found at ${line.folder}/${line.fileName}"
+            is NotOpenState.NotFound -> when (state.reach) {
+                Reach.NO_ACCESS -> "No access to ${line.folder} any more: locate ${line.fileName} to choose its folder again"
+                Reach.NEEDS_FOLDER -> "Needs its folder: choose ${line.folder} once"
+                else -> "Not found at ${line.folder}/${line.fileName}"
+            }
             is NotOpenState.NeedsKeyFile ->
                 state.unusable?.let { "Its key file ${state.name} cannot be used: $it" } ?: "Needs its key file: ${state.name} is not there"
             is NotOpenState.CannotBeRead -> "Cannot be read: " + when (val failure = state.failure) {
                 is OpenFailure.Damaged -> "damaged or not completely synced yet (${failure.detail})"
                 is OpenFailure.Unsupported -> failure.what
-                OpenFailure.AccessDenied -> "Keething may not read the file (all-files access)"
+                OpenFailure.AccessDenied -> "Keething may not read the file any more: locate it"
                 OpenFailure.OutOfMemory -> "not enough memory to open it"
                 else -> "it did not open"
             }
@@ -127,8 +136,10 @@ internal object NotOpenDatabases {
      */
     fun state(session: SessionState, line: DatabaseLine, fingerprint: BiometricState, skipped: Boolean): NotOpenState {
         if (session is SessionState.Unlocking) return NotOpenState.Opening
-        if (line.isMissing) return NotOpenState.NotFound
-        line.keyFile?.takeIf { it.isMissing }?.let { return NotOpenState.NeedsKeyFile(it.name, null) }
+        if (line.isMissing) return NotOpenState.NotFound(line.reach)
+        line.keyFile?.takeIf { it.isMissing }?.let { key ->
+            return NotOpenState.NeedsKeyFile(key.name, "Keething may not read it any more: choose it again".takeIf { key.reach != Reach.NOT_FOUND })
+        }
         val reason = (session as? SessionState.Locked)?.reason
         val failure = (reason as? LockReason.UnlockFailed)?.failure
         when (failure) {

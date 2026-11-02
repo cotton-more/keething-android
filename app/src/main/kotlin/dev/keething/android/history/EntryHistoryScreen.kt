@@ -1,5 +1,6 @@
 package dev.keething.android.history
 
+import dev.keething.android.session.file
 import android.content.Context
 import android.text.format.Formatter
 import androidx.compose.foundation.background
@@ -105,7 +106,7 @@ internal class EntryHistoryViewModel(database: DatabaseSession, entryId: String,
                     when (val failure = result.failure) {
                         null -> "This entry is no longer in the file."
                         OpenFailure.WrongPassword -> "The database's password was changed since the unlock."
-                        else -> failure.describe(database.file)
+                        else -> failure.describe(database.file.path)
                     },
                 )
             }

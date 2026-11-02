@@ -46,6 +46,14 @@ public class GrantKeeper(
     }
 
     /**
+     * [grant], given again in a picker (the system gives the same address for the same folder or file): no longer offered,
+     * so a form or a sheet using it is not left without it at the list's next change. Offered again when it is done.
+     */
+    public fun taken(grant: String) {
+        offered -= grant
+    }
+
+    /**
      * At the app's start, once stopped saves were put right: every grant held that the list is not reached through (a
      * picker left in the middle, a process ended before it gave one back), and the notes of databases not in the list.
      */

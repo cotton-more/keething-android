@@ -19,25 +19,66 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
 
-/** What the app knows of a database's files without opening them (SPEC §6.2): whether one is there, when it changed. */
-internal interface DatabaseFiles {
-    /** Null: nothing can be known (no all-files access: a file in shared storage looks gone). */
-    fun exists(path: String): Boolean?
+/** Whether the app can reach a file of the list now (SPEC §6.2; keething-spec databases.saf AC10, AC13). */
+internal enum class Reach {
+    THERE,
+    NOT_FOUND,
 
-    fun modified(path: String): Instant?
+    /** Its grant is gone: the folder renamed, moved or deleted on any device, a key file's own grant ended by a sync. */
+    NO_ACCESS,
 
-    companion object {
-        fun live(accessGranted: () -> Boolean): DatabaseFiles = object : DatabaseFiles {
-            override fun exists(path: String): Boolean? = if (accessGranted()) File(path).isFile else null
+    /** Kept by its path before databases.saf: its folder is asked for once (AC13). */
+    NEEDS_FOLDER,
 
-            override fun modified(path: String): Instant? = File(path).lastModified().takeIf { it > 0 }?.let(Instant::ofEpochMilli)
-        }
-    }
+    /** Nothing can be known now (the provider failed otherwise): its read will say. */
+    UNKNOWN,
 }
 
-/** A database's key file as the lock screen and Settings say it. */
-internal data class KeyFileLine(val name: String, val folder: String, val path: String, val isMissing: Boolean)
+/** What the app knows of a file of the list without opening it: whether it can be reached, when it changed. */
+internal data class FileLook(val reach: Reach, val modified: Instant? = null)
+
+/**
+ * What the app knows of a database's files without opening them (SPEC §6.2), through their grants. Blocks on the
+ * storage's provider: call it off the main thread.
+ */
+internal fun interface DatabaseFiles {
+    /** [location]'s file, reached through a grant (one kept by its path is never looked at: [Reach.NEEDS_FOLDER]). */
+    fun look(location: FileLocation): FileLook
+}
+
+/**
+ * Every file of [databases] reached through a grant looked at side by side, a few at a time on the io dispatcher (each
+ * is a call to the storage provider): the lines then read what was found.
+ */
+internal suspend fun DatabaseFiles.lookedAt(databases: Databases): DatabaseFiles {
+    val locations = databases.records.flatMap { listOfNotNull(it.file, it.keyFile) }.filterNot { it is FileLocation.ByPath }.distinct()
+    val found = withContext(LOOKING) { locations.map { async { it to look(it) } }.awaitAll().toMap() }
+    return DatabaseFiles { found[it] ?: look(it) }
+}
+
+/** At most this many files looked at at once. */
+@OptIn(ExperimentalCoroutinesApi::class)
+private val LOOKING = Dispatchers.IO.limitedParallelism(8)
+
+/** A database's key file as the lock screen and Settings say it; [reach]: anything but there is said in red, with Choose…. */
+internal data class KeyFileLine(val name: String, val folder: String, val path: String, val reach: Reach = Reach.THERE) {
+    /** Not there, or not to be read any more: Choose key file… (keething-spec databases.saf AC10). */
+    val isMissing: Boolean get() = reach == Reach.NOT_FOUND || reach == Reach.NO_ACCESS || reach == Reach.NEEDS_FOLDER
+
+    /** After its name: its folder, or why it cannot be used ("not there · Keys", "no access · Keys"). */
+    val detail: String
+        get() = when (reach) {
+            Reach.NOT_FOUND -> "not there · $folder"
+            Reach.NO_ACCESS, Reach.NEEDS_FOLDER -> "no access · $folder"
+            Reach.THERE, Reach.UNKNOWN -> folder
+        }
+}
 
 /** A database of the list as the lock screen's line, its sheet and Settings show it (the canvas, rows "Databases"). */
 internal data class DatabaseLine(
@@ -49,7 +90,8 @@ internal data class DatabaseLine(
     val folder: String,
     /** After the folder: "changed 2 hours ago", "not found"; null when nothing is known. */
     val status: String?,
-    val isMissing: Boolean,
+    /** Whether its file can be reached now: anything but there or unknown is said, with Locate… or its folder's question. */
+    val reach: Reach,
     val keyFile: KeyFileLine?,
     val isCurrent: Boolean,
     val lastOpened: Instant?,
@@ -59,6 +101,18 @@ internal data class DatabaseLine(
     /** Its colour, an index into [DatabasePalette.shades]. */
     val colorIndex: Int = 0,
 ) {
+    /** Its file cannot be reached now: not found, no access any more, or its folder not asked for yet (Locate… or Choose its folder…). */
+    val isMissing: Boolean get() = reach == Reach.NOT_FOUND || reach == Reach.NO_ACCESS || reach == Reach.NEEDS_FOLDER
+
+    /** What is said of a file that cannot be reached: "not found", "no access", "needs its folder". */
+    val reachWord: String?
+        get() = when (reach) {
+            Reach.NOT_FOUND -> "not found"
+            Reach.NO_ACCESS -> "no access"
+            Reach.NEEDS_FOLDER -> "needs its folder"
+            Reach.THERE, Reach.UNKNOWN -> null
+        }
+
     /** Its name, without what tells it apart from another named alike. */
     val name: String get() = label.name
 
@@ -68,11 +122,11 @@ internal data class DatabaseLine(
     /** Under the name on the lock screen: "Sync/KeePass · changed 2 hours ago", "Download · not found". */
     val detail: String get() = listOfNotNull(folder, status).joinToString(" · ")
 
-    /** Under its name in the lock screen's sheet: its folder, or that it is not found. */
-    val sheetDetail: String get() = if (isMissing) "not found" else folder
+    /** Under its name in the lock screen's sheet: its folder, or that it is not found ("no access", "needs its folder"). */
+    val sheetDetail: String get() = reachWord ?: folder
 
     /** Under its name in Settings: "Sync/Work", "Not found · Download". */
-    val settingsDetail: String get() = if (isMissing) "Not found · $folder" else folder
+    val settingsDetail: String get() = reachWord?.let { "${it.replaceFirstChar(Char::uppercaseChar)} · $folder" } ?: folder
 }
 
 /** What the lock screen shows of its database (SPEC §6.2; the Mac's `LockScreenDatabase`). */
@@ -83,8 +137,10 @@ internal data class LockScreenDatabase(
     /** No field for a database that opens with its key file alone, nor for one not found (Locate… instead). */
     val showsPasswordField: Boolean,
     val showsLocate: Boolean,
-    /** In place of the field when the file is not found. */
+    /** In place of the field when the file cannot be reached. */
     val missingText: String?,
+    /** The button in place of the field: "Locate…", or for a database kept by its path "Choose its folder…" (AC13). */
+    val locateLabel: String,
     val passwordPlaceholder: String,
     /** Unlock needs something typed: without a key file nothing else could open it. */
     val needsPassword: Boolean,
@@ -218,16 +274,23 @@ internal object DatabaseText {
     fun folder(path: String, root: String): String = abbreviated(File(path).parent ?: "/", root)
 
     /**
-     * Where [location] is, as the path on the phone the app's words and pickers use while it reaches files by path (until
-     * databases.saf stage S3): its own path, else its place on the storage under the shared storage's [root] (a card's
-     * under `/storage`). The file is never reached by it.
+     * Where [location] is, as a path on the phone, for the app's words alone: its own path (kept by it before
+     * databases.saf), else its place on the storage under the shared storage's [root] (a card's under `/storage`). The
+     * file is never reached by it (keething-spec databases.saf AC1).
      */
     fun pathOf(location: FileLocation, root: String): String {
         if (location is FileLocation.ByPath) return location.path
-        val place = location.place ?: return location.fileName
+        return location.place?.let { pathOf(it, root) } ?: location.fileName
+    }
+
+    /** [place] as a path on the phone, for the words: the phone's own storage under [root], a card's under `/storage`. */
+    fun pathOf(place: StoragePlace, root: String): String {
         val top = if (place.volume == StoragePlace.PRIMARY) root.trimEnd('/') else "/storage/${place.volume}"
         return if (place.path.isEmpty()) top else "$top/${place.path}"
     }
+
+    /** A folder's place as the screens say it: "Sync/KeePass", "Internal storage", "/storage/1234-5678/Keys". */
+    fun words(place: StoragePlace, root: String): String = abbreviated(pathOf(place, root), root)
 
     /** A path from the shared storage's [root] (only the root itself, not a folder whose name starts like it). */
     fun abbreviated(path: String, root: String): String {
@@ -311,9 +374,7 @@ private fun Databases.line(
     now: Instant,
     zone: ZoneId,
 ): DatabaseLine {
-    // A file through a grant is looked at by its read.
-    val missing = record.path?.let(files::exists) == false
-    val modified = if (missing) null else record.path?.let(files::modified)
+    val look = look(record.file, files)
     val path = DatabaseText.pathOf(record.file, root)
     return DatabaseLine(
         id = record.id,
@@ -321,19 +382,30 @@ private fun Databases.line(
         fileName = record.fileName,
         path = path,
         folder = DatabaseText.folder(path, root),
-        status = if (missing) "not found" else modified?.let { DatabaseText.changed(it, now, zone) },
-        isMissing = missing,
+        status = when (look.reach) {
+            Reach.THERE, Reach.UNKNOWN -> look.modified?.let { DatabaseText.changed(it, now, zone) }
+            Reach.NOT_FOUND -> "not found"
+            Reach.NO_ACCESS -> "no access"
+            Reach.NEEDS_FOLDER -> "needs its folder"
+        },
+        reach = look.reach,
         keyFile = record.keyFile?.let { keyFile ->
             val keyPath = DatabaseText.pathOf(keyFile, root)
-            KeyFileLine(keyFile.fileName, DatabaseText.folder(keyPath, root), keyPath, isMissing = record.keyFilePath?.let(files::exists) == false)
+            // One kept by its path: Choose key file… (AC10), unless the database's own folder, asked first, holds it.
+            val keyLook = if (keyFile is FileLocation.ByPath) FileLook(Reach.NO_ACCESS) else files.look(keyFile)
+            KeyFileLine(keyFile.fileName, DatabaseText.folder(keyPath, root), keyPath, keyLook.reach)
         },
+        modified = look.modified,
         isCurrent = record.id == currentId,
         lastOpened = record.lastOpened,
-        modified = modified,
         usesFingerprint = record.useBiometric,
         colorIndex = colorIndex,
     )
 }
+
+/** [file] as the app can reach it now: one kept by its path needs its folder first, and is not looked at (AC1, AC13). */
+private fun look(file: FileLocation, files: DatabaseFiles): FileLook =
+    if (file is FileLocation.ByPath) FileLook(Reach.NEEDS_FOLDER) else files.look(file)
 
 /** What the lock screen shows of [line]'s database. */
 internal fun DatabaseRecord.lockScreen(line: DatabaseLine): LockScreenDatabase {
@@ -341,14 +413,26 @@ internal fun DatabaseRecord.lockScreen(line: DatabaseLine): LockScreenDatabase {
     val removable = file.place?.let { it.volume != StoragePlace.PRIMARY } == true
     return LockScreenDatabase(
         line = line,
-        problem = if (!line.isMissing && key != null && key.isMissing) "${line.name} needs its key file: ${key.name} is not in ${key.folder}." else null,
+        problem = when {
+            line.isMissing || key == null || !key.isMissing -> null
+            key.reach == Reach.NOT_FOUND -> "${line.name} needs its key file: ${key.name} is not in ${key.folder}."
+            else -> "Keething may not read ${key.name} any more: choose it again."
+        },
         showsPasswordField = !line.isMissing && !isPasswordless,
         showsLocate = line.isMissing,
-        missingText = when {
-            !line.isMissing -> null
-            removable -> "$fileName is not in ${line.folder}. Put the card in, or locate the file."
-            else -> "$fileName is not in ${line.folder} any more. Locate the file, or choose another database."
+        missingText = when (line.reach) {
+            Reach.THERE, Reach.UNKNOWN -> null
+            Reach.NEEDS_FOLDER ->
+                "Keething now opens files only in folders you choose. Choose ${line.folder}, the folder of $fileName: it is asked once."
+            Reach.NO_ACCESS ->
+                "Keething can no longer reach ${line.folder}: renamed, moved or deleted on a device, or its access taken back. Locate the file to choose its folder again."
+            Reach.NOT_FOUND -> if (removable) {
+                "$fileName is not in ${line.folder}. Put the card in, or locate the file."
+            } else {
+                "$fileName is not in ${line.folder} any more. Locate the file, or choose another database."
+            }
         },
+        locateLabel = if (line.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…",
         passwordPlaceholder = if (keyFile == null) "Master password" else "Master password, if it has one",
         needsPassword = keyFile == null,
     )

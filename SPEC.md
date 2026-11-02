@@ -161,22 +161,25 @@ may leave `<name>.sync-conflict-<date>-<time>-<device>.kdbx` next to it.
 
 All file access goes through one port in `core/domain` (`DatabaseStore`: read the bytes and a version
 stamp, write by replacing, list conflict copies, watch for changes), so the way the app reaches the file can
-be swapped without touching anything else. Two implementations are planned:
-- **Side-loaded build: all-files access** (`MANAGE_EXTERNAL_STORAGE`, granted once in Settings; fine for a
-  side-loaded app) and plain `java.io.File` paths. The app remembers the **path**, not a handle, so a file
-  replaced by a rename is simply the file at that path. It can write a temporary file in the same folder
-  and rename it over the database (atomic, as the Mac app's `replaceItemAt`), and `FileObserver` on the
-  folder sees Syncthing's renames.
-- **The Storage Access Framework** (keething-spec databases.saf; replaces all-files access, stage S4 of its plan): a
-  **folder** the user granted (`ACTION_OPEN_DOCUMENT_TREE`, persisted; never a single file's grant for a database, which
-  a sync's replace ends), the file addressed by the folder's grant and its path inside at every call (`ProviderFolder`,
-  the phone's storage provider only: its document ids are paths). A save writes a new file beside the database, renames
-  the database aside, renames the new one in and deletes the old one (`FolderDatabaseStore`; the provider cannot rename
-  over a file, and a write in place could be sent half-written), noted in the app's storage first so that a save the
-  app did not finish is put right, at the database's next read and at the app's start. The version is `Os.fstat` on
-  the provider's descriptor (device, inode, size, time). Names are taken regardless of case. Until stage S4 brings its
-  screens, a database is added through a granted folder only in the debug build's storage probe; the list's databases
-  by path are reached as above.
+be swapped without touching anything else. **The Storage Access Framework** (keething-spec databases.saf; every build, no
+storage permission at all: no `MANAGE_EXTERNAL_STORAGE`, no file read or written by a path, AC1): a database is reached
+through a **folder** the user granted in the system's folder picker (`ACTION_OPEN_DOCUMENT_TREE`, kept with
+`takePersistableUriPermission`, read and write; never a single file's grant for a database, which a sync's replace
+ends), the file addressed by the folder's grant and its path inside at every call (`ProviderFolder`), so a file a sync
+replaced is simply the file at that path. Only the phone's own storage and its cards (its document ids are paths; AC12):
+a folder or file another app's provider gives (a cloud app) is refused and said ("Keething opens files on this phone's
+storage and its card only. Keep the database in a folder that Syncthing, FolderSync or the cloud app's own offline
+folder keeps in sync, and choose that."). A save writes a new file beside the database, renames the database aside,
+renames the new one in and deletes the old one (`FolderDatabaseStore`; the provider cannot rename over a file, and a
+write in place could be sent half-written), noted in the app's storage first so that a save the app did not finish is
+put right, at the database's next read and at the app's start, and said over the list with OK until OK is tapped ("The
+last save was put right · Keething was closed while it saved Personal.kdbx. The save was finished: the file has the
+change." or "… It could not be finished, so the file is as it was before (or as a sync made it since): make the change
+again if it is missing."; keething-spec databases.saf AC5). The version is `Os.fstat` on the provider's descriptor
+(device, inode, size, time). Names are taken regardless of case. A **key file** in a folder the list already reaches
+goes through that folder; one elsewhere is granted alone in the file picker (`ACTION_OPEN_DOCUMENT`, read only:
+`ProviderFile`), since a key file is not rewritten (a sync's replace ends that grant; the key file then says no access,
+with Choose…, AC10).
 
 **The list of databases** (keething-spec databases.list; `core/vault` `DatabaseList`, the Mac's): the databases this
 phone knows, each remembered by **where its file is** (`FileLocation`: its **path**, standardized: `.` and `..`
@@ -191,9 +194,17 @@ record: `id`, `path` or `file`, `keyFilePath` or `keyFile`, `name`, `color`, `us
 `lastOpened` in seconds since 1970, `inWindow`, `checkedInChooser`; written with sorted keys). `path` and `keyFilePath`
 are by path, as every record before databases.saf, which reads as it is; `file` and `keyFile` are objects: a granted
 folder's address, its place and the path inside (`grant`, `volume`, `folder`, `path`), or a key file granted alone
-(`grant`, `volume`, `place`). The app still adds by path until databases.saf stage S3. An old record's folder, once
-granted, must hold its file at that path; the record then reaches it, and its key file when a folder of the list holds
-that, through the folder (`CurrentDatabase.folderGranted`, AC13). A key file granted alone in a folder the list already
+(`grant`, `volume`, `place`). The app adds nothing by path any more. **An old record** (kept by its path, before
+databases.saf) is never read by it: it says "needs its folder", and its folder is asked for once, the picker opened
+there (Choose its folder…, in the sheet "The folder of Personal.kdbx"); a folder that holds its file at that path settles
+it, and the record then reaches it through the folder with its id, its stored password, its backups and its choices
+(`CurrentDatabase.folderGranted`, AC13). One that does not ("That folder does not hold Personal.kdbx. Choose its file
+below, or another folder.": a database directly in `Download` or at the storage's top, whose folder Android gives no
+app, moved into a folder of its own) shows its files, and the file chosen there is located, everything kept. Its own
+file opened through a folder (Open a database…) is that record too, reached through it from then on. **Every old record a folder of the list holds is reached through it
+at once**, its key file too, with nothing asked (`CurrentDatabase.adoptOldRecords`: at the start and after each folder
+the list takes), so one folder granted for the Syncthing folder brings every database in it and below it. An old key
+file no folder of the list holds says no access, with Choose key file…. A key file granted alone in a folder the list already
 reaches goes through that folder, the database's own first (AC9). A grant nothing of the list is reached through any
 more is given back (`GrantKeeper`, AC14), with the notes of a removed database's saves that leave nothing to put right.
 A record without `id` or a file, a field of another type or text that is not JSON makes the list **unreadable**: it is kept under `databases.unreadable.<seconds>`, never overwritten, and the
@@ -212,7 +223,8 @@ the others staying open.
 **The databases of the window not open** (keething-spec databases.not-open; the Mac's D6b) are one line of chips
 pinned under the list's header while some are open: "Not open", "Not searched" while a search is typed, the count past
 two, scrolling sideways. Each chip says its database (dot, label) and its state, the first that applies
-(`NotOpenDatabases.state`, the Mac's order): Opening… while it opens; Not found, Needs its key file (by the files as they
+(`NotOpenDatabases.state`, the Mac's order): Opening… while it opens; Not found, No access, Needs its folder (an old
+record, §3.1), Needs its key file (by the files as they
 are now, so an old failure goes once the file is back); what typing cannot fix (its key file cannot be used, Cannot be
 read); the fingerprint's verdict (Fingerprint to set up again: the fingerprints changed, or its stored password was not
 accepted; kept per database until one is stored again, `BiometricState.setUpAgain`); Skipped (by the chooser's run, below);
@@ -220,14 +232,17 @@ Wrong password; Password changed; Fingerprint paused (its password due) or Finge
 Locked. The states follow the sessions and the fingerprint at once, and the files whenever those change or the list
 comes back. A tap shows its lock screen with Back, the search kept for when it opens (its entries join the list, its
 chip goes); Lock all clears it as ever. A long press opens its sheet: its whole say ("Locked · tap to type its
-password", "Not found at Sync/Crypto.kdbx", …), Unlock… (not while not found or unreadable), Locate… (not found),
+password", "Not found at Sync/Crypto.kdbx", "No access to Sync/Work any more: locate Work.kdbx to choose its folder
+again", "Needs its folder: choose Sync/KeePass once", …), Unlock… (not while not found or unreadable), Locate… (not
+found, no access) or Choose its folder… (an old record),
 Choose key file… (it has one), Close.
 
 **The chooser and its run** (keething-spec databases.chooser; the Mac's D6b, D7; plan AD13). With nothing open the app
 shows the lone database's lock screen, or with several in the window the **chooser**, "Open your databases": each
 database of the window with how it opens (Fingerprint, Password, Password + work.keyx, Key file work.keyx, Fingerprint
 paused · 14 days, Fingerprint to set up, Fingerprint to set up again; one open or opening says Open or Opening…, unchecked; `ChooserRows`); what typing cannot open (not
-found, its key file not there or unusable, cannot be read) has no check and says why, with Locate… for one not found;
+found, no access, needs its folder, its key file not there or no access or unusable, cannot be read) has no check and
+says why, with Locate… for one not found or without access and Folder… for one that needs its folder;
 the others are checked as at the last unlock (`checkedInChooser`, kept at once). Past five rows the list scrolls (four
 and a half show, "9 databases · scroll for the rest"). **Unlock N databases** starts the **run** (`UnlockRun`,
 `CurrentDatabase.run`): first one fingerprint for the checked ones it would open (decided without reading any stored
@@ -251,12 +266,20 @@ of the chooser with Back to it, and a lock forgets it; a new database opening wi
 screen ("Opening …"). Lock all leads to the chooser, with no fingerprint by itself.
 There is **no default path and no migration**: the single path of before
 (`databasePath`) is left as it was and read no more, so the first start after the list shows the welcome (§6.2). A
-database is added by opening its file (the system picker, any file; the app keeps the document's path, which the
-phone's storage provider and the downloads provider's `raw:` ids give, and says when a place has none); Locate… gives
-a database whose file moved its new path (it keeps its id, its backups and its stored password; one open locks first;
-a path another database of the list has is refused: "That file is already in the list as “Personal”."); Remove from
-List forgets it with its stored password and leaves the file; the current one removed, the window's first left is
-current (one not in the window stays out), else the list's first.
+database is added by **Open a database…** (keething-spec databases.saf AC2, AC3; `ChooseDatabaseSheet`): a sheet of the
+folders the list is already reached through, each opened into its folders and its KeePass files (`.kdbx`, case aside;
+hidden files and Syncthing's own aside; "In the list as “Personal”" on one the list has), and **Choose a folder…** for the
+system's picker, then the files of the folder chosen; with no folder granted yet the picker opens at once. A folder
+chosen there that a granted one holds is reached through that one (the new grant goes back), so nothing is asked
+twice. Under Choose a folder… what Android gives: "Android gives no app the whole storage or Download itself: keep
+databases in a folder of their own, such as Download/KeePass or Sync/KeePass." (its picker refuses those two; said in
+the error colour once the picker closed without a folder, AC3). **Locate…** gives a database whose file moved its new
+file through the same sheet, titled "Locate Personal.kdbx", the picker at once when its folder's access is gone (AC10;
+it keeps its id, its backups and its stored password; one open locks first; a file another database of the list has is
+refused: "That file is already in the list as “Personal”."); **Remove from List** forgets it with its stored password
+and leaves the file; the current one removed, the window's first left is current (one not in the window stays out),
+else the list's first. Every grant a picker gave that the list does not take is given back after the list's next
+change, and at the next start (`GrantKeeper`, AC14).
 
 **One list over the open databases** (keething-spec databases.one-list; the Mac's D6): an entry is its database's id
 and its own id together, its **ref** `<database id>:<entry id>` (`:` is in neither a KeePass UUID nor a database id),
@@ -298,7 +321,8 @@ colour read for the first time can move the others'. The colour and label are no
 keething-spec databases.rename-recolour).
 
 Decided by the storage experiment (ROADMAP step 1, on the Android 17 emulator with Syncthing-Fork 2.1.6 and the
-Mac's Syncthing): the side-loaded build uses all-files access. The probe followed every change from the Mac,
+Mac's Syncthing): the side-loaded build used all-files access, until keething-spec databases.saf replaced it (stage S4,
+2026-11-02; what its stage S0 measured is in its plan.md). The probe followed every change from the Mac,
 a real conflict, deletions and the app's own writes without losing the file. The file's identity
 (`BasicFileAttributes.fileKey()`: device and inode) works on Android's shared storage and catches a
 replace that keeps size and time.
@@ -316,8 +340,8 @@ keeps the new time. The way out is in §3.3 step 7.
 
 ### 3.2 Reading and noticing changes
 
-- The database is read on unlock and again when the file changed (size, modification time or inode; folder
-  watcher while the app runs, and a check on every return to the foreground). The reload uses the
+- The database is read on unlock and again when the file changed (size, modification time or inode; the folder's
+  notices while the app runs, and a check on every return to the foreground). The reload uses the
   in-memory key (§4), so it does not ask for anything.
 - A file caught half-written (bad checksum / HMAC) keeps the current vault and tries again on the next
   change (as on the Mac: damaged ≠ wrong password).
@@ -325,12 +349,10 @@ keeps the new time. The way out is in §3.3 step 7.
   reported; the vault shown stays meanwhile.
   With file versioning on (it was on for the test folder on the emulator), Syncthing first moves the old file
   into `.stversions` and then renames the new one in, so for a moment there is no file.
-- Shared storage is a FUSE file system: right after an inotify event `stat` can still show the old file
-  (measured: stale at the event, fresh 0.3 s later). The folder watcher reports every event again after
-  1 s (`FileObserverFolderWatcher`). One watch per folder, shared by every open database in it
-  (`SharedFolderWatcher`): Android keeps one inotify watch per path in the process, so a second `FileObserver` of
-  a folder takes the first one's events and stopping either stops both.
-- A database through a granted folder (§3.1) is watched through the provider (`ProviderFolder.watch`): a
+- Shared storage is a FUSE file system: right after a change `stat` can still show the old file (measured with
+  inotify: stale at the event, fresh 0.3 s later), so each burst of notices is given again 1 s after the last.
+- The database's folder (§3.1) is watched through the provider (`ProviderFolder.watch`; no `FileObserver`, nothing by
+  path): a
   `ContentObserver` on an open cursor of the folder's children (the provider watches a folder only while one is open),
   held through an unstable client so that the provider's process ending does not end the app's; its notices then
   stop without a word, and the watch starts again at the next read or version check (the return to the foreground).
@@ -446,15 +468,15 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    `.syncthing.keething-<uuid>.tmp`: Syncthing never scans or sends `.syncthing.*.tmp` (its own downloads),
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
-   app's temporary file, only the final one.
-   Then the file's modification time is set through its path (`PathDatabaseStore`): the clock's time, but at
-   least 2 s after the replaced file's, since Syncthing on Android takes times less than 2 s apart for equal
-   (its `ModTimeWindow`, on any file system but ext2–4). A byte is read and the time checked: a time that
-   did not stay fails the replace, although the content is replaced by then. Without this the Pixel 6 gives
-   the new file the old time at its first read (§3.1); with it the time stays. Checked on the test phone: the
-   shell's `mv` followed by `touch -m`, then reads for 75 s, Syncthing's scan among them; the probe's 8 MiB
-   test file written three times with the same size through the app's code reached the Mac each time
-   (11–12 s later, byte for byte). Writing in place would keep the time too, but gives up the atomic replace.
+   app's temporary file, only the final one. Through the folder's grant the database is renamed aside first and the
+   new file renamed in (§3.1, `FolderDatabaseStore`; keething-spec databases.saf AC4, AC5).
+   A file's time cannot be set through the Storage Access Framework, and Syncthing on Android takes times less than
+   2 s apart for equal (its `ModTimeWindow`, on any file system but ext2–4): so the new file is written only once the
+   clock is at least 2 s from the replaced file's time and from those its earlier saves replaced in the last minute,
+   waiting when it comes sooner, and its time is read back and checked after (databases.saf AC6). Until databases.saf
+   stage S4 the database was reached by path and its time set through it (`PathDatabaseStore`, gone with all-files
+   access): the Pixel 6 gave a file renamed over another the old time at its first read (§3.1), which the time set 2 s
+   on cured; a new file keeps the time it was written at.
    Syncthing's own bug [#10924](https://github.com/syncthing/syncthing/issues/10924): a change on another
    device that only touches the time, arriving before the phone scanned its own new file (watcher delay
    10 s), sets that time on the phone's file and its content is never sent. Fixed in Syncthing 2.1.7 (a
@@ -562,16 +584,20 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   out, not supported; nothing is left behind. A **new key file**: 32 random bytes as XML 2.0, byte for byte as
   KeePassXC writes a `.keyx`, never over a file there, read back before its key is used (removed again when it does not
   read back).
-- **Putting it in place** (`app` `PathNewFile`; the owner's choice of 2026-10-29): created with `O_EXCL` and written in
-  one go, synced. A database is never replaced, not even by a file a sync put there meanwhile; never a check followed
-  by a move. Measured on the Pixel 6 in the Syncthing folder (shared storage, FUSE): a hard link (`link(2)`, the Mac's
-  fallback) is refused with `EACCES`, so is a symbolic link (a dangling link cannot be there); `O_EXCL` refuses a file
-  already there; a new file keeps its modification time through reads (§3.3 step 7 is for a rename over a file, not
-  needed here). The file is empty for the milliseconds between its creation and its one write (about 1.2 KB), against
-  Syncthing's 10 s watcher delay; checked with the Pixel 6 connected: a database, a key file and a 4 KB file made this
-  way reached the Mac byte for byte, each synced once at its full size (`Synced file` in the Mac's log), and
-  keepassxc-cli opened the database there with the key file. Owner-only (0600, a key file 0400) where the storage has permissions (app-private
-  storage); shared storage has none to set.
+- **Putting it in place** (`core/vault` `FolderNewFile`, through the folder's grant; keething-spec databases.saf AC11):
+  the provider makes the file empty under the name asked, never over another (a name taken, in any case, gives "Family
+  (1).kdbx", which is removed again while still empty, and the name is said taken), then it is written in one go and
+  flushed. A database is never replaced, not even by a file a sync put there meanwhile; never a check followed by a
+  move. The file is empty for the milliseconds between its making and its one write (about 1.2 KB), against Syncthing's
+  10 s watcher delay. The folder is one the list already reaches, or one granted in the form (Save in's Other folder…,
+  Make a new one…); a key file the user has is read through a folder the list reaches or its own grant. The form names
+  each place by its path on the phone, for its words; `NewDatabasePlaces` keeps which grant reaches it, and
+  `GrantedNewDatabaseFiles` reads what the folders hold through the grants (kept until the form shows again: it asks
+  while it draws), Syncthing's `.stfolder` looked for from the folder up to the grant's top. What the form granted and
+  the new database does not use is given back. Until databases.saf stage S4 it was made by path with `O_EXCL`
+  (`PathNewFile`, the owner's choice of 2026-10-29; measured then on the Pixel 6: a hard link and a symbolic link
+  refused in the Syncthing folder, a new file keeps its time, a database, a key file and a 4 KB file reached the Mac
+  byte for byte, each synced once at its full size).
 - **The measurement** (`core/kdbx` `KdfCalibration`, `core/vault` `EncryptionMeasurement`): as the Mac's, the KDF run
   with the memory and lanes chosen and the iterations scaled to the time asked for; the fixed cost of a run believed
   only under half a run, so it errs towards a file that opens sooner; at least 2 iterations or 100,000 rounds; a clock
@@ -591,9 +617,9 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   it runs: removing the app from recents would otherwise end the process in the middle (the owner's choice at AD7's
   start; to be looked into: `.x/RESEARCH-ad7-app-ended-while-creating.md`, not versioned). What a process that ended
   anyway left (a crash, the system's own kill) is cleaned up at the next start: **`CreationNote`** (`core/vault`,
-  `filesDir/creating.note`) names each file before it is written, by its path or its grant and its path in the granted
-  folder (`FolderNewFile`, keething-spec databases.saf AC11: a name the provider gives otherwise, "Family (1).kdbx", is
-  removed again and the name said taken), with its SHA-256 and size; a file it names that is still empty or byte for byte
+  `filesDir/creating.note`) names each file before it is written, by its grant and its path in the granted folder (by
+  its path in a note of before databases.saf), with its SHA-256 and size; read at the start off the main thread, a
+  Create waiting for it; a file it names that is still empty or byte for byte
   as written is removed, any other is someone else's and stays, and the app says "“Family Shared” was not created" ("Keething
   was closed while writing it, so nothing of it was kept. Create it again."). A Create whose files the list already
   names (the process ended between the record joining the list and the note's end) was made: its files stay, nothing
@@ -634,7 +660,7 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   and wipes the bytes read once the key is made; the parts go into the composite at once. A key file that is not
   there or cannot be used fails the unlock before the database is read, by its name or the reason ("The key file
   work.keyx is not there.", "The key file cannot be used: a key file whose key does not match its checksum
-  (changed or damaged).", "… Keething may not read work.keyx (allow all-files access)."). With a key file and nothing typed it tries the key file alone, then once the empty
+  (changed or damaged).", "… Keething may not read work.keyx any more: choose it again."). With a key file and nothing typed it tries the key file alone, then once the empty
   password with it, as one Unlocking; both rejected are said as the key file alone rejected, and a failure that
   is not a wrong key (the file missing, damaged) is not tried twice. A rejected key says what was given: a
   password alone "Wrong password — or this database needs a key file." (the file cannot tell which, so every
@@ -646,7 +672,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   a right password at the next fingerprint.
 - **A database's key file** (keething-spec unlock.key-file, kdbx.key-files AC8): chosen on the lock screen (Key
   file…, or Change… / Choose… under the field) or on the database's page in Settings (Choose…, Change…, Forget), with
-  the system picker, and remembered by its **path** in the list (never copied); read at every unlock, the
+  the system's file picker opened at its folder, and remembered by **where it is** in the list (never copied): through a
+  folder the list already reaches, else through its own grant (keething-spec databases.saf AC9); read at every unlock, the
   fingerprint's too. Choosing, changing or forgetting it says nothing more of a locked database's last failure.
   **Nothing typed** with a key file: Unlock works with the field empty. A database that opened so is remembered
   (`opensWithoutPassword`): its lock screen shows no field, only "It opens with its key file alone: nothing to type."
@@ -979,15 +1006,17 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Welcome** (an empty list: the first start, or every database removed): the app's logo, "Welcome to Keething",
   why a database ("Your passwords live in a KeePass database: one encrypted file that stays yours. Keep it in a
   folder that syncs, and the same file opens on your computer too."), **Create a new database…** (New database, below)
-  and **Open a database…** (the system picker), and "Already use KeePass, KeePassXC, KeePassDX or Strongbox? Open your
-  database: it stays theirs too, and Keething writes it in their format."
+  and **Open a database…** (its folder, then its files, §3.1), and "Already use KeePass, KeePassXC, KeePassDX or
+  Strongbox? Open your database: it stays theirs too, and Keething writes it in their format. Keething asks for the
+  folder it is in, and opens nothing else."
 - **New database** (keething-spec `databases.new-database`, `databases.new-database-create`; agreed on the canvas, row
   "Databases: Settings, a database's page, New database"), from the welcome, the lock screen's sheet and Settings →
   Databases, over whatever was shown (its close button and Back leave it, not while the file is written): **Name**
   ("Personal, Work, Family…"; it makes the file name `<Name>.kdbx`, `/` and `:` as `-`, no leading dot, a typed `.kdbx`
   not doubled, at most 255 bytes, and is written as the database's name and its root group's); **Save in** (the list's
-  databases' folders, the current one's first with "this database’s", then Documents, and Other folder… through the
-  system's folder picker, kept as a path) and the path under it ("Sync/KeePass/Family Shared.kdbx"); a file already
+  databases' granted folders, the current one's first with "this database’s", and Other folder… through the system's
+  folder picker, granted; with none granted yet "Keething saves only in a folder you choose." and the picker at a tap,
+  keething-spec databases.saf AC11) and the path under it ("Sync/KeePass/Family Shared.kdbx"); a file already
   there is said in red ("There is already a Family Shared.kdbx in Sync/KeePass. A database is never replaced: choose
   another name or folder.") and Create waits. **Master password** and **Again** (a password keyboard; one eye shows
   both, in the code font; a check or a cross beside Again); the **strength line** (four segments; "Weak: shorter than
@@ -996,7 +1025,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   CAPITALS, a digit and a symbol after words, 3–10 words with − and +, "EFF words, one with capitals, a digit and a
   symbol: about 65 bits. Shown once: write it down.", Another, Use this: both fields, the eye open, "Strong · 4 words,
   about 65 bits"); "Nobody can recover a forgotten master password, not even Keething." **Also require a key file**
-  (Optional): **Make a new one…** (a folder through the picker, starting in Documents; the file is `<Name>.keyx`, made at
+  (Optional): **Make a new one…** (a folder through the picker, starting in Documents, granted; the file is `<Name>.keyx`, made at
   Create: "Family Shared.keyx · Documents · made at Create") or **Use one I have…** (any file, §4); Change… goes back
   to the two; a key file in the database's folder is warned "Beside the database, whoever gets the folder gets both.
   Keep it apart: a folder that does not sync.", one under a folder Syncthing syncs (a `.stfolder` in it or above it)
@@ -1009,8 +1038,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Argon2; Time to open 0.1–5 s; measured 300 ms after the last change and one at a time, the time alone scaling what
   was measured: "1.0 s on this phone: 16 iterations, measured. A computer usually opens it faster."; Back to
   recommended). **Create** waits, the first reason beside it ("Name it.", "Type a master password.", "Type the password
-  again.", "The two passwords differ.", "Make a key file, or choose one you have.", "Keething may not write to the
-  phone's storage: allow all-files access." with Allow all-files access…). **Creating…** ("Creating Family Shared…",
+  again.", "The two passwords differ.", "Make a key file, or choose one you have.", "Choose the folder to save it
+  in."). **Creating…** ("Creating Family Shared…",
   "Measuring this phone’s speed for 1 s to open, then writing the file and reading it back.", then "Writing the file
   and reading it back."; Cancel only while measuring). A failure is said over Create as "Not created: …" in the Mac's
   words, "this phone" for "this Mac" (a key file there: "… choose another folder"; too little memory for Argon2: "this
@@ -1038,8 +1067,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
   line: its tile (its initial in its colour on a soft fill of it, §3.1), its label, folder from the shared storage's root and when it changed ("Sync/KeePass ·
   changed 2 hours ago", "changed yesterday", "changed in March"; "Download · not found" in red) and ⇅; a tap opens
-  the **sheet** "Databases": the list's databases (a dot in its colour and its label; a check on the one shown; its folder or "not found"; more than six
-  scroll inside it, "9 databases · scroll for the rest"), Open other…, New database… and Remove “…” from list… (asked: "Remove
+  the **sheet** "Databases": the list's databases (a dot in its colour and its label; a check on the one shown; its folder or "not found", "no access", "needs its folder"; more than six
+  scroll inside it, "9 databases · scroll for the rest"), Open other… (its folder, then its files, §3.1), New database… and Remove “…” from list… (asked: "Remove
   “Work” from the list?", "Keething forgets it on this phone, with its stored password. The file stays where it
   is.", Cancel / Remove). Another chosen there joins the others and becomes current: one open shows its vault; one locked is shown with an empty field
   and nothing said of the last one, with Back (and the system back) to the one before while it is open, else with
@@ -1055,8 +1084,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   that opens with its key file alone has "It opens with its key file alone: nothing to type." and Unlock instead of
   the field. A file **not found** has, in place of the field, "Crypto.kdbx is not in Download any more. Locate the
   file, or choose another database." (on a card: "… is not in /storage/1234-5678. Put the card in, or locate the
-  file."), **Locate…** and "or choose another database above". Without all-files access nothing is said missing
-  (the file cannot be seen); "Allow all-files access" shows. When the fingerprint
+  file."), **Locate…** and "or choose another database above". A folder whose access is gone (renamed, moved or deleted
+  on a device, its grant taken back; keething-spec databases.saf AC10): "Keething can no longer reach Sync/Work:
+  renamed, moved or deleted on a device, or its access taken back. Locate the file to choose its folder again." with
+  Locate… (the picker at once, at its folder). An old record (§3.1, AC13): "Keething now opens files only in folders
+  you choose. Choose Sync/KeePass, the folder of Personal.kdbx: it is asked once." with **Choose its folder…** (the
+  picker opened there). A key file without access any more: "Keething may not read work.keyx any more: choose it
+  again." and Choose…. When the fingerprint
   is set up for the database (§5), its large button with "Touch to unlock" and "or type the password" above the field
   (a database that opens with its key file alone: "or use its key file" above its Unlock); the field then does not
   open the keyboard by itself, and typing hides the button. While the app's fingerprint switch is on and this
@@ -1378,18 +1412,20 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   while it is open, as in the editor.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
   Web & Mail").
-- **Settings**: **Databases**: every database (tile, label, its folder or "Not found · Download" in red, a key for
+- **Settings**: **Databases**: every database (tile, label, its folder or "Not found · Download", "No access · Sync/Work",
+  "Needs its folder · Sync/KeePass" in red, a key for
   one with a key file, a fingerprint for one the fingerprint opens); a tap opens **its page**: tile, label, path from
-  the shared storage's root, "Changed 2 hours ago" (of a file not found "Not found at …" with Locate… and "Last opened
+  the shared storage's root, "Changed 2 hours ago" (of a file not found "Not found at …", or without access or kept by
+  its path the lock screen's words, with Locate… or Choose its folder…, and "Last opened
   2 weeks ago" when it was), **Key file** (its name and folder, or "None · It opens with its password alone"; Choose… /
-  Change…, Forget; "Remembered here by its path, not its contents. It must be there at every unlock, the fingerprint
-  too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
+  Change…, Forget; "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It
+  must be there at every unlock, the fingerprint too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
   **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
   Under the list **Open a database…** (it becomes current; one open stays open, §3.1) and **New database…** (§6.2). Then **Quick notes**: "Quick notes go to", Current database or a database of the
   list with its dot, in a menu, and Add the Quick note tile (§6.4). Then the app's fingerprint switch (§5) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
-  in a debug build.
+  in a debug build (the fingerprint spike, and what the storage provider does with names in a folder granted there).
 - **Launcher shortcuts** (long press on the icon; static, `res/xml/shortcuts.xml`): "Codes", then "Note from
   clipboard" (a quick note, §6.4). Codes: unlock, then
   the list titled "Codes" with only the entries with a one-time code, by title, each row's live code a
@@ -1589,7 +1625,7 @@ places: no Save into, and the next new entry's database (`lastNewEntryDatabase`)
 the main app is left alone.
 Given up, nothing is saved and nothing of the text is kept: Close, or Back (in the editor Back asks first, as New
 note's does); the screen stopped by anything but what it opened itself (Home, another app, Recents, the screen off: a
-key file picker, Locate… or all-files access it opened leave it waiting); a lock of the app (Lock all, the timeout, a
+key file picker or Locate…'s folder picker it opened leave it waiting); a lock of the app (Lock all, the timeout, a
 stay away past the timeout, which a frozen app counts when it is back in front: `AppLocks.counted`; while it waits
 behind a screen it opened, the lock alarm wakes the app at the timeout, nothing open to lock too, so Home from a picker
 does not keep the text until Keething is next opened: `Sessions.quickNoteAwaited`); its database
@@ -1793,7 +1829,7 @@ service, the screen it opens and the system's view structure are in `app/autofil
 
 ### 8.1 Google Play (keething-spec `app.public-release`, was ROADMAP step 8 and RELEASE.md)
 
-Decided (2026-10-21): the app is to be published on Google Play. It needs the SAF storage (§3.1: Play does not
+Decided (2026-10-21): the app is to be published on Google Play. It needs the SAF storage (§3.1, done: Play does not
 allow all-files access for a password manager), a privacy policy, a store listing, the licences shown in the
 app, and a donation option. `QUERY_ALL_PACKAGES` (autofill's verified websites, §7) is a restricted permission
 on Play: check that a password manager's autofill is an accepted use, else matching apps by their websites
