@@ -105,6 +105,18 @@ Reads and writes back the copy unchanged and compares KeePassXC's exports, then 
 every file it writes are checked against KeePass's `fixtures/KDBX_XML.xsd` and by the app's own check; none may
 add a violation. Always on a copy outside the Syncthing folder.
 
+## Stopping a save in the middle on the phone
+
+    adb shell run-as dev.keething.android sh -c 'echo "rename .syncthing" > files/debug-pause'
+    adb shell run-as dev.keething.android kill -9 $(adb shell pidof dev.keething.android)   # once the log says paused
+
+Debug builds only (`PausingFolder`): the next call of that kind on a granted folder whose path holds the text waits
+two minutes, and the log (tag `KeethingPause`) says when, so the process can be killed between a save's steps
+(keething-spec databases.saf AC4, AC5) or while New database writes (AC11). The calls: `write` (the new file made,
+still empty; `write S5Fam.kdbx` for a Create), `rename <the database's path>` (before it goes aside), `rename .syncthing`
+(before the new file goes in), `delete .syncthing` (before the old file goes). The marker is removed when it pauses.
+`am kill` does not end an app in front; `kill -9` through `run-as` does.
+
 ## The field types' former key renamed
 
     tools/rename-field-types.sh <database.kdbx> <new.kdbx>   # asks for the password; writes only the new file

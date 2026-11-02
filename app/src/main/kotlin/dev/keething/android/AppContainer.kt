@@ -4,6 +4,7 @@ import dev.keething.android.editor.NewEntryPlaces
 import dev.keething.android.editor.savedText
 import dev.keething.domain.vault.VaultGroup
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.os.Environment
 import android.util.Log
 import dev.keething.android.attachment.AndroidAttachments
@@ -43,6 +44,7 @@ import dev.keething.android.storage.ProviderFolder
 import dev.keething.android.storage.UnreachableFolder
 import dev.keething.android.storage.GrantedFiles
 import dev.keething.android.storage.NeedsFolderStore
+import dev.keething.android.storage.PausingFolder
 import dev.keething.android.databases.DatabaseFiles
 import dev.keething.android.storageprobe.GrantProbe
 import dev.keething.domain.storage.GrantedFolder
@@ -88,8 +90,14 @@ internal class AppContainer(context: Context) {
     /** The grants the app holds, kept by the system (keething-spec databases.saf AC14). */
     private val grants = PersistedGrants(resolver)
 
+    /** Debug builds only: the marker that pauses a folder's change on the phone (PausingFolder). */
+    private val pauseMarker: File? = File(context.filesDir, "debug-pause")
+        .takeIf { context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 }
+
     /** A granted folder by its grant; one not of the phone's storage cannot be reached (AC12). */
-    private val folderOf: (grant: String) -> GrantedFolder? = { ProviderFolder.of(resolver, it) }
+    private val folderOf: (grant: String) -> GrantedFolder? = { grant ->
+        ProviderFolder.of(resolver, grant)?.let { if (pauseMarker == null) it else PausingFolder(it, pauseMarker) }
+    }
 
     /** The saves through granted folders, noted before they touch the folder (AC5): one for the whole app. */
     private val saveNotes = SaveNotes(File(context.filesDir, "saves"))
