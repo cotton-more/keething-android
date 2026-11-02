@@ -1,6 +1,8 @@
 package dev.keething.android.databases
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -20,25 +23,36 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.PlaylistRemove
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,7 +68,8 @@ import dev.keething.vault.databases.DatabaseId
  * run"): nothing open and several in the window. Why the fingerprint opened none ([note]), the window's databases with
  * how each opens, a check on those to ask (what typing cannot open cannot be checked; Locate… for one not found), past
  * five rows scrolling; Unlock with the fingerprint while it would open one, Unlock N databases, Open other… and New
- * database…. Nothing is done while the fingerprint runs ([busy]).
+ * database…. A row's long press opens its sheet: Remove from list… (keething-spec databases.list AC8). Nothing is done
+ * while the fingerprint runs ([busy]).
  */
 @Composable
 internal fun ChooserScreen(
@@ -67,7 +82,31 @@ internal fun ChooserScreen(
     onFingerprint: () -> Unit,
     onOpenOther: () -> Unit,
     onNewDatabase: () -> Unit,
+    onRemove: (DatabaseId) -> Unit,
 ) {
+    // The long-pressed row's sheet, then its question.
+    var sheetOf by rememberSaveable { mutableStateOf<String?>(null) }
+    var removingOf by rememberSaveable { mutableStateOf<String?>(null) }
+    rows?.firstOrNull { it.id.value == sheetOf }?.let { row ->
+        ChooserRowSheet(
+            row,
+            onRemove = {
+                sheetOf = null
+                removingOf = row.id.value
+            },
+            onDismiss = { sheetOf = null },
+        )
+    }
+    rows?.firstOrNull { it.id.value == removingOf }?.let { row ->
+        RemoveFromListDialog(
+            name = row.line.name,
+            onRemove = {
+                removingOf = null
+                onRemove(row.id)
+            },
+            onDismiss = { removingOf = null },
+        )
+    }
     Column(
         Modifier
             .fillMaxSize()
@@ -100,7 +139,14 @@ internal fun ChooserScreen(
                     verticalArrangement = Arrangement.spacedBy(SegmentGap),
                 ) {
                     shown.forEachIndexed { index, row ->
-                        ChooserRowView(row, segmentShape(index, shown.size, outer = 22.dp), enabled = !busy, onToggle = { onToggle(row.id) }, onLocate = { onLocate(row.id) })
+                        ChooserRowView(
+                            row,
+                            segmentShape(index, shown.size, outer = 22.dp),
+                            enabled = !busy,
+                            onToggle = { onToggle(row.id) },
+                            onLocate = { onLocate(row.id) },
+                            onLongPress = { sheetOf = row.id.value },
+                        )
                     }
                 }
                 if (many) {
@@ -131,9 +177,21 @@ internal fun ChooserScreen(
     }
 }
 
-/** A database in the chooser: its check (none for what typing cannot open), dot, label and how it opens. */
+/**
+ * A database in the chooser: its check (none for what typing cannot open), dot, label and how it opens; a long press
+ * opens its sheet, also for one that cannot be checked.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChooserRowView(row: ChooserRow, shape: RoundedCornerShape, enabled: Boolean, onToggle: () -> Unit, onLocate: () -> Unit) {
+private fun ChooserRowView(
+    row: ChooserRow,
+    shape: RoundedCornerShape,
+    enabled: Boolean,
+    onToggle: () -> Unit,
+    onLocate: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
     val colors = databaseColors(row.line.colorIndex)
     val how = when (row.tone) {
         ChooserRow.Tone.PLAIN -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -147,7 +205,18 @@ private fun ChooserRowView(row: ChooserRow, shape: RoundedCornerShape, enabled: 
             .heightIn(min = 72.dp)
             .clip(shape)
             .background(MaterialTheme.extraColors.row)
-            .toggleable(value = row.isChecked, enabled = enabled && row.canCheck, role = Role.Checkbox, onValueChange = { onToggle() })
+            // Enabled also when it cannot be checked, for its long press; only a row that can is a checkbox to TalkBack.
+            .combinedClickable(
+                enabled = enabled,
+                role = Role.Checkbox.takeIf { row.canCheck },
+                onLongClickLabel = "Actions",
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongPress()
+                },
+                onClick = { if (row.canCheck) onToggle() },
+            )
+            .then(if (row.canCheck) Modifier.semantics { toggleableState = ToggleableState(row.isChecked) } else Modifier)
             .padding(start = 4.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -160,5 +229,17 @@ private fun ChooserRowView(row: ChooserRow, shape: RoundedCornerShape, enabled: 
             Text(row.opensWith, style = MaterialTheme.typography.bodyMedium, color = how, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (row.offersLocate) TextButton(onClick = onLocate, enabled = enabled) { Text(if (row.line.reach == Reach.NEEDS_FOLDER) "Folder…" else "Locate…") }
+    }
+}
+
+/** A chooser row's long press (keething-spec databases.list AC8): what can be done to that database without opening it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChooserRowSheet(row: ChooserRow, onRemove: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            DatabaseSheetHeader(row.line)
+            SheetRow(Icons.Rounded.PlaylistRemove, "Remove from list…", detail = "The file stays where it is", onClick = onRemove)
+        }
     }
 }

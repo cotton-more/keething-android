@@ -7,6 +7,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -136,6 +137,20 @@ class DatabaseListTest {
         assertEquals("/b/Work.kdbx", work.path)
         assertEquals(listOf(personal.id, work.id), list.records.map { it.id })
         assertEquals(personal, list.current, "the first one added becomes current")
+    }
+
+    // spec: unlock.biometric/AC4
+    @Test
+    fun aDatabaseRemovedAndAddedAgainIsAskedAboutTheFingerprintAgain() {
+        val list = list(MapSettings())
+        val before = list.add("/a/Personal.kdbx")
+        list.update(before.id) { it.copy(fingerprintAsked = true) }
+
+        list.remove(before.id)
+        val again = list.add("/a/Personal.kdbx")
+
+        assertNotEquals(before.id, again.id)
+        assertFalse(again.fingerprintAsked || again.useBiometric)
     }
 
     @Test

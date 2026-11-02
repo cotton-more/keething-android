@@ -35,6 +35,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.days
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -110,9 +111,10 @@ class BiometricUnlockTest {
             it.biometric.refresh()
         }
 
-    private fun Fixture.typed(text: String, unlock: BiometricUnlock = biometric): Boolean {
+    /** [ask]: as the app's lock screen and the chooser's run, which ask about the fingerprint over the list after. */
+    private fun Fixture.typed(text: String, unlock: BiometricUnlock = biometric, ask: Boolean = true): Boolean {
         val typed = Secret.of(text)
-        val started = unlock.unlock(typed)
+        val started = unlock.unlock(typed, ask)
         typed.wipe() // as the lock screen does at once: the rules keep their own copy
         return started != null
     }
@@ -258,22 +260,154 @@ class BiometricUnlockTest {
         assertEquals(listOf("pw"), f.stores.saves)
     }
 
+    /** A fixture whose database's fingerprint was never chosen, the app's switch on. */
+    private suspend fun TestScope.neverChosen(settings: MapSettings = MapSettings()): Fixture = fixture(settings = settings).also {
+        it.list.update(it.id) { record -> record.copy(useBiometric = false) }
+        assertTrue(state(it).canAsk)
+    }
+
     // spec: unlock.biometric/AC4
     @Test
-    fun aDatabaseNeverChosenIsAskedOnceAndNoIsKept() = runTest {
-        val settings = MapSettings()
-        val f = fixture(settings = settings)
-        f.list.update(f.id) { it.copy(useBiometric = false) }
-        assertTrue(state(f).canAsk)
+    fun aTypedUnlockOfADatabaseNeverChosenAsksAndUseFingerprintStoresThatPassword() = runTest {
+        val f = neverChosen()
 
-        f.biometric.decline()
-
-        assertFalse(state(f).canAsk, "no is not asked again")
-        assertFalse(f.biometric.state.value.enabled)
         f.typed("pw")
         runCurrent()
-        assertTrue(f.stores.saves.isEmpty(), "no stores nothing")
+
+        assertTrue(state(f).question)
+        assertTrue(f.stores.saves.isEmpty(), "nothing is stored before the answer")
+        assertFalse(state(f).questionNothingTyped)
+        assertEquals(FingerprintAnswer.TurnedOn, f.biometric.answer(true))
+        val after = state(f)
+        assertFalse(after.question)
+        assertTrue(after.enabled && after.asked && after.stored && after.canUnlock)
+        assertEquals(listOf("pw"), f.stores.saves, "the password it was just opened with")
+        assertEquals(FingerprintAnswer.Nothing, f.biometric.answer(true), "a second answer changes nothing")
+        assertEquals(1, f.stores.saves.size)
+    }
+
+    // spec: unlock.biometric/AC4
+    @Test
+    fun noIsKeptAndTheDatabaseIsNotAskedAgain() = runTest {
+        val settings = MapSettings()
+        val f = neverChosen(settings)
+        f.typed("pw")
+        runCurrent()
+
+        assertEquals(FingerprintAnswer.Declined, f.biometric.answer(false))
+
+        assertFalse(state(f).question)
+        assertFalse(f.biometric.state.value.canAsk, "no is not asked again")
+        assertFalse(f.biometric.state.value.enabled)
         assertTrue(assertNotNull(DatabaseList(settings).record(f.id)).fingerprintAsked, "kept with the list")
+        f.session.lock()
+        f.typed("pw")
+        runCurrent()
+        assertFalse(state(f).question)
+        assertTrue(f.stores.saves.isEmpty(), "no stores nothing")
+    }
+
+    @Test
+    fun theQuestionPutAwayAnswersNothingAndTheNextTypedUnlockAsksAgain() = runTest {
+        val f = neverChosen()
+        f.typed("pw")
+        runCurrent()
+
+        assertEquals(FingerprintAnswer.Nothing, f.biometric.answer(null))
+
+        assertFalse(state(f).question)
+        assertTrue(f.biometric.state.value.canAsk)
+        f.session.lock()
+        f.typed("pw")
+        runCurrent()
+        assertTrue(state(f).question)
+    }
+
+    @Test
+    fun aWrongPasswordAsksNothing() = runTest {
+        val f = neverChosen()
+
+        f.typed("wrong")
+        runCurrent()
+
+        assertFalse(state(f).question)
+    }
+
+    @Test
+    fun aLockBeforeTheAnswerDropsTheQuestionAndItsPassword() = runTest {
+        val f = neverChosen()
+        f.typed("pw")
+        runCurrent()
+
+        f.session.lock()
+
+        assertFalse(state(f).question)
+        assertEquals(FingerprintAnswer.Nothing, f.biometric.answer(true))
+        assertFalse(f.biometric.state.value.enabled, "nothing to answer: its switch stays off")
+        assertTrue(f.stores.saves.isEmpty())
+    }
+
+    @Test
+    fun theQuestionGoesWhenItNoLongerStands() = runTest {
+        val f = neverChosen()
+        f.typed("pw")
+        runCurrent()
+
+        f.setup.setUseBiometric(f.id, false)
+
+        assertFalse(state(f).question, "its page's switch set meanwhile: chosen")
+        assertEquals(FingerprintAnswer.Nothing, f.biometric.answer(true))
+        assertTrue(f.stores.saves.isEmpty())
+    }
+
+    @Test
+    fun anUnlockThatDoesNotAskKeepsNoPassword() = runTest {
+        val f = neverChosen()
+
+        f.typed("pw", ask = false)
+        runCurrent()
+
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+        assertFalse(state(f).question, "autofill, a quick note: no list to ask over")
+        assertTrue(f.biometric.state.value.canAsk, "asked at the next unlock that asks")
+    }
+
+    @Test
+    fun aStoreThatFailsSaysSo() = runTest {
+        val f = neverChosen()
+        f.typed("pw")
+        runCurrent()
+        f.stores.saveError = IOException("no space left")
+
+        assertEquals(FingerprintAnswer.Failed("no space left"), f.biometric.answer(true))
+        assertFalse(state(f).question)
+    }
+
+    @Test
+    fun theQuestionGoesWithItsSession() = runTest {
+        val states = TestScope(testScheduler)
+        val f = neverChosen()
+        val biometric = BiometricUnlock(f.id, f.session, f.setup, f.list, backgroundScope, states.backgroundScope)
+        f.typed("pw", biometric)
+        runCurrent()
+        assertTrue(biometric.state.value.question)
+
+        states.backgroundScope.coroutineContext[Job]!!.cancel()
+        runCurrent()
+
+        assertEquals(FingerprintAnswer.Nothing, biometric.answer(true))
+        assertTrue(f.stores.saves.isEmpty())
+    }
+
+    @Test
+    fun aDatabaseSetUpIsNotAsked() = runTest {
+        val f = fixture()
+
+        f.typed("pw")
+        runCurrent()
+
+        assertFalse(state(f).question)
+        assertEquals(listOf("pw"), f.stores.saves)
     }
 
     @Test

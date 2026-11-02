@@ -433,7 +433,7 @@ internal fun DatabaseRecord.lockScreen(line: DatabaseLine): LockScreenDatabase {
             }
         },
         locateLabel = if (line.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…",
-        passwordPlaceholder = if (keyFile == null) "Master password" else "Master password, if it has one",
+        passwordPlaceholder = "Master password",
         needsPassword = keyFile == null,
     )
 }

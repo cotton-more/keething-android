@@ -242,7 +242,9 @@ shows the lone database's lock screen, or with several in the window the **choos
 database of the window with how it opens (Fingerprint, Password, Password + work.keyx, Key file work.keyx, Fingerprint
 paused · 14 days, Fingerprint to set up, Fingerprint to set up again; one open or opening says Open or Opening…, unchecked; `ChooserRows`); what typing cannot open (not
 found, no access, needs its folder, its key file not there or no access or unusable, cannot be read) has no check and
-says why, with Locate… for one not found or without access and Folder… for one that needs its folder;
+says why, with Locate… for one not found or without access and Folder… for one that needs its folder; a row's long
+press opens its sheet (its tile, name and folder; **Remove from list…**, asked first as on the lock screen's sheet), so
+a database leaves the list without being opened (keething-spec databases.chooser AC12);
 the others are checked as at the last unlock (`checkedInChooser`, kept at once). Past five rows the list scrolls (four
 and a half show, "9 databases · scroll for the rest"). **Unlock N databases** starts the **run** (`UnlockRun`,
 `CurrentDatabase.run`): first one fingerprint for the checked ones it would open (decided without reading any stored
@@ -805,19 +807,23 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   rule, a new database taking the app's switch, stored a new database's first typed password unasked). A database
   made on the New database screen (§6.2) has its own as chosen there: "Unlock it with the fingerprint" is shown only
   while the app's switch is on and starts checked (the owner at AD7), and its password is stored at once, as Create
-  opens it as a typed unlock (§3.5). **Offered once** (keething-spec unlock.biometric AC4, the owner 2026-11-02): while
-  the app's switch is on, the phone has a strong biometric and a database's own is off and was never chosen
-  (`fingerprintAsked` in the list, §3.1: the question answered, its page's switch set either way, or the New database
-  form's "Unlock it with the fingerprint" shown), its lock screen
-  has the fingerprint's button beside the field; a tap asks "Use the fingerprint for “Work”?" ("Type its password once
-  now. From the next time on, your fingerprint opens it. Keething asks this once. You can turn it on later on the
-  database's page in Settings.", No / Use fingerprint). Use fingerprint turns its own on and puts the focus in the field,
-  and the chip says "Type the password once to set up the fingerprint." until it is stored (a database that opens with
-  its key file alone has nothing to store: the fingerprint is asked at once); No is kept, and only Unlock is beside the
-  field from then on; put away, the question answers nothing. A database with a key file not known yet to open without a
-  password keeps Unlock beside its empty field (it tries the key file alone) and is not offered it there. Turning it on asks no fingerprint: whoever does it has
-  the open database already, any enrolled finger would pass, and storing needs only the keyring's public key (below);
-  the question is answered by whoever types the password then. A switch going on (the app's, or a database's)
+  opens it as a typed unlock (§3.5). **Offered once, after the password** (keething-spec unlock.biometric AC4, the owner
+  2026-11-02): while the app's switch is on, the phone has a strong biometric and a database's own is off and was never
+  chosen (`fingerprintAsked` in the list, §3.1: the question answered, its page's switch set either way, or the New
+  database form's "Unlock it with the fingerprint" shown), its lock screen has the fingerprint's button beside the field,
+  typing or not; it unlocks with what is typed, as the arrow and the keyboard's Done do. A typed unlock that opens it
+  (also in the chooser's run; not autofill's lock screen nor a quick note's, which show no list after it and keep
+  Unlock beside the field) keeps the typed password in memory (`BiometricUnlock`, `BiometricState.question`) and its
+  list asks over itself "Use the fingerprint for “Work”?" ("From now on your fingerprint opens it: the password you just
+  typed is kept on this phone, sealed for your fingerprint. Keething asks this once. You can turn it on later on the
+  database's page in Settings.", No / Use fingerprint). Use fingerprint turns its own on and stores that password
+  ("Your fingerprint opens “Work” from now on."; a database that opens with its key file alone has nothing to store);
+  No is kept, and only Unlock is beside the field from then on; put away (Back, a tap beside it), the question answers
+  nothing and the next typed unlock asks it again. The kept password is wiped at the answer, when the database locks
+  or closes, and when the question no longer stands (its page's switch set, the app's turned off). A wrong password asks
+  nothing. A database removed from the list and added again is a new record, asked again. Turning it on asks no
+  fingerprint: whoever does it has the open database already, any enrolled finger would pass, and storing needs only
+  the keyring's public key (below); the question is answered by whoever typed the password. A switch going on (the app's, or a database's)
   first deletes what a failed deletion left, or stays off: it would open without anything typed since. With the app's switch off, a database's page says "Off: Unlock with the fingerprint is off in Settings. Once
   it is on, the fingerprint can be turned on here." and its switch cannot be turned on. Turning the app's switch off
   and on again keeps each database's own: those turned on store their passwords again at their next typed unlock.
@@ -1090,15 +1096,16 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   up the fingerprint again.", "The database password was changed. Type the new one; the fingerprint will use it."),
   also when one fingerprint for several found it (§5), in place of the wrong password it left until one is typed here.
   In the chooser's run (§3.1) the lock screen has "Unlocking 2 of 3" over it with Stop, no fingerprint button and no
-  sheet, a wrong password said over the field, and Skip under it. The field's placeholder is "Master password", with a key file "Master password, if it has one"; Unlock
+  sheet, a wrong password said over the field, and Skip under it. The field's placeholder is "Master password" (one line); Unlock
   is unavailable while the field is empty unless the database has a key file. The key file is chosen by a key in the
-  field beside the eye (Key file…; tinted once one is chosen, red when it is not there); under the field a line is kept
+  field beside the eye (Key file…; tinted once one is chosen, red when it is not there; a tap then takes it off); under the field a line is kept
   for it, so that choosing one moves nothing: the key, its name and "· folder" (or "· not there · folder" in red) on
-  one line, the folder cut in the middle, a tap choosing another. Beside the field **one** button: Unlock (the arrow),
-  or the fingerprint while the field is empty and the fingerprint opens the database or is offered (§5); typing turns
-  it into the arrow, emptying the field turns it back (keething-spec unlock.lock-screen-keyboard). A database
-  that opens with its key file alone has "It opens with its key file alone: nothing to type." and Unlock instead of
-  the field, the fingerprint beside Unlock. A file **not found** has, in place of the field, "Crypto.kdbx is not in Download any more. Locate the
+  one line, the folder cut in the middle, only said (a tap does nothing). Beside the field **one** button: Unlock (the arrow),
+  or the fingerprint while the field is empty and the fingerprint opens the database; typing turns it into the arrow,
+  emptying the field turns it back (keething-spec unlock.lock-screen-keyboard). To a database whose fingerprint was
+  never chosen it is the fingerprint, typing or not, and unlocks with what is typed; the question comes over its list
+  (§5). A database that opens with its key file alone has "It opens with its key file alone: nothing to type." and
+  Unlock instead of the field, the fingerprint beside Unlock while it opens it. A file **not found** has, in place of the field, "Crypto.kdbx is not in Download any more. Locate the
   file, or choose another database." (on a card: "… is not in /storage/1234-5678. Put the card in, or locate the
   file."), **Locate…** and "or choose another database above". A folder whose access is gone (renamed, moved or deleted
   on a device, its grant taken back; keething-spec databases.saf AC10): "Keething can no longer reach Sync/Work:

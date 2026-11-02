@@ -48,15 +48,32 @@ internal fun SetUpAgain.notice(): LockNotice = when (this) {
 /** The fingerprint is on for the database and nothing is stored yet: the password typed now sets it up (SPEC §5). */
 internal val setUpByTypingNotice = LockNotice("Type the password once to set up the fingerprint.", isProblem = false, fingerprint = true)
 
+/** What the one button beside the password field does (SPEC §6.2; keething-spec unlock.lock-screen-keyboard AC3). */
+internal enum class Beside {
+    /** The arrow: unlocks with what is typed. */
+    UNLOCK,
+
+    /** The fingerprint: asks for it, and the stored password (or the key file alone) opens the database. */
+    FINGERPRINT,
+
+    /**
+     * The fingerprint, typing or not, to a database whose fingerprint was never chosen: unlocks with what is typed, and
+     * whether to use the fingerprint is asked over its list once it opened (unlock.biometric AC4).
+     */
+    UNLOCK_THEN_ASK,
+}
+
 /**
- * The one button beside the password field (SPEC §6.2; keething-spec unlock.lock-screen-keyboard AC3): the fingerprint
- * while the field is empty and the fingerprint can open the database, or may be offered to one whose fingerprint was never
- * chosen (unlock.biometric AC4); else Unlock. [offered]: the screen may offer it at all (its file and key file there, not
- * in the chooser's run). [emptyOpens]: a key file's database not known yet to open without a password: Unlock with the
- * field empty tries its key file alone, so it keeps its place, and there is no password to set the fingerprint up with.
+ * The one button beside the password field: the fingerprint while the field is empty and the fingerprint can open the
+ * database; the fingerprint, which unlocks with what is typed, while the database's fingerprint was never chosen; else
+ * Unlock. [offered]: the screen may offer it at all (its file and key file there, not in the chooser's run).
  */
-internal fun fingerprintBesideField(biometric: BiometricState, offered: Boolean, typed: Boolean, emptyOpens: Boolean = false): Boolean =
-    offered && !typed && (biometric.canUnlock || (biometric.canAsk && !emptyOpens))
+internal fun besideField(biometric: BiometricState, offered: Boolean, typed: Boolean): Beside = when {
+    !offered -> Beside.UNLOCK
+    biometric.canUnlock -> if (typed) Beside.UNLOCK else Beside.FINGERPRINT
+    biometric.canAsk -> Beside.UNLOCK_THEN_ASK
+    else -> Beside.UNLOCK
+}
 
 /** The fingerprint waits while the password is due (SPEC §5): the screen says why it is not offered. */
 internal fun passwordDueNotice(days: Int): LockNotice =

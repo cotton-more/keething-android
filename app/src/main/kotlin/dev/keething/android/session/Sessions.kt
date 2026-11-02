@@ -20,6 +20,7 @@ import dev.keething.domain.storage.DatabaseStore
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.BiometricUnlock
+import dev.keething.vault.biometric.FingerprintAnswer
 import dev.keething.vault.biometric.WindowFingerprint
 import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.storage.KeyFiles
@@ -144,6 +145,29 @@ internal class Sessions(
             }
         }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * The first open database to be asked whether to use the fingerprint, after a typed unlock opened it (keething-spec
+     * unlock.biometric AC4): its list asks it.
+     */
+    val fingerprintQuestion: StateFlow<DatabaseSession?> = open
+        .map { open -> open.map { it.database } }
+        .distinctUntilChanged { a, b -> a.size == b.size && a.indices.all { a[it] === b[it] } }
+        .flatMapLatest { databases ->
+            if (databases.isEmpty()) return@flatMapLatest flowOf(null)
+            combine(databases.map { database -> database.biometric.state.map { database.takeIf { _ -> it.question } } }) { asked ->
+                asked.firstOrNull { it != null }
+            }
+        }
+        .stateIn(scope, SharingStarted.Eagerly, null)
+
+    /**
+     * [database]'s answer to [fingerprintQuestion] ([dev.keething.vault.biometric.BiometricUnlock.answer]), on the app's
+     * scope: storing the password outlives the list. [done] is told what came of it.
+     */
+    fun answerFingerprint(database: DatabaseSession, use: Boolean?, done: (FingerprintAnswer) -> Unit) {
+        scope.launch { done(database.biometric.answer(use)) }
+    }
 
     /**
      * The open databases as they are this moment, in the window's order ([open] follows them a moment later): autofill

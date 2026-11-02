@@ -52,6 +52,13 @@ public data class BiometricState(
     val passwordDue: Boolean = false,
     /** Why its stored password went, while nothing is stored again (keething-spec databases.not-open AC1). */
     val setUpAgain: SetUpAgain? = null,
+    /**
+     * A typed unlock opened it while it [canAsk]: whether to use the fingerprint is to be asked over its list now
+     * (keething-spec unlock.biometric AC4), the password it opened with kept until then.
+     */
+    val question: Boolean = false,
+    /** The [question]'s unlock had nothing typed: it opened with its key file alone, and there is no password to store. */
+    val questionNothingTyped: Boolean = false,
 ) {
     /** The fingerprint opens this database: the app's switch and its own. */
     public val enabled: Boolean get() = appEnabled && databaseEnabled
@@ -63,7 +70,7 @@ public data class BiometricState(
     public val canUnlock: Boolean get() = isSetUp && !passwordDue
 
     /**
-     * The lock screen offers it to a database whose fingerprint was never chosen: its button asks once whether to use it
+     * A database whose fingerprint was never chosen is asked once whether to use it, after a typed unlock that opened it
      * (keething-spec unlock.biometric AC4). The app's switch allows it, the phone has a strong biometric.
      */
     public val canAsk: Boolean get() = appEnabled && !databaseEnabled && !asked && availability == BiometricAvailability.Available
@@ -74,6 +81,21 @@ public data class BiometricState(
         /** The choices in Settings; null is "Never". */
         public val REMINDER_CHOICES: List<Int?> = listOf(7, 14, 30, null)
     }
+}
+
+/** What came of the answer to [BiometricState.question]. */
+public sealed interface FingerprintAnswer {
+    /** Use fingerprint: on, and the password stored (nothing to store for one that opens with its key file alone). */
+    public data object TurnedOn : FingerprintAnswer
+
+    /** No, kept. */
+    public data object Declined : FingerprintAnswer
+
+    /** Put away, or no question stood any more (answered already, locked, its switch set meanwhile): nothing changed. */
+    public data object Nothing : FingerprintAnswer
+
+    /** Use fingerprint, and the password could not be stored, or one left could not be deleted first: [reason]. */
+    public data class Failed(val reason: String) : FingerprintAnswer
 }
 
 /** What came of an unlock with the fingerprint. */
@@ -118,6 +140,10 @@ public sealed interface FingerprintOutcome {
  * - The fingerprint opens it while the app's switch and its own Use fingerprint are on.
  * - The password is stored after a typed unlock that opened the vault, so a database password changed elsewhere heals
  *   the next time it is typed. Nothing typed stores nothing.
+ * - A database whose fingerprint was never chosen is asked after a typed unlock that opened it, when the unlock asks
+ *   for it (the app's lock screen and the chooser's run; not autofill's, nor a quick note's, which show no list to ask
+ *   over) ([answer]): the typed password is kept in memory for the answer, and wiped when it comes, when the database locks or closes, or when the
+ *   question no longer stands (its switch set on its page, the app's turned off).
  * - The stored password is opened only after a fingerprint, never to find out whether it is there.
  * - A stored password the database rejects deletes its own (kept with a key file, which may be the wrong part, and
  *   while a key file changed since the last unlock that worked); new fingerprints delete every database's; a copy that
@@ -145,12 +171,24 @@ public class BiometricUnlock(
     private var prompting = false
     private var opening = false
 
+    /** The password a typed unlock opened it with, kept while [BiometricState.question] waits for its answer. */
+    private var forQuestion: Secret? = null
+
     private val mutableState = MutableStateFlow(current())
     public val state: StateFlow<BiometricState> = mutableState.asStateFlow()
 
     init {
-        // The switches changed in Settings, the record (its own switch, a key file, opening without a password).
-        states.launch { combine(setup.state, list.state) { _, _ -> }.collect { publish() } }
+        // The switches changed in Settings, the record (its own switch, a key file, opening without a password), the lock.
+        states.launch {
+            try {
+                combine(setup.state, list.state, session.state) { _, _, _ -> }.collect {
+                    if (forQuestion != null && (session.state.value !is SessionState.Unlocked || !current().canAsk)) dropQuestion()
+                    publish()
+                }
+            } finally {
+                dropQuestion()
+            }
+        }
     }
 
     /** What [state] says once it has caught up with the switches and the list; for a decision made at once. */
@@ -170,6 +208,8 @@ public class BiometricUnlock(
             reminderDays = setupState.reminderDays,
             passwordDue = record != null && setup.isDue(record),
             setUpAgain = setupState.setUpAgain[id],
+            question = forQuestion != null,
+            questionNothingTyped = forQuestion?.isEmpty() == true,
         )
     }
 
@@ -181,26 +221,50 @@ public class BiometricUnlock(
     }
 
     /**
-     * The lock screen's question answered Use fingerprint: this database's own switch ([BiometricSetup.setUseBiometric]),
-     * offered while the app's is on, so the password typed next is stored. Returns why a stored password could not be
-     * deleted, or null.
+     * This database's own switch ([BiometricSetup.setUseBiometric]), offered while the app's is on, so the password typed
+     * next is stored. Returns why a stored password could not be deleted, or null.
      */
     public suspend fun useNextTime(on: Boolean): String? = setup.setUseBiometric(id, on).also { publish() }
 
-    /** The lock screen's question answered No: its switch stays off and it is not asked again ([BiometricSetup.decline]). */
-    public fun decline() {
-        setup.decline(id)
+    /**
+     * The answer to [BiometricState.question] (keething-spec unlock.biometric AC4). Use fingerprint turns its own switch on
+     * and stores the password it was just opened with (nothing for one opened with its key file alone); No is kept, and
+     * it is not asked again; null (put away) answers nothing, and the next typed unlock asks again. The kept password is
+     * wiped either way, and the question is gone at once (a second answer finds none).
+     */
+    public suspend fun answer(use: Boolean?): FingerprintAnswer {
+        val password = forQuestion ?: return FingerprintAnswer.Nothing
+        forQuestion = null
         publish()
+        try {
+            if (use == null || !current().canAsk) return FingerprintAnswer.Nothing
+            if (!use) {
+                setup.decline(id)
+                return FingerprintAnswer.Declined
+            }
+            setup.setUseBiometric(id, true)?.let { return FingerprintAnswer.Failed(it) }
+            val failure = if (password.isEmpty()) null else storeTyped(password)
+            return failure?.let(FingerprintAnswer::Failed) ?: FingerprintAnswer.TurnedOn
+        } finally {
+            password.wipe()
+            publish()
+        }
+    }
+
+    private fun dropQuestion() {
+        forQuestion?.wipe()
+        forQuestion = null
     }
 
     /**
      * The typed password: unlocks, and stores the password when the fingerprint is on for this database and this unlock
-     * opened the vault. Nothing typed (a database with a key file) stores nothing: there is no password. The caller may
-     * wipe its own copy as soon as this returns. Null when the vault was not locked.
+     * opened the vault. Nothing typed (a database with a key file) stores nothing: there is no password. [ask]: a
+     * database whose fingerprint was never chosen is asked whether to use it once this opened it ([BiometricState.question]).
+     * The caller may wipe its own copy as soon as this returns. Null when the vault was not locked.
      */
-    public fun unlock(password: Secret): Deferred<UnlockOutcome>? {
+    public fun unlock(password: Secret, ask: Boolean = false): Deferred<UnlockOutcome>? {
         val outcome = session.unlock(password) ?: return null
-        afterTyped(outcome, password)
+        afterTyped(outcome, password, ask)
         return outcome
     }
 
@@ -216,18 +280,27 @@ public class BiometricUnlock(
         return outcome
     }
 
-    private fun afterTyped(outcome: Deferred<UnlockOutcome>, password: Secret) {
-        val kept = password.copy()
+    private fun afterTyped(outcome: Deferred<UnlockOutcome>, password: Secret, ask: Boolean = false) {
+        var kept: Secret? = password.copy()
         scope.launch {
             try {
                 if (outcome.await() == UnlockOutcome.Opened) {
                     setup.opened(id)
                     setup.typedNow(id)
+                    val now = current()
+                    when {
+                        now.enabled -> kept?.takeUnless(Secret::isEmpty)?.let { storeTyped(it) }
+                        // Still open: a lock since leaves nothing to ask over its list.
+                        ask && now.canAsk && session.state.value is SessionState.Unlocked -> {
+                            dropQuestion()
+                            forQuestion = kept
+                            kept = null
+                        }
+                    }
                     publish()
-                    if (current().enabled && !kept.isEmpty()) storeTyped(kept)
                 }
             } finally {
-                kept.wipe()
+                kept?.wipe()
             }
         }
     }
@@ -335,12 +408,13 @@ public class BiometricUnlock(
         }
     }
 
-    private suspend fun storeTyped(password: Secret) {
-        if (setup.availability() != BiometricAvailability.Available) return
+    /** Stores [password] while the fingerprint is on for it; why that failed, or null. */
+    private suspend fun storeTyped(password: Secret): String? {
+        val availability = setup.availability()
+        if (availability is BiometricAvailability.Unavailable) return availability.reason
         // Once more after the wait: turned off or removed meanwhile, nothing is stored (its deletion went first).
-        if (!current().enabled) return
-        setup.save(id, password)
-        publish()
+        if (!current().enabled) return null
+        return setup.save(id, password).also { publish() }
     }
 
     private fun nothingStored(): FingerprintOutcome {

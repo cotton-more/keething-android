@@ -143,6 +143,8 @@ import dev.keething.android.databases.NotOpenLine
 import dev.keething.android.databases.NotOpenSheet
 import dev.keething.android.databases.rememberFileActions
 import dev.keething.android.databases.Reach
+import dev.keething.android.unlock.FingerprintQuestion
+import dev.keething.vault.biometric.FingerprintAnswer
 import dev.keething.vault.databases.DatabaseId
 import androidx.compose.material.icons.rounded.Storage
 import dev.keething.android.ui.NoticeEffect
@@ -256,6 +258,24 @@ internal fun EntryListScreen(
             },
             onDismiss = { generating = false },
         )
+    }
+
+    // A typed unlock opened a database whose fingerprint was never chosen: asked once over the list (keething-spec
+    // unlock.biometric AC4).
+    val question by container.sessions.fingerprintQuestion.collectAsStateWithLifecycle()
+    question?.let { database ->
+        val asked by database.biometric.state.collectAsStateWithLifecycle()
+        val name = container.sessions.list.record(database.id)?.displayName ?: database.location.fileName
+        FingerprintQuestion(name, passwordless = asked.questionNothingTyped) { use ->
+            container.sessions.answerFingerprint(database, use) { answer ->
+                val notice = when (answer) {
+                    is FingerprintAnswer.Failed -> Notice("The fingerprint could not be set up: ${answer.reason}.", isProblem = true)
+                    FingerprintAnswer.TurnedOn -> Notice("Your fingerprint opens “$name” from now on.")
+                    FingerprintAnswer.Declined, FingerprintAnswer.Nothing -> null
+                }
+                notice?.let(container.windowNotices::trySend)
+            }
+        }
     }
 
     // The quick actions of a long-pressed row, with the section it was in (Remove from Recent is only for a recent row).

@@ -202,13 +202,7 @@ internal fun NotOpenSheet(
     val state = database.state
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                DatabaseTile(line.initial, line.colorIndex)
-                Column(Modifier.weight(1f)) {
-                    DatabaseLabelText(line.label, MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(line.folder, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
+            DatabaseSheetHeader(line)
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.extraColors.row).padding(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -233,8 +227,20 @@ internal fun NotOpenSheet(
     }
 }
 
+/** A database's sheet's first row: its tile, its name and its folder. */
 @Composable
-private fun SheetRow(icon: ImageVector, text: String, detail: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun DatabaseSheetHeader(line: DatabaseLine) {
+    Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        DatabaseTile(line.initial, line.colorIndex)
+        Column(Modifier.weight(1f)) {
+            DatabaseLabelText(line.label, MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(line.folder, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+internal fun SheetRow(icon: ImageVector, text: String, detail: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
     val color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
     Row(
         Modifier

@@ -577,6 +577,9 @@ private fun Chooser(container: AppContainer, navigation: NavigationState) {
         onFingerprint = chooser::unlockWithFingerprint,
         onOpenOther = files.open,
         onNewDatabase = container.newDatabases::open,
+        onRemove = { id ->
+            sessions.remove(id) { Toast.makeText(context.applicationContext, "The stored password could not be deleted: $it.", Toast.LENGTH_LONG).show() }
+        },
     )
 }
 

@@ -37,7 +37,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -139,7 +138,9 @@ import dev.keething.domain.secret.Secret
  * keething-spec databases.chooser AC5, AC6): "Unlocking 2 of 3" over it with Stop, no fingerprint, the typed password
  * the run's, a wrong one said over the field, and Skip. [purpose]: what the unlock is for, under the database ("Unlock to
  * write the quick note", SPEC §6.4): a lock screen of its own over another app, for this database alone (no other is
- * chosen on it), which asks for the fingerprint by itself once, when it shows.
+ * chosen on it), which asks for the fingerprint by itself once, when it shows. [showsList]: the app's list follows the
+ * unlock, so a database whose fingerprint was never chosen is asked over it (unlock.biometric AC4); not autofill's,
+ * nor a quick note's.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -150,6 +151,7 @@ internal fun LockScreen(
     onChose: (DatabaseId) -> Unit,
     run: UnlockRun? = null,
     purpose: String? = null,
+    showsList: Boolean = purpose == null,
 ) {
     val databases = container.sessions.databases
     // Per session, not per file: a model of an earlier session of the same file would unlock that one.
@@ -171,7 +173,6 @@ internal fun LockScreen(
     val session by model.session.collectAsStateWithLifecycle()
     val biometric by model.biometric.collectAsStateWithLifecycle()
     val fingerprintNotice by model.fingerprintNotice.collectAsStateWithLifecycle()
-    val asking by model.asking.collectAsStateWithLifecycle()
     val timeout by container.settings.lockTimeout.collectAsStateWithLifecycle()
     val visit by container.sessions.visit.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -247,7 +248,6 @@ internal fun LockScreen(
             onDismiss = { removing = false },
         )
     }
-    if (asking) FingerprintQuestion(name, passwordless = biometric.passwordless, onAnswer = model::answer)
 
     val reason = (session as? SessionState.Locked)?.reason
     // From the accepted fingerprint on: opening the stored password in StrongBox takes a moment before the
@@ -290,7 +290,7 @@ internal fun LockScreen(
         val reasonNotice = reason?.notice(timeout, lock?.line?.path ?: database.location.fileName)
         val dueNotice = biometric.reminderDays?.takeIf { biometric.isSetUp && biometric.passwordDue }?.let(::passwordDueNotice)
         val setUpAgain = biometric.setUpAgain?.takeIf { biometric.enabled && !biometric.stored }?.notice()
-        // On, nothing stored yet (the question answered, its page): what is typed now sets it up.
+        // On, nothing stored yet (its page, a stored password gone): what is typed now sets it up.
         val typeToSetUp = setUpByTypingNotice.takeIf {
             biometric.enabled && biometric.availability == BiometricAvailability.Available && !biometric.stored && !biometric.passwordless
         }
@@ -328,22 +328,22 @@ internal fun LockScreen(
                     // The run's: "Wrong password … Type it again, or skip it."
                     runState?.failure?.let { RunFailure(it.describe(lock.line.path) + " Type it again, or skip it.") }
                     // The run's: bound to this database, never tried on the next one asked.
-                    val unlock = { model.unlock(run?.let { { secret: Secret -> container.chooser.type(database.id, secret) } }) }
-                    // Not in the run: the chooser asked the fingerprint for every database that could.
-                    val offered = lock.offersFingerprint && run == null
+                    val unlock = { model.unlock(run?.let { { secret: Secret -> container.chooser.type(database.id, secret) } }, askFingerprint = showsList) }
+                    // Not in the run: the chooser asked the fingerprint for every database that could. Nor where no list
+                    // follows to ask whether to use it over.
+                    val offered = lock.offersFingerprint && run == null && (showsList || biometric.canUnlock)
+                    val beside = besideField(biometric, offered, typed = model.password.text.isNotEmpty())
                     val fingerprint = BesideField(
-                        fingerprint = fingerprintBesideField(
-                            biometric,
-                            offered,
-                            typed = model.password.text.isNotEmpty(),
-                            emptyOpens = lock.showsPasswordField && !lock.needsPassword,
-                        ),
-                        enabled = !biometric.prompting,
-                        label = if (biometric.canUnlock) "Unlock with fingerprint" else "Use the fingerprint",
-                        onFingerprint = model::fingerprintTapped,
+                        fingerprint = beside != Beside.UNLOCK,
+                        // Never chosen: it unlocks as the arrow does, and an empty field opens nothing without a key file.
+                        enabled = !biometric.prompting &&
+                            (beside != Beside.UNLOCK_THEN_ASK || !lock.needsPassword || model.password.text.isNotEmpty()),
+                        label = if (beside == Beside.FINGERPRINT) "Unlock with fingerprint" else "Unlock, then set up the fingerprint",
+                        onFingerprint = if (beside == Beside.FINGERPRINT) model::fingerprintTapped else unlock,
                     )
                     val keyFile = lock.line.keyFile
-                    val chooseKeyFile = { files.chooseKeyFile(database.id) }
+                    // The key in the field chooses one, and takes the chosen one off again.
+                    val toggleKeyFile = { if (keyFile == null) files.chooseKeyFile(database.id) else databases.setKeyFile(database.id, null) }
                     if (lock.showsPasswordField) {
                         PasswordRow(
                             model = model,
@@ -352,15 +352,16 @@ internal fun LockScreen(
                             // Not while the fingerprint can open it (the user may touch), nor before it is known.
                             focusAtOnce = biometric.availability != null && !(offered && biometric.canUnlock),
                             keyFile = keyFile,
-                            onKeyFile = chooseKeyFile.takeIf { keyFile != null || lock.offersKeyFile },
+                            onKeyFile = toggleKeyFile.takeIf { keyFile != null || lock.offersKeyFile },
                             beside = fingerprint,
                             onUnlock = unlock,
                             modifier = Modifier.offset { IntOffset(shake.value.roundToInt(), 0) },
                         )
                     } else {
-                        KeyFileAlone(fingerprint, onUnlock = unlock)
+                        // Its Unlock asks the question once it opened: the fingerprint beside it only opens.
+                        KeyFileAlone(fingerprint.copy(fingerprint = beside == Beside.FINGERPRINT), onUnlock = unlock)
                     }
-                    KeyFileRow(keyFile, onChange = chooseKeyFile)
+                    KeyFileRow(keyFile)
                 }
             }
         }
@@ -483,11 +484,11 @@ private fun KeyFileAlone(beside: BesideField, onUnlock: () -> Unit) {
 
 /**
  * The database's key file under the field, on one line: its name, then its folder or that it is not there, cut when long;
- * a tap chooses another. Its place is kept while there is none, so that choosing one moves nothing (keething-spec
- * unlock.lock-screen-keyboard AC2).
+ * shown only; the key in the field changes it. Its place is kept while there is none, so that choosing one moves nothing
+ * (keething-spec unlock.lock-screen-keyboard AC2).
  */
 @Composable
-private fun KeyFileRow(keyFile: KeyFileLine?, onChange: () -> Unit) {
+private fun KeyFileRow(keyFile: KeyFileLine?) {
     val place = Modifier.fillMaxWidth().padding(top = 4.dp).height(40.dp)
     if (keyFile == null) {
         Spacer(place)
@@ -495,10 +496,7 @@ private fun KeyFileRow(keyFile: KeyFileLine?, onChange: () -> Unit) {
     }
     val tint = if (keyFile.isMissing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
-        place
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClickLabel = if (keyFile.isMissing) "Choose the key file" else "Change the key file", onClick = onChange)
-            .padding(horizontal = 16.dp),
+        place.padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -566,11 +564,11 @@ private fun FingerprintBeside(beside: BesideField) {
 }
 
 /**
- * Asked once, from the fingerprint's button, for a database whose fingerprint was never chosen (keething-spec
- * unlock.biometric AC4): Use fingerprint, or No (kept: not asked again). Put away, it answers nothing.
+ * Asked once over the list of a database whose fingerprint was never chosen, after a typed unlock opened it
+ * (keething-spec unlock.biometric AC4): Use fingerprint, or No (kept: not asked again). Put away, it answers nothing.
  */
 @Composable
-private fun FingerprintQuestion(name: String, passwordless: Boolean, onAnswer: (Boolean?) -> Unit) {
+internal fun FingerprintQuestion(name: String, passwordless: Boolean, onAnswer: (Boolean?) -> Unit) {
     AlertDialog(
         onDismissRequest = { onAnswer(null) },
         icon = { Icon(Icons.Rounded.Fingerprint, contentDescription = null) },
@@ -579,7 +577,7 @@ private fun FingerprintQuestion(name: String, passwordless: Boolean, onAnswer: (
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     if (passwordless) "From now on your fingerprint opens it, with its key file."
-                    else "Type its password once now. From the next time on, your fingerprint opens it.",
+                    else "From now on your fingerprint opens it: the password you just typed is kept on this phone, sealed for your fingerprint.",
                 )
                 Text("Keething asks this once. You can turn it on later on the database’s page in Settings.")
             }
@@ -664,7 +662,7 @@ private fun PasswordRow(
     needsPassword: Boolean,
     focusAtOnce: Boolean,
     keyFile: KeyFileLine?,
-    /** Key file… in the field; null: none is offered (a file not found locates first). */
+    /** Key file… in the field, or the chosen one taken off; null: none is offered (a file not found locates first). */
     onKeyFile: (() -> Unit)?,
     beside: BesideField,
     onUnlock: () -> Unit,
@@ -683,7 +681,7 @@ private fun PasswordRow(
             SecureTextField(
                 state = model.password,
                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                placeholder = { Text(placeholder) },
+                placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 textStyle = if (revealed) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
                 textObfuscationMode = if (revealed) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
                 trailingIcon = {
@@ -698,7 +696,7 @@ private fun PasswordRow(
                             IconButton(onClick = it) {
                                 Icon(
                                     Icons.Rounded.Key,
-                                    contentDescription = keyFile?.let { file -> "Key file ${file.name}: change" } ?: "Key file…",
+                                    contentDescription = keyFile?.let { file -> "Key file ${file.name}: remove" } ?: "Key file…",
                                     tint = when {
                                         keyFile == null -> LocalContentColor.current
                                         keyFile.isMissing -> MaterialTheme.colorScheme.error
@@ -728,7 +726,7 @@ private fun PasswordRow(
                 ),
             )
         }
-        // Typing turns the fingerprint into Unlock, emptying the field turns it back.
+        // Typing turns the fingerprint into Unlock, emptying the field turns it back (not while it was never chosen: it unlocks).
         AnimatedContent(targetState = beside.fingerprint, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "beside") { fingerprint ->
             if (fingerprint) {
                 FingerprintBeside(beside)

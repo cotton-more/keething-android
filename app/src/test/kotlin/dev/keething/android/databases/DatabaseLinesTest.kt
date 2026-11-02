@@ -111,7 +111,7 @@ class DatabaseLinesTest {
         assertNull(lock.problem)
         assertTrue(lock.showsPasswordField && lock.offersFingerprint)
         assertFalse(lock.needsPassword || lock.offersKeyFile)
-        assertEquals("Master password, if it has one", lock.passwordPlaceholder)
+        assertEquals("Master password", lock.passwordPlaceholder)
     }
 
     @Test
@@ -333,7 +333,7 @@ class DatabaseLinesTest {
         assertEquals("$root/Sync/Work/Work.kdbx", found.line.path, "its words")
         assertFalse(found.line.isMissing)
         assertEquals(KeyFileLine("work.keyx", "Sync/Keys", "$root/Sync/Keys/work.keyx", reach = Reach.THERE), found.line.keyFile)
-        assertEquals("Master password, if it has one", found.passwordPlaceholder)
+        assertEquals("Master password", found.passwordPlaceholder)
     }
 
     @Test

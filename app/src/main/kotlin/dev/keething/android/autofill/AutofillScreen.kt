@@ -76,7 +76,7 @@ internal fun AutofillScreen(
         }
         when {
             // None open: the current database's lock screen; any open one fills (keething-spec autofill.fill AC6).
-            open.isEmpty() -> LockScreen(container, current, onBack = null, onChose = {})
+            open.isEmpty() -> LockScreen(container, current, onBack = null, onChose = {}, showsList = false)
             picking -> EntryPicker(container, request, target, onFill, onClose)
             else -> Box(Modifier.fillMaxSize())
         }

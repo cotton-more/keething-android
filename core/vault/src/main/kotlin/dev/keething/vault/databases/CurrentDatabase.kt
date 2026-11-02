@@ -216,10 +216,10 @@ public class CurrentDatabase(
      * located say, ends interrupted); another database chosen meanwhile does not stop it. The caller may wipe
      * [password] as soon as this returns. How it ends; null when nothing was started (the vault was not locked).
      */
-    public fun unlock(database: DatabaseSession, password: Secret): Deferred<UnlockOutcome>? {
+    public fun unlock(database: DatabaseSession, password: Secret, askFingerprint: Boolean = false): Deferred<UnlockOutcome>? {
         val keyFile = list.record(database.id)?.keyFile
         val nothingTyped = password.isEmpty()
-        val outcome = database.biometric.unlock(password) ?: return null
+        val outcome = database.biometric.unlock(password, askFingerprint) ?: return null
         if (keyFile == null) return outcome
         scope.launch {
             val ended = outcome.await()
@@ -250,7 +250,8 @@ public class CurrentDatabase(
             if (locks() != began) return@UnlockRun UnlockRun.Attempt.Stopped
             val database = sessions.session(id) ?: return@UnlockRun UnlockRun.Attempt.CannotOpen("closed")
             // The session keeps its own copy: the typed one goes at once, not after the key derivation.
-            val outcome = unlock(database, password).also { password.wipe() }
+            // The chooser shows the list after it: a database never asked about the fingerprint is asked over it.
+            val outcome = unlock(database, password, askFingerprint = true).also { password.wipe() }
                 ?: return@UnlockRun if (database.session.state.value is SessionState.Unlocked) UnlockRun.Attempt.Opened else UnlockRun.Attempt.CannotOpen("opening")
             val ended = outcome.await()
             when {

@@ -135,7 +135,7 @@ private fun SaveLoginScreen(
         // Each unlock shows a fresh editor: a lock took the draft (and its password) with it.
         var showing by remember { mutableIntStateOf(0) }
         LaunchedEffect(open.isEmpty()) { if (open.isEmpty()) showing++ }
-        if (open.isEmpty()) return@Surface LockScreen(container, current, onBack = null, onChose = {})
+        if (open.isEmpty()) return@Surface LockScreen(container, current, onBack = null, onChose = {}, showsList = false)
         // Decided once on the databases as they were when one was open: the save itself changes its vault.
         val plan = remember(model.asNew) { plan(container, open, save, label, model.asNew) }
         val password = remember { save.password.reveal() }
