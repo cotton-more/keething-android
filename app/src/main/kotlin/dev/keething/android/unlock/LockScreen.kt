@@ -11,7 +11,9 @@ import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.UnfoldMore
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.TextButton
 import dev.keething.android.databases.DatabaseLine
 import dev.keething.android.databases.DatabaseLinesModel
@@ -28,13 +30,14 @@ import dev.keething.android.ui.ButtonLabel
 import androidx.compose.foundation.text.input.clearText
 import dev.keething.vault.databases.DatabaseId
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -56,7 +59,6 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -70,14 +72,12 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecureTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -94,8 +94,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -128,9 +130,10 @@ import dev.keething.vault.databases.UnlockRun
 import dev.keething.domain.secret.Secret
 
 /**
- * The lock screen (SPEC §6.2): the database (a tap: the list's databases), why it is locked, the fingerprint as the
- * large main button when it is set up (SPEC §5), and the password field at the bottom in thumb reach, with the
- * database's key file under it. A file not found has Locate… in place of the field; a database that opens with its
+ * The lock screen (SPEC §6.2): the database (a tap: the list's databases), why it is locked, and the password field at
+ * the bottom in thumb reach, its key file chosen in it and said under it, and one button beside it: Unlock, or the
+ * fingerprint while the field is empty and the fingerprint can open the database or may be offered (SPEC §5;
+ * keething-spec unlock.lock-screen-keyboard, unlock.biometric AC4). A file not found has Locate… in place of the field; a database that opens with its
  * key file alone has Unlock. [onBack]: Back from it (to the open databases, to the chooser, or to the one shown before);
  * [onChose]: this one gave way to another chosen here. [run]: the chooser's run asks this database (plan AD13;
  * keething-spec databases.chooser AC5, AC6): "Unlocking 2 of 3" over it with Stop, no fingerprint, the typed password
@@ -168,6 +171,7 @@ internal fun LockScreen(
     val session by model.session.collectAsStateWithLifecycle()
     val biometric by model.biometric.collectAsStateWithLifecycle()
     val fingerprintNotice by model.fingerprintNotice.collectAsStateWithLifecycle()
+    val asking by model.asking.collectAsStateWithLifecycle()
     val timeout by container.settings.lockTimeout.collectAsStateWithLifecycle()
     val visit by container.sessions.visit.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -243,6 +247,7 @@ internal fun LockScreen(
             onDismiss = { removing = false },
         )
     }
+    if (asking) FingerprintQuestion(name, passwordless = biometric.passwordless, onAnswer = model::answer)
 
     val reason = (session as? SessionState.Locked)?.reason
     // From the accepted fingerprint on: opening the stored password in StrongBox takes a moment before the
@@ -264,13 +269,16 @@ internal fun LockScreen(
         // With the keyboard up on a low screen one row is left: the database's, beside the field; in the run the
         // keyboard leaves room for the field and Skip only under the run's bar.
         // A lock screen for a purpose is under its own title ("Keething note").
-        if (purpose == null && !((short || run != null) && WindowInsets.isImeVisible)) {
-            AppLogo(Modifier.size(if (short) 72.dp else 104.dp))
-            Spacer(Modifier.height(if (short) 12.dp else 24.dp))
-            Text("Keething", style = MaterialTheme.typography.displaySmall)
-            Spacer(Modifier.height(8.dp))
+        // The keyboard up, the logo gives way and the line keeps to one line, so that the field and what is said over it
+        // stay above the keyboard (keething-spec unlock.lock-screen-keyboard AC1). The app's name is not said: the user
+        // knows which app this is, and the database's line says where.
+        val keyboard = WindowInsets.isImeVisible
+        if (purpose == null && !((short || run != null) && keyboard)) {
+            val logo by animateDpAsState(if (keyboard) 64.dp else if (short) 72.dp else 104.dp, label = "logo")
+            AppLogo(Modifier.size(logo))
+            Spacer(Modifier.height(if (short || keyboard) 12.dp else 24.dp))
         }
-        DatabaseIdentity(lock?.line, name, onClick = if (run == null && purpose == null) ({ sheet = true }) else null)
+        DatabaseIdentity(lock?.line, name, compact = keyboard, onClick = if (run == null && purpose == null) ({ sheet = true }) else null)
         purpose?.let {
             Spacer(Modifier.height(16.dp))
             Purpose(it)
@@ -282,13 +290,17 @@ internal fun LockScreen(
         val reasonNotice = reason?.notice(timeout, lock?.line?.path ?: database.location.fileName)
         val dueNotice = biometric.reminderDays?.takeIf { biometric.isSetUp && biometric.passwordDue }?.let(::passwordDueNotice)
         val setUpAgain = biometric.setUpAgain?.takeIf { biometric.enabled && !biometric.stored }?.notice()
+        // On, nothing stored yet (the question answered, its page): what is typed now sets it up.
+        val typeToSetUp = setUpByTypingNotice.takeIf {
+            biometric.enabled && biometric.availability == BiometricAvailability.Available && !biometric.stored && !biometric.passwordless
+        }
         val notice = locateProblem?.let { LockNotice(it, isProblem = true) }
             ?: when {
                 lock?.line?.isMissing == true -> null
                 lock?.problem != null -> LockNotice(lock.problem, isProblem = true)
-                run != null -> setUpAgain ?: reasonNotice?.takeIf { reason == LockReason.PasswordChanged } ?: dueNotice
+                run != null -> setUpAgain ?: reasonNotice?.takeIf { reason == LockReason.PasswordChanged } ?: typeToSetUp ?: dueNotice
                 else -> fingerprintNotice ?: reasonNotice?.takeIf { it.isProblem && model.typedHere } ?: setUpAgain
-                    ?: reasonNotice?.takeIf { it.isProblem } ?: dueNotice ?: reasonNotice
+                    ?: reasonNotice?.takeIf { it.isProblem } ?: typeToSetUp ?: dueNotice ?: reasonNotice
             }
         notice?.let {
             Spacer(Modifier.height(12.dp))
@@ -313,50 +325,42 @@ internal fun LockScreen(
                     files.locate(database.id, lock.line.reach == Reach.NO_ACCESS)
                 })
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Typing hides it: the keyboard leaves no room, and the user chose the password. Not in the run.
-                    val offersFingerprint = biometric.canUnlock && lock.offersFingerprint && run == null
-                    AnimatedVisibility(visible = offersFingerprint && !WindowInsets.isImeVisible) {
-                        FingerprintButton(
-                            enabled = !biometric.prompting,
-                            // A database that opens with its key file alone has Unlock in place of the field.
-                            otherWay = if (lock.showsPasswordField) "or type the password" else "or use its key file",
-                            onClick = model::unlockWithFingerprint,
-                        )
-                    }
                     // The run's: "Wrong password … Type it again, or skip it."
                     runState?.failure?.let { RunFailure(it.describe(lock.line.path) + " Type it again, or skip it.") }
                     // The run's: bound to this database, never tried on the next one asked.
                     val unlock = { model.unlock(run?.let { { secret: Secret -> container.chooser.type(database.id, secret) } }) }
+                    // Not in the run: the chooser asked the fingerprint for every database that could.
+                    val offered = lock.offersFingerprint && run == null
+                    val fingerprint = BesideField(
+                        fingerprint = fingerprintBesideField(
+                            biometric,
+                            offered,
+                            typed = model.password.text.isNotEmpty(),
+                            emptyOpens = lock.showsPasswordField && !lock.needsPassword,
+                        ),
+                        enabled = !biometric.prompting,
+                        label = if (biometric.canUnlock) "Unlock with fingerprint" else "Use the fingerprint",
+                        onFingerprint = model::fingerprintTapped,
+                    )
+                    val keyFile = lock.line.keyFile
+                    val chooseKeyFile = { files.chooseKeyFile(database.id) }
                     if (lock.showsPasswordField) {
                         PasswordRow(
                             model = model,
                             placeholder = lock.passwordPlaceholder,
                             needsPassword = lock.needsPassword,
-                            // Not while the fingerprint is offered (the keyboard would cover it), nor before it is known.
-                            focusAtOnce = biometric.availability != null && !offersFingerprint,
+                            // Not while the fingerprint can open it (the user may touch), nor before it is known.
+                            focusAtOnce = biometric.availability != null && !(offered && biometric.canUnlock),
+                            keyFile = keyFile,
+                            onKeyFile = chooseKeyFile.takeIf { keyFile != null || lock.offersKeyFile },
+                            beside = fingerprint,
                             onUnlock = unlock,
                             modifier = Modifier.offset { IntOffset(shake.value.roundToInt(), 0) },
                         )
                     } else {
-                        KeyFileAlone(onUnlock = unlock)
+                        KeyFileAlone(fingerprint, onUnlock = unlock)
                     }
-                    val keyFile = lock.line.keyFile
-                    if (keyFile != null) {
-                        KeyFileRow(keyFile, onChange = { files.chooseKeyFile(database.id) })
-                    } else if (lock.offersKeyFile) {
-                        TextButton(onClick = { files.chooseKeyFile(database.id) }, modifier = Modifier.padding(top = 4.dp)) {
-                            ButtonLabel("Key file…", Icons.Rounded.Key, iconSize = 18.dp, gap = 8.dp)
-                        }
-                    }
-                    // Offered while the app's switch allows it and this database's own is off (Settings turns the app's
-                    // on; it turns none on itself); it stays once turned on, until the password is typed. A database that
-                    // opens with its key file alone has it too: the fingerprint then opens it with nothing stored.
-                    val available = biometric.availability == BiometricAvailability.Available
-                    var offerSwitch by remember(database.number) { mutableStateOf(false) }
-                    if (available && biometric.appEnabled && !biometric.databaseEnabled) offerSwitch = true
-                    if (offerSwitch && available && biometric.appEnabled && !biometric.stored && lock.problem == null) {
-                        UseFingerprintSwitch(checked = biometric.enabled, onChange = model::useFingerprint)
-                    }
+                    KeyFileRow(keyFile, onChange = chooseKeyFile)
                 }
             }
         }
@@ -454,9 +458,12 @@ private fun RunFailure(text: String) {
     }
 }
 
-/** A database that opens with its key file alone (keething-spec unlock.key-file AC5): nothing to type. */
+/**
+ * A database that opens with its key file alone (keething-spec unlock.key-file AC5): nothing to type; the fingerprint
+ * beside Unlock as beside the field.
+ */
 @Composable
-private fun KeyFileAlone(onUnlock: () -> Unit) {
+private fun KeyFileAlone(beside: BesideField, onUnlock: () -> Unit) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             "It opens with its key file alone: nothing to type.",
@@ -465,33 +472,47 @@ private fun KeyFileAlone(onUnlock: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onUnlock, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-            ButtonLabel("Unlock", Icons.Rounded.LockOpen, iconSize = 20.dp)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onUnlock, modifier = Modifier.weight(1f).height(56.dp)) {
+                ButtonLabel("Unlock", Icons.Rounded.LockOpen, iconSize = 20.dp)
+            }
+            if (beside.fingerprint) FingerprintBeside(beside)
         }
     }
 }
 
-/** The database's key file under the field: its name and folder, or that it is not there, and Change… or Choose…. */
+/**
+ * The database's key file under the field, on one line: its name, then its folder or that it is not there, cut when long;
+ * a tap chooses another. Its place is kept while there is none, so that choosing one moves nothing (keething-spec
+ * unlock.lock-screen-keyboard AC2).
+ */
 @Composable
-private fun KeyFileRow(keyFile: KeyFileLine, onChange: () -> Unit) {
+private fun KeyFileRow(keyFile: KeyFileLine?, onChange: () -> Unit) {
+    val place = Modifier.fillMaxWidth().padding(top = 4.dp).height(40.dp)
+    if (keyFile == null) {
+        Spacer(place)
+        return
+    }
     val tint = if (keyFile.isMissing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
-        Modifier.fillMaxWidth().padding(top = 8.dp, start = 12.dp),
+        place
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClickLabel = if (keyFile.isMissing) "Choose the key file" else "Change the key file", onClick = onChange)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(Icons.Rounded.Key, contentDescription = "Key file", Modifier.size(20.dp), tint = tint)
-        Column(Modifier.weight(1f)) {
-            Text(keyFile.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                keyFile.detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = tint,
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis,
-            )
-        }
-        TextButton(onClick = onChange) { Text(if (keyFile.isMissing) "Choose…" else "Change…") }
+        Icon(Icons.Rounded.Key, contentDescription = "Key file", Modifier.size(18.dp), tint = tint)
+        // One text, cut in the middle: a long name and a long folder share the line.
+        Text(
+            buildAnnotatedString {
+                append(keyFile.name)
+                withStyle(SpanStyle(color = tint)) { append(" · ${keyFile.detail}") }
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+        )
     }
 }
 
@@ -525,58 +546,56 @@ private fun Purpose(text: String) {
     }
 }
 
-@Composable
-private fun UseFingerprintSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier
-            .padding(top = 8.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(Icons.Rounded.Fingerprint, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("Use fingerprint next time", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Switch(checked = checked, onCheckedChange = null)
-    }
-}
+/** The one button beside the field: the fingerprint ([fingerprint]: its [label] said to TalkBack), else Unlock. */
+private data class BesideField(val fingerprint: Boolean, val enabled: Boolean, val label: String, val onFingerprint: () -> Unit)
 
 @Composable
-private fun FingerprintButton(enabled: Boolean, otherWay: String, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        FilledIconButton(
-            onClick = onClick,
-            enabled = enabled,
-            modifier = Modifier.size(96.dp),
-            shape = RoundedCornerShape(32.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) {
-            Icon(Icons.Rounded.Fingerprint, contentDescription = "Unlock with fingerprint", Modifier.size(48.dp))
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("Touch to unlock", style = MaterialTheme.typography.titleSmall)
-        Row(
-            Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 32.dp, bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
-            Text(otherWay, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
-        }
+private fun FingerprintBeside(beside: BesideField) {
+    FilledIconButton(
+        onClick = beside.onFingerprint,
+        enabled = beside.enabled,
+        modifier = Modifier.size(56.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+    ) {
+        Icon(Icons.Rounded.Fingerprint, contentDescription = beside.label, Modifier.size(28.dp))
     }
 }
 
 /**
- * The database's line (SPEC §6.2): its tile, name, folder and when it changed; a tap opens the list's databases. Null
- * [onClick]: it is only said (the chooser's run asks this one).
+ * Asked once, from the fingerprint's button, for a database whose fingerprint was never chosen (keething-spec
+ * unlock.biometric AC4): Use fingerprint, or No (kept: not asked again). Put away, it answers nothing.
  */
 @Composable
-private fun DatabaseIdentity(line: DatabaseLine?, name: String, onClick: (() -> Unit)?) {
+private fun FingerprintQuestion(name: String, passwordless: Boolean, onAnswer: (Boolean?) -> Unit) {
+    AlertDialog(
+        onDismissRequest = { onAnswer(null) },
+        icon = { Icon(Icons.Rounded.Fingerprint, contentDescription = null) },
+        title = { Text("Use the fingerprint for “$name”?", textAlign = TextAlign.Center) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    if (passwordless) "From now on your fingerprint opens it, with its key file."
+                    else "Type its password once now. From the next time on, your fingerprint opens it.",
+                )
+                Text("Keething asks this once. You can turn it on later on the database’s page in Settings.")
+            }
+        },
+        confirmButton = { TextButton(onClick = { onAnswer(true) }) { Text("Use fingerprint") } },
+        dismissButton = { TextButton(onClick = { onAnswer(false) }) { Text("No") } },
+    )
+}
+
+/**
+ * The database's line (SPEC §6.2): its tile, name, folder and when it changed; a tap opens the list's databases. Null
+ * [onClick]: it is only said (the chooser's run asks this one). [compact]: the keyboard is up, the folder and when it
+ * changed keep to one line, the folder cut in the middle.
+ */
+@Composable
+private fun DatabaseIdentity(line: DatabaseLine?, name: String, compact: Boolean, onClick: (() -> Unit)?) {
     val content = @Composable {
         Row(
             Modifier.padding(start = 10.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
@@ -588,12 +607,23 @@ private fun DatabaseIdentity(line: DatabaseLine?, name: String, onClick: (() -> 
             // Weighted, so that with a large font the icon keeps its place beside the lines.
             Column(Modifier.weight(1f, fill = false)) {
                 DatabaseLabelText(line?.label ?: DatabaseLabel(name), MaterialTheme.typography.titleMedium)
-                Text(
-                    line?.detail.orEmpty().dotsAtLineEnd(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (line?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                )
+                val color = if (line?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                if (compact && line != null) {
+                    // The folder gives way, cut in the middle; when it changed is said whole.
+                    Row {
+                        Text(
+                            line.folder,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = color,
+                            maxLines = 1,
+                            overflow = TextOverflow.MiddleEllipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        line.status?.let { Text(" · $it", style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 1, softWrap = false) }
+                    }
+                } else {
+                    Text(line?.detail.orEmpty().dotsAtLineEnd(), style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 2)
+                }
             }
             if (onClick != null) {
                 Icon(Icons.Rounded.UnfoldMore, contentDescription = "Choose another database", Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -617,7 +647,12 @@ private fun ReasonChip(notice: LockNotice) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(if (notice.isProblem) Icons.Rounded.ErrorOutline else Icons.Rounded.Schedule, contentDescription = null, Modifier.size(16.dp), tint = content)
+        val icon = when {
+            notice.isProblem -> Icons.Rounded.ErrorOutline
+            notice.fingerprint -> Icons.Rounded.Fingerprint
+            else -> Icons.Rounded.Schedule
+        }
+        Icon(icon, contentDescription = null, Modifier.size(16.dp), tint = content)
         Text(notice.text, style = MaterialTheme.typography.bodyMedium, color = content, textAlign = TextAlign.Center)
     }
 }
@@ -628,6 +663,10 @@ private fun PasswordRow(
     placeholder: String,
     needsPassword: Boolean,
     focusAtOnce: Boolean,
+    keyFile: KeyFileLine?,
+    /** Key file… in the field; null: none is offered (a file not found locates first). */
+    onKeyFile: (() -> Unit)?,
+    beside: BesideField,
     onUnlock: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -648,11 +687,26 @@ private fun PasswordRow(
                 textStyle = if (revealed) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
                 textObfuscationMode = if (revealed) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
                 trailingIcon = {
-                    IconButton(onClick = { revealed = !revealed }) {
-                        Icon(
-                            if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                            contentDescription = if (revealed) "Hide password" else "Show password",
-                        )
+                    Row {
+                        IconButton(onClick = { revealed = !revealed }) {
+                            Icon(
+                                if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = if (revealed) "Hide password" else "Show password",
+                            )
+                        }
+                        onKeyFile?.let {
+                            IconButton(onClick = it) {
+                                Icon(
+                                    Icons.Rounded.Key,
+                                    contentDescription = keyFile?.let { file -> "Key file ${file.name}: change" } ?: "Key file…",
+                                    tint = when {
+                                        keyFile == null -> LocalContentColor.current
+                                        keyFile.isMissing -> MaterialTheme.colorScheme.error
+                                        else -> MaterialTheme.colorScheme.primary
+                                    },
+                                )
+                            }
+                        }
                     }
                 },
                 // All of it, not only the action: a password field keeps the keyboard from capitalising, correcting
@@ -674,18 +728,25 @@ private fun PasswordRow(
                 ),
             )
         }
-        FilledIconButton(
-            onClick = onUnlock,
-            // Without a key file an empty field opens nothing (keething-spec unlock.lock-screen AC2).
-            enabled = !needsPassword || model.password.text.isNotEmpty(),
-            modifier = Modifier.size(56.dp),
-            shape = RoundedCornerShape(20.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-        ) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Unlock")
+        // Typing turns the fingerprint into Unlock, emptying the field turns it back.
+        AnimatedContent(targetState = beside.fingerprint, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "beside") { fingerprint ->
+            if (fingerprint) {
+                FingerprintBeside(beside)
+            } else {
+                FilledIconButton(
+                    onClick = onUnlock,
+                    // Without a key file an empty field opens nothing (keething-spec unlock.lock-screen AC2).
+                    enabled = !needsPassword || model.password.text.isNotEmpty(),
+                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Unlock")
+                }
+            }
         }
     }
 }

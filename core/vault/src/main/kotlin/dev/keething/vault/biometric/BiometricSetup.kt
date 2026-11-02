@@ -108,15 +108,15 @@ public class BiometricSetup(
     }
 
     /**
-     * A database's own Use fingerprint (its page, "Use fingerprint next time"), offered while the app's switch is on: the
+     * A database's own Use fingerprint (its page, the lock screen's question), offered while the app's switch is on: the
      * app's switch allows it, it never turns it on (the owner at plan AD5). On: its password is stored at its next typed
-     * unlock and its days count from now. Off: its stored password and its days go. Returns why the stored password
-     * could not be deleted, or null.
+     * unlock and its days count from now. Off: its stored password and its days go. Either way it is chosen: the lock
+     * screen does not ask it again. Returns why the stored password could not be deleted, or null.
      */
     public suspend fun setUseBiometric(id: DatabaseId, on: Boolean): String? {
         // Off, nothing of it should be stored: a deletion that failed goes first, or its switch stays off.
         if (on && list.record(id)?.useBiometric == false && hasPassword(id)) delete(id)?.let { return it }
-        list.update(id) { it.copy(useBiometric = on) }
+        list.update(id) { it.copy(useBiometric = on, fingerprintAsked = true) }
         if (on) {
             typedNow(id)
             return null
@@ -124,6 +124,11 @@ public class BiometricSetup(
         settings.setString(lastTypedKey(id), null)
         mutableState.update { it.copy(setupFailures = it.setupFailures - id, setUpAgain = it.setUpAgain - id) }
         return delete(id)
+    }
+
+    /** No to the lock screen's question (keething-spec unlock.biometric AC4): its switch stays off, and it is not asked again. */
+    public fun decline(id: DatabaseId) {
+        list.update(id) { it.copy(fingerprintAsked = true) }
     }
 
     /** The database left the list: its stored password, its days and its key-file note go. Why the deletion failed, or null. */

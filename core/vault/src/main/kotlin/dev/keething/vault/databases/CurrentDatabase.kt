@@ -178,7 +178,8 @@ public class CurrentDatabase(
      * alone in a folder the list reaches goes through that folder, keething-spec databases.saf AC9) and its Use fingerprint, becomes current (nothing closes) and
      * opens with [key], the key it was made with, as a typed unlock of [password] (its days start; stored for the fingerprint when chosen). A lock since
      * Create was tapped ([lockedSince], asked once the list has it) leaves it locked and wipes [key]. The caller may
-     * wipe [password] as soon as this returns.
+     * wipe [password] as soon as this returns. [fingerprintChosen]: the form offered the fingerprint, so it was chosen
+     * either way and its lock screen does not ask it (keething-spec unlock.biometric AC4).
      */
     public suspend fun created(
         file: FileLocation,
@@ -186,12 +187,13 @@ public class CurrentDatabase(
         useBiometric: Boolean,
         key: DerivedKey,
         password: Secret,
+        fingerprintChosen: Boolean = useBiometric,
         lockedSince: () -> Boolean,
     ): Created {
         listOfNotNull(file.grant, keyFile?.grant).forEach(offered)
         val reached = (keyFile as? FileLocation.Granted)?.let { list.inGrantedFolder(it.at, prefer = file) } ?: keyFile
         // One change: the old record out and the new one in with its key file, so no grant looks unused in between.
-        val (record, old) = list.replace(file, reached, useBiometric)
+        val (record, old) = list.replace(file, reached, useBiometric, fingerprintAsked = fingerprintChosen)
         show(record.id)
         adoptOldRecords()
         val problem = old?.let { biometric.forget(it.id) }

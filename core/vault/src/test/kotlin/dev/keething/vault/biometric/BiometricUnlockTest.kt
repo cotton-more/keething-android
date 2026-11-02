@@ -29,6 +29,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.days
@@ -255,6 +256,45 @@ class BiometricUnlockTest {
         runCurrent()
 
         assertEquals(listOf("pw"), f.stores.saves)
+    }
+
+    // spec: unlock.biometric/AC4
+    @Test
+    fun aDatabaseNeverChosenIsAskedOnceAndNoIsKept() = runTest {
+        val settings = MapSettings()
+        val f = fixture(settings = settings)
+        f.list.update(f.id) { it.copy(useBiometric = false) }
+        assertTrue(state(f).canAsk)
+
+        f.biometric.decline()
+
+        assertFalse(state(f).canAsk, "no is not asked again")
+        assertFalse(f.biometric.state.value.enabled)
+        f.typed("pw")
+        runCurrent()
+        assertTrue(f.stores.saves.isEmpty(), "no stores nothing")
+        assertTrue(assertNotNull(DatabaseList(settings).record(f.id)).fingerprintAsked, "kept with the list")
+    }
+
+    @Test
+    fun aDatabaseIsAskedOnlyWhileItsFingerprintWasNeverChosen() = runTest {
+        val f = fixture(enabled = false)
+        f.list.update(f.id) { it.copy(useBiometric = false) }
+        assertFalse(state(f).canAsk, "the app's switch off: nothing to offer")
+        f.setup.setEnabled(true)
+        assertTrue(state(f).canAsk)
+
+        f.biometric.useNextTime(true)
+        assertFalse(state(f).canAsk, "yes: on, and chosen")
+
+        assertNull(f.setup.setUseBiometric(f.id, false))
+        assertFalse(state(f).canAsk, "turned off on its page: chosen too")
+
+        val work = f.add("/db/Work.kdbx")
+        f.list.update(work.id) { it.copy(useBiometric = false) }
+        f.setup.setUseBiometric(work.id, false)
+        runCurrent()
+        assertFalse(work.biometric.state.value.canAsk, "its page's switch set either way is a choice")
     }
 
     @Test

@@ -95,6 +95,8 @@ internal class CreatedDatabase(
     /** The master password typed, for the fingerprint to store when [useFingerprint]; wiped after [NewDatabaseModel.onCreated]. */
     val password: Secret,
     val useFingerprint: Boolean,
+    /** The form offered the fingerprint: chosen either way, its lock screen does not ask it (keething-spec unlock.biometric AC4). */
+    val fingerprintChosen: Boolean,
     /** The app's lock count when Create was tapped: a lock since, and it is not opened. */
     val lockCount: Int,
 )
@@ -647,7 +649,7 @@ internal class NewDatabaseModel(
             used = null
             phase = Phase.Created
             // Made: from here the file is the user's, whatever the app makes of it (it is never removed once made).
-            runCatching { onCreated(CreatedDatabase(path, keyFilePath, key, password, useFingerprint, locks)) }
+            runCatching { onCreated(CreatedDatabase(path, keyFilePath, key, password, useFingerprint, offersFingerprint, locks)) }
         } catch (error: Throwable) {
             // The note itself could not be written: nothing was made yet.
             fail(error, Step.DATABASE)

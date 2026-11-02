@@ -265,7 +265,7 @@ internal class Sessions(
      * and the alarm with it. Why an old record's stored password could not be deleted, or null.
      */
     suspend fun created(made: CreatedDatabase, file: FileLocation, keyFile: FileLocation?): String? =
-        databases.created(file, keyFile, made.useFingerprint, made.key, made.password) {
+        databases.created(file, keyFile, made.useFingerprint, made.key, made.password, made.fingerprintChosen) {
             locks.lockedSince(made.lockCount, settings.lockTimeout.value)
         }.problem
 

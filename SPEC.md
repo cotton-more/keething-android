@@ -248,8 +248,8 @@ and a half show, "9 databases · scroll for the rest"). **Unlock N databases** s
 `CurrentDatabase.run`): first one fingerprint for the checked ones it would open (decided without reading any stored
 password; nothing asked when none would; a cancelled or failed one leaves them to their passwords, nothing said; a lock
 under its prompt starts no run), then the checked ones it did not open asked one after another, each on its own lock screen with "Unlocking 2 of 3"
-over it (a segment per database, what opened, Stop), its line, its key file and Use fingerprint next time, no
-fingerprint button, and Skip; a password goes to that database only (its typed path: stored for the fingerprint when
+over it (a segment per database, what opened, Stop), its line, its field with its key file, no fingerprint button,
+and Skip; a password goes to that database only (its typed path: stored for the fingerprint when
 that is on for it); a wrong one stays to be typed again ("Wrong password — or this database needs a key file. Type it
 again, or skip it."); one typing cannot open (not found, its key file not there, closed meanwhile — looked at when the
 run reaches it — or a try that fails so) is skipped by itself, and one opened meanwhile counts as opened. At the end
@@ -797,18 +797,27 @@ each database. Each database has its **own stored password** (`plans/done/androi
 side by side (§3.1): one fingerprint opens every one that can (below), a database's own lock screen opens it alone.
 
 - **Two switches.** The app's, "Unlock with the fingerprint" in Settings, is **off** until turned on; each database
-  has its own **Use fingerprint** besides (`useBiometric` in the list, §3.1), on its page in Settings and as "Use
-  fingerprint next time" under its lock screen's field. The fingerprint opens a database while both are on. The
+  has its own **Use fingerprint** besides (`useBiometric` in the list, §3.1), on its page in Settings, and offered once
+  by its lock screen (below). The fingerprint opens a database while both are on. The
   app's switch **allows** a database's to be turned on and turns none on itself; a database's never turns the app's
   on (the owner at `plans/done/android-databases.md` AD5). A database new to the list starts with its own **off**,
   whatever the app's switch: no password is stored for a database nobody turned the fingerprint on for (the Mac's
   rule, a new database taking the app's switch, stored a new database's first typed password unasked). A database
   made on the New database screen (§6.2) has its own as chosen there: "Unlock it with the fingerprint" is shown only
   while the app's switch is on and starts checked (the owner at AD7), and its password is stored at once, as Create
-  opens it as a typed unlock (§3.5). "Use
-  fingerprint next time" shows while the app's switch is on, the database's own is off, the phone has a strong
-  biometric and the lock screen says no problem (its key file not there), also for a database that opens with its key
-  file alone; once turned on it stays until the password is stored. A switch going on (the app's, or a database's)
+  opens it as a typed unlock (§3.5). **Offered once** (keething-spec unlock.biometric AC4, the owner 2026-11-02): while
+  the app's switch is on, the phone has a strong biometric and a database's own is off and was never chosen
+  (`fingerprintAsked` in the list, §3.1: the question answered, its page's switch set either way, or the New database
+  form's "Unlock it with the fingerprint" shown), its lock screen
+  has the fingerprint's button beside the field; a tap asks "Use the fingerprint for “Work”?" ("Type its password once
+  now. From the next time on, your fingerprint opens it. Keething asks this once. You can turn it on later on the
+  database's page in Settings.", No / Use fingerprint). Use fingerprint turns its own on and puts the focus in the field,
+  and the chip says "Type the password once to set up the fingerprint." until it is stored (a database that opens with
+  its key file alone has nothing to store: the fingerprint is asked at once); No is kept, and only Unlock is beside the
+  field from then on; put away, the question answers nothing. A database with a key file not known yet to open without a
+  password keeps Unlock beside its empty field (it tries the key file alone) and is not offered it there. Turning it on asks no fingerprint: whoever does it has
+  the open database already, any enrolled finger would pass, and storing needs only the keyring's public key (below);
+  the question is answered by whoever types the password then. A switch going on (the app's, or a database's)
   first deletes what a failed deletion left, or stays off: it would open without anything typed since. With the app's switch off, a database's page says "Off: Unlock with the fingerprint is off in Settings. Once
   it is on, the fingerprint can be turned on here." and its switch cannot be turned on. Turning the app's switch off
   and on again keeps each database's own: those turned on store their passwords again at their next typed unlock.
@@ -947,7 +956,9 @@ Screens are designed as clickable mock-ups first and agreed with the owner befor
 agreed mock-ups (light and dark, every screen of §6.2 including the editor for step 7) are the canvas
 https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - Lock: the fingerprint is the large main button; the password field below it, in thumb reach, with an
-  arrow button to unlock; the reason of the last lock as a chip.
+  arrow button to unlock; the reason of the last lock as a chip. Changed 2026-11-02 (keething-spec
+  unlock.lock-screen-keyboard, its canvas https://claude.ai/artifact/6Dj42ofwFyNuAu1v9YGE7z): the fingerprint is the
+  button beside the field in place of the arrow, the key file chosen in the field, no app name.
 - List and card: Expressive segmented groups (rows with small gaps, large outer corners); a list row with a
   one-time code shows the live code and its ring as a button that copies it.
 - Card: a tinted tile per field kind; the password row has an eye, copy and a menu; recovery codes are a
@@ -1064,7 +1075,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Undo; ⋮ says how many are open; the chooser and its run (AD13, §3.1, below). The welcome's large icon is the app's
   logo, as the lock screen's (the launcher icon's layers); pass 1's key glyph there is a stand-in, kept only for key
   files.
-- **Lock**: the app's logo (the launcher icon's layers), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
+- **Lock**: the app's logo (the launcher icon's layers; no app name), password field (a password keyboard: nothing capitalised, corrected or learnt), the database's
   line: its tile (its initial in its colour on a soft fill of it, §3.1), its label, folder from the shared storage's root and when it changed ("Sync/KeePass ·
   changed 2 hours ago", "changed yesterday", "changed in March"; "Download · not found" in red) and ⇅; a tap opens
   the **sheet** "Databases": the list's databases (a dot in its colour and its label; a check on the one shown; its folder or "not found", "no access", "needs its folder"; more than six
@@ -1079,10 +1090,14 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   also when one fingerprint for several found it (§5), in place of the wrong password it left until one is typed here.
   In the chooser's run (§3.1) the lock screen has "Unlocking 2 of 3" over it with Stop, no fingerprint button and no
   sheet, a wrong password said over the field, and Skip under it. The field's placeholder is "Master password", with a key file "Master password, if it has one"; Unlock
-  is unavailable while the field is empty unless the database has a key file. Under the field the key file (key,
-  name, folder or "not there · folder" in red, Change… or Choose…), or **Key file…** while it has none; a database
+  is unavailable while the field is empty unless the database has a key file. The key file is chosen by a key in the
+  field beside the eye (Key file…; tinted once one is chosen, red when it is not there); under the field a line is kept
+  for it, so that choosing one moves nothing: the key, its name and "· folder" (or "· not there · folder" in red) on
+  one line, the folder cut in the middle, a tap choosing another. Beside the field **one** button: Unlock (the arrow),
+  or the fingerprint while the field is empty and the fingerprint opens the database or is offered (§5); typing turns
+  it into the arrow, emptying the field turns it back (keething-spec unlock.lock-screen-keyboard). A database
   that opens with its key file alone has "It opens with its key file alone: nothing to type." and Unlock instead of
-  the field. A file **not found** has, in place of the field, "Crypto.kdbx is not in Download any more. Locate the
+  the field, the fingerprint beside Unlock. A file **not found** has, in place of the field, "Crypto.kdbx is not in Download any more. Locate the
   file, or choose another database." (on a card: "… is not in /storage/1234-5678. Put the card in, or locate the
   file."), **Locate…** and "or choose another database above". A folder whose access is gone (renamed, moved or deleted
   on a device, its grant taken back; keething-spec databases.saf AC10): "Keething can no longer reach Sync/Work:
@@ -1091,11 +1106,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   you choose. Choose Sync/KeePass, the folder of Personal.kdbx: it is asked once." with **Choose its folder…** (the
   picker opened there). A key file without access any more: "Keething may not read work.keyx any more: choose it
   again." and Choose…. When the fingerprint
-  is set up for the database (§5), its large button with "Touch to unlock" and "or type the password" above the field
-  (a database that opens with its key file alone: "or use its key file" above its Unlock); the field then does not
-  open the keyboard by itself, and typing hides the button. While the app's fingerprint switch is on and this
-  database's is off, a "Use fingerprint next time" switch under the field turns it on for this database, so the
-  password typed then sets it up. When the
+  opens the database (§5) the field does not open the keyboard by itself. With the keyboard up the logo shrinks from
+  104 to 64 dp and the database's line keeps to one line (the folder cut in the middle, when it changed whole), so
+  that the line, the chip, the field and its key file line stay above the keyboard (checked at font scale 1.3). When the
   password is due (§5) the button is not there and the reason chip says so. A wrong password (or key file,
   §4) shakes the field. The first list after an unlock says how long the key derivation took, once per unlock (the database's name before it
   while two or more are open; Back to a database still open says nothing). On a screen less than 480 dp high

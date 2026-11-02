@@ -1,13 +1,17 @@
 package dev.keething.android.unlock
 
+import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.biometric.SetUpAgain
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.session.LockReason
 import kotlin.time.Duration
 
-/** What the lock screen says about why it is locked (SPEC §6: the reason of the last lock, as a chip). */
-internal data class LockNotice(val text: String, val isProblem: Boolean)
+/**
+ * What the lock screen says about why it is locked (SPEC §6: the reason of the last lock, as a chip). [fingerprint]: it
+ * is about the fingerprint's setting up, and says so with its icon.
+ */
+internal data class LockNotice(val text: String, val isProblem: Boolean, val fingerprint: Boolean = false)
 
 /** Nothing to say at the start and after the lock button: the user knows. [file]: the database's path, for the words. */
 internal fun LockReason.notice(timeout: Duration, file: String): LockNotice? = when (this) {
@@ -21,7 +25,7 @@ internal fun LockReason.notice(timeout: Duration, file: String): LockNotice? = w
 internal fun FingerprintOutcome.notice(): LockNotice? = when (this) {
     FingerprintOutcome.Unlocked, FingerprintOutcome.Cancelled, FingerprintOutcome.InProgress, is FingerprintOutcome.UnlockFailed -> null
     is FingerprintOutcome.NotAvailable -> LockNotice("The fingerprint cannot be used: $reason.", isProblem = true)
-    FingerprintOutcome.NothingStored -> LockNotice("Type the password once to set up the fingerprint.", isProblem = false)
+    FingerprintOutcome.NothingStored -> setUpByTypingNotice
     FingerprintOutcome.KeyInvalidated ->
         LockNotice("The fingerprints on this phone changed. Type the password to set up the fingerprint again.", isProblem = true)
     FingerprintOutcome.StoredPasswordRejected ->
@@ -40,6 +44,19 @@ internal fun SetUpAgain.notice(): LockNotice = when (this) {
     SetUpAgain.FINGERPRINTS_CHANGED -> FingerprintOutcome.KeyInvalidated.notice()
     SetUpAgain.PASSWORD_REJECTED -> FingerprintOutcome.StoredPasswordRejected.notice()
 }!!
+
+/** The fingerprint is on for the database and nothing is stored yet: the password typed now sets it up (SPEC §5). */
+internal val setUpByTypingNotice = LockNotice("Type the password once to set up the fingerprint.", isProblem = false, fingerprint = true)
+
+/**
+ * The one button beside the password field (SPEC §6.2; keething-spec unlock.lock-screen-keyboard AC3): the fingerprint
+ * while the field is empty and the fingerprint can open the database, or may be offered to one whose fingerprint was never
+ * chosen (unlock.biometric AC4); else Unlock. [offered]: the screen may offer it at all (its file and key file there, not
+ * in the chooser's run). [emptyOpens]: a key file's database not known yet to open without a password: Unlock with the
+ * field empty tries its key file alone, so it keeps its place, and there is no password to set the fingerprint up with.
+ */
+internal fun fingerprintBesideField(biometric: BiometricState, offered: Boolean, typed: Boolean, emptyOpens: Boolean = false): Boolean =
+    offered && !typed && (biometric.canUnlock || (biometric.canAsk && !emptyOpens))
 
 /** The fingerprint waits while the password is due (SPEC §5): the screen says why it is not offered. */
 internal fun passwordDueNotice(days: Int): LockNotice =

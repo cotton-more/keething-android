@@ -102,7 +102,7 @@ class DatabaseListTest {
             DatabaseList.STORE_KEY,
             """
             {"version":2,"current":"x","future":true,"databases":[{"id":"x","path":"/a/X.kdbx","colour":"teal","name":null},
-            {"id":"y","path":"/b/Y.kdbx","keyFilePath":"/k/y.keyx","useBiometric":true,"opensWithoutPassword":true,"name":"Why",
+            {"id":"y","path":"/b/Y.kdbx","keyFilePath":"/k/y.keyx","useBiometric":true,"fingerprintAsked":true,"opensWithoutPassword":true,"name":"Why",
             "lastOpened":1800000000.5,"inWindow":true,"checkedInChooser":false}]}
             """.trimIndent(),
         )
@@ -112,9 +112,9 @@ class DatabaseListTest {
         assertEquals(listOf("x", "y"), list.records.map { it.id.value })
         val x = assertNotNull(list.record(DatabaseId("x")))
         assertEquals(DatabaseRecord(DatabaseId("x"), FileLocation.ByPath("/a/X.kdbx")), x)
-        assertTrue(x.checkedInChooser)
+        assertTrue(x.checkedInChooser && !x.fingerprintAsked)
         val y = assertNotNull(list.record(DatabaseId("y")))
-        assertTrue(y.useBiometric && y.opensWithoutPassword && y.isPasswordless && y.inWindow && !y.checkedInChooser)
+        assertTrue(y.useBiometric && y.fingerprintAsked && y.opensWithoutPassword && y.isPasswordless && y.inWindow && !y.checkedInChooser)
         assertEquals("Why", y.displayName)
         assertEquals(Instant.ofEpochMilli(1_800_000_000_500), y.lastOpened)
         assertEquals(DatabaseId("x"), list.currentId)

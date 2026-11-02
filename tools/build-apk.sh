@@ -5,7 +5,7 @@
 #              `security add-generic-password -a "$USER" -s keething-apk-keystore -w`); else apksigner asks for it.
 #   --install  also installs it with adb (the device in ANDROID_SERIAL, or the only one connected).
 #   folder     where the APK lands; else KEETHING_APK_DIR (a folder that syncs to the phone, say), else ~/Downloads.
-# The APK is named Keething-<version>-<commit>.apk.
+# The APK is named Keething-<version>-<commit>.apk, -<commit>-dirty with uncommitted changes.
 set -e
 install=
 dir=${KEETHING_APK_DIR:-$HOME/Downloads}
@@ -28,7 +28,8 @@ fi
 ./gradlew -q assembleRelease
 tools=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
 version=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
-out=$dir/Keething-$version-$(git rev-parse --short HEAD).apk
+# Uncommitted changes: -dirty, so it never takes the name of the commit's own build.
+out=$dir/Keething-$version-$(git rev-parse --short HEAD)$([[ -z $(git status --porcelain) ]] || echo -dirty).apk
 aligned=$(mktemp -d)/aligned.apk
 $tools/zipalign -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk $aligned
 # Through the environment, never the command line (ps shows arguments).

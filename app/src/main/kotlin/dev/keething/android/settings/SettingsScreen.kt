@@ -291,8 +291,8 @@ private fun FingerprintSetting(container: AppContainer) {
     val problem = deleteFailure?.let { "The stored passwords could not be deleted: $it." }
     Text(
         problem ?: unavailable?.let { "Not available: ${it.reason}." }
-            ?: "Each database whose Use fingerprint is on opens with it: turn it on under its password on the lock screen, " +
-                "or on its page in Databases. Turning this off deletes all their stored passwords.",
+            ?: "Each database whose Use fingerprint is on opens with it: its lock screen offers it once, by the fingerprint " +
+                "beside the password, and its page in Databases turns it on or off. Turning this off deletes all their stored passwords.",
         style = MaterialTheme.typography.bodyMedium,
         color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )

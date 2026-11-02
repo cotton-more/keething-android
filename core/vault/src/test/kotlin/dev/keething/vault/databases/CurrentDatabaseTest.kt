@@ -706,10 +706,22 @@ class CurrentDatabaseTest {
         useBiometric: Boolean = false,
         keyFilePath: String? = null,
         lockedSince: Boolean = false,
+        fingerprintChosen: Boolean = useBiometric,
     ): CurrentDatabase.Created {
         files[path] = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
         val typed = Secret.of("pw")
-        return databases.created(path, keyFilePath, useBiometric, key, typed) { lockedSince }.also { typed.wipe() }
+        return databases.created(path, keyFilePath, useBiometric, key, typed, fingerprintChosen) { lockedSince }.also { typed.wipe() }
+    }
+
+    // spec: unlock.biometric/AC4
+    @Test
+    fun aDatabaseMadeWithTheFingerprintOfferedHasItChosenEitherWay() = runTest {
+        val f = Fixture(this)
+        val declined = f.create("/a/Declined.kdbx", fingerprintChosen = true)
+        val notOffered = f.create("/a/NotOffered.kdbx")
+
+        assertTrue(assertNotNull(f.list.record(declined.id)).fingerprintAsked, "unchecked on the form: no, not asked again")
+        assertFalse(assertNotNull(f.list.record(notOffered.id)).fingerprintAsked, "the app's switch off: never offered")
     }
 
     @Test

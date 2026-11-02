@@ -28,8 +28,10 @@ public enum class SetUpAgain { FINGERPRINTS_CHANGED, PASSWORD_REJECTED }
 public data class BiometricState(
     /** The app's switch (Settings); off until it is turned on (SPEC §5). */
     val appEnabled: Boolean,
-    /** The database's own Use fingerprint (its page, "Use fingerprint next time"). */
+    /** The database's own Use fingerprint (its page, the lock screen's question). */
     val databaseEnabled: Boolean,
+    /** Its fingerprint was chosen, or not: the lock screen does not ask it again (keething-spec unlock.biometric AC4). */
+    val asked: Boolean = false,
     /** It opens with its key file alone: the fingerprint opens it with nothing stored, and it is never due. */
     val passwordless: Boolean = false,
     /** Null until the first [BiometricUnlock.refresh]. */
@@ -59,6 +61,12 @@ public data class BiometricState(
 
     /** The lock screen offers the fingerprint. */
     public val canUnlock: Boolean get() = isSetUp && !passwordDue
+
+    /**
+     * The lock screen offers it to a database whose fingerprint was never chosen: its button asks once whether to use it
+     * (keething-spec unlock.biometric AC4). The app's switch allows it, the phone has a strong biometric.
+     */
+    public val canAsk: Boolean get() = appEnabled && !databaseEnabled && !asked && availability == BiometricAvailability.Available
 
     public companion object {
         public const val DEFAULT_REMINDER_DAYS: Int = 14
@@ -152,6 +160,7 @@ public class BiometricUnlock(
         return BiometricState(
             appEnabled = setupState.enabled,
             databaseEnabled = record?.useBiometric == true,
+            asked = record?.fingerprintAsked == true,
             passwordless = record?.isPasswordless == true,
             availability = setupState.availability,
             stored = id in setupState.stored,
@@ -172,10 +181,17 @@ public class BiometricUnlock(
     }
 
     /**
-     * The lock screen's "Use fingerprint next time": this database's own switch ([BiometricSetup.setUseBiometric]),
-     * offered while the app's is on. Returns why a stored password could not be deleted, or null.
+     * The lock screen's question answered Use fingerprint: this database's own switch ([BiometricSetup.setUseBiometric]),
+     * offered while the app's is on, so the password typed next is stored. Returns why a stored password could not be
+     * deleted, or null.
      */
     public suspend fun useNextTime(on: Boolean): String? = setup.setUseBiometric(id, on).also { publish() }
+
+    /** The lock screen's question answered No: its switch stays off and it is not asked again ([BiometricSetup.decline]). */
+    public fun decline() {
+        setup.decline(id)
+        publish()
+    }
 
     /**
      * The typed password: unlocks, and stores the password when the fingerprint is on for this database and this unlock

@@ -52,7 +52,10 @@ internal class LockViewModel(
 
     private val mutablePasswordWanted = MutableStateFlow(0)
 
-    /** Counts the times the fingerprint prompt was closed without a fingerprint: the password field takes the focus. */
+    /**
+     * Counts the times the password is wanted: the fingerprint prompt closed without a fingerprint, or the fingerprint just
+     * turned on to be set up by typing. The password field takes the focus.
+     */
     val passwordWanted: StateFlow<Int> = mutablePasswordWanted.asStateFlow()
 
     /** On every return to the screen: a fingerprint may have been added or removed. */
@@ -78,13 +81,53 @@ internal class LockViewModel(
         return FileLocation.isReachable(record.file) && record.keyFile?.let(FileLocation::isReachable) != false
     }
 
-    /** The lock screen's "Use fingerprint next time": this database's own switch, so the password typed next is stored. */
-    fun useFingerprint(on: Boolean) {
-        viewModelScope.launch { database.biometric.useNextTime(on)?.let { mutableFingerprintNotice.value = LockNotice("The stored password could not be deleted: $it.", isProblem = true) } }
+    private val mutableAsking = MutableStateFlow(false)
+
+    /** The fingerprint's button asks whether to use it (keething-spec unlock.biometric AC4). */
+    val asking: StateFlow<Boolean> = mutableAsking.asStateFlow()
+
+    /**
+     * The fingerprint's button beside the field: asks for the fingerprint when it can open the database, else asks once
+     * whether to use it for a database whose fingerprint was never chosen.
+     */
+    fun fingerprintTapped() {
+        if (answering) return
+        val state = database.biometric.current()
+        when {
+            state.canUnlock -> viewModelScope.launch { fingerprint() }
+            state.canAsk -> mutableAsking.value = true
+        }
     }
 
-    fun unlockWithFingerprint() {
-        viewModelScope.launch { fingerprint() }
+    /** A Use fingerprint is being applied: its switch is not on yet, and the question is not put again meanwhile. */
+    private var answering = false
+
+    /**
+     * The question's answer: Use fingerprint turns this database's own switch on, so the password typed next is stored
+     * (one that opens with its key file alone has nothing to store: the fingerprint is asked at once); No is kept, and it
+     * is not asked again. Null: the question was put away unanswered, and is asked at the next tap.
+     */
+    fun answer(use: Boolean?) {
+        mutableAsking.value = false
+        // Asked while the app's switch was on and this database's never chosen: an answer that comes after either changed
+        // (the switch turned off meanwhile, a second answer) changes nothing.
+        if (use == null || answering || !database.biometric.current().canAsk) return
+        if (!use) {
+            database.biometric.decline()
+            return
+        }
+        answering = true
+        viewModelScope.launch {
+            try {
+                database.biometric.useNextTime(true)?.let {
+                    mutableFingerprintNotice.value = LockNotice("The stored password could not be deleted: $it.", isProblem = true)
+                    return@launch
+                }
+            } finally {
+                answering = false
+            }
+            if (database.biometric.current().canUnlock) fingerprint() else mutablePasswordWanted.value++
+        }
     }
 
     private suspend fun fingerprint() {

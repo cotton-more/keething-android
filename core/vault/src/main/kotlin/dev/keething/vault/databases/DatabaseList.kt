@@ -49,6 +49,11 @@ public data class DatabaseRecord(
     val color: String? = null,
     /** Its password is stored for the fingerprint at a typed unlock (a fingerprint per database, plan AD5). */
     val useBiometric: Boolean = false,
+    /**
+     * The fingerprint was chosen for it, or not: the lock screen's question answered, or its switch set on its page. The
+     * lock screen asks only a database never chosen (keething-spec unlock.biometric AC4).
+     */
+    val fingerprintAsked: Boolean = false,
     /** The last unlock opened it with its key file and nothing typed: the lock screen shows no password field. */
     val opensWithoutPassword: Boolean = false,
     val lastOpened: Instant? = null,
@@ -164,9 +169,14 @@ public class DatabaseList(
      * (another database whose file is gone): one change, so nothing that follows the list sees the file's grant unused
      * in between (keething-spec databases.saf AC14). The removed one current, the new one is. The removed record, or null.
      */
-    public fun replace(file: FileLocation, keyFile: FileLocation?, useBiometric: Boolean): Pair<DatabaseRecord, DatabaseRecord?> {
+    public fun replace(
+        file: FileLocation,
+        keyFile: FileLocation?,
+        useBiometric: Boolean,
+        fingerprintAsked: Boolean = false,
+    ): Pair<DatabaseRecord, DatabaseRecord?> {
         val old = recordOf(file)
-        val record = DatabaseRecord(makeId(), file, keyFile, useBiometric = useBiometric)
+        val record = DatabaseRecord(makeId(), file, keyFile, useBiometric = useBiometric, fingerprintAsked = fingerprintAsked)
         val left = records.filter { it.id != old?.id }
         change(Databases(left + record, currentId?.takeIf { id -> left.any { it.id == id } } ?: record.id))
         return record to old
@@ -279,6 +289,8 @@ public class DatabaseList(
             record.name?.let { put("name", it) }
             record.color?.let { put("color", it) }
             put("useBiometric", record.useBiometric)
+            // Only once chosen: a list of before is written back as it was.
+            if (record.fingerprintAsked) put("fingerprintAsked", true)
             put("opensWithoutPassword", record.opensWithoutPassword)
             // Seconds since 1970, as the Mac's list keeps its dates.
             record.lastOpened?.let { put("lastOpened", it.toEpochMilli() / 1000.0) }
@@ -310,6 +322,7 @@ public class DatabaseList(
             name = map.field<String>("name"),
             color = map.field<String>("color"),
             useBiometric = map.field<Boolean>("useBiometric") ?: false,
+            fingerprintAsked = map.field<Boolean>("fingerprintAsked") ?: false,
             opensWithoutPassword = map.field<Boolean>("opensWithoutPassword") ?: false,
             lastOpened = map.field<Double>("lastOpened")?.let { Instant.ofEpochMilli(Math.round(it * 1000)) },
             inWindow = map.field<Boolean>("inWindow") ?: false,

@@ -25,8 +25,9 @@ internal suspend fun CurrentDatabase.created(
     useBiometric: Boolean,
     key: DerivedKey,
     password: Secret,
+    fingerprintChosen: Boolean = useBiometric,
     lockedSince: () -> Boolean,
-): CurrentDatabase.Created = created(byPath(path), keyFilePath?.let(::byPath), useBiometric, key, password, lockedSince)
+): CurrentDatabase.Created = created(byPath(path), keyFilePath?.let(::byPath), useBiometric, key, password, fingerprintChosen, lockedSince)
 
 /** The database's path; null for one through a grant. */
 internal val DatabaseRecord.path: String? get() = (file as? FileLocation.ByPath)?.path
