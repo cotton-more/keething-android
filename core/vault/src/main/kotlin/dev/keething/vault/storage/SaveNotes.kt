@@ -5,6 +5,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
+import java.time.Duration
 import java.time.Instant
 import java.time.format.DateTimeParseException
 import java.util.Properties
@@ -19,13 +20,30 @@ import java.util.concurrent.locks.ReentrantLock
  * grant and its path), the save's two files under Syncthing's temporary names, and the new content's size and SHA-256:
  * the content the save had read back and checked with the database's key before writing it, so a file that matches is
  * the whole new database. One file per save in [directory], written and flushed before the save's first step and
- * deleted after its last; a stopped save's note stays, put right, until the app has said so. Blocking file I/O.
+ * deleted after its last; a stopped save's note stays, put right, until the app has said so. Blocking file I/O. In
+ * memory, the times of the files the saves replaced lately (AC6): one for the whole app.
  */
 public class SaveNotes(private val directory: File) {
+    /** Per database (its grant and path), the times of the files its saves replaced lately; under its own lock. */
+    private val replacedTimes = HashMap<String, MutableList<Instant>>()
+
     /** A save of the database at [path] in the grant [folder], begun at [begun], is about to touch it: noted and flushed first. */
     internal fun begin(folder: String, path: String, temporary: String, aside: String, bytes: ByteArray, begun: Instant): SaveNote =
         SaveNote(File(directory, "${UUID.randomUUID()}$SUFFIX"), folder, path, begun, bytes.size.toLong(), digest(bytes), temporary, aside)
             .also { it.write() }
+
+    /**
+     * A save of the database at [path] in the grant [folder] replaces a file whose time was [replaced]: the times of the
+     * files the saves before it replaced, kept until a minute past each, which a sync app that has not yet seen those
+     * saves still holds as the database's (keething-spec databases.saf AC6). [replaced] is kept for the saves after it.
+     */
+    internal fun replacing(folder: String, path: String, replaced: Instant, now: Instant): List<Instant> = synchronized(replacedTimes) {
+        val times = replacedTimes.getOrPut(key(folder, path)) { mutableListOf() }
+        times.removeAll { it + REPLACED_TIME_KEPT < now }
+        val earlier = times.filter { it != replaced }
+        if (replaced !in times) times += replaced
+        earlier
+    }
 
     /** What saves of the database at [path] in the grant [folder] left, the last begun last; a note that cannot be read is left alone. */
     internal fun left(folder: String, path: String): List<SaveNote> =
@@ -77,11 +95,14 @@ public class SaveNotes(private val directory: File) {
         private const val STRAY = "stray"
         private const val STATE = "state"
         private const val SAID = "said"
+        private val REPLACED_TIME_KEPT = Duration.ofMinutes(1)
 
         private val locks = ConcurrentHashMap<String, ReentrantLock>()
 
         /** One read or save of the database at [path] in the grant [folder] at a time in the process, however many stores reach it. */
-        fun lockOf(folder: String, path: String): ReentrantLock = locks.computeIfAbsent("$folder\u0000$path") { ReentrantLock() }
+        fun lockOf(folder: String, path: String): ReentrantLock = locks.computeIfAbsent(key(folder, path)) { ReentrantLock() }
+
+        private fun key(folder: String, path: String) = "$folder\u0000$path"
 
         fun digest(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     }

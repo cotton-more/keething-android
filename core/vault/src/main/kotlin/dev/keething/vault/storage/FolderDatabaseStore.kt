@@ -91,11 +91,12 @@ public class FolderDatabaseStore(
     override fun replace(bytes: ByteArray, expected: FileVersion?): Unit = lock.withLock {
         val replaced = folder.version(path) ?: throw NoSuchFileException(path, null, "the database is not there")
         if (expected != null && replaced != expected) throw DatabaseChangedException("$fileName changed since it was read")
-        waitForSyncthing(replaced.modified)
+        val earlier = notes.replacing(folder.id, path, replaced.modified, clock.now())
+        val cleared = waitClearOf(replaced.modified, earlier)
         val note = notes.begin(folder.id, path, temporaryFileName(), temporaryFileName(), bytes, clock.now())
         try {
-            // 1. The new file, flushed, with a time Syncthing tells from the replaced one's.
-            writeNew(note, bytes, replaced.modified)
+            // 1. The new file, flushed, with a time a sync app tells from the replaced one's and the earlier ones'.
+            writeNew(note, bytes, replaced.modified, earlier, cleared)
             // A sync that replaced the database meanwhile keeps its file; the save is made again on it.
             if (folder.version(path) != replaced) throw DatabaseChangedException("$fileName changed during the save")
             // 2. The database aside: the very file the save began from, or a sync renamed its own in at the last moment.
@@ -139,15 +140,16 @@ public class FolderDatabaseStore(
     }
 
     /**
-     * Step 1: the new file in the database's folder under a name Syncthing never sends, flushed, with a time Syncthing
-     * tells from the replaced one's (AC6). The clock said when to write; the file's own time is read back, and the file
-     * written once more, later, when the storage stamped it otherwise (a coarser clock, a slow write): all before the
-     * database is touched.
+     * Step 1: the new file in the database's folder under a name Syncthing never sends, flushed, with a time a sync app
+     * tells from the replaced one's and from the [earlier] ones it may still hold (AC6). The clock said when to write
+     * ([cleared], the times waited for); the file's own time is read back, and the file written once more, later, when
+     * the storage stamped it otherwise (a coarser clock, a slow write): all before the database is touched.
      */
-    private fun writeNew(note: SaveNote, bytes: ByteArray, replaced: Instant) {
+    private fun writeNew(note: SaveNote, bytes: ByteArray, replaced: Instant, earlier: List<Instant>, cleared: List<Instant>) {
+        var times = cleared
         var lag = Duration.ZERO
         repeat(WRITE_ATTEMPTS) { attempt ->
-            if (attempt > 0) waitForSyncthing(replaced, lag)
+            if (attempt > 0) times = waitClearOf(replaced, earlier, lag)
             val made = folder.create(databaseFolder, note.temporary)
             if (made != note.temporary) {
                 note.temporaryIs(made)
@@ -155,11 +157,11 @@ public class FolderDatabaseStore(
             }
             folder.write(inFolder(note.temporary), bytes)
             val written = folder.version(inFolder(note.temporary))?.modified ?: throw IOException("the new file is gone")
-            if (Duration.between(replaced, written).abs() >= SYNCTHING_TIME_WINDOW) return
+            if (times.all { Duration.between(it, written).abs() >= SYNC_TIME_WINDOW }) return
             lag = maxOf(Duration.between(written, clock.now()), Duration.ZERO)
             folder.delete(inFolder(note.temporary))
         }
-        throw IOException("$fileName's new file keeps a time less than 2 s from the one it would replace: Syncthing may not send it")
+        throw IOException("$fileName's new file keeps a time less than 2 s from one the file had: a sync app may not send it")
     }
 
     /** The save is over: its note goes, or says only that its old file is left ([oldLeft]) for the next read to remove. */
@@ -286,22 +288,35 @@ public class FolderDatabaseStore(
     }
 
     /**
-     * Syncthing on Android takes modification times less than 2 s apart for equal, and the provider cannot set a
-     * file's time (AC6): the new file is written once the clock is 2 s past the replaced file's time, waiting at most
-     * 4 s. A little past, and past the [lag] the storage showed: it stamps a file from a coarser clock, behind.
+     * A sync app that tells a change by the size and the modification time takes times less than 2 s apart for equal
+     * (Syncthing on Android does), and the provider cannot set a file's time (AC6): waits until the clock is 2 s from the
+     * [replaced] file's time and from the [earlier] ones, a little past, and past the [lag] the storage showed (it stamps a
+     * file from a coarser clock, behind). Which times it cleared: all, or the replaced one's only when clearing all would
+     * take longer than [LONGEST_WAIT], which it never waits past.
      */
-    private fun waitForSyncthing(replaced: Instant, lag: Duration = Duration.ZERO) {
-        val clear = SYNCTHING_TIME_WINDOW + TIME_MARGIN + lag
+    private fun waitClearOf(replaced: Instant, earlier: List<Instant>, lag: Duration = Duration.ZERO): List<Instant> {
+        val clear = SYNC_TIME_WINDOW + TIME_MARGIN + lag
         val now = clock.now()
-        if (Duration.between(replaced, now).abs() >= clear) return
-        sleep(minOf(Duration.between(now, replaced + clear), LONGEST_WAIT))
+        val times = (listOf(replaced) + earlier).takeIf { Duration.between(now, clearOf(it, clear, now)) <= LONGEST_WAIT }
+            ?: listOf(replaced)
+        val at = clearOf(times, clear, now)
+        if (at > now) sleep(minOf(Duration.between(now, at), LONGEST_WAIT))
+        return times
     }
 
-    /** The saved file's time read back: one Syncthing would take for the replaced one's fails the save, replaced as it is. */
+    /** The first moment from [now] at least [clear] from each of [times]: past the run of their spans that holds [now]. */
+    private fun clearOf(times: List<Instant>, clear: Duration, now: Instant): Instant {
+        var at = now
+        while (true) {
+            at = times.filter { Duration.between(it, at).abs() < clear }.maxOfOrNull { it + clear } ?: return at
+        }
+    }
+
+    /** The saved file's time read back: one a sync app would take for the replaced one's fails the save, replaced as it is. */
     private fun checkTime(replaced: Instant) {
         val saved = folder.version(path)?.modified ?: throw IOException("$fileName is gone right after the save")
-        if (Duration.between(replaced, saved).abs() < SYNCTHING_TIME_WINDOW) {
-            throw IOException("$fileName was saved at $saved, less than 2 s from the file it replaced ($replaced): Syncthing may not send it")
+        if (Duration.between(replaced, saved).abs() < SYNC_TIME_WINDOW) {
+            throw IOException("$fileName was saved at $saved, less than 2 s from the file it replaced ($replaced): a sync app may not send it")
         }
     }
 
@@ -405,9 +420,11 @@ public class FolderDatabaseStore(
     public companion object {
         private const val READ_ATTEMPTS = 3
         private const val WRITE_ATTEMPTS = 2
-        private val SYNCTHING_TIME_WINDOW = Duration.ofSeconds(2)
+        private val SYNC_TIME_WINDOW = Duration.ofSeconds(2)
         private val TIME_MARGIN = Duration.ofMillis(50)
-        private val LONGEST_WAIT = Duration.ofSeconds(4)
+
+        /** The replaced file's span and an earlier time's, met end to end: about 6 s. */
+        private val LONGEST_WAIT = (SYNC_TIME_WINDOW + TIME_MARGIN).multipliedBy(3)
 
         /**
          * Syncthing never scans or sends `.syncthing.*.tmp` files (they are its own downloads), so the save's files

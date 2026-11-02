@@ -496,14 +496,16 @@ class FolderDatabaseStoreTest {
     }
 
     @Test
-    fun aDatabaseFromAClockRunningAheadIsWaitedForAtMostFourSeconds() {
+    fun aDatabaseFromAClockRunningAheadIsWaitedForAtMostAboutFourSeconds() {
         val replacedAt = time.now().plusMillis(1990)
         folder.put(DATABASE, old, replacedAt)
 
         store.replace(new)
 
+        val waited = time.slept()
         assertTrue(Duration.between(replacedAt, folder.versionOf(DATABASE)!!.modified) >= TWO_SECONDS)
-        assertTrue(time.slept() <= Duration.ofSeconds(4), "waited ${time.slept()}")
+        // Its 2 s on either side, and the margin past them.
+        assertTrue(waited <= Duration.ofMillis(4100), "waited $waited")
     }
 
     @Test
@@ -516,6 +518,85 @@ class FolderDatabaseStoreTest {
         val second = folder.versionOf(DATABASE)!!.modified
 
         assertTrue(Duration.between(first, second) >= TWO_SECONDS, "$first, then $second")
+    }
+
+    @Test
+    fun aSecondSaveBeforeASyncAppSawTheFirstStaysTwoSecondsFromTheFileTheFirstReplaced() {
+        // From a device whose clock runs 4 s ahead: the sync app holds that time until it scans the first save.
+        val synced = time.now().plusSeconds(4)
+        folder.put(DATABASE, old, synced)
+
+        store.replace(new)
+        val first = folder.versionOf(DATABASE)!!.modified
+        time.slept()
+        store.replace(old)
+        val second = folder.versionOf(DATABASE)!!.modified
+        val waited = time.slept()
+
+        assertTrue(Duration.between(first, second) >= TWO_SECONDS, "$first, then $second")
+        assertTrue(Duration.between(synced, second).abs() >= TWO_SECONDS, "the synced file's $synced, then $second")
+        assertTrue(waited <= Duration.ofMillis(6200), "waited $waited")
+    }
+
+    @Test
+    fun anEarlierFilesTimeIsKeptClearOfByTheNewFilesOwnTime() {
+        folder.stampLag = Duration.ofMillis(100)
+        val synced = time.now().plusMillis(3900)
+        folder.put(DATABASE, old, synced)
+
+        store.replace(new)
+        store.replace(old)
+
+        val second = folder.versionOf(DATABASE)!!.modified
+        assertTrue(Duration.between(synced, second).abs() >= TWO_SECONDS, "the synced file's $synced, then $second")
+        assertEquals(listOf("Personal.kdbx"), folder.names("Sync"))
+    }
+
+    @Test
+    fun theTimesOfTheFilesSavesReplacedAreKeptForEveryStoreOfTheDatabaseOverTheSameNotes() {
+        val synced = time.now().plusSeconds(4)
+        folder.put(DATABASE, old, synced)
+        val notes = SaveNotes(notesDirectory)
+
+        FolderDatabaseStore(folder, DATABASE, notes, time, time::sleep).replace(new)
+        FolderDatabaseStore(folder, DATABASE, notes, time, time::sleep).replace(old)
+
+        val second = folder.versionOf(DATABASE)!!.modified
+        assertTrue(Duration.between(synced, second).abs() >= TWO_SECONDS, "the synced file's $synced, then $second")
+    }
+
+    @Test
+    fun theTimesOfTheFilesAnotherDatabasesSavesReplacedAreNotWaitedFor() {
+        val other = "Sync/Other.kdbx"
+        val notes = SaveNotes(notesDirectory)
+        folder.put(other, old, time.now().plusSeconds(4))
+        FolderDatabaseStore(folder, other, notes, time, time::sleep).replace(new)
+        // Within 2 s of the time the other database's file had.
+        time.sleep(Duration.ofSeconds(2))
+        time.slept()
+        folder.put(DATABASE, old, earlier)
+
+        FolderDatabaseStore(folder, DATABASE, notes, time, time::sleep).replace(new)
+
+        assertEquals(Duration.ZERO, time.slept())
+    }
+
+    @Test
+    fun earlierTimesTooCloseToClearWithinAboutSixSecondsLeaveTheReplacedFileOnlyToClear() {
+        folder.put(DATABASE, old, time.now().plusSeconds(4))
+        store.replace(new)
+        folder.put(DATABASE, theirs, time.now().plusSeconds(8))
+        store.replace(new)
+        val replacedAt = folder.versionOf(DATABASE)!!.modified
+        time.slept()
+
+        // The replaced file's 2 s, the first synced file's and the second's meet: 10 s to clear them all.
+        store.replace(old)
+
+        val waited = time.slept()
+        assertTrue(Duration.between(replacedAt, folder.versionOf(DATABASE)!!.modified) >= TWO_SECONDS)
+        assertTrue(waited <= Duration.ofMillis(6200), "waited $waited")
+        assertEquals(listOf("Personal.kdbx"), folder.names("Sync"))
     }
 
     @Test
