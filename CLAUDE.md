@@ -41,10 +41,12 @@ first change there.
   tests are the reference.
 - Finishing a feature or changing behaviour: in the same piece of work update the feature file and
   `coverage/android/<area>.md` (`test` / `code` / `partial` / `no`, with the file and `#symbol` that shows it), or put
-  `// spec: <id>/AC<n>` in the test that checks it. Then run `./status --index` and `./status --check` there; the
-  check must pass.
-- A change that alters a criterion: edit the criterion, and set the macOS line back to `partial` or `no` with a note
-  saying what changed.
+  `// spec: <id>/AC<n>` in the test that checks it. Stamp the criteria whose Android evidence was checked against
+  their wording (`task spec:stamp -- <id or id/ACn>…`), then run `./status --index` and `./status --check` there;
+  the check must pass. It fails on a covered criterion reworded since its stamp ("changed since covered": check the
+  evidence against the new wording, fix the line, stamp) and on a new line or `spec:` comment not stamped yet.
+- A change that alters a criterion: edit the criterion, set the macOS line back to `partial` or `no` with a note
+  saying what changed, and stamp it for Android only (`task spec:stamp -- <id>/AC<n>`).
 - A bug that breaks a criterion goes on that criterion's coverage line (`partial` / `no` with a note), not into a
   separate list. A small thing no criterion covers goes to `checks/android.md`, or becomes a criterion or an idea.
   `OPEN.md` keeps only what needs the owner's decision.

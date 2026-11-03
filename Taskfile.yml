@@ -152,6 +152,12 @@ tasks:
     cmds:
       - ./status --ideas
 
+  spec:stamp:
+    desc: "Stamp criteria checked on Android: task spec:stamp -- <id or id/ACn>..."
+    dir: '{{.SPEC}}'
+    cmds:
+      - ./status --stamp --platform android {{.CLI_ARGS}}
+
   spec:check:
     desc: The spec's consistency check (must pass after a change there)
     dir: '{{.SPEC}}'
