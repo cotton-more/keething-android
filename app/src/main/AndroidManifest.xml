@@ -16,6 +16,13 @@
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
+    <!--
+    CameraX's view brings camera-video and with it media3, which asks for the network's state for streaming. The app
+    records no video and has no network (keething-spec app.packaging AC3).
+    -->
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE"
+        tools:node="remove" />
 
     <!--
     No storage permission (keething-spec databases.saf AC1): every database and key file is reached through a folder or

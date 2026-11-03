@@ -787,7 +787,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
     for byte the attachment; after the lock button Chrome's tab of that file reloaded as "file not found".
     Files by Google's text preview takes the intent and closes at once, also for a `.txt` (it does not open
     other apps' `content://` text); the other apps open it.
-- Network: none (no `INTERNET` permission at all in v1).
+- Network: none (no `INTERNET` permission at all in v1, nor `ACCESS_NETWORK_STATE`, which CameraX's media3 would add and
+  the manifest removes).
 - Camera: only to read the code of a sharing request, answer or envelope (§10); the permission is asked when Read a code
   first opens, and reading a picture or pasting works without it.
 
