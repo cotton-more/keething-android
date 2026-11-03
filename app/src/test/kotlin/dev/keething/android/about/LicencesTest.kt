@@ -20,4 +20,13 @@ class LicencesTest {
         assertTrue(text.contains("GNU GENERAL PUBLIC LICENSE") && text.contains("Version 3, 29 June 2007"))
         assertEquals("GPL-3.0-or-later", LICENCE)
     }
+
+    // spec: app.security-policy/AC4
+    @Test
+    fun theSecurityPolicyIsTheRepositorysAndSaysWhereToReport() {
+        val policy = File("../SECURITY.md").readText()
+        assertTrue(policy.contains("Do not open a public issue"))
+        assertTrue(policy.contains("pug-jackpot-bok@duck.com"))
+        assertEquals("SECURITY.md", SECURITY_ASSET)
+    }
 }

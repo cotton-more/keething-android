@@ -66,6 +66,9 @@ internal val THIRD_PARTY = listOf(
 /** The app's own licence (SPEC §6.2 "About"): its SPDX name, its text the asset Gradle copies from the repository's LICENSE. */
 internal const val LICENCE = "GPL-3.0-or-later"
 internal const val LICENCE_ASSET = "LICENSE.txt"
+
+/** How to report a vulnerability (keething-spec app.security-policy): the repository's SECURITY.md, copied by Gradle. */
+internal const val SECURITY_ASSET = "SECURITY.md"
 internal const val SOURCE = "https://github.com/cotton-more/keething-android"
 
 internal fun readAsset(assets: AssetManager, path: String): String =

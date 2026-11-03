@@ -1462,11 +1462,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   with the time and the configuration cache keeps no time of its own; the time is SOURCE_DATE_EPOCH's when it is set
   (F-Droid's reproducible build), else the build's. Under them Licence "GPL-3.0-or-later" (a tap shows its text, the
   asset `LICENSE.txt` Gradle copies from the repository's LICENSE) and Source "github.com/cotton-more/keething-android"
-  (a tap opens it); then **Third-party licences**: each part in the app with what it is for, its authors and its
+  (a tap opens it), and Security "How to report a vulnerability" (a tap shows SECURITY.md, the repository's, copied by
+  Gradle into the asset `SECURITY.md` as LICENSE is; keething-spec app.security-policy); then **Third-party licences**: each part in the app with what it is for, its authors and its
   licence (the EFF word list's credit said there, as CC BY asks), a tap showing the text of `assets/licenses`
   (`THIRD_PARTY`; a test keeps the list and the folder the same). Then **Report a problem** (also in Settings' About;
   plans/android-release-1.0.md T5): the browser opens a new issue of `github.com/cotton-more/keething-android` whose
-  body asks what happened, what was expected and the steps, then says the version, the commit, Android (and its API
+  body says first, in a comment the form shows while it is written, that a security problem goes to SECURITY.md, then asks what happened, what was expected and the steps, then says the version, the commit, Android (and its API
   level) and the phone's maker and model (`ProblemReport`). Nothing from a database, nothing sent by the app (it has no
   network): the person writes and sends the issue. Crashes: the system's dialog for now.
 - **Launcher shortcuts** (long press on the icon; static, `res/xml/shortcuts.xml`): "Codes", then "Note from

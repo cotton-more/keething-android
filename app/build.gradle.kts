@@ -88,10 +88,16 @@ android {
     }
 }
 
-/** The app's own licence in About (SPEC §6.2 "About"): the repository's LICENSE, as the asset `LICENSE.txt`. */
-abstract class LicenseAsset : DefaultTask() {
+/**
+ * The repository's LICENSE and SECURITY.md, shown by About (SPEC §6.2 "About"), as the assets `LICENSE.txt` and
+ * `SECURITY.md`: the app's text and the repository's stay the same.
+ */
+abstract class RepositoryTexts : DefaultTask() {
     @get:InputFile
     abstract val license: RegularFileProperty
+
+    @get:InputFile
+    abstract val security: RegularFileProperty
 
     @get:OutputDirectory
     abstract val output: DirectoryProperty
@@ -99,15 +105,17 @@ abstract class LicenseAsset : DefaultTask() {
     @TaskAction
     fun copy() {
         license.get().asFile.copyTo(output.file("LICENSE.txt").get().asFile, overwrite = true)
+        security.get().asFile.copyTo(output.file("SECURITY.md").get().asFile, overwrite = true)
     }
 }
 
 androidComponents {
     onVariants { variant ->
-        val license = tasks.register<LicenseAsset>("${variant.name}LicenseAsset") {
-            this.license.set(rootProject.layout.projectDirectory.file("LICENSE"))
+        val texts = tasks.register<RepositoryTexts>("${variant.name}RepositoryTexts") {
+            license.set(rootProject.layout.projectDirectory.file("LICENSE"))
+            security.set(rootProject.layout.projectDirectory.file("SECURITY.md"))
         }
-        variant.sources.assets?.addGeneratedSourceDirectory(license, LicenseAsset::output)
+        variant.sources.assets?.addGeneratedSourceDirectory(texts, RepositoryTexts::output)
         val info = tasks.register<BuildInfo>("${variant.name}BuildInfo") {
             versionName.set(android.defaultConfig.versionName)
             versionCode.set(android.defaultConfig.versionCode)

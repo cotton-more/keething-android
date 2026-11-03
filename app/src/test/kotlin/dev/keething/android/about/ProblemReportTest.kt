@@ -16,8 +16,17 @@ class ProblemReportTest {
         assertTrue(url.startsWith("https://github.com/cotton-more/keething-android/issues/new?body="))
         assertFalse(url.contains('+'), "spaces are %20, not +")
         val body = URLDecoder.decode(url.substringAfter("body="), Charsets.UTF_8)
-        assertTrue(body.startsWith("**What happened**"))
+        assertTrue(body.contains("**What happened**"))
         assertTrue(body.endsWith("---\nKeething 0.0.1 · build 1, commit becc85f with uncommitted changes\nAndroid 16 (API 36)\nGoogle Pixel 6"))
+    }
+
+    // spec: app.security-policy/AC5
+    @Test
+    fun aVulnerabilityIsSentToThePolicyFirst() {
+        val body = URLDecoder.decode(ProblemReport.url(BuildInfo.parse(""), "16", 36, "Google Pixel 6").substringAfter("body="), Charsets.UTF_8)
+
+        assertTrue(body.lines().first().contains("SECURITY.md"))
+        assertTrue(body.indexOf("SECURITY.md") < body.indexOf("**What happened**"))
     }
 
     @Test

@@ -65,17 +65,21 @@ internal fun AboutScreen(onClose: () -> Unit) {
     val shown = text
     when {
         shown != null -> LicenceTextScreen(
-            title = THIRD_PARTY.firstOrNull { "licenses/${it.file}" == shown }?.name ?: "Licence",
+            title = when (shown) {
+                LICENCE_ASSET -> "Licence"
+                SECURITY_ASSET -> "Security policy"
+                else -> THIRD_PARTY.firstOrNull { "licenses/${it.file}" == shown }?.name ?: "Licence"
+            },
             asset = shown,
             onClose = { text = null },
         )
         thirdParty -> ThirdPartyScreen(onOpen = { text = "licenses/${it.file}" }, onClose = { thirdParty = false })
-        else -> AboutMain(onLicence = { text = LICENCE_ASSET }, onThirdParty = { thirdParty = true }, onClose = onClose)
+        else -> AboutMain(onLicence = { text = LICENCE_ASSET }, onSecurity = { text = SECURITY_ASSET }, onThirdParty = { thirdParty = true }, onClose = onClose)
     }
 }
 
 @Composable
-private fun AboutMain(onLicence: () -> Unit, onThirdParty: () -> Unit, onClose: () -> Unit) {
+private fun AboutMain(onLicence: () -> Unit, onSecurity: () -> Unit, onThirdParty: () -> Unit, onClose: () -> Unit) {
     BackHandler(onBack = onClose)
     val context = LocalContext.current
     val info = remember { BuildInfo.read(context.assets) }
@@ -116,6 +120,7 @@ private fun AboutMain(onLicence: () -> Unit, onThirdParty: () -> Unit, onClose: 
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).padding(vertical = 8.dp)) {
                 Fact("Licence", LICENCE, Modifier.clickable(onClick = onLicence))
                 Fact("Source", SOURCE.removePrefix("https://"), Modifier.clickable { openInBrowser(context, SOURCE) })
+                Fact("Security", "How to report a vulnerability", Modifier.clickable(onClick = onSecurity))
             }
             Spacer(Modifier.height(24.dp))
             FilledTonalButton(onClick = onThirdParty) { Text("Third-party licences") }

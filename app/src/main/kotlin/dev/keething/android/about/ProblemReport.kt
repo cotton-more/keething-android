@@ -18,6 +18,8 @@ internal object ProblemReport {
     /** The new issue's address: a body asking what happened, then the build and the phone. */
     fun url(info: BuildInfo, android: String, sdk: Int, device: String): String {
         val body = """
+            |<!-- A security problem? Not here: see SECURITY.md (or About › Security) to report it privately. -->
+            |
             |**What happened**
             |
             |
