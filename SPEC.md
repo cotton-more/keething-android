@@ -1289,13 +1289,15 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     15, 18, 21 or 24 words); an Electrum seed (Electrum's seed version, its HMAC-SHA512) is named as one, not failed.
     Numbers and commas written between the words are left out, words of the Latin lists count without their
     accents, and a word is shown as its list spells it. The passphrase (the "25th word") is a line on the plate with
-    its own eye. **Neither is ever copied** (the clipboard is where phrases are stolen): no copy button, no tap to
-    copy, no QR code, no share; in the editor its value is masked and its text menu has no Copy, Cut or the other
-    apps' items ("Ask Gemini", "Translate"), only Paste and Select all; the history masks it even when not
-    protected. **Word by word** is a full-screen view, a word at a time, large, with its number, the words before
+    its own eye. **Neither is ever copied** (the clipboard is where phrases are stolen), wherever it stands (a
+    passphrase in an entry that is no wallet too): no copy button, no tap to copy, no QR code, no share; in the editor its value is masked and its text menu has no Copy, Cut or the other
+    apps' items ("Ask Gemini", "Translate"), only Paste and Select all, and a new field of either type starts
+    protected; the history masks it even when not protected. **Word by word** is a full-screen view, a word at a time, large, with its number, the words before
     and after it, a bar of where it is, Back / Next and sideways swipes (read from the vault by the entry's id, as
-    the password's views). An extended key typed `crypto.xpub` that is private (`xprv…`) is masked and never copied
-    too, with a note saying why. Then the first unprotected receiving address as a label: the network read from the
+    the password's views). An extended key typed `crypto.xpub` that is private is masked and never copied too, with a
+    note saying why: by its prefix (`xprv…`, a typo or not) or by what it holds (byte 45 `00`: a private key behind
+    `xpub…`, as BIP-32's test vector 5 writes one; a key passes only when that byte is the kind its prefix says).
+    Failing closed, a protected one is not read to know: masked and never copied, without the note. Then the first unprotected receiving address as a label: the network read from the
     address's format with its badge (`CryptoAddress`: Bitcoin `1…`, `3…`, `bc1q…`, `bc1p…` with Base58Check or
     Bech32 / Bech32m; its testnet; Litecoin; Dogecoin; Ethereum `0x…` with EIP-55's mixed-case checksum (Keccak-256),
     "or another EVM network"; Tron `T…`; Solana by its shape, which has no checksum), the kind ("Native SegWit
@@ -1933,13 +1935,13 @@ needed each time, come later (ROADMAP).
   through once loses the wallet. Untyped, failing closed, by the value, protected ones too: what the offer to type
   calls a phrase (a value whose BIP-39 or Electrum check passes, or a phrase's name with words of a list or a
   protected value; then also the field it would type as the passphrase) in a custom field, the password or the
-  notes as a whole; an extended private key by its checksum; a WIF private key (Base58Check, version 0x80 or
+  notes as a whole; an extended private key by its prefix or what it holds, checksum or not; a WIF private key (Base58Check, version 0x80 or
   0xEF). Not caught: a phrase inside longer notes; an Ethereum private key (64 hex digits look like any other
   secret). An extended public key (`crypto.xpub`) is off to start with: "With it, <name> sees every address and
   balance of the wallet, past and future, and one leaked key of any of its addresses opens them all" (BIP-32: an
   xpub and any one child private key give every key of the account). Addresses and the derivation path go as any
   field. No format change: an older phone could still send a phrase; received, a field typed `crypto.seed` or
-  `crypto.passphrase` has no copy button, as on the card. Sealed with HPKE (RFC 9180, base mode: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM),
+  `crypto.passphrase`, or a private or protected `crypto.xpub`, has no copy button, as on the card. Sealed with HPKE (RFC 9180, base mode: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM),
   `info` "Keething answer v1" followed by the request's whole SHA-256: it opens only for the very request it
   answers, its name, reason and validity included. Making it removes the request on the sender's phone and keeps
   its id until it expires: one answer per request, the same request read again is "Answered already". The answer

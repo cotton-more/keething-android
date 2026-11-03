@@ -152,6 +152,28 @@ class CryptoWalletTest {
         assertNull(DerivationPath.describe("44/0/0"))
     }
 
+    // spec: types.crypto-checks/AC9
+    @Test
+    fun aKeyIsPrivateByWhatItHoldsAndPassesOnlyAsItsPrefixSays() {
+        // BIP-32's test vector 5: the prefix and the key field (byte 45) disagree.
+        val hidden = ExtendedKey.read("xpub661MyMwAqRbcEYS8w7XLSVeEsBXy79zSzH1J8vCdxAZningWLdN3zgtU6LBpB85b3D2yc8sfvZU521AAwdZafEz7mnzBBsz4wKY5fTtTQBm")!!
+        assertTrue(hidden.isPrivate && !hidden.passes, "a private key behind a public prefix is private all the same")
+        val mismatch = ExtendedKey.read("xprv9s21ZrQH143K24Mfq5zL5MhWK9hUhhGbd45hLXo2Pq2oqzMMo63oStZzFGTQQD3dC4H2D5GBj7vWvSQaaBv5cxi9gafk7NF3pnBju6dwKvH")!!
+        assertTrue(mismatch.isPrivate && !mismatch.passes, "a public key behind a private prefix: private by its prefix, no pass")
+        for (text in listOf(
+            "xpub661MyMwAqRbcEYS8w7XLSVeEsBXy79zSzH1J8vCdxAZningWLdN3zgtU6Txnt3siSujt9RCVYsx4qHZGc62TG4McvMGcAUjeuwZdduYEvFn",
+            "xprv9s21ZrQH143K24Mfq5zL5MhWK9hUhhGbd45hLXo2Pq2oqzMMo63oStZzFGpWnsj83BHtEy5Zt8CcDr1UiRXuWCmTQLxEK9vbz5gPstX92JQ",
+            "xpub661MyMwAqRbcEYS8w7XLSVeEsBXy79zSzH1J8vCdxAZningWLdN3zgtU6N8ZMMXctdiCjxTNq964yKkwrkBJJwpzZS4HS2fxvyYUA4q2Xe4",
+            "xprv9s21ZrQH143K24Mfq5zL5MhWK9hUhhGbd45hLXo2Pq2oqzMMo63oStZzFAzHGBP2UuGCqWLTAPLcMtD9y5gkZ6Eq3Rjuahrv17fEQ3Qen6J",
+        )) {
+            assertFalse(ExtendedKey.read(text)!!.passes, "a key field starting 04 or 01: $text")
+        }
+        // BIP-32's test vector 3, its master keys.
+        val xpub = ExtendedKey.read("xpub661MyMwAqRbcFW31YEwpkMuc5THy2PSt5bDMsktWQcFF8syAmRUapSCGu8ED9W6oDMSgv6Zz8idoc4a6mr8BDzTJY47LJhkJ8UB7WEGuduB")!!
+        assertTrue(xpub.passes && !xpub.isPrivate)
+        assertTrue(ExtendedKey.read("xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U")!!.let { it.passes && it.isPrivate })
+    }
+
     // The face
 
     private val phrase = "legal winner thank year wave sausage worth useful legal winner thank yellow"
@@ -197,6 +219,34 @@ class CryptoWalletTest {
         assertEquals("custom-0", crypto.privateKeyRowId)
         val row = card.rows.single()
         assertTrue(row.isConcealed && !row.isCopyable)
+    }
+
+    // spec: types.crypto-wallet/AC3
+    @Test
+    fun aKeyThatDoesNotReadOrIsProtectedIsNeverCopied() {
+        val xprv = "xprv9s21ZrQH143K3h3fDYiay8mocZ3afhfULfb5GX8kCBdno77K4HiA15Tg23wpbeF1pLfs1c5SPmYHrEpTuuRhxMwvKDwqdKiGJS9XFKzUsAF"
+        fun card(value: String, protected: Boolean = false) =
+            EntryCardBuilder.build(typed(Entry("k", customFields = listOf(field("Key", value, protected))), "Key = crypto.xpub"), now, de)
+        for (typo in listOf(xprv.dropLast(3), xprv.take(60), xprv + "xyz" + "x".repeat(10))) {
+            val row = card(typo).rows.single()
+            assertTrue(row.neverCopied && row.isConcealed, "a private key with a typo is still one: $typo")
+        }
+        val vector5 = card("xpub661MyMwAqRbcEYS8w7XLSVeEsBXy79zSzH1J8vCdxAZningWLdN3zgtU6LBpB85b3D2yc8sfvZU521AAwdZafEz7mnzBBsz4wKY5fTtTQBm")
+        assertTrue(vector5.rows.single().neverCopied, "a private key behind xpub")
+        assertNull(vector5.crypto!!.xpub)
+        val hidden = card("zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs", protected = true)
+        assertTrue(hidden.rows.single().let { it.neverCopied && it.isConcealed }, "a protected key is not read to know: fail closed")
+        assertTrue(hidden.crypto!!.xpub == null && hidden.crypto!!.privateKeyRowId == null)
+        assertTrue(card("zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs").rows.single().isCopyable)
+    }
+
+    // spec: types.crypto-wallet/AC4
+    @Test
+    fun aPassphraseWithoutAWalletIsNeverCopiedAllTheSame() {
+        val card = EntryCardBuilder.build(typed(Entry("p", customFields = listOf(field("Words", "harbour-lamp-1987"))), "Words = crypto.passphrase"), now, de)
+        assertNull(card.crypto, "no phrase, address or key: no wallet")
+        val row = card.rows.single()
+        assertTrue(row.neverCopied && row.isConcealed && !row.isCopyable, "the row as any other, masked and never copied")
     }
 
     @Test

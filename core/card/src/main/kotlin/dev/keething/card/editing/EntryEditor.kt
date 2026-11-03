@@ -162,14 +162,11 @@ public class EntryEditor private constructor(
             FieldType.CRYPTO_SEED -> SeedPhrase.read(value)?.takeIf { !it.passes }?.summary()
             // An address of a network not known here is shown as it is, without a warning.
             FieldType.CRYPTO_ADDRESS -> if (CryptoAddress.read(value)?.check == AddressCheck.FAILS) "The address fails its checksum. A typo?" else null
-            FieldType.CRYPTO_XPUB -> {
-                val key = ExtendedKey.read(value)
-                when {
-                    key == null -> null
-                    !key.passes -> "The key fails its checksum. A typo?"
-                    key.isPrivate -> "A private key (${key.prefix}): whoever has it has the wallet. It is shown, never copied."
-                    else -> null
-                }
+            // A private key first: one behind a public prefix (BIP-32's test vector 5) does not pass either.
+            FieldType.CRYPTO_XPUB -> when {
+                ExtendedKey.isPrivate(value) -> "A private key (${value.take(4)}): whoever has it has the wallet. It is shown, never copied."
+                ExtendedKey.read(value)?.passes == false -> "The key fails its checksum. A typo?"
+                else -> null
             }
             FieldType.CRYPTO_PATH -> if (DerivationPath.isPath(value)) null else "Not a derivation path: write it as m/84'/0'/0'."
             else -> null

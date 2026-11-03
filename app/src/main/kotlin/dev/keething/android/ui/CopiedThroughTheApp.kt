@@ -5,9 +5,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.AndroidClipboard
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.nativeClipboardManager
 
 /**
  * What the texts in [content] copy goes to [onCopy] instead of the system's clipboard, so that the app conceals and
@@ -23,9 +25,12 @@ internal fun CopiedThroughTheApp(onCopy: ((String) -> Unit)?, content: @Composab
     CompositionLocalProvider(LocalClipboard provides clipboard, content = content)
 }
 
-/** Takes what a text copies, while [onCopy] gives a taker; reading is the system's. */
-private class AppClipboard(private val platform: Clipboard, private val onCopy: () -> ((String) -> Unit)?) : Clipboard {
-    override val nativeClipboard get() = platform.nativeClipboard
+/**
+ * Takes what a text copies, while [onCopy] gives a taker; reading is the system's. An [AndroidClipboard]: a text field's
+ * menu asks whether there is text to paste through the system's clipboard manager, and refuses (throws) any other kind.
+ */
+private class AppClipboard(private val platform: Clipboard, private val onCopy: () -> ((String) -> Unit)?) : AndroidClipboard {
+    override val clipboardManager get() = platform.nativeClipboardManager
 
     override suspend fun getClipEntry(): ClipEntry? = platform.getClipEntry()
 

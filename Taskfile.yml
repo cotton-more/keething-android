@@ -119,6 +119,14 @@ tasks:
         [[ "$out" == /* ]] || out="{{.USER_WORKING_DIR}}/$out"
         ./gradlew -q --console=plain :core:vault:makeNotesDatabase -Poutput="$out"
 
+  wallet:database:
+    desc: "The wallet's test database (never-copied checks), written by the phone's core: task wallet:database -- <new.kdbx> (password pw; needs keepassxc-cli)"
+    cmds:
+      - |
+        out="{{.CLI_ARGS}}"
+        [[ "$out" == /* ]] || out="{{.USER_WORKING_DIR}}/$out"
+        ./gradlew -q --console=plain :core:vault:makeWalletDatabase -Poutput="$out"
+
   psl:update:
     desc: Fetches a new public suffix list into core/search
     cmds:

@@ -13,6 +13,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.sp
 import dev.keething.android.ui.CopiedThroughTheApp
+import dev.keething.card.CryptoWallet
 import dev.keething.card.editing.EditorLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -923,7 +924,8 @@ private fun FieldEditor(
     var generating by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val type = field.type
-    val masked = field.isProtected || type?.isPassword == true || type?.isNeverCopied == true
+    val neverCopied = CryptoWallet.isNeverCopied(type, field.isProtected, field.value)
+    val masked = field.isProtected || type?.isPassword == true || neverCopied
     val valueFocus = remember { FocusRequester() }
     val bringIntoView = remember { BringIntoViewRequester() }
     if (focusNow) {
@@ -972,8 +974,8 @@ private fun FieldEditor(
             visualTransformation = if (masked) colouredSecretTransformation() else VisualTransformation.None,
             hidden = masked && !revealed,
             secret = masked,
-            // A recovery phrase and its passphrase: no Copy in the field's menu either.
-            copyable = type?.isNeverCopied != true,
+            // A recovery phrase, its passphrase, a private key: no Copy in the field's menu either.
+            copyable = !neverCopied,
             trailingIcon = {
                 Row {
                     if (masked) RevealButton(revealed, "value") { revealed = !revealed }

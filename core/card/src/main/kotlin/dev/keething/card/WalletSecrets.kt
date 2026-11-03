@@ -31,7 +31,7 @@ public object WalletSecrets {
             val kind = when (types.type(field.name)) {
                 FieldType.CRYPTO_SEED -> Kind.PHRASE
                 FieldType.CRYPTO_PASSPHRASE -> Kind.PASSPHRASE
-                FieldType.CRYPTO_XPUB -> if (field.text()?.let(ExtendedKey::read)?.isPrivate == true) Kind.PRIVATE_KEY else null
+                FieldType.CRYPTO_XPUB -> if (field.text()?.let(ExtendedKey::isPrivate) == true) Kind.PRIVATE_KEY else null
                 else -> null
             } ?: field.text()?.let(::inValue) ?: Kind.PHRASE.takeIf { isPhraseByName(field) }
             kind?.let { found[field.name] = it }
@@ -50,10 +50,10 @@ public object WalletSecrets {
     /** What the entry's notes, as a whole, are when they never go; a phrase among other lines is not caught. */
     public fun notes(entry: Entry): Kind? = entry.notes.takeIf { it.isNotBlank() }?.let(::inValue)
 
-    /** A phrase by its check, an extended private key by its checksum, a WIF key. */
+    /** A phrase by its check, an extended private key (by its prefix or what it holds, checksum or not), a WIF key. */
     private fun inValue(text: String): Kind? = when {
         SeedPhrase.read(text)?.passes == true -> Kind.PHRASE
-        ExtendedKey.read(text)?.let { it.isPrivate && it.passes } == true -> Kind.PRIVATE_KEY
+        ExtendedKey.read(text)?.isPrivate == true -> Kind.PRIVATE_KEY
         WifKey.isKey(text) -> Kind.PRIVATE_KEY
         else -> null
     }

@@ -26,9 +26,7 @@ internal object CryptoSection : TypedSection {
         )
         val rows = parts.zip(labels).map { (part, label) ->
             val row = context.row(part.index, part.value, label, ImportedFieldName.displayName(part.value.name))
-            val type = context.interpreter.type(part.value)
-            val privateKey = type == FieldType.CRYPTO_XPUB && part.value.plainText?.let(ExtendedKey::read)?.isPrivate == true
-            if (type?.isNeverCopied == true || privateKey) row.copy(neverCopied = true).concealed() else row
+            if (CryptoWallet.isNeverCopied(part.value, context.interpreter.type(part.value))) row.copy(neverCopied = true).concealed() else row
         }
         return CardSection("crypto", CardSection.Kind.Crypto(wallet), title, rows) to parts.map { it.index }.toSet()
     }
@@ -64,12 +62,26 @@ public data class CryptoWallet(
     val faceRowIds: Set<String>
         get() = setOfNotNull(seedRowId, passphraseRowId, xpub?.rowId, path?.rowId) + addresses.map { it.rowId }
 
-    internal companion object {
-        fun make(
+    public companion object {
+        /**
+         * Never copied wherever it shows (SPEC §6.2): a recovery phrase, its passphrase, and a field typed as an extended
+         * key that holds a private one, or that is protected, so it is not read to know (fail closed).
+         */
+        public fun isNeverCopied(type: FieldType?, isProtected: Boolean, text: String?): Boolean = when (type) {
+            FieldType.CRYPTO_SEED, FieldType.CRYPTO_PASSPHRASE -> true
+            FieldType.CRYPTO_XPUB -> isProtected || text?.let(ExtendedKey::isPrivate) == true
+            else -> false
+        }
+
+        public fun isNeverCopied(field: CustomField, type: FieldType?): Boolean = isNeverCopied(type, field.isProtected, field.plainText)
+
+        internal fun make(
             seed: IndexedValue<CustomField>?, passphrase: IndexedValue<CustomField>?, addresses: List<IndexedValue<CustomField>>,
             xpub: IndexedValue<CustomField>?, path: IndexedValue<CustomField>?, label: (Int) -> String,
         ): CryptoWallet {
+            // A protected key is not read: it is masked and never copied as a row under the face (it may be a private one).
             val key = xpub?.value?.plainText?.trim()?.takeIf { it.isNotEmpty() }?.let { text -> Key(RowIds.custom(xpub.index), label(xpub.index), text, ExtendedKey.read(text)) }
+            val isPrivate = key != null && ExtendedKey.isPrivate(key.text)
             return CryptoWallet(
                 seedRowId = seed?.takeIf { !it.value.isEmpty }?.let { RowIds.custom(it.index) },
                 passphraseRowId = passphrase?.takeIf { !it.value.isEmpty }?.let { RowIds.custom(it.index) },
@@ -78,9 +90,9 @@ public data class CryptoWallet(
                     val text = field.value.plainText?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                     Address(RowIds.custom(field.index), label(field.index), text, CryptoAddress.read(text))
                 },
-                xpub = key?.takeIf { it.read?.isPrivate != true },
+                xpub = key?.takeIf { !isPrivate },
                 path = path?.value?.plainText?.trim()?.takeIf { it.isNotEmpty() }?.let { Path(RowIds.custom(path.index), it, DerivationPath.describe(it)) },
-                privateKeyRowId = key?.takeIf { it.read?.isPrivate == true }?.rowId,
+                privateKeyRowId = key?.takeIf { isPrivate }?.rowId,
             )
         }
     }

@@ -60,10 +60,10 @@ public data class EntryDraft(
     /**
      * A field at the end, of [type]: named after the type at once ("CVC", "CVC 2"; the phone names every type, so
      * the value can be typed first), or without a type and a name, for the user to name (several may wait
-     * unnamed).
+     * unnamed). A recovery phrase and its passphrase start protected.
      */
     public fun addField(type: FieldType? = null): EntryDraft =
-        copy(fields = fields + FieldDraft(nextFieldId(), type?.let { freeFieldName(it.defaultName) } ?: "", "", isProtected = false, typeName = type?.typeName))
+        copy(fields = fields + FieldDraft(nextFieldId(), type?.let { freeFieldName(it.defaultName) } ?: "", "", isProtected = type?.isNeverCopied == true, typeName = type?.typeName))
 
     /** Gives the field [type]; null: none (read by its value). A field without a name gets the type's. */
     public fun withType(id: Int, type: FieldType?): EntryDraft = changeField(id) { field ->

@@ -48,3 +48,11 @@ tasks.register<JavaExec>("makeNotesDatabase") {
     mainClass.set("dev.keething.vault.probe.MakeNotesDatabaseKt")
     args(providers.gradleProperty("output").getOrElse(""))
 }
+
+// The wallet's fictitious test database (never-copied checks), written by the phone's core: `task wallet:database -- <new.kdbx>`.
+tasks.register<JavaExec>("makeWalletDatabase") {
+    description = "A new fictitious database of wallets (password pw) for the phone's checks"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.keething.vault.probe.MakeWalletDatabaseKt")
+    args(providers.gradleProperty("output").getOrElse(""))
+}

@@ -1,5 +1,6 @@
 package dev.keething.sharing.payload
 
+import dev.keething.card.CryptoWallet
 import dev.keething.card.CryptoAddress
 import dev.keething.card.FieldType
 import dev.keething.card.FieldTypes
@@ -116,9 +117,12 @@ public object Receiving {
     public fun isAddress(entry: SharedEntry, field: CustomField): Boolean =
         FieldTypes(entry.fieldTypes).type(field.name) == FieldType.CRYPTO_ADDRESS || field.plainText?.let(CryptoAddress::read) != null
 
-    /** A received field that is never copied, as on the card: a recovery phrase or its passphrase (an older phone may send one). */
+    /**
+     * A received field that is never copied, as on the card: a recovery phrase, its passphrase, a private key typed as
+     * an extended key (an older phone may send one).
+     */
     public fun isNeverCopied(entry: SharedEntry, field: CustomField): Boolean =
-        FieldTypes(entry.fieldTypes).type(field.name)?.isNeverCopied == true
+        CryptoWallet.isNeverCopied(field, FieldTypes(entry.fieldTypes).type(field.name))
 
     /**
      * A new entry's fields for [entry] (SPEC §10): everything it carries, [TAG] added, its one-time code written in the

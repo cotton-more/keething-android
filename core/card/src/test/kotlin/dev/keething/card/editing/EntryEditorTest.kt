@@ -377,6 +377,14 @@ class EntryEditorTest {
         assertEquals(4, editor.changes(draft).fieldTypes?.size, "an unnamed, empty field is not saved, nor its type")
     }
 
+    // spec: types.crypto-wallet/AC9
+    @Test
+    fun aNewRecoveryPhraseAndItsPassphraseStartProtected() {
+        var draft = EntryEditor.edit(Entry("e"), now).start
+        for (type in listOf(FieldType.CRYPTO_SEED, FieldType.CRYPTO_PASSPHRASE, FieldType.CRYPTO_XPUB, FieldType.CRYPTO_ADDRESS)) draft = draft.addField(type)
+        assertEquals(listOf(true, true, false, false), draft.fields.map { it.isProtected })
+    }
+
     @Test
     fun aNewFieldOfATypeIsNamedAtOnceWithANumberWhenTheNameIsTaken() {
         var draft = EntryEditor.edit(Entry("e", customFields = listOf(field("CVC", "1"))), now).start

@@ -308,6 +308,10 @@ internal class CardContext(
     fun row(index: Int, field: CustomField, label: String, notice: String): FieldRow {
         val id = RowIds.custom(index)
         val type = interpreter.type(field)
+        // A wallet's secret, wherever it stands (also outside a wallet's section): masked, never copied (SPEC §6.2).
+        if (CryptoWallet.isNeverCopied(field, type)) {
+            return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, noticeLabel = notice, type = type, concealed = true, neverCopied = true)
+        }
         // Another one-time code (1Password's second and later codes arrive so): a live code.
         OneTimeCodes.config(field)?.let { config ->
             return FieldRow(

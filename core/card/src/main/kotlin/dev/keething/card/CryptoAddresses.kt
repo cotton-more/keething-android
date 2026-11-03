@@ -113,7 +113,9 @@ public data class CryptoAddress(val text: String, val network: CryptoNetwork, va
 
 /**
  * An extended key as BIP-32 writes it (`xpub…`, `zpub…`): the public one lets anyone see every address and balance of the
- * wallet; a private one (`xprv…`) is the wallet itself, and is treated as the recovery phrase is.
+ * wallet; a private one (`xprv…`) is the wallet itself, and is treated as the recovery phrase is. [isPrivate]: by its
+ * prefix, or by what it holds (a private key written with a public prefix); [passes]: its checksum passes and it holds a
+ * key of the kind its prefix says.
  */
 public data class ExtendedKey(val text: String, val prefix: String, val isPrivate: Boolean, val kind: String, val network: CryptoNetwork, val passes: Boolean) {
     public companion object {
@@ -122,8 +124,18 @@ public data class ExtendedKey(val text: String, val prefix: String, val isPrivat
             val prefix = t.take(4)
             val (network, private, kind) = PREFIXES[prefix] ?: return null
             if (t.length !in 100..115) return null
-            val bytes = Base58.decode(t) ?: return ExtendedKey(t, prefix, private, kind, network, passes = false)
-            return ExtendedKey(t, prefix, private, kind, network, passes = bytes.size == 82 && Base58.checks(bytes))
+            val bytes = Base58.decode(t)?.takeIf { it.size == 82 } ?: return ExtendedKey(t, prefix, private, kind, network, passes = false)
+            // The key's 33 bytes come after the version, depth, parent's fingerprint, child number and chain code: a
+            // private key behind 0x00, a public one starting 0x02 or 0x03 (BIP-32's test vector 5).
+            val keyByte = bytes[45].toInt()
+            val fits = if (private) keyByte == 0 else keyByte == 2 || keyByte == 3
+            return ExtendedKey(t, prefix, private || keyByte == 0, kind, network, passes = fits && Base58.checks(bytes))
+        }
+
+        /** An extended private key: by what it holds when it reads as a key, else by its prefix alone (a typo keeps it one). */
+        public fun isPrivate(text: String): Boolean {
+            val t = text.trim()
+            return read(t)?.isPrivate ?: (PREFIXES[t.take(4)]?.second == true)
         }
 
         private val PREFIXES: Map<String, Triple<CryptoNetwork, Boolean, String>> = buildMap {
