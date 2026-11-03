@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.AppLogo
@@ -53,8 +55,8 @@ internal class AboutPage {
 @Composable
 internal fun AboutScreen(onClose: () -> Unit) {
     BackHandler(onBack = onClose)
-    val assets = LocalContext.current.assets
-    val info = remember { BuildInfo.read(assets) }
+    val context = LocalContext.current
+    val info = remember { BuildInfo.read(context.assets) }
     Column(
         Modifier
             .fillMaxSize()
@@ -88,6 +90,15 @@ internal fun AboutScreen(onClose: () -> Unit) {
                     Fact("Commit", info.commitText)
                 }
             }
+            Spacer(Modifier.height(24.dp))
+            FilledTonalButton(onClick = { ProblemReport.open(context) }) { Text("Report a problem") }
+            Text(
+                "Opens a new issue on GitHub with this build, Android and the phone's model filled in; nothing from a database.",
+                Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

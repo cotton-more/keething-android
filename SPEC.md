@@ -1450,7 +1450,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build (the fingerprint spike, and what the storage provider does with names in a folder granted there).
-  Last **About**: "Keething for Android 0.0.1 · build 1.", the font's licence, and About Keething.
+  Last **About**: "Keething for Android 0.0.1 · build 1.", the font's licence, About Keething and Report a problem.
 - **About** (keething-spec app.about; the owner, 2026-11-02): the logo, "Keething", "for Android", then Version "0.0.1 ·
   build 1" (the version code said as a build, the owner), Built "2 November 2026, 20:06" (the phone's time zone) and Commit "becc85f", or "becc85f with uncommitted
   changes", selectable for a bug report; Back returns to what was shown. Reached with every database locked: an ⓘ in
@@ -1458,7 +1458,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   About Keething in Settings. It covers the app as New database does. The facts are the asset `build-info.properties`,
   written by Gradle at every build (`app/build.gradle.kts`, `BuildInfo`): not BuildConfig, so nothing compiled changes
   with the time and the configuration cache keeps no time of its own; the time is SOURCE_DATE_EPOCH's when it is set
-  (F-Droid's reproducible build), else the build's.
+  (F-Droid's reproducible build), else the build's. Under the facts **Report a problem** (also in Settings' About;
+  plans/android-release-1.0.md T5): the browser opens a new issue of `github.com/cotton-more/keething-android` whose
+  body asks what happened, what was expected and the steps, then says the version, the commit, Android (and its API
+  level) and the phone's maker and model (`ProblemReport`). Nothing from a database, nothing sent by the app (it has no
+  network): the person writes and sends the issue. Crashes: the system's dialog for now.
 - **Launcher shortcuts** (long press on the icon; static, `res/xml/shortcuts.xml`): "Codes", then "Note from
   clipboard" (a quick note, §6.4). Codes: unlock, then
   the list titled "Codes" with only the entries with a one-time code, by title, each row's live code a
