@@ -45,6 +45,10 @@ first change there.
   their wording (`task spec:stamp -- <id or id/ACn>…`), then run `./status --index` and `./status --check` there;
   the check must pass. It fails on a covered criterion reworded since its stamp ("changed since covered": check the
   evidence against the new wording, fix the line, stamp) and on a new line or `spec:` comment not stamped yet.
+- `task spec:verify` runs every module's tests and checks each criterion covered by a test against the results: it
+  fails on one whose test failed, was skipped, did not run, or is no test (a `test` line's `#symbol` names a `@Test`
+  method, not a phrase from it; a `spec:` comment stands right above `@Test` or as the first line of the body). Run it
+  when finishing a feature, beside `./status --check`; both must pass.
 - A change that alters a criterion: edit the criterion, set the macOS line back to `partial` or `no` with a note
   saying what changed, and stamp it for Android only (`task spec:stamp -- <id>/AC<n>`).
 - A bug that breaks a criterion goes on that criterion's coverage line (`partial` / `no` with a note), not into a

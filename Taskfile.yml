@@ -163,3 +163,13 @@ tasks:
     dir: '{{.SPEC}}'
     cmds:
       - ./status --check
+
+  spec:verify:
+    desc: "Every module's tests, then the spec's criteria covered by a test checked against the results (status --results)"
+    cmds:
+      # old results go first, so that a module that no longer compiles shows its tests as not run
+      - rm -rf app/build/test-results core/*/build/test-results
+      - task: test
+        vars: { CLI_ARGS: '--continue' }
+        ignore_error: true
+      - '"{{.SPEC}}/status" --results android app/build/test-results core/*/build/test-results'
