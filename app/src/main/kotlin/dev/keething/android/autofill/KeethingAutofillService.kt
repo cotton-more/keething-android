@@ -30,7 +30,8 @@ class KeethingAutofillService : AutofillService() {
             // Kinds and counts only: never a value, a domain or an app (SPEC §2).
             Log.i(TAG, "fill request: ${screen.fields.size} fields, " + (form?.describe() ?: "nothing to fill"))
             form?.let { responses.response(screen, it, request.inlineSuggestionsRequest) }
-        }.onFailure { Log.e(TAG, "fill request failed", it) }.getOrNull()
+        // The failure's class only: its message could quote what the screen or the database held.
+        }.onFailure { Log.e(TAG, "fill request failed: ${it.javaClass.name}") }.getOrNull()
         callback.onSuccess(response)
     }
 
@@ -39,7 +40,7 @@ class KeethingAutofillService : AutofillService() {
      * needed and asks how to keep it (SPEC §7, Save). The values stay in this process ([PendingSaves]).
      */
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
-        val save = runCatching { typedLogin(request) }.onFailure { Log.e(TAG, "save request failed", it) }.getOrNull()
+        val save = runCatching { typedLogin(request) }.onFailure { Log.e(TAG, "save request failed: ${it.javaClass.name}") }.getOrNull()
         if (save == null) return callback.onSuccess()
         val token = container.pendingSaves.put(save)
         callback.onSuccess(SaveLoginActivity.sender(this, token))

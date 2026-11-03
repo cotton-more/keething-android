@@ -138,7 +138,9 @@ Rules carried over from the Mac app:
 - TDD: new behaviour starts with a failing test; tests are never loosened to make code pass.
 - Fail closed on secrets: search, logs and autofill never see protected values except where a value is the
   thing being copied or filled.
-- No `Log` of entry values or the master password, ever.
+- No `Log` of entry values or the master password, ever. The release build writes no state, timing or count to the
+  log either: R8 removes `Log.v`, `Log.d` and `Log.i` (`app/proguard-rules.pro`); `Log.w` and `Log.e` say a failure's
+  class, a count or a fixed text, never a message that could quote what was read.
 
 The Mac app's code (Swift) is the reference for every format detail: read it before writing the Kotlin
 version. The key places:
