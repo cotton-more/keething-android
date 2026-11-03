@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -247,7 +249,19 @@ private fun networkBadge(network: CryptoNetwork?): Pair<Color, String> = when (n
 internal fun NetworkBadge(network: CryptoNetwork?, size: Dp, modifier: Modifier = Modifier) {
     val (colour, sign) = networkBadge(network)
     Box(modifier.size(size).clip(CircleShape).background(colour), contentAlignment = Alignment.Center) {
-        Text(sign, color = Color.White, fontSize = (size.value * 0.52f).sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        // The line as tall as the sign and trimmed to it: the theme's line height, taller than a small badge, put the
+        // sign at the circle's bottom in the list.
+        Text(
+            sign,
+            color = Color.White,
+            fontSize = (size.value * 0.52f).sp,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            style = LocalTextStyle.current.merge(
+                lineHeight = (size.value * 0.52f).sp,
+                lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+            ),
+        )
     }
 }
 
