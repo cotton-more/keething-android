@@ -2,6 +2,7 @@ package dev.keething.android.about
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,9 +53,29 @@ internal class AboutPage {
     var shown: Boolean by mutableStateOf(false)
 }
 
-/** About: the app, its version, when this build was made and from which commit (keething-spec app.about). */
+/**
+ * About: the app, its version, when this build was made and from which commit (keething-spec app.about), its licence
+ * and source, and the third-party licences; a licence's text over it, Back returning to the page under it.
+ */
 @Composable
 internal fun AboutScreen(onClose: () -> Unit) {
+    var thirdParty by rememberSaveable { mutableStateOf(false) }
+    // The asset of the licence shown, if one is.
+    var text by rememberSaveable { mutableStateOf<String?>(null) }
+    val shown = text
+    when {
+        shown != null -> LicenceTextScreen(
+            title = THIRD_PARTY.firstOrNull { "licenses/${it.file}" == shown }?.name ?: "Licence",
+            asset = shown,
+            onClose = { text = null },
+        )
+        thirdParty -> ThirdPartyScreen(onOpen = { text = "licenses/${it.file}" }, onClose = { thirdParty = false })
+        else -> AboutMain(onLicence = { text = LICENCE_ASSET }, onThirdParty = { thirdParty = true }, onClose = onClose)
+    }
+}
+
+@Composable
+private fun AboutMain(onLicence: () -> Unit, onThirdParty: () -> Unit, onClose: () -> Unit) {
     BackHandler(onBack = onClose)
     val context = LocalContext.current
     val info = remember { BuildInfo.read(context.assets) }
@@ -90,7 +112,14 @@ internal fun AboutScreen(onClose: () -> Unit) {
                     Fact("Commit", info.commitText)
                 }
             }
+            Spacer(Modifier.height(16.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).padding(vertical = 8.dp)) {
+                Fact("Licence", LICENCE, Modifier.clickable(onClick = onLicence))
+                Fact("Source", SOURCE.removePrefix("https://"), Modifier.clickable { openInBrowser(context, SOURCE) })
+            }
             Spacer(Modifier.height(24.dp))
+            FilledTonalButton(onClick = onThirdParty) { Text("Third-party licences") }
+            Spacer(Modifier.height(8.dp))
             FilledTonalButton(onClick = { ProblemReport.open(context) }) { Text("Report a problem") }
             Text(
                 "Opens a new issue on GitHub with this build, Android and the phone's model filled in; nothing from a database.",
@@ -104,8 +133,8 @@ internal fun AboutScreen(onClose: () -> Unit) {
 }
 
 @Composable
-private fun Fact(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+private fun Fact(label: String, value: String, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.widthIn(min = 72.dp))
         Text(value, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
     }

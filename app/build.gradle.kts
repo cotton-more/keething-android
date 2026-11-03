@@ -88,8 +88,26 @@ android {
     }
 }
 
+/** The app's own licence in About (SPEC §6.2 "About"): the repository's LICENSE, as the asset `LICENSE.txt`. */
+abstract class LicenseAsset : DefaultTask() {
+    @get:InputFile
+    abstract val license: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        license.get().asFile.copyTo(output.file("LICENSE.txt").get().asFile, overwrite = true)
+    }
+}
+
 androidComponents {
     onVariants { variant ->
+        val license = tasks.register<LicenseAsset>("${variant.name}LicenseAsset") {
+            this.license.set(rootProject.layout.projectDirectory.file("LICENSE"))
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(license, LicenseAsset::output)
         val info = tasks.register<BuildInfo>("${variant.name}BuildInfo") {
             versionName.set(android.defaultConfig.versionName)
             versionCode.set(android.defaultConfig.versionCode)

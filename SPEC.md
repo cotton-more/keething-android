@@ -1458,7 +1458,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   About Keething in Settings. It covers the app as New database does. The facts are the asset `build-info.properties`,
   written by Gradle at every build (`app/build.gradle.kts`, `BuildInfo`): not BuildConfig, so nothing compiled changes
   with the time and the configuration cache keeps no time of its own; the time is SOURCE_DATE_EPOCH's when it is set
-  (F-Droid's reproducible build), else the build's. Under the facts **Report a problem** (also in Settings' About;
+  (F-Droid's reproducible build), else the build's. Under them Licence "GPL-3.0-or-later" (a tap shows its text, the
+  asset `LICENSE.txt` Gradle copies from the repository's LICENSE) and Source "github.com/cotton-more/keething-android"
+  (a tap opens it); then **Third-party licences**: each part in the app with what it is for, its authors and its
+  licence (the EFF word list's credit said there, as CC BY asks), a tap showing the text of `assets/licenses`
+  (`THIRD_PARTY`; a test keeps the list and the folder the same). Then **Report a problem** (also in Settings' About;
   plans/android-release-1.0.md T5): the browser opens a new issue of `github.com/cotton-more/keething-android` whose
   body asks what happened, what was expected and the steps, then says the version, the commit, Android (and its API
   level) and the phone's maker and model (`ProblemReport`). Nothing from a database, nothing sent by the app (it has no

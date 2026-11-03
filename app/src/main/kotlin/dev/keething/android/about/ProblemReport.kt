@@ -13,7 +13,7 @@ import java.net.URLEncoder
  * the phone's model. Nothing from a database, and nothing is sent: the app has no network, the person sends the issue.
  */
 internal object ProblemReport {
-    const val ISSUES = "https://github.com/cotton-more/keething-android/issues/new"
+    const val ISSUES = "$SOURCE/issues/new"
 
     /** The new issue's address: a body asking what happened, then the build and the phone. */
     fun url(info: BuildInfo, android: String, sdk: Int, device: String): String {
@@ -40,11 +40,15 @@ internal object ProblemReport {
         if (model.startsWith(manufacturer, ignoreCase = true)) model else "${manufacturer.replaceFirstChar { it.uppercase() }} $model"
 
     fun open(context: Context) {
-        val url = url(BuildInfo.read(context.assets), Build.VERSION.RELEASE, Build.VERSION.SDK_INT, device(Build.MANUFACTURER, Build.MODEL))
-        try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(context, "No browser opens $ISSUES", Toast.LENGTH_LONG).show()
-        }
+        openInBrowser(context, url(BuildInfo.read(context.assets), Build.VERSION.RELEASE, Build.VERSION.SDK_INT, device(Build.MANUFACTURER, Build.MODEL)))
+    }
+}
+
+/** [url] in the browser; a toast with it when no app opens it. */
+internal fun openInBrowser(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(context, "No browser opens ${url.substringBefore('?')}", Toast.LENGTH_LONG).show()
     }
 }
