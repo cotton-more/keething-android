@@ -245,8 +245,8 @@ private fun Options(state: PasswordGeneratorState) {
             }
             PasswordKind.MEMORABLE -> {
                 Stepper("Words", o.memorableWords, GeneratorOptions.MEMORABLE_WORDS) { change(o.copy(memorableWords = it)) }
-                Stepper("Digits, at least", o.memorableDigits, GeneratorOptions.MEMORABLE_EXTRAS) { change(o.copy(memorableDigits = it)) }
-                Stepper("Symbols, at least", o.memorableSymbols, GeneratorOptions.MEMORABLE_EXTRAS) { change(o.copy(memorableSymbols = it)) }
+                Stepper("Digits", o.memorableDigits, GeneratorOptions.MEMORABLE_EXTRAS) { change(o.copy(memorableDigits = it)) }
+                Stepper("Symbols", o.memorableSymbols, GeneratorOptions.MEMORABLE_EXTRAS) { change(o.copy(memorableSymbols = it)) }
                 Hint("Each word in Capitals or in CAPITALS, joined by digits and symbols.")
             }
             PasswordKind.PASSPHRASE -> {

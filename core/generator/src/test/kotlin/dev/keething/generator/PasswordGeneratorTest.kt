@@ -75,28 +75,76 @@ class PasswordGeneratorTest {
         )
     }
 
+    /** A memorable password's words and the runs of digits and symbols between them: "7", "Lemon", "GRAPE", "!3". */
+    private fun parts(password: String): List<String> = Regex("[A-Za-z]+|[^A-Za-z]+").findAll(password).map { it.value }.toList()
+
+    /** The words of a run of letters: a capital starts each, a word in CAPITALS ends where a Capitalised one begins. */
+    private fun words(letters: String): List<String> = Regex("[A-Z][a-z]+|[A-Z]+(?![a-z])").findAll(letters).map { it.value }.toList()
+
     @Test
-    fun aMemorablePasswordIsWordsInCapitalsOrCapitalLettersWithTheDigitsAndSymbols() {
+    fun aMemorablePasswordIsWordsInCapitalsOrCapitalLettersWithExactlyTheDigitsAndSymbols() {
         val random = SeededRandom(3)
-        for ((count, digits, symbols) in listOf(Triple(4, 1, 1), Triple(2, 2, 3), Triple(3, 0, 0), Triple(8, 5, 5))) {
-            repeat(50) {
+        for ((count, digits, symbols) in listOf(Triple(4, 1, 1), Triple(2, 2, 3), Triple(3, 0, 0), Triple(3, 1, 0), Triple(8, 5, 5), Triple(8, 0, 1))) {
+            repeat(100) {
                 val options = GeneratorOptions(kind = PasswordKind.MEMORABLE, memorableWords = count, memorableDigits = digits, memorableSymbols = symbols)
                 val password = PasswordGenerator.generate(options, random)
-                val found = password.split(Regex("[^A-Za-z]+")).filter { it.isNotEmpty() }
-                assertEquals(count, found.size, password)
-                for (word in found) {
-                    assertTrue(word.lowercase() in words, "$word is a list word")
-                    assertTrue(word == word.uppercase() || word == word.lowercase().replaceFirstChar(Char::uppercase), "$word: one case")
-                }
                 val glue = password.filterNot { it.isLetter() }
-                assertEquals(maxOf(count - 1, digits + symbols), glue.length, password)
-                assertTrue(glue.count { it.isDigit() } >= digits && glue.count { !it.isDigit() } >= symbols, password)
-                assertTrue(glue.all { it.isDigit() || it in PasswordGenerator.MEMORABLE_SYMBOLS }, password)
-                assertTrue(password.first().isLetter(), "starts with a word: $password")
+                assertEquals(digits, glue.count { it.isDigit() }, password)
+                assertEquals(symbols, glue.count { it in PasswordGenerator.MEMORABLE_SYMBOLS }, password)
+                assertEquals(digits + symbols, glue.length, password)
+                val found = parts(password).filter { it.first().isLetter() }.flatMap(::words)
+                assertEquals(count, found.size, password)
+                for ((i, word) in found.withIndex()) {
+                    assertTrue(word.lowercase() in words, "$word is a list word: $password")
+                    assertTrue(word == word.uppercase() || word == word.lowercase().replaceFirstChar(Char::uppercase), "$word: one case")
+                    if (i > 0) assertTrue(!(word == word.uppercase() && found[i - 1] == found[i - 1].uppercase() && "${found[i - 1]}$word" in password), "two in CAPITALS touch: $password")
+                }
             }
         }
-        // 4 words with their case, and 3 glue characters holding at least one digit and one symbol (21³ − 10³ − 11³ = 6930).
-        assertEquals(4 * (log2(7772.0) + 1) + log2(6930.0), PasswordGenerator.entropy(GeneratorOptions(kind = PasswordKind.MEMORABLE)), 1e-9)
+        // No digits and no symbols: the words alone, told apart by their case.
+        val bare = PasswordGenerator.generate(GeneratorOptions(kind = PasswordKind.MEMORABLE, memorableWords = 5, memorableDigits = 0, memorableSymbols = 0), random)
+        assertTrue(bare.all { it.isLetter() }, bare)
+        assertEquals(5, words(bare).size, bare)
+    }
+
+    /** Every way of spreading the characters over the gaps with every case, counted one by one. */
+    private fun counted(words: Int, glue: Int): Int {
+        fun spreads(left: Int, slots: Int): List<List<Int>> =
+            if (slots == 1) listOf(listOf(left)) else (0..left).flatMap { here -> spreads(left - here, slots - 1).map { listOf(here) + it } }
+        return spreads(glue, words + 1).sumOf { gaps ->
+            (0 until (1 shl words)).count { capitals ->
+                (1 until words).none { gaps[it] == 0 && capitals and (1 shl it) != 0 && capitals and (1 shl (it - 1)) != 0 }
+            }
+        }
+    }
+
+    @Test
+    fun aMemorablePasswordsStrengthCountsEveryWayTheCharactersAndCasesCanGo() {
+        for (words in GeneratorOptions.MEMORABLE_WORDS) {
+            for (glue in 0..10) assertEquals(counted(words, glue).toDouble(), PasswordGenerator.arrangements(words, glue), "$words words, $glue characters")
+        }
+        // The defaults: 4 words, 1 digit and 1 symbol in either order (2 × 10 × 11), spread in 147 ways with the cases.
+        assertEquals(147.0, PasswordGenerator.arrangements(4, 2))
+        assertEquals(4 * log2(7772.0) + log2(220.0) + log2(147.0), PasswordGenerator.entropy(GeneratorOptions(kind = PasswordKind.MEMORABLE)), 1e-9)
+        assertEquals(3 * log2(7772.0) + log2(5.0), PasswordGenerator.entropy(GeneratorOptions(kind = PasswordKind.MEMORABLE, memorableWords = 3, memorableDigits = 0, memorableSymbols = 0)), 1e-9)
+    }
+
+    @Test
+    fun everyWayAMemorablePasswordCanGoIsEquallyLikely() {
+        // 2 words and 1 digit: before, between or after them, with the cases; between, all 4 cases, else 3 (not both
+        // in CAPITALS): 10 ways, each about a tenth of the draws.
+        val random = SeededRandom(5)
+        val options = GeneratorOptions(kind = PasswordKind.MEMORABLE, memorableWords = 2, memorableDigits = 1, memorableSymbols = 0)
+        val seen = mutableMapOf<String, Int>()
+        repeat(20_000) {
+            val password = PasswordGenerator.generate(options, random)
+            val shape = parts(password).joinToString(" ") { part ->
+                if (!part.first().isLetter()) "#" else words(part).joinToString(" ") { if (it == it.uppercase()) "W" else "w" }
+            }
+            seen.merge(shape, 1, Int::plus)
+        }
+        assertEquals(setOf("# w w", "# w W", "# W w", "w # w", "w # W", "W # w", "W # W", "w w #", "w W #", "W w #"), seen.keys)
+        assertTrue(seen.values.all { it in 1800..2200 }, "$seen")
     }
 
     @Test
@@ -109,11 +157,11 @@ class PasswordGeneratorTest {
     }
 
     @Test
-    fun theDefaultsAreAsStrongAsOnTheMac() {
+    fun theDefaultsHaveTheirStrength() {
         fun bits(kind: PasswordKind) = PasswordGenerator.entropy(GeneratorOptions(kind = kind)).roundToInt()
         assertEquals(20, bits(PasswordKind.PIN))
         assertEquals(131, bits(PasswordKind.STRONG))
-        assertEquals(68, bits(PasswordKind.MEMORABLE))
+        assertEquals(67, bits(PasswordKind.MEMORABLE), "the digit and symbol go anywhere now, not one after every word")
         assertEquals(65, bits(PasswordKind.PASSPHRASE))
         assertEquals(Strength.WEAK, Strength.of(39.9))
         assertEquals(Strength.FAIR, Strength.of(40.0))

@@ -2,7 +2,6 @@ package dev.keething.generator
 
 import java.security.SecureRandom
 import kotlin.math.log2
-import kotlin.math.max
 import kotlin.math.pow
 
 /** Uniformly distributed integers: the system's cryptographic generator in the app, a fixed sequence in tests. */
@@ -26,7 +25,10 @@ public enum class PasswordKind(internal val stored: String) {
     /** Random characters from the chosen classes, at least one of each (the Mac's `random`). */
     STRONG("random"),
 
-    /** Words, each either Capitalised or in CAPITALS, joined by digits and symbols. */
+    /**
+     * Words, each either Capitalised or in CAPITALS, with exactly the chosen digits and symbols before, between and
+     * after them; two words in CAPITALS never touch.
+     */
     MEMORABLE("memorable"),
 
     /** Lowercase words joined by a separator (diceware). */
@@ -153,21 +155,7 @@ public object PasswordGenerator {
         return when (o.kind) {
             PasswordKind.PIN -> String(CharArray(o.pinLength) { DIGITS[random.nextBelow(10)] })
             PasswordKind.STRONG -> strong(o, random)
-            PasswordKind.MEMORABLE -> {
-                val chosen = List(o.memorableWords) {
-                    val word = words[random.nextBelow(words.size)]
-                    if (random.nextBelow(2) == 0) word.replaceFirstChar(Char::uppercaseChar) else word.uppercase()
-                }
-                val glue = glue(o, random)
-                // Between the words first; what does not fit goes at the end.
-                buildString {
-                    chosen.forEachIndexed { i, word ->
-                        append(word)
-                        if (i < glue.length) append(glue[i])
-                    }
-                    if (glue.length > chosen.size) append(glue, chosen.size, glue.length)
-                }
-            }
+            PasswordKind.MEMORABLE -> memorable(o, random)
             PasswordKind.PASSPHRASE -> List(o.passphraseWords) { words[random.nextBelow(words.size)] }.joinToString(o.separator)
         }
     }
@@ -187,8 +175,12 @@ public object PasswordGenerator {
                 }
                 log2(count)
             }
-            // + 1: the case of each word.
-            PasswordKind.MEMORABLE -> o.memorableWords * (log2(words.size.toDouble()) + 1) + log2(glueCount(o))
+            // The words, the digits and symbols in their order, and where they go with each word's case.
+            PasswordKind.MEMORABLE -> {
+                val glue = binomial(o.memorableDigits + o.memorableSymbols, o.memorableDigits) *
+                    10.0.pow(o.memorableDigits) * MEMORABLE_SYMBOLS.length.toDouble().pow(o.memorableSymbols)
+                o.memorableWords * log2(words.size.toDouble()) + log2(glue) + log2(arrangements(o.memorableWords, o.memorableDigits + o.memorableSymbols))
+            }
             PasswordKind.PASSPHRASE -> o.passphraseWords * log2(words.size.toDouble())
         }
     }
@@ -236,25 +228,83 @@ public object PasswordGenerator {
             if (o.excludeLookAlikes) cls.characters.filterNot { it in LOOK_ALIKES } else cls.characters
         }
 
-    /** One digit or symbol after every word but the last, or more when the minimums need more. */
-    private fun glueLength(o: GeneratorOptions): Int = max(o.memorableWords - 1, o.memorableDigits + o.memorableSymbols)
-
-    private fun glue(o: GeneratorOptions, random: RandomSource): String {
-        val alphabet = DIGITS + MEMORABLE_SYMBOLS
+    /**
+     * The digits and symbols in a uniform order, spread over the gaps before, between and after the words (a gap may
+     * hold several or none) and each word's case, both drawn again together while two words in CAPITALS touch, so
+     * every password the recipe allows is equally likely.
+     */
+    private fun memorable(o: GeneratorOptions, random: RandomSource): String {
+        val chosen = List(o.memorableWords) { words[random.nextBelow(words.size)] }
+        val glue = shuffled(List(o.memorableDigits) { DIGITS[random.nextBelow(DIGITS.length)] } +
+            List(o.memorableSymbols) { MEMORABLE_SYMBOLS[random.nextBelow(MEMORABLE_SYMBOLS.length)] }, random)
         while (true) {
-            val candidate = String(CharArray(glueLength(o)) { alphabet[random.nextBelow(alphabet.length)] })
-            val digits = candidate.count { it in DIGITS }
-            if (digits >= o.memorableDigits && candidate.length - digits >= o.memorableSymbols) return candidate
+            val gaps = gaps(glue.size, chosen.size + 1, random)
+            val capitals = BooleanArray(chosen.size) { random.nextBelow(2) == 1 }
+            if ((1 until chosen.size).any { gaps[it] == 0 && capitals[it - 1] && capitals[it] }) continue
+            var used = 0
+            return buildString {
+                for (i in 0..chosen.size) {
+                    repeat(gaps[i]) { append(glue[used++]) }
+                    if (i < chosen.size) append(if (capitals[i]) chosen[i].uppercase() else chosen[i].replaceFirstChar(Char::uppercaseChar))
+                }
+            }
         }
     }
 
-    /** Sequences of the glue's length with at least the minimum of digits and of symbols. */
-    private fun glueCount(o: GeneratorOptions): Double {
-        val k = glueLength(o)
-        if (o.memorableDigits > k - o.memorableSymbols) return 1.0
-        return (o.memorableDigits..(k - o.memorableSymbols)).sumOf { d ->
-            binomial(k, d) * 10.0.pow(d) * MEMORABLE_SYMBOLS.length.toDouble().pow(k - d)
+    /** A uniform order of [items] (Fisher–Yates). */
+    private fun <T> shuffled(items: List<T>, random: RandomSource): List<T> {
+        val result = items.toMutableList()
+        for (i in result.lastIndex downTo 1) {
+            val j = random.nextBelow(i + 1)
+            result[i] = result[j].also { result[j] = result[i] }
         }
+        return result
+    }
+
+    /**
+     * [count] characters spread over [slots] gaps, every way equally likely: the gaps are the runs between [slots] − 1
+     * bars placed at a uniform choice of the count + slots − 1 places (stars and bars).
+     */
+    private fun gaps(count: Int, slots: Int, random: RandomSource): IntArray {
+        val places = shuffled(List(count + slots - 1) { it < slots - 1 }, random)
+        val gaps = IntArray(slots)
+        var gap = 0
+        for (bar in places) if (bar) gap++ else gaps[gap]++
+        return gaps
+    }
+
+    /**
+     * How many ways [glue] characters can be spread over the gaps of [words] words with each word's case, no two words
+     * in CAPITALS touching. Summed over which gaps between words hold something: with m of them, the characters go
+     * into those m (at least one each) and the two ends in C(glue + 1, m + 1) ways; the words between the full gaps
+     * form runs, and a run of n words has F(n + 2) cases without two CAPITALS side by side (F the Fibonacci numbers).
+     */
+    internal fun arrangements(words: Int, glue: Int): Double {
+        val inner = words - 1
+        var total = 0.0
+        for (full in 0 until (1 shl inner)) {
+            val m = Integer.bitCount(full)
+            if (m > glue) continue
+            var cases = 1.0
+            var run = 1
+            for (gap in 0 until inner) {
+                if (full and (1 shl gap) != 0) {
+                    cases *= fibonacci(run + 2)
+                    run = 1
+                } else {
+                    run++
+                }
+            }
+            total += binomial(glue + 1, m + 1) * cases * fibonacci(run + 2)
+        }
+        return total
+    }
+
+    private fun fibonacci(n: Int): Double {
+        var a = 0.0
+        var b = 1.0
+        repeat(n) { b = (a + b).also { a = b } }
+        return a
     }
 
     private fun binomial(n: Int, k: Int): Double = (0 until k).fold(1.0) { acc, i -> acc * (n - i) / (i + 1) }

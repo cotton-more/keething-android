@@ -1430,11 +1430,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   field ("Use this password" puts it in, shown) and from ⋮ › Generate a password in the list's header (a password
   without an entry: Copy, sensitive and cleared after 30 s). Kinds PIN (4–16 digits), Strong (8–64
   characters, A–Z / a–z / 0–9 / symbols each at least once, look-alikes `0 O o 1 l I |` optionally left
-  out), Words (2–8 EFF words in Capitals or CAPITALS joined by digits and symbols, at least the chosen
-  number of each) and Phrase (3–10 lowercase words joined by `-`, space, `.` or `_`); the password
+  out), Words (2–8 EFF words in Capitals or CAPITALS with exactly the chosen digits and symbols, 0–5 each,
+  before, between and after them, a gap holding several or none; two words in CAPITALS never touch, so words
+  without a gap are told apart by their case; 0 and 0: the words alone) and Phrase (3–10 lowercase words joined by `-`, space, `.` or `_`); the password
   monospaced with digits and symbols coloured; the recipe's exact bits (weak under 40, strong from 60) and
-  length. `SecureRandom`; "at least one of each" by drawing again, so every valid password is equally
-  likely. The options are remembered (`passwordGenerator` in the app's settings), never a password. The word
+  length. `SecureRandom`; "at least one of each" and "no two CAPITALS words touching" by drawing again, so
+  every valid password is equally likely. The options are remembered (`passwordGenerator` in the app's settings), never a password. The word
   list is a Java resource found by its absolute path: R8 renames the package in a release build (a relative
   path crashed the first phone run).
 - **Delete** (the card's ⋮ › Move to the recycle bin): moves the entry to the recycle bin at once, no question; the card
