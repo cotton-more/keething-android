@@ -54,7 +54,8 @@ internal val THIRD_PARTY = listOf(
     ThirdParty("Matrix SAS emoji", "The pictures for checking a request, by The Matrix.org Foundation", "Apache 2.0", "matrix-sas-emoji-Apache-2.0.txt"),
     ThirdParty("Google Sans Code", "The typeface of passwords and codes, by The Google Sans Code Project Authors", "OFL 1.1", "google-sans-code-OFL.txt"),
     ThirdParty("QR Code generator", "QR codes of a password and a Wi-Fi network, by Project Nayuki", "MIT", "qrcodegen-MIT.txt"),
-    ThirdParty("ZXing", "Reading the QR codes of sharing, by the ZXing authors", "Apache 2.0", "zxing-Apache-2.0.txt"),
+    ThirdParty("ZXing", "Reading the QR codes of sharing and of one-time codes, by the ZXing authors", "Apache 2.0", "zxing-Apache-2.0.txt"),
+    ThirdParty("AndroidSVG", "Drawing an SVG image to read its QR code, by Paul LeBeau, Cave Rock Software Ltd.", "Apache 2.0", "androidsvg-Apache-2.0.txt"),
     ThirdParty(
         "AndroidX, Kotlin, kotlinx.coroutines",
         "Compose, CameraX and the other Jetpack libraries, by The Android Open Source Project and JetBrains",

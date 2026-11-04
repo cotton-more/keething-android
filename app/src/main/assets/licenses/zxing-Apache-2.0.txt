@@ -1,4 +1,4 @@
-ZXing ("Zebra Crossing") core, https://github.com/zxing/zxing: reads the QR codes of sharing (SPEC §10).
+ZXing ("Zebra Crossing") core, https://github.com/zxing/zxing: reads the QR codes of sharing (SPEC §10) and of one-time codes.
 Copyright the ZXing authors. Licensed under the Apache License, Version 2.0:
 
 

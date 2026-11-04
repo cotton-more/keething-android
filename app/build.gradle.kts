@@ -164,6 +164,8 @@ dependencies {
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
     implementation(libs.zxing.core)
+    // An SVG image's one-time code QR (keething-spec edit.one-time-code AC8): drawn first, ImageDecoder does not; Apache 2.0.
+    implementation(libs.androidsvg)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.kotlin.test.junit5)

@@ -361,6 +361,16 @@ public class EntryEditor private constructor(
     }
 
     /**
+     * The texts of the QR codes in an image (AC4): the first that is a code is taken, as [addOneTimeCode] takes one;
+     * none that is, the first one's problem; no texts at all, "No QR code found in the image."
+     */
+    public fun addOneTimeCode(draft: EntryDraft, texts: List<String>): AddedCode {
+        if (texts.isEmpty()) return AddedCode.Refused(NO_QR_CODE)
+        val code = texts.firstOrNull { text -> TotpSetup.parseOrNull(text)?.also { it.secret.wipe() } != null }
+        return addOneTimeCode(draft, code ?: texts.first())
+    }
+
+    /**
      * The code of a custom field holding an `otpauth://` link (another one-time code), with a key of its own to wipe;
      * null for any other field. Its link is not edited by hand (AC7): removed, and the code added again.
      */
@@ -405,6 +415,9 @@ public class EntryEditor private constructor(
     public companion object {
         /** A further one-time code's field is named so, with a number from 2 (the entry's own is the first). */
         public const val ANOTHER_CODE: String = "One-time code"
+
+        /** An image without a QR code (the Mac's words). */
+        public const val NO_QR_CODE: String = "No QR code found in the image."
 
         /** What the editor says when a code is not taken (the Mac's words). */
         private fun codeProblem(problem: TotpSetupException): String = when (problem) {

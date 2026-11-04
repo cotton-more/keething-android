@@ -116,6 +116,18 @@ class OneTimeCodeEditorTest {
         assertEquals(listOf(FieldRow.Kind.TOTP), card.rows.filter { it.label == "Admin" }.map { it.kind })
     }
 
+    // spec: edit.one-time-code/AC4
+    @Test
+    fun theFirstQrCodeThatIsACodeIsTaken() {
+        val editor = EntryEditor.edit(Entry("e", title = "Shop", username = "me"), now)
+        val own = added(editor.addOneTimeCode(editor.start, listOf("https://example.org", "otpauth://totp/X?secret=$base32&digits=7")))
+        assertEquals(CodeDraft(base32, digits = 7), own.draft.code)
+        assertEquals(EntryEditor.NO_QR_CODE, assertIs<AddedCode.Refused>(editor.addOneTimeCode(editor.start, emptyList())).problem)
+        assertEquals("No QR code found in the image.", EntryEditor.NO_QR_CODE)
+        val refused = assertIs<AddedCode.Refused>(editor.addOneTimeCode(editor.start, listOf("otpauth://hotp/X?secret=$base32&counter=1", "nope!")))
+        assertTrue(refused.problem.startsWith("This code cannot be used here"), "the first one's problem")
+    }
+
     @Test
     fun aNoteOffersNoCodeAndANewEntryKeepsOne() {
         val vault = Vault(entries = emptyList())

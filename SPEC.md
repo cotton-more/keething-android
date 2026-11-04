@@ -1066,8 +1066,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - The generator's words are the EFF large word list (CC BY 3.0 US, `assets/licenses`). A recovery phrase is checked
   against BIP-39's ten word lists (MIT, `assets/licenses`; 184 KB, read when first needed).
 - QR codes are made by Nayuki's `qrcodegen` (MIT, `assets/licenses`; 38 KB, no dependencies, medium error
-  correction as on the Mac). The sharing's codes (§10) are read by ZXing (Apache 2.0, `assets/licenses`) from
-  the camera (CameraX) or a picture: no Google Play services.
+  correction as on the Mac). The sharing's codes (§10) and a one-time code's (§6.2) are read by ZXing (Apache 2.0,
+  `assets/licenses`) from the camera (CameraX) or a picture: no Google Play services. An SVG picture, which
+  `ImageDecoder` does not decode, is drawn by AndroidSVG (Apache 2.0, `assets/licenses`) first, on white.
 - Few settings, fixed sensible defaults instead of switches.
 
 ### 6.2 Screens
@@ -1388,7 +1389,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   numbered list; such a list is folded into one row in the editor ("Recovery codes · 10 codes · protected")
   until tapped. **One-time code…** (keething-spec edit.one-time-code; the Mac's §3.23; *Another one-time code…* once
   the entry has one) asks in a dialog for the secret a site shows or its `otpauth://` link, typed (masked, an eye
-  shows it) or pasted (*Paste*: the clipboard's text): a Base32 secret with spaces, dashes and case ignored, at least
+  shows it) or pasted (*Paste*: the clipboard's text, else the QR codes of its image, a screenshot copied), or its
+  QR code from an image file (*Image*: the system's file picker, any image, SVG too, as GitHub gives it) or the camera
+  (*Scan*: full screen until a QR code that is a code is seen; another's problem shown, the camera kept on). Of several
+  QR codes the first that is a code is taken; none: "No QR code found in the image.": a Base32 secret with spaces, dashes and case ignored, at least
   10 bytes, 6 digits, 30 s, SHA-1; a link with its own; HOTP, Steam and Google Authenticator exports refused with the
   reason, under the field. The first code is the entry's own, a row under Website: its live code and ring as on the
   card, "New: check that the site accepts this code before saving." (or "Changed: …") until saved; the tune button
@@ -1397,8 +1401,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   is removed with the save." with Undo). Saved as KeePassXC writes it, in the entry's own format (§3.3). A further code
   becomes a protected field "One-time code 2" (3, …) holding its link (the title as issuer, the username as account);
   a field holding a code's link shows its live code instead of its value, without a type chip, and is renamed or
-  removed but not edited by hand. Not yet: a QR code from an image or the camera (plans/android-release-1.0.md F13,
-  OTP2). The Mac editor's rules (`card/editing`): only what differs
+  removed but not edited by hand. The Mac editor's rules (`card/editing`): only what differs
   from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
   one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
   entry needs a title or a website. **Group** (keething-spec groups.entry-group, groups.new-groups;

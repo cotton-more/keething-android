@@ -1,9 +1,10 @@
 package dev.keething.android.editor
 
 import androidx.activity.compose.BackHandler
-import android.content.ClipboardManager
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.SegmentedButton
@@ -405,6 +406,12 @@ private fun EditorForm(
             another = draft.code != null,
             onAdd = { text ->
                 when (val added = editor.addOneTimeCode(draft, text)) {
+                    is AddedCode.Added -> null.also { update(added.draft) }
+                    is AddedCode.Refused -> added.problem
+                }
+            },
+            onAddAny = { texts ->
+                when (val added = editor.addOneTimeCode(draft, texts)) {
                     is AddedCode.Added -> null.also { update(added.draft) }
                     is AddedCode.Refused -> added.problem
                 }
@@ -1400,16 +1407,34 @@ private fun AnotherCode(config: TotpConfig) {
 }
 
 /**
- * Adding a one-time code (keething-spec edit.one-time-code AC1–AC3, AC5): the secret a site shows or its whole
- * `otpauth://` link, typed or pasted; why it is not taken, under it.
+ * Adding a one-time code (keething-spec edit.one-time-code AC1–AC5, AC8): the secret a site shows or its whole
+ * `otpauth://` link, typed or pasted, or its QR code from an image, the clipboard's image or the camera ([onAddAny]:
+ * the first that is a code); why it is not taken, under it.
  */
 @Composable
-private fun AddOneTimeCodeDialog(another: Boolean, onAdd: (String) -> String?, onDone: () -> Unit) {
+private fun AddOneTimeCodeDialog(
+    another: Boolean,
+    onAdd: (String) -> String?,
+    onAddAny: (List<String>) -> String?,
+    onDone: () -> Unit,
+) {
     var text by remember { mutableStateOf("") }
     var shown by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
+    var scanning by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val add = { given: String -> onAdd(given)?.let { problem = it } ?: onDone() }
+    val images = rememberCodeImages(
+        onTexts = { texts -> onAddAny(texts)?.let { problem = it } ?: onDone() },
+        onProblem = { problem = it },
+        onCamera = { problem = null; scanning = true },
+    )
+    if (scanning) {
+        CodeCameraDialog(
+            onTexts = { texts -> onAddAny(texts).also { if (it == null) { scanning = false; onDone() } } },
+            onClose = { scanning = false },
+        )
+    }
     AlertDialog(
         onDismissRequest = onDone,
         title = { Text(if (another) "Another one-time code" else "One-time code") },
@@ -1440,12 +1465,22 @@ private fun AddOneTimeCodeDialog(another: Boolean, onAdd: (String) -> String?, o
                             )
                         }
                     }
-                    FilledTonalButton(onClick = {
-                        val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip
-                        val pasted = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
-                        if (pasted.isNullOrBlank()) problem = "The clipboard holds no text." else add(pasted)
-                    }) {
-                        ButtonLabel("Paste", Icons.Rounded.ContentPaste, iconSize = 18.dp, gap = 8.dp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // The clipboard's text, else its image's QR codes (a screenshot copied).
+                        FilledTonalButton(onClick = {
+                            when (val clip = clipped(context)) {
+                                is Clipped.Image -> images.pasteImage(clip.uri)
+                                is Clipped.Text -> if (clip.text.isBlank()) problem = "The clipboard holds no text or image." else add(clip.text)
+                            }
+                        }) {
+                            ButtonLabel("Paste", Icons.Rounded.ContentPaste, iconSize = 18.dp, gap = 8.dp)
+                        }
+                        FilledTonalButton(onClick = images.chooseFile) {
+                            ButtonLabel("Image", Icons.Rounded.Image, iconSize = 18.dp, gap = 8.dp)
+                        }
+                        FilledTonalButton(onClick = images.openCamera) {
+                            ButtonLabel("Scan", Icons.Rounded.QrCodeScanner, iconSize = 18.dp, gap = 8.dp)
+                        }
                     }
                 }
             }
