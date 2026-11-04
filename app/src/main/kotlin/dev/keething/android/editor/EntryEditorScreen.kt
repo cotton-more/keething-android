@@ -1,6 +1,22 @@
 package dev.keething.android.editor
 
 import androidx.activity.compose.BackHandler
+import android.content.ClipboardManager
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.platform.LocalContext
+import dev.keething.android.ui.CodeValue
+import dev.keething.android.ui.FitText
+import dev.keething.android.ui.rememberSecondsNow
+import dev.keething.card.TotpDisplay
+import dev.keething.card.editing.AddedCode
+import dev.keething.card.editing.CodeDraft
+import dev.keething.domain.totp.TotpConfig
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -343,6 +359,7 @@ private fun EditorForm(
         )
     }
     if (editor.showsWebsite(draft)) EditorField("Website", draft.url, { update(draft.copy(url = it)) }, keyboardType = KeyboardType.Uri)
+    OwnCodeRow(editor, draft, update)
     if (!note) {
         // An ordinary entry's protected Notes: their text menu and copies as a secret's.
         EditorField(
@@ -369,6 +386,7 @@ private fun EditorForm(
     var focusing by remember { mutableStateOf<Int?>(null) }
     CustomFields(editor, draft, update, generator, focusing, onFocused = { focusing = null })
     var addingCodes by rememberSaveable { mutableStateOf(false) }
+    var addingCode by rememberSaveable { mutableStateOf(false) }
     if (editor.offersFields) {
         AddFieldButton(
             onAdd = { type ->
@@ -377,9 +395,23 @@ private fun EditorForm(
                 focusing = added.fields.last().id
             },
             onCodes = { addingCodes = true },
+            anotherCode = draft.code != null,
+            onOneTimeCode = { addingCode = true },
         )
     }
     if (addingCodes) AddCodesDialog(onAdd = addCodes, onDone = { addingCodes = false })
+    if (addingCode) {
+        AddOneTimeCodeDialog(
+            another = draft.code != null,
+            onAdd = { text ->
+                when (val added = editor.addOneTimeCode(draft, text)) {
+                    is AddedCode.Added -> null.also { update(added.draft) }
+                    is AddedCode.Refused -> added.problem
+                }
+            },
+            onDone = { addingCode = false },
+        )
+    }
 
     val problems = draft.fields.mapNotNull { editor.fieldProblem(draft, it) }.distinct()
     AnimatedVisibility(problems.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
@@ -851,6 +883,7 @@ private fun CustomFields(
         }
         FieldEditor(
             field,
+            code = remember(field.value) { editor.oneTimeCode(field) },
             problem = editor.fieldProblem(draft, field),
             warning = editor.fieldWarning(field),
             guessed = guesses[field.id] ?: FieldType.TEXT,
@@ -909,6 +942,8 @@ private fun CodeListRow(list: CodeList, open: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun FieldEditor(
     field: FieldDraft,
+    /** The field holds a one-time code's link: its live code instead of the value, which is not edited by hand. */
+    code: TotpConfig?,
     problem: String?,
     warning: String?,
     guessed: FieldType,
@@ -955,7 +990,9 @@ private fun FieldEditor(
             textStyle = MaterialTheme.typography.titleSmall,
             capitalization = KeyboardCapitalization.Sentences,
         )
-        EditorField(
+        if (code != null) {
+            AnotherCode(code)
+        } else EditorField(
             "Value",
             field.value,
             { onChange(field.copy(value = it)) },
@@ -1007,7 +1044,7 @@ private fun FieldEditor(
         ) {
             // With a large font the chips go one under the other; the remove button keeps its place at the end.
             FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FieldTypeChip(field, guessed, onType)
+                if (code == null) FieldTypeChip(field, guessed, onType)
                 ProtectedChip(field.isProtected) { onChange(field.copy(isProtected = it)) }
             }
             IconButton(onClick = onRemove) {
@@ -1099,9 +1136,9 @@ private fun FieldTypeChip(field: FieldDraft, guessed: FieldType, onType: (FieldT
     }
 }
 
-/** "Add field": a field of a type, named at once with the cursor in its value, or a block of codes. */
+/** "Add field": a field of a type, named at once with the cursor in its value, a block of codes, or a one-time code. */
 @Composable
-private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit) {
+private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit, anotherCode: Boolean, onOneTimeCode: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box(Modifier.padding(top = 4.dp)) {
         FilledTonalButton(onClick = { open = true }) {
@@ -1124,6 +1161,14 @@ private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit) {
                     onClick = {
                         close()
                         onCodes()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(if (anotherCode) "Another one-time code…" else "One-time code…") },
+                    leadingIcon = { Icon(Icons.Rounded.VerifiedUser, contentDescription = null) },
+                    onClick = {
+                        close()
+                        onOneTimeCode()
                     },
                 )
             },
@@ -1223,6 +1268,190 @@ private fun ProtectedChip(checked: Boolean, onChange: (Boolean) -> Unit) {
         leadingIcon = {
             Icon(if (checked) Icons.Rounded.Lock else Icons.Rounded.LockOpen, contentDescription = null, Modifier.size(FilterChipDefaults.IconSize))
         },
+    )
+}
+
+/**
+ * The entry's own one-time code (keething-spec edit.one-time-code AC6; the Mac's `mainCode`): live, as on the card, and
+ * said to be new or changed until saved; its settings (digits, period, algorithm: a site says when they are not the
+ * usual) under the tune button; back to the code the entry had; removed. A code the entry had and the draft removed
+ * leaves a line with Undo.
+ */
+@Composable
+private fun OwnCodeRow(editor: EntryEditor, draft: EntryDraft, update: (EntryDraft) -> Unit) {
+    val code = draft.code
+    val had = editor.start.code
+    if (code == null) {
+        if (had == null) return
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("The one-time code is removed with the save.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = { update(draft.copy(code = had)) }) { Text("Undo") }
+        }
+        return
+    }
+    var settings by rememberSaveable { mutableStateOf(false) }
+    val config = remember(code) { code.config() }
+    val now = rememberSecondsNow()
+    val changed = editor.codeChanged(draft)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("One-time code", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                CodeValue(TotpDisplay.of(config, now.value))
+            }
+            IconButton(onClick = { settings = !settings }) {
+                Icon(
+                    Icons.Rounded.Tune,
+                    contentDescription = if (settings) "Hide the code's settings" else "The code's settings",
+                    tint = if (settings) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (changed && had != null) {
+                IconButton(onClick = { update(draft.copy(code = had)) }) {
+                    Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = "Back to the code the entry had", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            IconButton(onClick = {
+                settings = false
+                update(draft.copy(code = null))
+            }) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove the one-time code", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (changed) {
+            Text(
+                (if (had == null) "New" else "Changed") + ": check that the site accepts this code before saving.",
+                Modifier.padding(end = 12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        if (settings) {
+            Column(Modifier.padding(end = 12.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CodeChoice("Digits", (listOf(6, 7, 8) + code.digits).distinct().sorted(), code.digits, { "$it" }) {
+                    update(draft.copy(code = code.copy(digits = it)))
+                }
+                CodeChoice("Period", (listOf(30, 60) + code.period).distinct().sorted(), code.period, { "$it s" }) {
+                    update(draft.copy(code = code.copy(period = it)))
+                }
+                CodeChoice("Algorithm", TotpConfig.Algorithm.entries, code.algorithm, { it.title }) {
+                    update(draft.copy(code = code.copy(algorithm = it)))
+                }
+                Text(
+                    "Change them only when the site says so: a wrong one gives codes the site refuses.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+private val TotpConfig.Algorithm.title: String
+    get() = when (this) {
+        TotpConfig.Algorithm.SHA1 -> "SHA-1"
+        TotpConfig.Algorithm.SHA256 -> "SHA-256"
+        TotpConfig.Algorithm.SHA512 -> "SHA-512"
+    }
+
+/** One of a code's settings: its name over a segmented choice. */
+@Composable
+private fun <T> CodeChoice(name: String, options: List<T>, chosen: T, label: (T) -> String, onChoose: (T) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, option ->
+                SegmentedButton(
+                    selected = option == chosen,
+                    onClick = { onChoose(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                ) { FitText(label(option)) }
+            }
+        }
+    }
+}
+
+/** A custom field holding a one-time code's link (AC7): its live code; the link is not edited by hand. */
+@Composable
+private fun AnotherCode(config: TotpConfig) {
+    val now = rememberSecondsNow()
+    Column(Modifier.padding(start = 16.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)) {
+        CodeValue(TotpDisplay.of(config, now.value))
+        Text(
+            "A one-time code. To change it, remove the field and add the code again.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * Adding a one-time code (keething-spec edit.one-time-code AC1–AC3, AC5): the secret a site shows or its whole
+ * `otpauth://` link, typed or pasted; why it is not taken, under it.
+ */
+@Composable
+private fun AddOneTimeCodeDialog(another: Boolean, onAdd: (String) -> String?, onDone: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var shown by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val add = { given: String -> onAdd(given)?.let { problem = it } ?: onDone() }
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text(if (another) "Another one-time code" else "One-time code") },
+        text = {
+            NoLearningKeyboard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "The secret the site shows when you turn on two-step sign-in (often under “Can’t scan it?”), or its otpauth:// link.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    // The key of the code: a secret's text menu, copied through the app.
+                    SecretTextMenu(copyable = true) {
+                        CopiedThroughTheApp(LocalSecretCopy.current) {
+                            TextField(
+                                value = text,
+                                onValueChange = { text = it; problem = null },
+                                label = { Text("Secret or link") },
+                                singleLine = true,
+                                isError = problem != null,
+                                supportingText = problem?.let { { Text(it) } },
+                                visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                                trailingIcon = { RevealButton(shown, "secret") { shown = !shown } },
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),
+                                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = editorFieldColors(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                    FilledTonalButton(onClick = {
+                        val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip
+                        val pasted = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+                        if (pasted.isNullOrBlank()) problem = "The clipboard holds no text." else add(pasted)
+                    }) {
+                        ButtonLabel("Paste", Icons.Rounded.ContentPaste, iconSize = 18.dp, gap = 8.dp)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { add(text) }, enabled = text.isNotBlank()) { Text("Add") } },
+        dismissButton = { TextButton(onClick = onDone) { Text("Cancel") } },
     )
 }
 

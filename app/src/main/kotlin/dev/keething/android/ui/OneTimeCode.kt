@@ -1,21 +1,30 @@
 package dev.keething.android.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import dev.keething.android.theme.MonospaceFamily
+import dev.keething.card.TotpDisplay
 import java.time.Instant
 import kotlinx.coroutines.delay
 
@@ -30,6 +39,24 @@ internal fun rememberSecondsNow(): State<Instant> {
                 delay(1_000 - System.currentTimeMillis() % 1_000)
             }
         }
+    }
+}
+
+/** A live code: the digits, the ring and the seconds left; red in its last five seconds. */
+@Composable
+internal fun CodeValue(display: TotpDisplay) {
+    val colour = if (display.secondsRemaining <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            display.formatted,
+            fontFamily = MonospaceFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 26.sp,
+            letterSpacing = 1.sp,
+            color = colour,
+        )
+        CodeRing(display.period, colour, MaterialTheme.colorScheme.outlineVariant, size = 22.dp)
+        Text("${display.secondsRemaining} s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

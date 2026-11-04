@@ -6,12 +6,48 @@ import dev.keething.domain.totp.TotpConfig
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /** The Mac `OneTimeCodeTests` "one-time code link" expectations (Mac SPEC §3.23). */
 class TotpSetupTest {
     private val key = "12345678901234567890".encodeToByteArray() // RFC 6238's test key
     private val base32 = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+
+    // spec: edit.one-time-code/AC1
+    @Test
+    fun aSecretIsTakenWithSpacesDashesAndCaseIgnoredAndRefusedWhenTooShort() {
+        assertEquals(TotpConfig(Secret.adopt(key.copyOf())), TotpSetup.parse("gezd gnbv-gy3t qojq gezd gnbv gy3t qojq\n"))
+        assertFailsWith<TotpSetupException.TooShort> { TotpSetup.parse("GEZDGNBV") }
+        assertEquals(TotpSetup.MINIMUM_SECRET_BYTES, TotpSetup.parse("GEZDGNBVGY3TQOJQ").secret.useBytes { it.size })
+    }
+
+    // spec: edit.one-time-code/AC2
+    @Test
+    fun aLinkKeepsItsOwnDigitsPeriodAndAlgorithmAndASecretAloneGetsTheUsual() {
+        val link = TotpSetup.parse("otpauth://totp/Site:me?secret=$base32&digits=8&period=60&algorithm=SHA256")
+        assertEquals(TotpConfig(Secret.adopt(key.copyOf()), digits = 8, period = 60, algorithm = TotpConfig.Algorithm.SHA256), link)
+        val plain = TotpSetup.parse(base32)
+        assertEquals(6, plain.digits)
+        assertEquals(30, plain.period)
+        assertEquals(TotpConfig.Algorithm.SHA1, plain.algorithm)
+    }
+
+    // spec: edit.one-time-code/AC3
+    @Test
+    fun onlyTimeBasedCodesEachRefusalWithItsReason() {
+        assertFailsWith<TotpSetupException.Empty> { TotpSetup.parse("  ") }
+        assertFailsWith<TotpSetupException.Unreadable> { TotpSetup.parse("not a secret!") }
+        assertFailsWith<TotpSetupException.Unreadable> { TotpSetup.parse("otpauth://totp/S?issuer=x") }
+        assertEquals("steam", assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://totp/S?secret=$base32&encoder=steam") }.reason)
+        assertEquals(
+            "only time-based (TOTP) links are supported",
+            assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://hotp/S?secret=$base32&counter=1") }.reason,
+        )
+        val export = assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth-migration://offline?data=abc") }
+        assertTrue(export.reason.contains("Google Authenticator"))
+        assertEquals(null, TotpSetup.parseOrNull("https://example.org"))
+    }
 
     @Test
     fun base32EncodesWithoutPadding() {

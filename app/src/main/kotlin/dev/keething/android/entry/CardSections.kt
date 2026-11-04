@@ -48,13 +48,12 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
-import dev.keething.android.ui.CodeRing
+import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.colouredSecret
 import dev.keething.android.ui.segmentShape
@@ -290,24 +289,6 @@ private fun FieldValueText(row: FieldRow, reveal: RevealState) {
         row.isConcealed -> Text(colouredSecret(text), style = style, fontFamily = MonospaceFamily)
         row.link != null -> Text(text, style = style, color = MaterialTheme.colorScheme.primary, maxLines = 3, overflow = TextOverflow.Ellipsis)
         else -> Text(text, style = style)
-    }
-}
-
-/** A live code: the digits, the ring and the seconds left; red in its last five seconds. */
-@Composable
-private fun CodeValue(display: TotpDisplay) {
-    val colour = if (display.secondsRemaining <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            display.formatted,
-            fontFamily = MonospaceFamily,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 26.sp,
-            letterSpacing = 1.sp,
-            color = colour,
-        )
-        CodeRing(display.period, colour, MaterialTheme.colorScheme.outlineVariant, size = 22.dp)
-        Text("${display.secondsRemaining} s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

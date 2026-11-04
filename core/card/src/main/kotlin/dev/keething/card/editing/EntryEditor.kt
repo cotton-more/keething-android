@@ -10,8 +10,10 @@ import dev.keething.card.FieldInterpreter
 import dev.keething.card.FieldType
 import dev.keething.card.FieldTypes
 import dev.keething.card.ImportedFieldName
+import dev.keething.card.OneTimeCodes
 import dev.keething.card.SeedPhrase
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
@@ -23,9 +25,12 @@ import dev.keething.domain.vault.EntryTypeChange
 import dev.keething.domain.vault.NoteDates
 import dev.keething.domain.vault.NoteTitle
 import dev.keething.domain.vault.QuickNote
+import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
+import dev.keething.totp.TotpSetup
+import dev.keething.totp.TotpSetupException
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
@@ -35,6 +40,14 @@ public sealed interface AddedCodes {
     public data class Added(val draft: EntryDraft, val count: Int) : AddedCodes
 
     public data class Refused(val problem: String) : AddedCodes
+}
+
+/** How adding a one-time code went (keething-spec edit.one-time-code AC5). */
+public sealed interface AddedCode {
+    /** [field]: the code went into a custom field of that name, the entry having its own already; null: it is the entry's own. */
+    public data class Added(val draft: EntryDraft, val field: String?) : AddedCode
+
+    public data class Refused(val problem: String) : AddedCode
 }
 
 /** What the editor offers (SPEC §6.4): an entry's fields, or a note's title, text, site and the rest. */
@@ -248,6 +261,7 @@ public class EntryEditor private constructor(
             tags = shape.tags,
             expiry = shape.expiry,
             group = if (isNew) null else destination(draft),
+            totp = if (!shape.codeChanged) null else draft.code?.config()?.let { TotpChange.Set(it, TotpSetup.otpauthUri(it, savedTitle(draft), draft.username)) } ?: TotpChange.Remove,
         )
     }
 
@@ -291,6 +305,7 @@ public class EntryEditor private constructor(
         val entryType: EntryTypeChange?,
         val tags: List<String>?,
         val expiry: EntryChanges.Expiry?,
+        val codeChanged: Boolean,
     )
 
     private data class FieldText(val name: String, val value: String, val isProtected: Boolean)
@@ -315,8 +330,41 @@ public class EntryEditor private constructor(
             entryType = EntryTypeChange.Set(EntryType.NOTE).takeIf { note && original.entryType == null },
             tags = tags.takeIf { it != original.tags },
             expiry = if (draft.expires != original.expires || moved) EntryChanges.Expiry(draft.expires, draft.expiryTime.takeIf { draft.expires }) else null,
+            codeChanged = codeChanged(draft),
         )
     }
+
+    // One-time codes (Mac SPEC §3.23; keething-spec edit.one-time-code)
+
+    /** The entry's own code differs from the one it had (set, changed or removed): "new" or "changed" beside it. */
+    public fun codeChanged(draft: EntryDraft): Boolean = draft.code != start.code
+
+    /**
+     * A code from a secret or an `otpauth://` link (typed, pasted, or read from a QR code): the entry's own when it has
+     * none, else another one as a protected custom field "One-time code 2" (3, …) holding its link (AC5).
+     */
+    public fun addOneTimeCode(draft: EntryDraft, text: String): AddedCode {
+        val config = try {
+            TotpSetup.parse(text)
+        } catch (problem: TotpSetupException) {
+            return AddedCode.Refused(codeProblem(problem))
+        }
+        try {
+            if (draft.code == null) return AddedCode.Added(draft.copy(code = CodeDraft.of(config)), field = null)
+            val taken = draft.fields.map { it.name.trim() }.toSet()
+            val name = generateSequence(2) { it + 1 }.map { "$ANOTHER_CODE $it" }.first { it !in taken }
+            val link = TotpSetup.otpauthUri(config, draft.title, draft.username)
+            return AddedCode.Added(draft.copy(fields = draft.fields + FieldDraft(draft.nextFieldId(), name, link, isProtected = true)), field = name)
+        } finally {
+            config.secret.wipe()
+        }
+    }
+
+    /**
+     * The code of a custom field holding an `otpauth://` link (another one-time code), with a key of its own to wipe;
+     * null for any other field. Its link is not edited by hand (AC7): removed, and the code added again.
+     */
+    public fun oneTimeCode(field: FieldDraft): TotpConfig? = OneTimeCodes.config(CustomField(field.name, FieldValue.Plain(field.value)))
 
     // A block of codes (Mac SPEC §3.16)
 
@@ -355,6 +403,17 @@ public class EntryEditor private constructor(
     }
 
     public companion object {
+        /** A further one-time code's field is named so, with a number from 2 (the entry's own is the first). */
+        public const val ANOTHER_CODE: String = "One-time code"
+
+        /** What the editor says when a code is not taken (the Mac's words). */
+        private fun codeProblem(problem: TotpSetupException): String = when (problem) {
+            is TotpSetupException.Empty -> "Paste the secret or the otpauth:// link the site shows."
+            is TotpSetupException.Unreadable -> "That is not a one-time code secret (Base32 letters A–Z and digits 2–7) or an otpauth:// link."
+            is TotpSetupException.TooShort -> "That secret is too short to be a real one; check that all of it was copied."
+            is TotpSetupException.Unsupported -> "This code cannot be used here: ${problem.reason}."
+        }
+
         /** The most codes added at once (a page of backup codes has 8–16). */
         public const val MAXIMUM_PASTED_CODES: Int = 50
 
@@ -371,6 +430,7 @@ public class EntryEditor private constructor(
                 title = entry.title, username = entry.username, password = entry.password.reveal(), url = entry.url,
                 notes = entry.notes, notesProtected = entry.notesProtected, tags = entry.tags, fields = fields,
                 expires = entry.expires, expiryTime = entry.expiryTime ?: aYearAfter(now), groupId = entry.groupId,
+                code = entry.totp?.let(CodeDraft::of),
             )
             val layout = if (entry.isNote) EditorLayout.NOTE else EditorLayout.ENTRY
             return EntryEditor(entry, isNew = false, start = draft, groups = emptyList(), layout = layout, openedAt = now, dates = dates)

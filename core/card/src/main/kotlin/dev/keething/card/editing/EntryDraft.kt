@@ -2,6 +2,9 @@ package dev.keething.card.editing
 
 import dev.keething.card.FieldDate
 import dev.keething.card.FieldType
+import dev.keething.domain.secret.Secret
+import dev.keething.domain.totp.Base32
+import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.search.FuzzyNames
 import dev.keething.search.SearchNormalizer
@@ -22,6 +25,27 @@ public data class FieldDraft(val id: Int, val name: String, val value: String, v
     /** The day a date field holds, for its calendar; null when it holds none. */
     val date: LocalDate?
         get() = FieldDate.parse(value, typed = true)?.date?.let { LocalDate.of(it.year, it.month, it.day ?: 1) }
+}
+
+/**
+ * The entry's own one-time code as the editor holds it (keething-spec edit.one-time-code AC6): its secret in Base32, a
+ * plain string as the text fields hold theirs, and the settings a site may ask for.
+ */
+public data class CodeDraft(
+    val secret: String,
+    val digits: Int = 6,
+    val period: Int = 30,
+    val algorithm: TotpConfig.Algorithm = TotpConfig.Algorithm.SHA1,
+) {
+    /** The code to show or save, with a key of its own: wipe it once used. */
+    public fun config(): TotpConfig = TotpConfig(Secret.adopt(Base32.decode(secret) ?: ByteArray(0)), digits, period, algorithm)
+
+    // The secret is the key: never in a log.
+    override fun toString(): String = "CodeDraft(•••, $digits, $period, $algorithm)"
+
+    public companion object {
+        public fun of(config: TotpConfig): CodeDraft = CodeDraft(config.secret.useBytes(Base32::encode), config.digits, config.period, config.algorithm)
+    }
 }
 
 /**
@@ -50,6 +74,8 @@ public data class EntryDraft(
     val groupId: String = "",
     /** New groups made in [groupId] with the save, each inside the one before (keething-spec groups.new-groups AC4). */
     val newGroups: List<String> = emptyList(),
+    /** The entry's own one-time code; null: none. Further codes are custom fields holding their links. */
+    val code: CodeDraft? = null,
 ) {
     /** Where the entry goes, as the group picker says it. */
     val group: GroupChoice get() = GroupChoice(groupId, newGroups)

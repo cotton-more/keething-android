@@ -42,7 +42,7 @@ Goals (v1)
 - Groups & tags (§6.2): the group tree and the tags, each with how many entries it has; a tap lists them; groups
   renamed, made, moved and deleted when empty there.
 - Copy any field; the clipboard is marked sensitive and cleared after 30 s.
-- Attachments: open and save a copy. One-time codes: show and copy (setting them up is optional, later).
+- Attachments: open and save a copy. One-time codes: show and copy, and set them up in the editor (keething-spec edit.one-time-code).
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
   warning.
 - Share entries encrypted for one phone (§10): the other side asks with a request, the answer opens only there;
@@ -402,7 +402,8 @@ What the phone writes (`VaultEdit`): an entry's fields (title, username, passwor
 their types, tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it,
 an entry deleted for good (`VaultEdit.DeleteForGood`: from the bin, or any entry when the bin is turned off; with its
 history, a `DeletedObjects` record, and its attachments nothing else uses dropped as every write drops them; keething-spec
-edit.delete-for-good). History, attachments, one-time codes (but that of an entry received, §10), renaming tags and the
+edit.delete-for-good), an entry's one-time code set, changed or removed (`EntryChanges.totp`; the editor's, §6.2, and
+an entry received, §10). History, attachments, renaming tags and the
 recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
 `VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
 made, moved, deleted when empty; keething-spec `plans/done/android-groups.md` AG1, AG2). The editor makes an entry's move
@@ -1385,7 +1386,19 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   to it above the keyboard. **Codes…** takes a block of codes pasted or typed (numbering and bullets dropped,
   at most 50) and adds them as protected fields `<list>_1`, `_2`, … typed `code`, which the card shows as a
   numbered list; such a list is folded into one row in the editor ("Recovery codes · 10 codes · protected")
-  until tapped. The Mac editor's rules (`card/editing`): only what differs
+  until tapped. **One-time code…** (keething-spec edit.one-time-code; the Mac's §3.23; *Another one-time code…* once
+  the entry has one) asks in a dialog for the secret a site shows or its `otpauth://` link, typed (masked, an eye
+  shows it) or pasted (*Paste*: the clipboard's text): a Base32 secret with spaces, dashes and case ignored, at least
+  10 bytes, 6 digits, 30 s, SHA-1; a link with its own; HOTP, Steam and Google Authenticator exports refused with the
+  reason, under the field. The first code is the entry's own, a row under Website: its live code and ring as on the
+  card, "New: check that the site accepts this code before saving." (or "Changed: …") until saved; the tune button
+  shows Digits (6, 7, 8), Period (30 s, 60 s) and Algorithm (SHA-1, SHA-256, SHA-512) as segmented choices (a value
+  the entry has outside them is offered too); Undo back to the code the entry had; remove (then "The one-time code
+  is removed with the save." with Undo). Saved as KeePassXC writes it, in the entry's own format (§3.3). A further code
+  becomes a protected field "One-time code 2" (3, …) holding its link (the title as issuer, the username as account);
+  a field holding a code's link shows its live code instead of its value, without a type chip, and is renamed or
+  removed but not edited by hand. Not yet: a QR code from an image or the camera (plans/android-release-1.0.md F13,
+  OTP2). The Mac editor's rules (`card/editing`): only what differs
   from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
   one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
   entry needs a title or a website. **Group** (keething-spec groups.entry-group, groups.new-groups;
