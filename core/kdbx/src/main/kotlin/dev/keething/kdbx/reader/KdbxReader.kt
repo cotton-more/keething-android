@@ -6,6 +6,7 @@ import dev.keething.kdbx.crypto.Bytes
 import dev.keething.kdbx.crypto.ChaCha20
 import dev.keething.kdbx.editing.EditableDatabase
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.key.DerivedKey
 import dev.keething.kdbx.tree.XmlTree
 import dev.keething.kdbx.xml.KdbxDocument
 import dev.keething.kdbx.xml.KdbxXmlReader
@@ -41,7 +42,16 @@ public object KdbxReader {
 
     /** [historyOf]: the UUID of an entry whose history items are read too (`document.history`). */
     public fun open(file: ByteArray, key: DatabaseKey, historyOf: String? = null): KdbxDatabase =
-        decryptPayload(file, key) { header, plain, inner, keyDerivation ->
+        read(file, { header -> key.transformed(header.kdf) }, historyOf)
+
+    /**
+     * Opens a file with [derived] alone, the key a save just wrote it with ([EditableDatabase.readBack]): nothing is
+     * looked up or derived; a file with other KDF parameters is not that save's.
+     */
+    internal fun open(file: ByteArray, derived: DerivedKey): KdbxDatabase = read(file, { header -> derived.forKdf(header.kdf) to false }, null)
+
+    private fun read(file: ByteArray, transform: (Header) -> Pair<ByteArray, Boolean>, historyOf: String?): KdbxDatabase =
+        decryptPayload(file, transform) { header, plain, inner, keyDerivation ->
             val stream = streamOf(inner)
             inner.wipeKey()
             try {
@@ -58,27 +68,37 @@ public object KdbxReader {
     /**
      * Opens a file to change it and write it back (SPEC §3.3; Mac `KDBXReader.openForEditing`): the XML is read
      * twice from the same decrypted bytes, into the document the reader always makes and into a tree that keeps
-     * everything.
+     * everything. The derived key that has just opened the file, its header's HMAC checked, goes with it: the save
+     * writes the new file with that key and reads it back with it (keething-spec kdbx.hardening AC1).
      */
-    public fun openForEditing(file: ByteArray, key: DatabaseKey): EditableDatabase =
-        decryptPayload(file, key) { header, plain, inner, _ ->
-            val documentStream = streamOf(inner)
-            val treeStream = streamOf(inner)
-            inner.wipeKey()
-            var document: KdbxDocument? = null
-            try {
-                document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, documentStream)
-                val root = XmlTree.parse(plain, inner.end, plain.size - inner.end, treeStream)
-                EditableDatabase(document, root, inner.binaries, inner.binaryFlags, header.template)
-            } catch (failure: KdbxException) {
-                document?.entries?.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
-                inner.binaries.forEach(Secret::wipe)
-                throw failure
-            } finally {
-                documentStream.wipe()
-                treeStream.wipe()
+    public fun openForEditing(file: ByteArray, key: DatabaseKey): EditableDatabase {
+        var proven: DerivedKey? = null
+        try {
+            return decryptPayload(file, { header ->
+                key.transformed(header.kdf).also { (transformed, _) -> proven = DerivedKey(header.kdf.identity, transformed) }
+            }) { header, plain, inner, _ ->
+                val documentStream = streamOf(inner)
+                val treeStream = streamOf(inner)
+                inner.wipeKey()
+                var document: KdbxDocument? = null
+                try {
+                    document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, documentStream)
+                    val root = XmlTree.parse(plain, inner.end, plain.size - inner.end, treeStream)
+                    EditableDatabase(document, root, inner.binaries, inner.binaryFlags, header.template, checkNotNull(proven))
+                } catch (failure: KdbxException) {
+                    document?.entries?.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
+                    inner.binaries.forEach(Secret::wipe)
+                    throw failure
+                } finally {
+                    documentStream.wipe()
+                    treeStream.wipe()
+                }
             }
+        } catch (failure: Throwable) {
+            proven?.wipe()
+            throw failure
         }
+    }
 
     /** The inner stream; when it cannot be made, the inner header's key and attachments are wiped first. */
     private fun streamOf(inner: InnerHeader): ChaCha20 = try {
@@ -95,7 +115,7 @@ public object KdbxReader {
      */
     private fun <T> decryptPayload(
         file: ByteArray,
-        key: DatabaseKey,
+        transform: (Header) -> Pair<ByteArray, Boolean>,
         read: (header: Header, plain: ByteArray, inner: InnerHeader, keyDerivation: Duration?) -> T,
     ): T {
         val header = Header.parse(file)
@@ -105,7 +125,7 @@ public object KdbxReader {
         val sha256 = MessageDigest.getInstance("SHA-256").apply { update(file, 0, header.checksumStart) }.digest()
         if (!MessageDigest.isEqual(sha256, header.sha256)) throw KdbxException.Corrupt("header checksum")
 
-        val (transformedAndFresh, kdfTime) = measureTimedValue { key.transformed(header.kdf) }
+        val (transformedAndFresh, kdfTime) = measureTimedValue { transform(header) }
         val (transformed, fresh) = transformedAndFresh
         val cipherKey: ByteArray
         val hmacBase: ByteArray

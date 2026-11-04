@@ -285,7 +285,28 @@ class EntryEditingTest {
 
         val edited = reread(editable).entries.single { it.uuid == id }
         assertEquals(protected("me"), edited.field("UserName"))
-        assertEquals(plain("open"), edited.field("Password"))
+        assertEquals(protected("open"), edited.field("Password"), "protected as it was, whatever Meta says now (L7)")
+    }
+
+    // spec: kdbx.round-trip/AC6
+    @Test
+    fun aStandardFieldKeepsItsOwnProtectionThroughAnEdit() {
+        // The review's L7: a value protected by its own flag while Meta/MemoryProtection leaves that field unprotected
+        // (KeePassXC keeps a field's own; KeePass 2.x lets the database's be switched off later).
+        val editable = open("kdbx4-aes-aeskdf")
+        val protection = editable.root.first("Meta")!!.first("MemoryProtection")!!
+        for (tag in listOf("ProtectTitle", "ProtectUserName", "ProtectPassword", "ProtectURL")) protection.first(tag)!!.text = "False"
+        val id = EditingFixtures.document("kdbx4-aes-aeskdf").entry("Second renamed").uuid
+        val element = editable.element(id)
+        val url = element.all("String").single { it.first("Key")?.text == "URL" }.first("Value")!!
+        url.secret = Secret.of(url.text)
+
+        EntryEditing.apply(EntryChanges(title = "Title", url = "https://new.example", password = Secret.of("still hidden")), element, editable.root, now)
+
+        val edited = reread(editable).entries.single { it.uuid == id }
+        assertEquals(protected("https://new.example"), edited.field("URL"), "its own protection kept")
+        assertEquals(protected("still hidden"), edited.field("Password"), "never written in the clear")
+        assertEquals(plain("Title"), edited.field("Title"), "plain as it was")
     }
 
     @Test

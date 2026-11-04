@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import dev.keething.android.clipboard.SensitiveClipboard
 import dev.keething.android.recyclebin.RecycleBinMoves
 import dev.keething.android.databases.DatabaseText
+import dev.keething.android.editor.unsavedText
 import dev.keething.android.session.OpenDatabase
 import dev.keething.vault.databases.EntryRef
 import dev.keething.vault.databases.OpenEntry
@@ -197,6 +198,15 @@ internal class EntryListViewModel(
                     onDismiss = database.database.session::stoppedSaveSaid,
                 )
             },
+            // keething-spec kdbx.hardening AC3: what a lock kept out of the file, said until OK.
+            unsavedText(database.unlocked.unsaved, database.unlocked.vault)?.let { text ->
+                ListBanner(
+                    key = "unsaved/${database.database.id}",
+                    title = if (named) "${database.mark.label.name}: not saved" else "Not saved",
+                    text = text,
+                    onDismiss = database.database.session::unsavedSaid,
+                )
+            },
             database.unlocked.reloadFailure?.let { failure ->
                 ListBanner(
                     key = "reload/${database.database.id}",
@@ -276,6 +286,18 @@ internal class EntryListViewModel(
     fun moveToRecycleBin(id: String) {
         val found = openEntry(EntryRef.of(id))?.takeIf { !it.inRecycleBin } ?: return
         recycleBin.moveToRecycleBin(found.database, found.entry)
+    }
+
+    /** Restore from the quick actions (SPEC §6.2): an entry in its database's bin, back where it came from. */
+    fun restore(id: String) {
+        val found = openEntry(EntryRef.of(id))?.takeIf { it.inRecycleBin } ?: return
+        recycleBin.restoreSaying(found.database, found.entry.id)
+    }
+
+    /** Delete for good from the quick actions, once asked (keething-spec edit.delete-for-good): only an entry in its database's bin. */
+    fun deleteForGood(id: String) {
+        val found = openEntry(EntryRef.of(id))?.takeIf { it.inRecycleBin } ?: return
+        recycleBin.deleteForGood(found.database, found.entry)
     }
 
     /** Opening the site from the quick actions counts as using the entry, as copying does. */

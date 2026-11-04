@@ -5,6 +5,7 @@ import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.NewGroup
+import dev.keething.kdbx.Fixtures
 import dev.keething.kdbx.KeePassXcCli
 import dev.keething.kdbx.editing.EditingFixtures.document
 import dev.keething.kdbx.editing.EditingFixtures.open
@@ -258,6 +259,79 @@ class EntryLifecycleTest {
         assertFailsWith<EditException.RecycleBinDisabled> { EntryLifecycle.moveToRecycleBin(one.uuid, editable.root, now) }
         assertFailsWith<EditException.EntryNotFound> { EntryLifecycle.moveToRecycleBin("gone", editable.root, now) }
         assertFailsWith<EditException.EntryNotFound> { EntryLifecycle.restore("gone", editable.root, now) }
+    }
+
+    // spec: edit.delete-for-good/AC1
+    @Test
+    fun deletingForGoodIsOnlyFromTheBinWhileTheBinIsOn() {
+        val editable = open("kdbx4-aes-aeskdf")
+        val second = document("kdbx4-aes-aeskdf").entry("Second renamed")
+
+        assertFailsWith<EditException.NotInRecycleBin> { EntryLifecycle.deleteForGood(second.uuid, editable.root, now) }
+        assertFailsWith<EditException.EntryNotFound> { EntryLifecycle.deleteForGood("gone", editable.root, now) }
+        assertNotNull(EntryLifecycle.locate(second.uuid, editable.root))
+        EntryLifecycle.moveToRecycleBin(second.uuid, editable.root, now)
+        EntryLifecycle.deleteForGood(second.uuid, editable.root, now)
+        assertNull(EntryLifecycle.locate(second.uuid, editable.root))
+    }
+
+    // spec: edit.delete-for-good/AC1
+    @Test
+    fun withTheBinTurnedOffAnyEntryIsDeletedForGood() {
+        val editable = open("kdbx4-aes-aeskdf")
+        editable.root.first("Meta")!!.first("RecycleBinEnabled")!!.text = "False"
+        val one = document("kdbx4-aes-aeskdf").entry("Entry <one> ü")
+
+        EntryLifecycle.deleteForGood(one.uuid, editable.root, now)
+
+        assertNull(EntryLifecycle.locate(one.uuid, editable.root))
+        assertTrue(reread(editable).entries.none { it.uuid == one.uuid })
+    }
+
+    // spec: edit.delete-for-good/AC3
+    @Test
+    fun anEntryDeletedForGoodLeavesWithItsHistoryAndADeletedObjectsRecord() {
+        val before = document("kdbx4-aes-aeskdf")
+        val second = before.entry("Second renamed")
+        val editable = open("kdbx4-aes-aeskdf")
+        val binId = EntryLifecycle.moveToRecycleBin(second.uuid, editable.root, now)
+        val later = now.plusSeconds(60)
+
+        EntryLifecycle.deleteForGood(second.uuid, editable.root, later)
+
+        val deleted = assertNotNull(editable.root.first("Root")?.first("DeletedObjects")).all("DeletedObject")
+        assertEquals(second.uuid, deleted.last().first("UUID")?.text)
+        assertEquals(later, deleted.last().first("DeletionTime")?.text?.let(KdbxTime::parse))
+        val bin = assertNotNull(EntryLifecycle.group(binId, editable.root)).last().first("Times")!!
+        assertEquals(later, bin.first("LastModificationTime")?.text?.let(KdbxTime::parse))
+        assertEquals(later, bin.first("LastAccessTime")?.text?.let(KdbxTime::parse))
+        // Nothing of it is left, not even a version in a history.
+        assertTrue(second.uuid !in String(XmlTree.withoutSecrets(editable.root)).substringBefore("<DeletedObjects>"))
+        val after = KdbxReader.open(editable.write().file, EditingFixtures.key).document
+        assertEquals(before.entries.filter { it.uuid != second.uuid }, after.entries)
+        assertEquals(KdbxSchema.violations(open("kdbx4-aes-aeskdf").root), KdbxSchema.violations(editable.root))
+    }
+
+    // spec: edit.delete-for-good/AC4
+    @Test
+    fun attachmentsOnlyTheDeletedEntryUsedLeaveTheFileTheOthersMeanTheSameBytes() {
+        val original = KdbxReader.open(Fixtures.bytes("kdbx4-aes-aeskdf.kdbx"), EditingFixtures.key)
+        val second = original.document.entry("Second renamed")
+        val one = original.document.entry("Entry <one> ü")
+        assertTrue(second.attachments.isNotEmpty() && one.attachments.isNotEmpty(), "the fixture has attachments on both")
+        val editable = open("kdbx4-aes-aeskdf")
+        EntryLifecycle.moveToRecycleBin(second.uuid, editable.root, now)
+        EntryLifecycle.deleteForGood(second.uuid, editable.root, now)
+
+        val after = KdbxReader.open(editable.write().file, EditingFixtures.key)
+
+        val used = original.document.entries.filter { it.uuid != second.uuid }.flatMap { it.attachments }.mapNotNull { it.ref }.toSet()
+        assertEquals(used.size, after.binaries.size, "only what the others refer to is kept")
+        val kept = after.document.entries.single { it.uuid == one.uuid }
+        assertEquals(one.attachments.map { it.name }, kept.attachments.map { it.name })
+        for ((was, now) in one.attachments.zip(kept.attachments)) {
+            assertTrue(original.binaries[was.ref!!].hasSameBytes(after.binaries[now.ref!!]), "${was.name} byte for byte")
+        }
     }
 
     @Test

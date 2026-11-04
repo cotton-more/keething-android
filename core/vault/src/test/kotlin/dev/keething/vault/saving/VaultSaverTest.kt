@@ -166,6 +166,27 @@ class VaultSaverTest {
         assertEquals(3, backups.kept.size, "one per save: create, recycle, restore")
     }
 
+    // spec: edit.delete-for-good/AC1
+    @Test
+    fun anEntryIsDeletedForGoodOnlyFromTheBinAndOnlyAsLoaded() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val key = key()
+        val start = unlock(store, key)
+        val saver = VaultSaver(store, backups)
+        val entry = start.entries.first()
+
+        assertEquals(SaveFailure.WrongPlace, failure(saver.save(VaultEdit.DeleteForGood(entry.id, entry.lastModified), key, now)))
+        val recycled = saved(saver.save(VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified), key, now)).recycleBin.single { it.id == entry.id }
+        assertEquals(SaveFailure.ChangedElsewhere, failure(saver.save(VaultEdit.DeleteForGood(entry.id, Instant.EPOCH), key, now)))
+        val gone = saved(saver.save(VaultEdit.DeleteForGood(entry.id, recycled.lastModified), key, now))
+        assertTrue(gone.entries.none { it.id == entry.id } && gone.recycleBin.none { it.id == entry.id })
+        assertEquals(SaveFailure.EntryNotFound, failure(saver.save(VaultEdit.DeleteForGood(entry.id, recycled.lastModified), key, now)))
+
+        val end = unlock(store)
+        assertEquals(start.entries.filter { it.id != entry.id }, end.entries, "the other entries are as they were")
+        assertEquals(2, backups.kept.size, "one per save: recycle, delete")
+    }
+
     @Test
     fun fieldTypesSavedWithAnEntryComeBackAndAreChecked() {
         val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))

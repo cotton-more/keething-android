@@ -14,7 +14,7 @@ public sealed class EditException(message: String) : Exception(message) {
 
     public class AlreadyInRecycleBin : EditException("already in the recycle bin")
 
-    /** Only an entry in the recycle bin is restored. */
+    /** Only an entry in the recycle bin is restored, or deleted for good while the bin is on. */
     public class NotInRecycleBin : EditException("not in the recycle bin")
 
     /** The recycle bin's `PreviousParentGroup` links go round in a circle. */

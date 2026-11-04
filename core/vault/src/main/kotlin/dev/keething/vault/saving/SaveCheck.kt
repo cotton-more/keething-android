@@ -1,9 +1,12 @@
 package dev.keething.vault.saving
 
 import dev.keething.domain.text.TextFolding
+import dev.keething.domain.text.XmlText
+import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.EntryTypeChange
+import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
@@ -15,7 +18,7 @@ import java.time.temporal.ChronoUnit
 /**
  * The check before a written file replaces the old one (SPEC §3.3 step 5; port of the Mac `KDBXFileSaver.verify`):
  * read back as an unlock would read it. An entry's edit: every other entry exactly as before, the groups as before
- * but those it made and those a move left empty, and the changed entry exactly as asked. A change of the groups:
+ * but those it made and those a move left empty, and the changed entry exactly as asked (one deleted for good: gone). A change of the groups:
  * the groups as expected ([expectedGroups]), every entry as before but for its path, the recycle bin as before.
  * Groups are matched by id, and each group's parent is checked too, found by the file's order (a group's groups follow
  * it), so two groups of one name in one parent are each themselves.
@@ -107,8 +110,9 @@ internal object SaveCheck {
             var parent = destination.groupId
             for (group in destination.newGroups) {
                 if (group.id in groups) fail("the new groups are not those asked")
-                path = path + group.name
-                groups[group.id] = VaultGroup(group.id, group.name, path)
+                val name = XmlText.writable(group.name)
+                path = path + name
+                groups[group.id] = VaultGroup(group.id, name, path)
                 parents[group.id] = parent
                 parent = group.id
             }
@@ -193,6 +197,7 @@ internal object SaveCheck {
                     .copy(groupPath = actual.groupPath, groupId = actual.groupId, lastModified = actual.lastModified)
                 if (actual != expected) fail("the moved entry changed")
             }
+            is VaultEdit.DeleteForGood -> if (id !in old || id in new) fail("the entry is still there")
         }
     }
 
@@ -258,7 +263,7 @@ internal object SaveCheck {
         return when (edit) {
             is VaultEdit.RenameGroup -> {
                 val at = index(edit.groupId)
-                val name = edit.name.trim()
+                val name = XmlText.writable(edit.name.trim())
                 moving(at, groups[at].path.dropLast(1) + name, name)
             }
             is VaultEdit.MoveGroup -> {
@@ -266,7 +271,7 @@ internal object SaveCheck {
                 moving(at, groups[index(edit.intoGroupId)].path + groups[at].name, groups[at].name)
             }
             is VaultEdit.CreateGroup -> {
-                val name = edit.group.name.trim()
+                val name = XmlText.writable(edit.group.name.trim())
                 groups + VaultGroup(edit.group.id, name, groups[index(edit.parentId)].path + name)
             }
             is VaultEdit.DeleteEmptyGroup -> {
@@ -324,8 +329,24 @@ internal object SaveCheck {
             expiry.time?.let { expected = expected.copy(expiryTime = seconds(it)) }
         }
         changes.totp?.let { expected = expected.copy(totp = (it as? TotpChange.Set)?.config, hasCodeFields = it is TotpChange.Set) }
-        return expected
+        return expected.asWritten()
     }
+
+    /**
+     * As the file holds the entry: what XML 1.0 cannot hold left out of its plain values, as the writer leaves it out
+     * (keething-spec kdbx.hardening AC7); protected values keep every character.
+     */
+    private fun Entry.asWritten(): Entry = copy(
+        title = XmlText.writable(title),
+        username = XmlText.writable(username),
+        url = XmlText.writable(url),
+        notes = if (notesProtected) notes else XmlText.writable(notes),
+        customFields = customFields.map { field ->
+            val value = (field.value as? FieldValue.Plain)?.let { FieldValue.Plain(XmlText.writable(it.text)) } ?: field.value
+            CustomField(XmlText.writable(field.name), value)
+        },
+        tags = tags.map(XmlText::writable).filter { it.isNotEmpty() },
+    )
 
     /** Every entry by id: those outside the bin, the settings entry and those in the bin. */
     private fun all(vault: Vault): Map<String, Entry> =

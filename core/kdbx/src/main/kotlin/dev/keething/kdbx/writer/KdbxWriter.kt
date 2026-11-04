@@ -5,6 +5,7 @@ import dev.keething.kdbx.crypto.Bytes
 import dev.keething.kdbx.crypto.ChaCha20
 import dev.keething.kdbx.editing.EntryLifecycle
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.key.DerivedKey
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxFormat
 import dev.keething.kdbx.reader.KdbxTemplate
@@ -25,14 +26,16 @@ import javax.crypto.spec.SecretKeySpec
  * Writes a KDBX 4 file (SPEC §3.3; port of the Mac `KDBXWriter`): the format of the file it was read from
  * (version, raised from 4.0 to 4.1 only when the document needs it; cipher, compression, the key derivation
  * with its parameters and salt), with a new master seed, IV and inner stream key, as KeePassXC does on every
- * save. Keeping the salt keeps the derived key, so a save derives nothing. The attachments go back with their
- * flags, in their order, so the entries' `Ref`s stay right.
+ * save. Keeping the salt keeps the derived key, so a save derives nothing: it writes with the key that opened the
+ * file ([DerivedKey], keething-spec kdbx.hardening AC1). The attachments go back with their flags, in their order, so
+ * the entries' `Ref`s stay right.
  */
 internal object KdbxWriter {
     private const val SIGNATURE_1 = 0x9AA2D903.toInt()
     private const val SIGNATURE_2 = 0xB54BFB67.toInt()
     private const val BLOCK_SIZE = 1 shl 20
 
+    /** Sealed with [key], derived for [template]'s KDF parameters: a new database, or a new master key. */
     fun write(
         root: XElement,
         binaries: List<Secret>,
@@ -40,6 +43,40 @@ internal object KdbxWriter {
         template: KdbxTemplate,
         key: DatabaseKey,
         random: SecureRandom = SecureRandom(),
+    ): ByteArray {
+        val (transformed, _) = key.transformed(template.kdf)
+        try {
+            return write(root, binaries, binaryFlags, template, transformed, random)
+        } finally {
+            transformed.fill(0)
+        }
+    }
+
+    /** Sealed with [derived], the key that opened the file (a save): looked up nowhere, derived never. */
+    fun write(
+        root: XElement,
+        binaries: List<Secret>,
+        binaryFlags: List<Byte>,
+        template: KdbxTemplate,
+        derived: DerivedKey,
+        random: SecureRandom = SecureRandom(),
+    ): ByteArray {
+        val transformed = derived.forKdf(template.kdf)
+        try {
+            return write(root, binaries, binaryFlags, template, transformed, random)
+        } finally {
+            transformed.fill(0)
+        }
+    }
+
+    /** [transformed] stays the caller's to wipe. */
+    private fun write(
+        root: XElement,
+        binaries: List<Secret>,
+        binaryFlags: List<Byte>,
+        template: KdbxTemplate,
+        transformed: ByteArray,
+        random: SecureRandom,
     ): ByteArray {
         if (template.cipher == KdbxFormat.Cipher.TWOFISH) throw KdbxException.UnsupportedCipher("Twofish")
         require(binaryFlags.size == binaries.size) { "a flag for every attachment" }
@@ -50,15 +87,8 @@ internal object KdbxWriter {
         val streamKey = ByteArray(64).also(random::nextBytes)
         try {
             val header = header(template, masterSeed, iv, minor = maxOf(template.minor, requiredMinor(root)))
-            val (transformed, _) = key.transformed(template.kdf)
-            val cipherKey: ByteArray
-            val hmacBase: ByteArray
-            try {
-                cipherKey = sha256(masterSeed, transformed)
-                hmacBase = sha512(masterSeed, transformed, byteArrayOf(1))
-            } finally {
-                transformed.fill(0)
-            }
+            val cipherKey = sha256(masterSeed, transformed)
+            val hmacBase = sha512(masterSeed, transformed, byteArrayOf(1))
             try {
                 val payload = WipeableBuffer(binaries.sumOf { it.size } + (1 shl 20))
                 try {

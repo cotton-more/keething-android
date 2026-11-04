@@ -378,6 +378,7 @@ internal class Sessions(
                 is OpenFailure.Unsupported -> "unsupported"
                 is OpenFailure.Damaged -> "damaged: ${failure.detail}"
                 OpenFailure.OutOfMemory -> "out of memory"
+                OpenFailure.Locked -> "locked meanwhile"
             }
         }
         SessionState.Unlocking -> "unlocking"

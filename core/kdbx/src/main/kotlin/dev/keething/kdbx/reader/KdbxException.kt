@@ -10,7 +10,13 @@ public sealed class KdbxException(message: String) : Exception(message) {
 
     public class UnsupportedCipher(public val cipher: String) : KdbxException("cipher $cipher")
 
-    public class UnsupportedKdf(public val kdf: String) : KdbxException("key derivation $kdf")
+    public open class UnsupportedKdf(public val kdf: String) : KdbxException("key derivation $kdf")
+
+    /**
+     * Argon2's memory is within KeePass's limits but more than the phone gives the app (keething-spec kdbx.hardening
+     * AC6): refused before it is allocated, never run out of. [kdf] names it.
+     */
+    public class NotEnoughMemory(kdf: String) : UnsupportedKdf(kdf)
 
     public class UnsupportedInnerStream(public val id: Int) : KdbxException("inner stream $id")
 

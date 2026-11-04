@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MoreVert
@@ -106,6 +107,7 @@ import dev.keething.android.databases.DatabaseMark
 import dev.keething.android.databases.databaseColors
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.EntryRef
+import dev.keething.android.recyclebin.DeleteForGoodDialog
 import dev.keething.android.sharing.SendToRequestSheet
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.PathText
@@ -136,7 +138,8 @@ import java.time.format.FormatStyle
  * The password's menu shows it as a QR code or in large type ([onShowPassword]), or shares it after a
  * warning. Edit ([onEdit]) is a button at the bottom, in reach of the thumb; the bar's menu shows the entry's
  * earlier versions ([onHistory]), sends it, or moves it into the recycle bin at once, the list then offering Undo.
- * An entry in the bin has Restore in the bar instead, and no Edit.
+ * An entry in the bin has Restore in the bar instead, and no Edit; its menu deletes it for good, after asking (so
+ * does Delete for every entry when the database has the bin turned off).
  */
 @Composable
 internal fun EntryCardScreen(
@@ -208,6 +211,17 @@ internal fun EntryCardScreen(
             },
             onDismiss = { movingTo = null },
             title = "Move to group",
+        )
+    }
+    var deletingForGood by rememberSaveable { mutableStateOf(false) }
+    if (deletingForGood) {
+        DeleteForGoodDialog(
+            title = content.card.title,
+            onDelete = {
+                deletingForGood = false
+                if (model.deleteForGood()) onBack()
+            },
+            onDismiss = { deletingForGood = false },
         )
     }
     if (sending) {
@@ -324,10 +338,12 @@ internal fun EntryCardScreen(
                     }
                     CardMenu(
                         inRecycleBin = content.inRecycleBin,
+                        forGood = content.inRecycleBin || content.binTurnedOff,
                         onHistory = onHistory,
                         onMove = { movingTo = model.groupsToMoveTo() },
                         onSend = { sending = true },
                         onDelete = { if (model.moveToRecycleBin()) onBack() },
+                        onDeleteForGood = { deletingForGood = true },
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -379,10 +395,18 @@ internal fun EntryCardScreen(
 
 /**
  * History, Move to group… (plans/android-groups.md G6), Send, Move to the recycle bin (at once; the list offers Undo).
- * In the bin: History only.
+ * In the bin: History and Delete for good…; with the bin turned off ([forGood]), Delete for good… for the bin.
  */
 @Composable
-private fun CardMenu(inRecycleBin: Boolean, onHistory: () -> Unit, onMove: () -> Unit, onSend: () -> Unit, onDelete: () -> Unit) {
+private fun CardMenu(
+    inRecycleBin: Boolean,
+    forGood: Boolean,
+    onHistory: () -> Unit,
+    onMove: () -> Unit,
+    onSend: () -> Unit,
+    onDelete: () -> Unit,
+    onDeleteForGood: () -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -403,7 +427,11 @@ private fun CardMenu(inRecycleBin: Boolean, onHistory: () -> Unit, onMove: () ->
             if (!inRecycleBin) {
                 item("Move to group…", Icons.AutoMirrored.Rounded.DriveFileMove, onMove)
                 item("Send to a request", Icons.AutoMirrored.Rounded.Send, onSend)
-                HorizontalDivider()
+            }
+            HorizontalDivider()
+            if (forGood) {
+                item("Delete for good…", Icons.Rounded.DeleteForever, onDeleteForGood)
+            } else {
                 item("Move to the recycle bin", Icons.Rounded.DeleteOutline, onDelete)
             }
         }
@@ -703,3 +731,4 @@ internal class CardActions(
 /** Tapping anywhere on a row copies it (SPEC §6.2). */
 internal fun Modifier.copyOnTap(row: FieldRow, actions: CardActions): Modifier =
     if (row.isCopyable) clickable(onClickLabel = "Copy ${row.noticeLabel.lowercase()}") { actions.onCopy(row) } else this
+

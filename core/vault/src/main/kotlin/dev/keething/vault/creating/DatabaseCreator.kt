@@ -70,6 +70,8 @@ public class DatabaseCreator(private val now: () -> Instant) {
             NewDatabase.file(name, target.fileName, cipher, kdf, key, now())
         } catch (failure: KdbxException.UnsupportedCipher) {
             throw CreateFailure.Unsupported(failure.cipher)
+        } catch (_: KdbxException.NotEnoughMemory) {
+            throw CreateFailure.NotEnoughMemory()
         } catch (failure: KdbxException.UnsupportedKdf) {
             throw CreateFailure.Unsupported(failure.kdf)
         } catch (failure: EditException.BreaksFormat) {

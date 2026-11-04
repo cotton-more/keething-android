@@ -3,6 +3,7 @@ package dev.keething.vault.session
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.StoppedSave
 import dev.keething.domain.vault.Vault
+import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.saving.SaveFailure
@@ -47,7 +48,10 @@ public sealed interface SaveOutcome {
 
     public data class Failed(val failure: SaveFailure) : SaveOutcome
 
-    /** A lock came first; what the save read back is wiped (the file may have been written). */
+    /**
+     * A lock came first; what the save read back is wiped. The file may have been written: when it was not, the next
+     * unlock says so ([SessionState.Unlocked.unsaved]).
+     */
     public data object Interrupted : SaveOutcome
 }
 
@@ -69,5 +73,33 @@ public sealed interface SessionState {
          * said until [VaultSession.stoppedSaveSaid].
          */
         val stoppedSave: StoppedSave? = null,
+        /**
+         * The changes a lock kept out of the file before this unlock (keething-spec kdbx.hardening AC3), in the order they
+         * were saved: said until [VaultSession.unsavedSaid].
+         */
+        val unsaved: List<UnsavedChange> = emptyList(),
     ) : SessionState
+}
+
+/**
+ * A change that was not saved because the database locked first (keething-spec kdbx.hardening AC3): it was still being
+ * saved when the lock's 10 s ran out, it failed after the lock, or it was waiting for the save before it. What kind of
+ * change and the [id] of its entry or group only: never a value, kept through the lock until the next unlock said it.
+ */
+public data class UnsavedChange(val kind: Kind, val id: String) {
+    public enum class Kind { ENTRY_CHANGED, ENTRY_CREATED, ENTRY_TO_RECYCLE_BIN, ENTRY_RESTORED, ENTRY_DELETED, GROUP_RENAMED, GROUP_CREATED, GROUP_MOVED, GROUP_DELETED }
+
+    internal companion object {
+        fun of(edit: VaultEdit): UnsavedChange = when (edit) {
+            is VaultEdit.Update -> UnsavedChange(Kind.ENTRY_CHANGED, edit.entryId)
+            is VaultEdit.Create -> UnsavedChange(Kind.ENTRY_CREATED, edit.entryId)
+            is VaultEdit.MoveToRecycleBin -> UnsavedChange(Kind.ENTRY_TO_RECYCLE_BIN, edit.entryId)
+            is VaultEdit.Restore -> UnsavedChange(Kind.ENTRY_RESTORED, edit.entryId)
+            is VaultEdit.DeleteForGood -> UnsavedChange(Kind.ENTRY_DELETED, edit.entryId)
+            is VaultEdit.RenameGroup -> UnsavedChange(Kind.GROUP_RENAMED, edit.groupId)
+            is VaultEdit.CreateGroup -> UnsavedChange(Kind.GROUP_CREATED, edit.parentId)
+            is VaultEdit.MoveGroup -> UnsavedChange(Kind.GROUP_MOVED, edit.groupId)
+            is VaultEdit.DeleteEmptyGroup -> UnsavedChange(Kind.GROUP_DELETED, edit.groupId)
+        }
+    }
 }

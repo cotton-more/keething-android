@@ -66,6 +66,11 @@ public class VaultSession(
     private val missingRetry: Duration = 1.seconds,
     /** The database's key file, null for none: asked for at every unlock and read then, never at a reload. */
     private val keyFile: () -> KeyFileSource? = { null },
+    /**
+     * How long a save the lock overtook may still run (keething-spec kdbx.hardening AC3), counted on [scope]'s clock: the
+     * main thread's, which stands still while the phone sleeps, so only time awake counts.
+     */
+    private val saveGrace: Duration = 10.seconds,
 ) {
     private val mutableState = MutableStateFlow<SessionState>(SessionState.Locked(LockReason.Initial))
     public val state: StateFlow<SessionState> = mutableState.asStateFlow()
@@ -75,9 +80,24 @@ public class VaultSession(
 
     private val saver = VaultSaver(store, backups)
 
-    /** Reloads and saves take turns, each up to the vault it adopts: an older read never replaces a newer save. */
+    /**
+     * Reloads and saves take turns, each up to the vault it adopts: an older read never replaces a newer save. Saves
+     * wait for each other in the order they were asked for, so each reads the file the one before it wrote
+     * (keething-spec kdbx.hardening AC4).
+     */
     private val fileWork = Mutex()
-    private var saving = false
+
+    /** The saves running or waiting their turn, in the order asked for. */
+    private val saves = mutableListOf<RunningSave>()
+
+    /** The changes a lock kept out of the file, until an unlock said them (AC3): kept through the lock, ids only. */
+    private var unsaved: List<UnsavedChange> = emptyList()
+
+    /**
+     * The keys an unlock, a reload or a history read is opening the file with: a lock gives them up at once, so a key
+     * derivation running with one stops (keething-spec kdbx.hardening AC6).
+     */
+    private val reading = mutableSetOf<DatabaseKey>()
 
     private var key: DatabaseKey? = null
     private var attachments: AttachmentContents? = null
@@ -225,7 +245,7 @@ public class VaultSession(
             if (token != generation) return null
             // Left in [waiting] until this try is over: the caller wipes what is there, whatever ends the unlock.
             val attempt = waiting.first()
-            val result = open(attempt.key)
+            val result = opening(attempt.key)
             // The watch starts with the conflict copies' read, on [io]: both may be the storage provider's calls.
             val opening = if (result is OpenResult.Opened) withContext(io) { copiesNow() to store.watch { scope.launch { fileChanged() } } } else null
             waiting.removeFirst()
@@ -265,8 +285,21 @@ public class VaultSession(
         lock(LockReason.Initial)
     }
 
+    /**
+     * Locks at once: the vault, its attachments and the key are wiped, and no save starts any more. A save already
+     * running may finish for [saveGrace] (keething-spec kdbx.hardening AC3); then it stops before the backup and the
+     * replace, its key given up and wiped, and the next unlock says which change was not saved.
+     */
     public fun lock(reason: LockReason = LockReason.Manual) {
         generation++
+        reading.forEach(DatabaseKey::abandon)
+        reading.clear()
+        for (running in saves) {
+            if (running.deadline == null) running.deadline = scope.launch {
+                delay(saveGrace)
+                running.stop()
+            }
+        }
         settleJob?.cancel()
         watch?.let(::closeWatch)
         watch = null
@@ -292,9 +325,11 @@ public class VaultSession(
         if (mutableState.value !is SessionState.Unlocked) return null
         val token = generation
         val attempt = key?.copy() ?: return null
+        reading += attempt
         val result = try {
             withContext(io) { opener.history(store, attempt, entryId) }
         } finally {
+            reading -= attempt
             attempt.wipe()
         }
         if (token != generation) {
@@ -374,12 +409,12 @@ public class VaultSession(
     /** False when the session was locked meanwhile. */
     private suspend fun reloadOnce(token: Int): Boolean = fileWork.withLock {
         val attempt = key?.copy() ?: return false
-        var result = open(attempt)
+        var result = opening(attempt)
         var waited = Duration.ZERO
         while (result.failure == OpenFailure.Missing && waited < missingPatience && token == generation) {
             delay(missingRetry)
             waited += missingRetry
-            if (token == generation) result = open(attempt)
+            if (token == generation) result = opening(attempt)
         }
         val copies = conflictCopies()
         if (token != generation) {
@@ -407,24 +442,30 @@ public class VaultSession(
 
     /**
      * Writes [edit] into the file (SPEC §3.3), an entry's or the groups', with the key in memory; the vault then becomes
-     * the file read back, and [SaveOutcome.Saved] names the groups the save deleted. One save at a time: null while one
-     * runs, and when not unlocked. Refused because the entry changed or went elsewhere, or the file's groups no longer
-     * allow the change, the vault is read again; refused because the password changed elsewhere, the session locks.
-     * The save reads [edit]'s secrets until the result is complete: wipe them only then.
+     * the file read back, and [SaveOutcome.Saved] names the groups the save deleted. Saves run one at a time, each after
+     * the one asked for before it, reading the file that one left (keething-spec kdbx.hardening AC4); null when not
+     * unlocked. Refused because the entry changed or went elsewhere, or the file's groups no longer allow the change,
+     * the vault is read again; refused because the password changed elsewhere, the session locks. A lock lets a running
+     * save finish for a while ([lock]); one still waiting its turn then does not start. The save reads [edit]'s secrets
+     * until the result is complete: wipe them only then.
      */
     public fun save(edit: VaultEdit): Deferred<SaveOutcome>? {
-        if (mutableState.value !is SessionState.Unlocked || saving) return null
+        if (mutableState.value !is SessionState.Unlocked) return null
         val attempt = key?.copy() ?: return null
-        saving = true
         val token = generation
+        val running = RunningSave(attempt)
+        saves += running
         val outcome = CompletableDeferred<SaveOutcome>()
         scope.launch {
+            var inFile = false
             try {
                 fileWork.withLock {
-                    val result = withContext(io) { saver.save(edit, attempt, clock.now()) }
+                    // A lock came while it waited for the save before it: it does not start (AC3).
+                    if (token != generation) return@withLock
+                    val result = withContext(io) { saver.save(edit, attempt, clock.now(), running::stopped) }
+                    inFile = result is SaveResult.Saved
                     val copies = conflictCopies()
                     if (token != generation) {
-                        attempt.wipe()
                         if (result is SaveResult.Saved) discard(OpenResult.Opened(result.opened), attempt)
                         return@withLock
                     }
@@ -432,22 +473,55 @@ public class VaultSession(
                         is SaveResult.Saved -> {
                             key?.wipe()
                             key = attempt
+                            running.keyTaken = true
                             adopt(OpenResult.Opened(result.opened), copies)
                             outcome.complete(SaveOutcome.Saved(result.deletedGroups))
                         }
                         is SaveResult.Failed -> {
-                            attempt.wipe()
                             outcome.complete(SaveOutcome.Failed(result.failure))
                             afterRefusal(result.failure)
                         }
                     }
                 }
             } finally {
-                saving = false
+                saves -= running
+                running.deadline?.cancel()
+                if (!running.keyTaken) attempt.wipe()
+                // Overtaken by a lock, and the file does not have it: the next unlock says so (this one, if it came first).
+                if (token != generation && !inFile) {
+                    unsaved = unsaved + UnsavedChange.of(edit)
+                    (mutableState.value as? SessionState.Unlocked)?.let { set(it.copy(unsaved = unsaved)) }
+                }
                 outcome.complete(SaveOutcome.Interrupted)
             }
         }
         return outcome
+    }
+
+    /** A save running or waiting its turn; [stop] is the lock's grace running out. */
+    private inner class RunningSave(val key: DatabaseKey) {
+        /** Asked by the saver right before the backup and the replace. */
+        @Volatile
+        var stopped = false
+            private set
+        var deadline: Job? = null
+
+        /** The save became the session's: its key is the session's now. */
+        var keyTaken = false
+
+        /** Stops it at its next check, its key given up at once and wiped as soon as no derivation holds it. */
+        fun stop() {
+            stopped = true
+            key.abandon()
+            scope.launch(io) { key.wipe() }
+        }
+    }
+
+    /** The app said the changes a lock kept out of the file ([SessionState.Unlocked.unsaved]): they are said no more. */
+    public fun unsavedSaid() {
+        unsaved = emptyList()
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return
+        if (unlocked.unsaved.isNotEmpty()) set(unlocked.copy(unsaved = emptyList()))
     }
 
     private fun afterRefusal(failure: SaveFailure) {
@@ -469,13 +543,23 @@ public class VaultSession(
         triedVersion = opened.version
         // A stopped save put right stays said until the app said it, whatever the reads after it say.
         val stoppedSave = opened.stoppedSave ?: (mutableState.value as? SessionState.Unlocked)?.stoppedSave
-        val unlocked = SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation, stoppedSave = stoppedSave)
+        val unlocked = SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation, stoppedSave = stoppedSave, unsaved = unsaved)
         set(unlocked)
         // The same contents read again: the state keeps the equal one before, so this copy is nobody's.
         if (mutableState.value !== unlocked) opened.vault.wipe()
     }
 
     private suspend fun open(key: DatabaseKey): OpenResult = withContext(io) { opener.open(store, key) }
+
+    /** [open], [key] given up by a lock meanwhile ([reading]). */
+    private suspend fun opening(key: DatabaseKey): OpenResult {
+        reading += key
+        try {
+            return open(key)
+        } finally {
+            reading -= key
+        }
+    }
 
     private suspend fun conflictCopies(): List<ConflictCopy> = withContext(io) { copiesNow() }
 

@@ -116,11 +116,11 @@ class NewDatabaseTest {
     }
 
     @Test
-    fun iterationsUpToKeePassLimitPassTheCheckButThePhoneWritesOnlyWhatItsOwnArgon2Runs() {
+    fun iterationsUpToKeePassLimitAreWrittenAndNoMore() {
         NewDatabase.check(argon2d(iterations = (1L shl 32) - 1, memory = 1L shl 20, lanes = 1))
-        NewDatabase.template(Cipher.AES256, argon2d(iterations = Int.MAX_VALUE.toLong(), memory = 1L shl 20, lanes = 1))
+        NewDatabase.template(Cipher.AES256, argon2d(iterations = (1L shl 32) - 1, memory = 1L shl 20, lanes = 1))
         assertFailsWith<KdbxException.UnsupportedKdf> {
-            NewDatabase.template(Cipher.AES256, argon2d(iterations = Int.MAX_VALUE + 1L, memory = 1L shl 20, lanes = 1))
+            NewDatabase.template(Cipher.AES256, argon2d(iterations = 1L shl 32, memory = 1L shl 20, lanes = 1))
         }
     }
 

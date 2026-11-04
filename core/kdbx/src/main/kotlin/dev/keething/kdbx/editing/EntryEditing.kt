@@ -1,6 +1,7 @@
 package dev.keething.kdbx.editing
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.XmlText
 import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.EntryChanges
@@ -41,17 +42,26 @@ internal object EntryEditing {
         write(fields, entry, root, now)
     }
 
-    /** The fields and times of [changes], without a history snapshot (a new entry has no old version). */
+    /**
+     * The fields and times of [changes], without a history snapshot (a new entry has no old version). A standard field
+     * is written protected when its value was, or when `Meta/MemoryProtection` says so: an edit never writes a
+     * protected value in the clear (keething-spec kdbx.round-trip AC6, the review's L7; edit.save-entry AC4). Title,
+     * UserName and URL are one line each: what XML 1.0 cannot hold is left out of them whether protected or not
+     * (kdbx.hardening AC7), so the save's check knows what the file holds.
+     */
     fun write(changes: EntryChanges, entry: XElement, root: XElement, now: Instant) {
         val protection = memoryProtection(root)
+        fun protects(key: String): Boolean =
+            protection.getValue(key) || strings(entry).firstOrNull { it.second == key }?.first?.first("Value")?.secret != null
         fun standard(key: String, text: String?) {
             if (text == null) return
-            setString(key, if (protection.getValue(key)) FieldValue.Protected(Secret.of(text)) else FieldValue.Plain(text), entry)
+            val line = XmlText.writable(text)
+            setString(key, if (protects(key)) FieldValue.Protected(Secret.of(line)) else FieldValue.Plain(line), entry)
         }
         standard("Title", changes.title)
         standard("UserName", changes.username)
         changes.password?.let { password ->
-            val value = if (protection.getValue("Password")) FieldValue.Protected(password.copy()) else FieldValue.Plain(password.reveal())
+            val value = if (protects("Password")) FieldValue.Protected(password.copy()) else FieldValue.Plain(password.reveal())
             setString("Password", value, entry)
         }
         standard("URL", changes.url)

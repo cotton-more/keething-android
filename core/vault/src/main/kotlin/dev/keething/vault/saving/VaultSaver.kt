@@ -4,12 +4,14 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
+import dev.keething.domain.storage.DatabaseReplacedException
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.editing.EditException
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.key.WipedKeyException
 import dev.keething.kdbx.reader.KdbxDatabase
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
@@ -27,21 +29,26 @@ import java.time.Instant
  * The file is read again right before writing, so changes made elsewhere since the unlock (KeePassXC, a synced
  * device) are kept; only when that very entry changed meanwhile, or the groups no longer allow the change (a group
  * gone, a name taken, a group not empty), is the save refused. The new file is read back and checked before it
- * replaces the old one ([SaveCheck]), and the old one is backed up. The key's derived key does all the work: a
- * save derives nothing. Blocks: call it off the main thread.
+ * replaces the old one ([SaveCheck]), and the old one is backed up. The derived key that opens the file read does
+ * all the work: the new file is written and read back with it, and a save derives nothing (keething-spec
+ * kdbx.hardening AC1). [stopped] is asked right before the backup and right before the replace: a save the lock
+ * overtook stops there, the file and its backups as they were (AC3). A key wiped meanwhile fails it so too (AC2).
+ * Blocks: call it off the main thread.
  */
 internal class VaultSaver(private val store: DatabaseStore, private val backups: DatabaseBackups) {
-    fun save(edit: VaultEdit, key: DatabaseKey, now: Instant): SaveResult = try {
-        saveOrRefuse(edit, key, now)
+    fun save(edit: VaultEdit, key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult = try {
+        saveOrRefuse(edit, key, now, stopped)
     } catch (refused: Refused) {
         SaveResult.Failed(refused.failure)
+    } catch (_: WipedKeyException) {
+        SaveResult.Failed(SaveFailure.Locked)
     } catch (failure: IOException) {
         SaveResult.Failed(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
     } catch (_: OutOfMemoryError) {
         SaveResult.Failed(SaveFailure.OutOfMemory)
     }
 
-    private fun saveOrRefuse(edit: VaultEdit, key: DatabaseKey, now: Instant): SaveResult {
+    private fun saveOrRefuse(edit: VaultEdit, key: DatabaseKey, now: Instant, stopped: () -> Boolean): SaveResult {
         repeat(ATTEMPTS) {
             val original = read()
             val made = makeFile(original, edit, key, now)
@@ -51,17 +58,40 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 made.discard()
                 return@repeat
             }
+            if (stopped()) {
+                made.discard()
+                throw Refused(SaveFailure.Locked)
+            }
             try {
                 backups.keep(original, store.fileName, now)
+            } catch (failure: Exception) {
+                made.discard()
+                backups.notSaved()
+                throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
+            }
+            try {
+                if (stopped()) throw Refused(SaveFailure.Locked)
                 store.replace(made.file, current.version)
             } catch (_: DatabaseChangedException) {
                 // Changed since that read (a sync, at the last moment) and nothing was replaced: read it again, as above.
                 made.discard()
+                backups.notSaved()
                 return@repeat
+            } catch (refused: Refused) {
+                made.discard()
+                backups.notSaved()
+                throw refused
+            } catch (failure: DatabaseReplacedException) {
+                // Replaced all the same, its new time not made sure of: the copy is the replaced file's backup.
+                made.discard()
+                backups.saved()
+                throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
             } catch (failure: Exception) {
                 made.discard()
+                backups.notSaved()
                 throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
             }
+            backups.saved()
             val version = store.version()
             if (version == null) {
                 made.discard()
@@ -112,17 +142,17 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             // Attachments nothing refers to any more are dropped; every reference must still mean the same bytes.
             // Nothing KeePass's schema does not allow may be added (SPEC §3.3).
             val written = try {
-                editable.write(key)
+                editable.write()
             } catch (failure: EditException.BreaksFormat) {
                 throw Refused(SaveFailure.BreaksFormat(failure.what))
             } catch (failure: EditException) {
                 throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
             }
 
-            // Read back what was written, as an unlock would. With the kept key this proves the whole file but the
-            // derivation, which is the same as for the file just opened (the same key, KDF parameters and salt).
+            // Read back what was written, as an unlock would, with the derived key that opened the original: this proves
+            // the whole file but the derivation, which is the original's (the same key, KDF parameters and salt).
             val reread = try {
-                KdbxReader.open(written.file, key)
+                editable.readBack(written.file)
             } catch (_: KdbxException) {
                 throw Refused(SaveFailure.VerificationFailed("the new file does not open"))
             }
@@ -164,6 +194,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             is VaultEdit.Update -> edit.loadedModified
             is VaultEdit.MoveToRecycleBin -> edit.loadedModified
             is VaultEdit.Restore -> edit.loadedModified
+            is VaultEdit.DeleteForGood -> edit.loadedModified
         }
         if (existing == null) throw Refused(SaveFailure.EntryNotFound)
         val inFile = existing.lastModified

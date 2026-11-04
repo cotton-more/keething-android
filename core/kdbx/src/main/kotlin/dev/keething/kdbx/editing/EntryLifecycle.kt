@@ -9,14 +9,16 @@ import dev.keething.kdbx.xml.KdbxTime
 import java.time.Instant
 
 /**
- * Creates, recycles, restores and moves entries in the tree as KeePassXC does (SPEC §3.3; port of the Mac
- * `EntryLifecycle`, without deleting for good, which the phone leaves to the Mac):
+ * Creates, recycles, restores, moves and deletes entries in the tree as KeePassXC does (SPEC §3.3; port of the Mac
+ * `EntryLifecycle`):
  * - a new entry gets the elements KeePassXC writes for one, every time set to now, and the group's icon when
  *   the group has its own (not the plain folder);
  * - recycling moves it into the recycle bin (`Meta/RecycleBinUUID`; the bin is made when there is none),
  *   remembering where it was (`PreviousParentGroup`) and when it moved (`Times/LocationChanged`);
  * - restoring moves it back ([GroupLifecycle.home]);
- * - a move into another group remembers the group it left, without a history snapshot ([moveEntry]).
+ * - a move into another group remembers the group it left, without a history snapshot ([moveEntry]);
+ * - deleting from the bin (or with the bin turned off) removes it for good and adds a `DeletedObjects` record, so a
+ *   synchronising copy deletes it too ([deleteForGood]).
  * A group that gains or loses an entry gets a new `LastModificationTime` / `LastAccessTime`, as in KeePassXC.
  */
 internal object EntryLifecycle {
@@ -138,6 +140,19 @@ internal object EntryLifecycle {
         val path = group(groupId, root)
         if (path == null || isInRecycleBin(path, root)) throw EditException.GroupNotFound()
         if (path.last() !== location.group) move(location, path.last(), root, now)
+    }
+
+    /**
+     * The entry and its history out of the file for good, recorded in `Root/DeletedObjects` (keething-spec
+     * edit.delete-for-good AC1, AC3): only from the recycle bin, or anywhere when the bin is turned off. Its
+     * attachments that nothing else refers to go when the file is written ([AttachmentPool.compact], AC4).
+     */
+    fun deleteForGood(entryId: String, root: XElement, now: Instant) {
+        val location = locate(entryId, root) ?: throw EditException.EntryNotFound()
+        if (recycleBinEnabled(root) && !isInRecycleBin(location.groups, root)) throw EditException.NotInRecycleBin()
+        location.group.remove(location.entry)
+        touch(location.group, now, usesIsoTimes(root))
+        GroupLifecycle.recordDeleted(listOf(entryId), root, now)
     }
 
     // Moving

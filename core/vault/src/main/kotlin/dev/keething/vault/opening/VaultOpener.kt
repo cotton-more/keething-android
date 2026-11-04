@@ -9,6 +9,7 @@ import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.Vault
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.key.WipedKeyException
 import dev.keething.kdbx.reader.KdbxDatabase
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
@@ -49,6 +50,12 @@ public sealed interface OpenFailure {
     /** The phone has not enough memory for the key derivation. */
     public data object OutOfMemory : OpenFailure
 
+    /**
+     * A lock came while the file was read, and its key was wiped (keething-spec kdbx.hardening AC2, AC6): a key
+     * derivation running stopped, nothing was read. The session drops what such a read gives, so screens rarely see it.
+     */
+    public data object Locked : OpenFailure
+
     /** The database rejected the key, whatever it was made of. */
     public val isWrongKey: Boolean get() = this == WrongPassword || this == WrongPasswordOrKeyFile || this == WrongKeyFile
 }
@@ -83,6 +90,8 @@ public open class VaultOpener {
             KdbxReader.open(found.bytes, key)
         } catch (failure: KdbxException) {
             return OpenResult.Failed(failure.toOpenFailure())
+        } catch (_: WipedKeyException) {
+            return OpenResult.Failed(OpenFailure.Locked)
         } catch (_: OutOfMemoryError) {
             return OpenResult.Failed(OpenFailure.OutOfMemory)
         }
@@ -104,6 +113,8 @@ public open class VaultOpener {
             KdbxReader.open(found.bytes, key, historyOf = entryId)
         } catch (failure: KdbxException) {
             return HistoryResult.Failed(failure.toOpenFailure())
+        } catch (_: WipedKeyException) {
+            return HistoryResult.Failed(OpenFailure.Locked)
         } catch (_: OutOfMemoryError) {
             return HistoryResult.Failed(OpenFailure.OutOfMemory)
         }

@@ -1,6 +1,7 @@
 package dev.keething.kdbx.tree
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.XmlText
 import dev.keething.kdbx.crypto.ChaCha20
 import dev.keething.kdbx.reader.KdbxException
 import java.io.ByteArrayInputStream
@@ -19,9 +20,18 @@ import org.xml.sax.ext.DefaultHandler2
 /**
  * Reads the KeePass XML into an [XElement] tree and writes it back (SPEC §3.3; Mac `XMLTree`). Text is unescaped
  * in the tree and escaped again on writing (`&`, `<`, `>`, and a carriage return as `&#13;` so that it survives
- * the next read; in attributes also `"`, a newline and a tab).
+ * the next read; in attributes also `"`, a newline and a tab). What XML 1.0 cannot hold is left out of the text
+ * written ([XmlText]; keething-spec kdbx.hardening AC7), as KeePass 2.x and KeePassXC do; a protected value is base64.
  */
 internal object XmlTree {
+    /**
+     * The deepest nesting of elements read (keething-spec kdbx.hardening AC8): a deeper file is refused as damaged, by
+     * this reader and by [KdbxXmlReader]. Writing the tree, copying it and its other walks recurse once per level; the
+     * whole save is tested at this depth on a stack a quarter of the size the app's background threads have. No KeePass
+     * app nests groups anywhere near so deep.
+     */
+    const val MAX_DEPTH = 128
+
     /**
      * A value marked `Protected="True"` (base64 of its bytes XORed with [stream], in document order) becomes a
      * secret; so does one marked `ProtectInMemory="True"`, how `keepassxc-cli export` writes a protected value in
@@ -152,6 +162,7 @@ internal object XmlTree {
 
         override fun startElement(uri: String, localName: String, qName: String, attributes: Attributes) {
             flushText()
+            if (stack.size == MAX_DEPTH) fail(KdbxException.Corrupt("XML nested deeper than $MAX_DEPTH levels"))
             val element = XElement(name(qName.ifEmpty { localName }))
             var protection = Protection.NONE
             for (i in 0 until attributes.length) {
@@ -232,6 +243,7 @@ internal object XmlTree {
                     char == '"' && attribute -> ascii("&quot;")
                     char == '\n' && attribute -> ascii("&#10;")
                     char == '\t' && attribute -> ascii("&#9;")
+                    !XmlText.holds(char) -> {}
                     char.code < 0x80 -> byte(char.code)
                     char.code < 0x800 -> {
                         byte(0xC0 or (char.code shr 6))

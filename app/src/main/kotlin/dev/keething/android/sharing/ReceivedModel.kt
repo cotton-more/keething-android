@@ -9,9 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.keething.android.clipboard.SensitiveClipboard
-import dev.keething.android.editor.SAVE_BUSY
+import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
-import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.EntryRef
 import dev.keething.android.editor.NewEntryDatabase
@@ -32,14 +31,10 @@ import dev.keething.sharing.payload.Receiving
 import dev.keething.sharing.pictures.Pictures
 import dev.keething.sharing.requests.MyRequest
 import dev.keething.sharing.requests.ShareRequests
-import dev.keething.vault.session.SaveOutcome
 import dev.keething.vault.session.SessionState
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -310,10 +305,10 @@ internal class ReceivedModel(
                     continue
                 }
                 val edit = VaultEdit.Create(id, destination, Receiving.changes(entries[index]))
-                val pending = startSave(database, edit)
+                val pending = database.session.save(edit)
                 if (pending == null) {
                     edit.fields.wipe()
-                    saving = Saving.Failed(index, SAVE_BUSY)
+                    saving = Saving.Failed(index, SAVE_LOCKED)
                     return@launch
                 }
                 pending.invokeOnCompletion { edit.fields.wipe() }
@@ -329,18 +324,6 @@ internal class ReceivedModel(
             places.created(place.id)
             saving = Saving.Saved(savedIds.map { EntryRef(place.id, it) }, groupName(place, GroupChoice(destination.groupId, destination.newGroups.map { it.name })))
         }
-    }
-
-    /**
-     * The session takes one save at a time and is free again only a moment after the last one told its outcome
-     * (this screen resumes at once): it is asked again for a short while before giving up.
-     */
-    private suspend fun startSave(database: DatabaseSession, edit: VaultEdit.EntryEdit): Deferred<SaveOutcome>? {
-        repeat(BUSY_TRIES) {
-            database.session.save(edit)?.let { return it }
-            delay(BUSY_WAIT)
-        }
-        return null
     }
 
     /** Closes the request without saving: the key goes, the answer can no longer be opened. */
@@ -366,7 +349,5 @@ internal class ReceivedModel(
 
     private companion object {
         const val TAG = "Sharing"
-        const val BUSY_TRIES = 30
-        val BUSY_WAIT = 100.milliseconds
     }
 }

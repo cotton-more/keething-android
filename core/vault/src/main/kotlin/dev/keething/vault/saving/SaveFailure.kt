@@ -56,6 +56,12 @@ public sealed interface SaveFailure {
 
     /** The phone has not enough memory to make the new file. */
     public data object OutOfMemory : SaveFailure
+
+    /**
+     * The database locked and the save did not finish in time (keething-spec kdbx.hardening AC3): it stopped before the
+     * backup and the replace, so the file and its backups are as they were.
+     */
+    public data object Locked : SaveFailure
 }
 
 internal sealed interface SaveResult {

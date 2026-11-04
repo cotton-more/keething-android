@@ -27,7 +27,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import dev.keething.android.editor.NewEntryDatabase
-import dev.keething.android.editor.SAVE_BUSY
+import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.SaveIntoSheet
 import dev.keething.android.editor.problem
 import dev.keething.android.ui.NoLearningKeyboard
@@ -314,7 +314,7 @@ internal class GroupsViewModel(private val open: StateFlow<List<OpenDatabase>>) 
         val inDialog = dialog != null
         val pending = database.database.session.save(edit)
         if (pending == null) {
-            if (inDialog) dialogProblem = SAVE_BUSY else notice(SAVE_BUSY)
+            if (inDialog) dialogProblem = SAVE_LOCKED else notice(SAVE_LOCKED)
             return
         }
         saving = GroupRef(database.mark.id, row)

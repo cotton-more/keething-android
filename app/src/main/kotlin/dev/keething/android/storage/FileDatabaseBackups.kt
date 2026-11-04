@@ -11,15 +11,21 @@ import java.time.format.DateTimeFormatter
 /**
  * One database's copies as it was before each save (SPEC §3.3 step 7; the Mac `KDBXFileSaver.backup`): in a folder of
  * its own in the app's storage (`filesDir/backups/<database id>`, never backed up off the phone: the app does not allow
- * backups), named after the database and the local time; the newest [count] stay. The folder is the database's, so
+ * backups), named after the database and the local time; the newest [count] stay, newest by when they were written. The folder is the database's, so
  * two `Personal.kdbx` in two folders keep theirs apart, and a database located under another name keeps its older
- * ones; files in it that are not backups are left alone.
+ * ones; files in it that are not backups are left alone. The oldest go only once a save replaced the database
+ * ([saved]); a save that did not takes its own copy back ([notSaved]), so it pushes no older one out (keething-spec
+ * kdbx.hardening AC9).
  */
 internal class FileDatabaseBackups(
     private val folder: File,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val count: Int = 10,
 ) : DatabaseBackups {
+    /** The copy the running save kept, until it says how it went. */
+    private var kept: File? = null
+
+    @Synchronized
     override fun keep(database: ByteArray, fileName: String, at: Instant) {
         if (!folder.isDirectory && !folder.mkdirs()) throw IOException("backup folder")
         val stem = fileName.substringBeforeLast('.')
@@ -28,15 +34,29 @@ internal class FileDatabaseBackups(
         // there is, not in a gap the pruning left: that name would sort first and go at once.
         val names = (listOf("") + (2..99).map { "_$it" }).map { File(folder, "$stem $stamp$it.kdbx") }
         val target = names.getOrNull(names.indexOfLast { it.exists() } + 1) ?: throw IOException("backup: too many saves within a second")
+        kept = target
         FileOutputStream(target).use { out ->
             out.write(database)
             out.fd.sync()
         }
-        folder.list().orEmpty()
-            .mapNotNull { name -> order(name)?.let { name to it } }
-            .sortedByDescending { it.second }
+    }
+
+    @Synchronized
+    override fun saved() {
+        kept = null
+        // Newest first by when they were written, then by name: a name's local time sorts wrong after the time zone
+        // changed (a flight west, the fall back from summer time), and a new copy would go at once (kdbx.backups AC3).
+        folder.listFiles().orEmpty()
+            .mapNotNull { file -> order(file.name)?.let { Triple(file, file.lastModified(), it) } }
+            .sortedWith(compareByDescending<Triple<File, Long, String>> { it.second }.thenByDescending { it.third })
             .drop(count)
-            .forEach { File(folder, it.first).delete() }
+            .forEach { it.first.delete() }
+    }
+
+    @Synchronized
+    override fun notSaved() {
+        kept?.delete()
+        kept = null
     }
 
     companion object {

@@ -133,7 +133,7 @@ internal object GroupLifecycle {
     }
 
     /** `DeletedObjects` records, so a synchronising copy deletes them too; made after the root group when missing. */
-    private fun recordDeleted(uuids: List<String>, root: XElement, now: Instant) {
+    fun recordDeleted(uuids: List<String>, root: XElement, now: Instant) {
         val rootElement = root.first("Root") ?: throw EditException.Malformed("no Root")
         val deleted = rootElement.first("DeletedObjects") ?: XElement("DeletedObjects").also { KdbxSchema.insert(it, rootElement) }
         val stamp = EntryLifecycle.time(now, EntryLifecycle.usesIsoTimes(root))

@@ -41,6 +41,12 @@ public sealed interface VaultEdit {
     /** Out of the recycle bin, back into the group it came from (the root group when that is gone). */
     public data class Restore(override val entryId: String, val loadedModified: Instant?) : EntryEdit
 
+    /**
+     * For good, with its history (keething-spec edit.delete-for-good): an entry in the recycle bin, or any entry when the
+     * database has the bin turned off. A `DeletedObjects` record tells a synchronising copy to delete it too.
+     */
+    public data class DeleteForGood(override val entryId: String, val loadedModified: Instant?) : EntryEdit
+
     /** A new name (trimmed) for a group outside the recycle bin. */
     public data class RenameGroup(val groupId: String, val name: String) : GroupEdit
 

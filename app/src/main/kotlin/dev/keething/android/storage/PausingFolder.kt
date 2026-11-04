@@ -1,18 +1,25 @@
 package dev.keething.android.storage
 
 import android.util.Log
+import dev.keething.domain.storage.FolderRead
 import dev.keething.domain.storage.GrantedFolder
 import java.io.File
 
 /**
  * Debug builds only: [folder] with a pause before one of its changes, so the process can be killed between a save's
  * steps (keething-spec databases.saf AC4, AC5) or while a new database is written (AC11) and what the next start does
- * with it seen on the phone. A marker file `files/debug-pause` holding `<call> [text]` (`rename`, `delete`, `create` or
- * `write`; the text a part of the path the call is given) pauses the first such call for two minutes and removes the
+ * with it seen on the phone; or before a read, so the database can be locked while a save waits at its first step
+ * (kdbx.hardening AC3). A marker file `files/debug-pause` holding `<call> [text]` (`read`, `rename`, `delete`, `create`
+ * or `write`; the text a part of the path the call is given) pauses the first such call for two minutes and removes the
  * marker: `adb shell run-as dev.keething.android sh -c 'echo "rename .syncthing" > files/debug-pause'`. The log says
  * when it pauses (tag KeethingPause). A release build never makes one.
  */
 internal class PausingFolder(private val folder: GrantedFolder, private val marker: File) : GrantedFolder by folder {
+    override fun read(path: String): FolderRead? {
+        pauseBefore("read", path)
+        return folder.read(path)
+    }
+
     override fun create(folder: String, name: String): String {
         pauseBefore("create", "$folder/$name")
         return this.folder.create(folder, name)

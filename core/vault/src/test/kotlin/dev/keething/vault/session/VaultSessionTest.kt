@@ -6,6 +6,7 @@ import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.Vault
@@ -499,19 +500,26 @@ class VaultSessionTest {
         assertEquals(0, f.store.replaced)
     }
 
+    // spec: kdbx.hardening/AC4
     @Test
-    fun oneSaveAtATimeAndNoneWhileLocked() = runTest {
+    fun savesRunOneAtATimeEachOnTheFileTheOneBeforeLeftAndNoneWhileLocked() = runTest {
+        // M5: two saves of two entries asked for together, as two moves to the bin in quick succession.
         val f = unlocked()
-        val entry = f.vault.entries.first()
-        val edit = VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "x"))
+        val (one, two) = f.vault.entries.take(2)
 
-        assertNotNull(f.session.save(edit))
-        assertNull(f.session.save(edit), "a second save waits for no one")
+        val first = assertNotNull(f.session.save(VaultEdit.Update(one.id, one.lastModified, EntryChanges(notes = "first"))))
+        val second = assertNotNull(f.session.save(VaultEdit.Update(two.id, two.lastModified, EntryChanges(notes = "second"))), "it waits its turn")
         runCurrent()
-        assertNotNull(f.session.save(VaultEdit.Update(entry.id, null, EntryChanges(notes = "y"))), "the next one, after")
-        runCurrent()
+
+        assertIs<SaveOutcome.Saved>(first.await())
+        assertIs<SaveOutcome.Saved>(second.await())
+        assertEquals(2, f.store.replaced)
+        val file = KdbxReader.open(f.store.content!!, DatabaseKey.of(Secret.of("pw"))).document
+        val notes = { id: String -> file.entries.single { it.uuid == id }.fields.single { it.key == "Notes" }.value }
+        assertEquals(listOf(FieldValue.Plain("first"), FieldValue.Plain("second")), listOf(notes(one.id), notes(two.id)), "both in the file")
+        assertEquals(listOf("first", "second"), listOf(one.id, two.id).map { id -> f.vault.entries.single { it.id == id }.notes })
         f.session.lock()
-        assertNull(f.session.save(edit))
+        assertNull(f.session.save(VaultEdit.Update(one.id, null, EntryChanges(notes = "x"))))
     }
 
     @Test

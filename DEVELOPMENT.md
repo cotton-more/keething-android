@@ -115,7 +115,9 @@ two minutes, and the log (tag `KeethingPause`) says when, so the process can be 
 (keething-spec databases.saf AC4, AC5) or while New database writes (AC11). The calls: `write` (the new file made,
 still empty; `write S5Fam.kdbx` for a Create), `rename <the database's path>` (before it goes aside), `rename .syncthing`
 (before the new file goes in), `delete .syncthing` (before the old file goes). The marker is removed when it pauses.
-`am kill` does not end an app in front; `kill -9` through `run-as` does.
+`am kill` does not end an app in front; `kill -9` through `run-as` does. `read <the database's name>` pauses the
+next read of the database instead: set it, then save a change, and lock while the save waits at its first step
+(keething-spec kdbx.hardening AC3: after 10 s it is stopped, and the next unlock says the change was not saved).
 
 ## The field types' former key renamed
 

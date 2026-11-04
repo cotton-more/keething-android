@@ -6,6 +6,10 @@ import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.NewGroup
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.key.DerivedKey
+import dev.keething.kdbx.reader.KdbxDatabase
+import dev.keething.kdbx.reader.KdbxException
+import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.kdbx.reader.KdbxTemplate
 import dev.keething.kdbx.schema.KdbxSchema
 import dev.keething.kdbx.schema.SchemaViolation
@@ -30,6 +34,8 @@ public class EditableDatabase internal constructor(
     public val binaries: List<Secret>,
     internal val binaryFlags: List<Byte>,
     internal val template: KdbxTemplate,
+    /** The derived key that opened the file (keething-spec kdbx.hardening AC1): [write] seals with it, [readBack] opens with it. */
+    private val derived: DerivedKey,
 ) {
     /** What KeePass's schema does not allow in the file as it was read: kept, never a reason to refuse a save. */
     private val schemaBefore: Set<SchemaViolation> = KdbxSchema.violations(root)
@@ -61,6 +67,10 @@ public class EditableDatabase internal constructor(
         is VaultEdit.MoveToRecycleBin -> AppliedEdit(expectedGroupId = EntryLifecycle.moveToRecycleBin(edit.entryId, root, now))
         is VaultEdit.Restore -> EntryLifecycle.restore(edit.entryId, root, now).let {
             AppliedEdit(expectedGroupId = it.destinationId, createdGroupIds = it.createdGroupIds)
+        }
+        is VaultEdit.DeleteForGood -> {
+            EntryLifecycle.deleteForGood(edit.entryId, root, now)
+            AppliedEdit(expectedGroupId = null)
         }
         is VaultEdit.RenameGroup -> {
             GroupLifecycle.rename(edit.groupId, edit.name, root, now)
@@ -104,12 +114,19 @@ public class EditableDatabase internal constructor(
     public fun renameEntryCustomData(from: String, to: String): CustomDataRenamed = CustomDataRename.rename(from, to, root)
 
     /**
-     * Writes the file as the tree stands now. Attachments nothing refers to any more are dropped and identical
+     * Writes the file as the tree stands now, sealed with the derived key that opened it: the save looks no key up and
+     * derives none (keething-spec kdbx.hardening AC1). Attachments nothing refers to any more are dropped and identical
      * ones stored once (as KeePassXC does); every reference must still mean the same bytes. A `PreviousParentGroup`
      * out of the schema's order (an older Keething's) is moved to its place. Throws [EditException.BreaksFormat]
-     * when the file would have a schema violation it did not have when read ([KdbxSchema]).
+     * when the file would have a schema violation it did not have when read ([KdbxSchema]), and a
+     * [dev.keething.kdbx.key.WipedKeyException] once [wipe]d (AC2).
      */
-    public fun write(key: DatabaseKey): WrittenDatabase {
+    public fun write(): WrittenDatabase = write { pool -> KdbxWriter.write(root, pool.binaries, pool.flags, template, derived) }
+
+    /** As [write], sealed with another master key, derived now for the file's KDF parameters. */
+    public fun write(key: DatabaseKey): WrittenDatabase = write { pool -> KdbxWriter.write(root, pool.binaries, pool.flags, template, key) }
+
+    private fun write(seal: (AttachmentPool) -> ByteArray): WrittenDatabase {
         KdbxSchema.placePreviousParentGroups(root)
         val pool = AttachmentPool(binaries, binaryFlags)
         val referenced = pool.digests(root)
@@ -117,8 +134,14 @@ public class EditableDatabase internal constructor(
         if (pool.digests(root) != referenced) throw EditException.Malformed("attachments renumbered wrongly")
         val broken = KdbxSchema.added(schemaBefore, KdbxSchema.violations(root))
         if (broken.isNotEmpty()) throw EditException.BreaksFormat(broken.first().describe(more = broken.size - 1))
-        return WrittenDatabase(KdbxWriter.write(root, pool.binaries, pool.flags, template, key), pool.binaries)
+        return WrittenDatabase(seal(pool), pool.binaries)
     }
+
+    /**
+     * [file], which [write] made, read back as an unlock would read it, with the same derived key (AC1): the save's
+     * check of the new file. Throws a [KdbxException] when it does not open with that key.
+     */
+    public fun readBack(file: ByteArray): KdbxDatabase = KdbxReader.open(file, derived)
 
     /** What KeePass's schema does not allow in the tree as it stands ([KdbxSchema]): for the probe. */
     public fun schemaViolations(): Set<SchemaViolation> = KdbxSchema.violations(root)
@@ -126,8 +149,9 @@ public class EditableDatabase internal constructor(
     /** The XML as it stands, every protected value left empty: for checking it against `KDBX_XML.xsd` (the probe). */
     public fun xmlWithoutSecrets(): ByteArray = XmlTree.withoutSecrets(root)
 
-    /** Overwrites every secret: the tree's, the document's and the attachments. */
+    /** Overwrites every secret: the tree's, the document's, the attachments and the derived key. */
     public fun wipe() {
+        derived.wipe()
         root.wipeSecrets()
         document.entries.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
         binaries.forEach(Secret::wipe)

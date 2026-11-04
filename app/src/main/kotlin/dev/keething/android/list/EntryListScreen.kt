@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import dev.keething.android.recyclebin.DeleteForGoodDialog
 import dev.keething.android.ui.NoteTile
 import androidx.compose.ui.draw.rotate
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -280,6 +281,18 @@ internal fun EntryListScreen(
 
     // The quick actions of a long-pressed row, with the section it was in (Remove from Recent is only for a recent row).
     var quick by remember { mutableStateOf<Pair<QuickActions, ListSection.Kind>?>(null) }
+    // A row in the bin whose Delete for good… was tapped: the dialog asks first (its id and title).
+    var deletingForGood by remember { mutableStateOf<Pair<String, String>?>(null) }
+    deletingForGood?.let { (id, title) ->
+        DeleteForGoodDialog(
+            title = title,
+            onDelete = {
+                deletingForGood = null
+                model.deleteForGood(id)
+            },
+            onDismiss = { deletingForGood = null },
+        )
+    }
     val context = LocalContext.current
     quick?.let { (actions, kind) ->
         QuickActionsSheet(
@@ -294,6 +307,10 @@ internal fun EntryListScreen(
                 override fun edit(id: String) = onEdit(id)
                 override fun removeFromRecent(id: String) = model.removeFromRecent(id)
                 override fun moveToRecycleBin(id: String) = model.moveToRecycleBin(id)
+                override fun restore(id: String) = model.restore(id)
+                override fun deleteForGood(id: String) {
+                    deletingForGood = id to actions.row.title
+                }
                 override fun openSite(id: String, url: String) {
                     try {
                         context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))

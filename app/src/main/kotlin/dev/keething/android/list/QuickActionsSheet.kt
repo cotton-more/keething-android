@@ -14,10 +14,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.HistoryToggleOff
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -51,6 +53,12 @@ internal interface QuickActionHandler {
     fun edit(id: String)
     fun removeFromRecent(id: String)
     fun moveToRecycleBin(id: String)
+
+    /** An entry in the bin, back into the group it came from. */
+    fun restore(id: String)
+
+    /** An entry in the bin, for good: asked first (keething-spec edit.delete-for-good AC2). */
+    fun deleteForGood(id: String)
 }
 
 private class Action(val label: String, val icon: ImageVector, val detail: String? = null, val code: String? = null, val danger: Boolean = false, val act: () -> Unit)
@@ -58,7 +66,7 @@ private class Action(val label: String, val icon: ImageVector, val detail: Strin
 /**
  * A long press on a row (SPEC §6.2): what the card would take two taps for. Copy the username, the password or the
  * code, open the site; then Edit, Remove from Recent (a recent row) and Move to the recycle bin. An entry in the bin
- * has only the copies and the site: Restore is on its card. Each action closes the sheet.
+ * has the copies, the site, Restore and Delete for good… (asked first). Each action closes the sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +89,10 @@ internal fun QuickActionsSheet(
         actions.url?.let { url -> Action("Open ${actions.host}", Icons.AutoMirrored.Rounded.OpenInNew, act = done { handler.openSite(id, url) }) },
     )
     val changes = if (actions.inRecycleBin) {
-        emptyList()
+        listOf(
+            Action("Restore", Icons.Rounded.RestoreFromTrash, act = done { handler.restore(id) }),
+            Action("Delete for good…", Icons.Rounded.DeleteForever, danger = true, act = done { handler.deleteForGood(id) }),
+        )
     } else {
         listOfNotNull(
             Action("Edit", Icons.Rounded.Edit, act = done { handler.edit(id) }),

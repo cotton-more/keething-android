@@ -186,7 +186,7 @@ internal class EntryEditorViewModel(
         val pending = database.session.save(edit)
         if (pending == null) {
             edit.wipe()
-            phase = SavePhase.Failed(SAVE_BUSY)
+            phase = SavePhase.Failed(SAVE_LOCKED)
             return
         }
         // The session reads the edit's secrets until the save is over, even when this editor has gone.
@@ -238,7 +238,7 @@ internal class EntryEditorViewModel(
         when (this) {
             is VaultEdit.Update -> changes.wipe()
             is VaultEdit.Create -> fields.wipe()
-            is VaultEdit.MoveToRecycleBin, is VaultEdit.Restore -> {}
+            is VaultEdit.MoveToRecycleBin, is VaultEdit.Restore, is VaultEdit.DeleteForGood -> {}
         }
     }
 

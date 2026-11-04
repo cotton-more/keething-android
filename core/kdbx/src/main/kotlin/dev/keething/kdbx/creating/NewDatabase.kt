@@ -4,6 +4,7 @@ import dev.keething.domain.vault.Entry
 import dev.keething.kdbx.editing.EditException
 import dev.keething.kdbx.editing.EntryLifecycle
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.key.KdfLimits
 import dev.keething.kdbx.reader.Header
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxFormat.Cipher
@@ -50,21 +51,9 @@ public object NewDatabase {
         return KdbxWriter.write(root, emptyList(), emptyList(), template, key, random)
     }
 
-    /**
-     * KDF parameters every KeePass app runs (kdbx.new-file AC3): at least one AES-KDF round; Argon2 within KeePass
-     * 2.x's own limits (`Argon2Kdf.cs`: iterations up to 2³²−1, lanes 1 to 2²⁴−1, memory in whole KiB from 8 KiB a
-     * lane up to `int.MaxValue` bytes, so under 2 GiB, which KeePass 2.x would refuse to open).
-     */
+    /** KDF parameters every KeePass app runs (kdbx.new-file AC3): within KeePass 2.x's own limits ([KdfLimits]). */
     public fun check(kdf: Kdf) {
-        when (kdf) {
-            is Kdf.AesKdf -> if (kdf.rounds < 1) throw KdbxException.UnsupportedKdf("AES-KDF with no rounds")
-            is Kdf.Argon2 -> {
-                val fits = kdf.iterations in 1..MAX_UINT32 && kdf.parallelism in 1..MAX_LANES &&
-                    kdf.memoryBytes % 1024 == 0L && kdf.memoryBytes <= Int.MAX_VALUE &&
-                    kdf.memoryBytes / 1024 >= 8L * kdf.parallelism
-                if (!fits) throw KdbxException.UnsupportedKdf("Argon2 parameters")
-            }
-        }
+        KdfLimits.problem(kdf)?.let { throw KdbxException.UnsupportedKdf(it) }
     }
 
     /**
@@ -104,7 +93,7 @@ public object NewDatabase {
                 .uint64("M", kdf.memoryBytes)
                 .uint64("I", kdf.iterations)
         }
-        // Read back as the reader reads it; the phone's Argon2 counts iterations in an Int (2³¹−1 at most).
+        // Read back as the reader reads it: what it refuses is not written.
         val parsed = try {
             Header.kdf(parameters.finish()).first
         } catch (_: KdbxException.Corrupt) {
@@ -176,6 +165,4 @@ public object NewDatabase {
         return kept.toString().trim().takeIf { it.isNotEmpty() }
     }
 
-    private const val MAX_UINT32 = 0xFFFF_FFFFL
-    private const val MAX_LANES = 0xFF_FFFF
 }

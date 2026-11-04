@@ -1,11 +1,12 @@
 package dev.keething.android.recyclebin
 
 import dev.keething.android.session.file
-import dev.keething.android.editor.SAVE_BUSY
+import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.EntryRef
 import dev.keething.android.ui.Notice
+import dev.keething.card.GroupPathFormatter
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.vault.session.SessionState
@@ -20,7 +21,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Entries into the recycle bin and out of it (SPEC §6.2): Delete moves the entry at once, no question asked, and
- * the list says so with Undo; Restore on a card in the bin. Each is saved into the entry's own database (keething-spec
+ * the list says so with Undo; Restore on a card in the bin or a bin row's long press; Delete for good, asked first on the card, from the bin (or
+ * anywhere when the bin is turned off), the list then saying so, with no Undo. Each is saved into the entry's own database (keething-spec
  * databases.one-list AC2, AC3: its session follows its own bin setting). The saves run in the app's scope: the card
  * closes at once and the list shows how it went ([notices], read by the list).
  */
@@ -62,6 +64,29 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
         save(database, VaultEdit.Restore(entry.id, entry.lastModified), done)
     }
 
+    /** Restore from a row's quick actions: as on the card, the list then saying where it went ("Restored to …"). */
+    fun restoreSaying(database: DatabaseSession, entryId: String) {
+        restore(database, entryId) { problem ->
+            val vault = (database.session.state.value as? SessionState.Unlocked)?.vault
+            val group = vault?.entries?.firstOrNull { it.id == entryId }?.groupPath.orEmpty()
+            mutableNotices.trySend(
+                problem?.let { Notice(it, isProblem = true) }
+                    ?: Notice("Restored to " + GroupPathFormatter.text(group).ifEmpty { "the top group" }),
+            )
+        }
+    }
+
+    /** For good (keething-spec edit.delete-for-good), the card having asked: [entry] as [database]'s vault has it. */
+    fun deleteForGood(database: DatabaseSession, entry: Entry) {
+        val title = entry.displayTitle
+        val ref = EntryRef(database.id, entry.id).text
+        mutableLeaving.update { it + ref }
+        save(database, VaultEdit.DeleteForGood(entry.id, entry.lastModified)) { problem ->
+            if (problem != null) mutableLeaving.update { it - ref }
+            mutableNotices.trySend(Notice(problem ?: "Deleted “$title” for good", isProblem = problem != null))
+        }
+    }
+
     /** The list was built from vaults whose entries' refs are [listed]: those not among them have left for good. */
     fun settled(listed: Set<String>) {
         mutableLeaving.update { leaving -> leaving.filterTo(HashSet()) { it in listed } }
@@ -78,7 +103,7 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
     }
 
     private fun save(database: DatabaseSession, edit: VaultEdit.EntryEdit, done: (problem: String?) -> Unit) {
-        val pending = database.session.save(edit) ?: return done(SAVE_BUSY)
+        val pending = database.session.save(edit) ?: return done(SAVE_LOCKED)
         scope.launch { done(pending.await().problem(database.file)) }
     }
 }

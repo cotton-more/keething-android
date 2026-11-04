@@ -61,7 +61,7 @@ class CryptoTest {
             Case(Argon2.Variant.ID, 2, 64, 4, "4111a92266f8015c4224e634fdc7352dad7e17abe362d2386331333226f8189e"),
         )
         for (case in cases) {
-            val parameters = Argon2.Parameters(case.variant, case.iterations, case.memoryKiB, case.parallelism)
+            val parameters = Argon2.Parameters(case.variant, case.iterations.toLong(), case.memoryKiB, case.parallelism)
 
             val tag = Argon2.hash("password".encodeToByteArray(), salt, parameters)
 

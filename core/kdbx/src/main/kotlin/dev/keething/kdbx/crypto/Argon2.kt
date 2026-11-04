@@ -1,6 +1,7 @@
 package dev.keething.kdbx.crypto
 
 import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -14,7 +15,8 @@ public object Argon2 {
 
     public data class Parameters(
         val variant: Variant,
-        val iterations: Int,
+        /** 1 to 2³²−1. */
+        val iterations: Long,
         /** In KiB (1 KiB blocks). */
         val memoryKiB: Int,
         val parallelism: Int,
@@ -24,18 +26,27 @@ public object Argon2 {
     private const val WORDS = 128
     private const val SYNC_POINTS = 4
 
+    /** Blocks filled between two checkpoints: about a millisecond's work. */
+    private const val CHECKPOINT_BLOCKS = 1024
+
+    /**
+     * [checkpoint] is called between steps, a few thousand times a second at most: what it throws stops the hash
+     * (keething-spec kdbx.hardening AC6, a derivation given up), the memory wiped.
+     */
     public fun hash(
         password: ByteArray,
         salt: ByteArray,
         parameters: Parameters,
         length: Int = 32,
+        checkpoint: () -> Unit = {},
     ): ByteArray {
         val p = parameters
-        require(p.version == 0x13 && p.parallelism in 1..0xFF_FFFF && p.iterations >= 1 && length >= 4)
+        require(p.version == 0x13 && p.parallelism in 1..0xFF_FFFF && p.iterations in 1..0xFFFF_FFFFL && length >= 4)
         require(p.memoryKiB.toLong() >= 8L * p.parallelism)
 
         val h = Blake2b(64)
-        for (value in intArrayOf(p.parallelism, length, p.memoryKiB, p.iterations, p.version, p.variant.id)) {
+        // Each a 32-bit little-endian number: the iterations' low 32 bits are all of them.
+        for (value in intArrayOf(p.parallelism, length, p.memoryKiB, p.iterations.toInt(), p.version, p.variant.id)) {
             h.update(value)
         }
         h.update(password.size); h.update(password)
@@ -58,14 +69,19 @@ public object Argon2 {
                     block.fill(0)
                 }
             }
-            val filler = Filler(memory, p, segmentLength, laneLength)
-            for (pass in 0 until p.iterations) {
+            val filler = Filler(memory, p, segmentLength, laneLength, checkpoint)
+            for (pass in 0L until p.iterations) {
                 for (slice in 0 until SYNC_POINTS) {
                     if (pool == null) {
                         filler.fillSegment(pass, slice, 0)
                     } else {
-                        pool.invokeAll((0 until lanes).map { lane -> Callable { filler.fillSegment(pass, slice, lane) } })
-                            .forEach { it.get() }
+                        try {
+                            pool.invokeAll((0 until lanes).map { lane -> Callable { filler.fillSegment(pass, slice, lane) } })
+                                .forEach { it.get() }
+                        } catch (failure: ExecutionException) {
+                            // What a lane's checkpoint threw, as from a single lane.
+                            throw failure.cause ?: failure
+                        }
                     }
                 }
             }
@@ -126,11 +142,12 @@ public object Argon2 {
         private val p: Parameters,
         private val segmentLength: Int,
         private val laneLength: Int,
+        private val checkpoint: () -> Unit,
     ) {
         private val lanes = p.parallelism
 
-        fun fillSegment(pass: Int, slice: Int, lane: Int) {
-            val dataIndependent = p.variant == Variant.ID && pass == 0 && slice < SYNC_POINTS / 2
+        fun fillSegment(pass: Long, slice: Int, lane: Int) {
+            val dataIndependent = p.variant == Variant.ID && pass == 0L && slice < SYNC_POINTS / 2
             // The address block, its input and a zero block (data-independent addressing), and the two working
             // blocks of the compression.
             val address = LongArray(WORDS)
@@ -140,8 +157,8 @@ public object Argon2 {
             val t = LongArray(WORDS)
             try {
                 if (dataIndependent) {
-                    input[0] = pass.toLong(); input[1] = lane.toLong(); input[2] = slice.toLong()
-                    input[3] = (laneLength.toLong() * lanes); input[4] = p.iterations.toLong()
+                    input[0] = pass; input[1] = lane.toLong(); input[2] = slice.toLong()
+                    input[3] = (laneLength.toLong() * lanes); input[4] = p.iterations
                     input[5] = p.variant.id.toLong()
                 }
                 fun nextAddresses() {
@@ -151,7 +168,7 @@ public object Argon2 {
                 }
 
                 var start = 0
-                if (pass == 0 && slice == 0) {
+                if (pass == 0L && slice == 0) {
                     start = 2
                     if (dataIndependent) nextAddresses()
                 }
@@ -160,13 +177,14 @@ public object Argon2 {
                 var previous = if (current == 0) laneLength - 1 else current - 1
 
                 for (index in start until segmentLength) {
+                    if (index % CHECKPOINT_BLOCKS == 0) checkpoint()
                     val pseudoRandom = if (dataIndependent) {
                         if (index % WORDS == 0) nextAddresses()
                         address[index % WORDS]
                     } else {
                         laneMemory[previous * WORDS]
                     }
-                    val refLane = if (pass == 0 && slice == 0) lane else ((pseudoRandom ushr 32) % lanes).toInt()
+                    val refLane = if (pass == 0L && slice == 0) lane else ((pseudoRandom ushr 32) % lanes).toInt()
                     val refIndex = indexAlpha(pass, slice, index, pseudoRandom and 0xFFFF_FFFFL, refLane == lane)
                     compress(
                         laneMemory, previous * WORDS, memory[refLane], refIndex * WORDS,
@@ -180,8 +198,8 @@ public object Argon2 {
             }
         }
 
-        private fun indexAlpha(pass: Int, slice: Int, index: Int, pseudoRand: Long, sameLane: Boolean): Int {
-            val area = if (pass == 0) {
+        private fun indexAlpha(pass: Long, slice: Int, index: Int, pseudoRand: Long, sameLane: Boolean): Int {
+            val area = if (pass == 0L) {
                 when {
                     slice == 0 -> index - 1
                     sameLane -> slice * segmentLength + index - 1
@@ -193,7 +211,7 @@ public object Argon2 {
             }
             val rel = (pseudoRand * pseudoRand) ushr 32
             val relative = area - 1 - ((area.toLong() * rel) ushr 32)
-            val startPosition = if (pass == 0 || slice == SYNC_POINTS - 1) 0 else (slice + 1) * segmentLength
+            val startPosition = if (pass == 0L || slice == SYNC_POINTS - 1) 0 else (slice + 1) * segmentLength
             return ((startPosition + relative) % laneLength).toInt()
         }
     }

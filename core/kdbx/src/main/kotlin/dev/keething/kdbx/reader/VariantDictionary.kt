@@ -13,8 +13,11 @@ internal class VariantDictionary private constructor(private val values: LinkedH
         values[key]?.takeIf { it.type == UINT32 && it.data.size == 4 }?.let { Bytes.intLe(it.data, 0).toLong() and 0xFFFF_FFFFL }
 
     /** An unsigned 64-bit number; null when it does not fit a Long (no real parameter is that large). */
-    fun uint64(key: String): Long? =
-        values[key]?.takeIf { it.type == UINT64 && it.data.size == 8 }?.let { Bytes.longLe(it.data, 0) }?.takeIf { it >= 0 }
+    fun uint64(key: String): Long? = uint64Bits(key)?.takeIf { it >= 0 }
+
+    /** An unsigned 64-bit number's bits: above `Long.MAX_VALUE` it is negative (the KDF's costs, checked as unsigned). */
+    fun uint64Bits(key: String): Long? =
+        values[key]?.takeIf { it.type == UINT64 && it.data.size == 8 }?.let { Bytes.longLe(it.data, 0) }
 
     fun contains(key: String): Boolean = key in values
 

@@ -3,6 +3,7 @@ package dev.keething.vault.storage
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
+import dev.keething.domain.storage.DatabaseReplacedException
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.storage.FolderWatch
@@ -314,9 +315,9 @@ public class FolderDatabaseStore(
 
     /** The saved file's time read back: one a sync app would take for the replaced one's fails the save, replaced as it is. */
     private fun checkTime(replaced: Instant) {
-        val saved = folder.version(path)?.modified ?: throw IOException("$fileName is gone right after the save")
+        val saved = folder.version(path)?.modified ?: throw DatabaseReplacedException("$fileName is gone right after the save")
         if (Duration.between(replaced, saved).abs() < SYNC_TIME_WINDOW) {
-            throw IOException("$fileName was saved at $saved, less than 2 s from the file it replaced ($replaced): a sync app may not send it")
+            throw DatabaseReplacedException("$fileName was saved at $saved, less than 2 s from the file it replaced ($replaced): a sync app may not send it")
         }
     }
 

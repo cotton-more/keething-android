@@ -20,8 +20,8 @@ public interface DatabaseStore {
      * there). Nothing that watches the folder (Syncthing) may ever see a half-written database where the
      * storage allows that, and the new file must look changed to it even with the same size: a modification
      * time it tells from the old one. Throws a [DatabaseChangedException] when the file is not, or is no
-     * longer, at [expected] (nothing replaced), and an [IOException] also when the content was replaced but
-     * the new time could not be made sure of.
+     * longer, at [expected] (nothing replaced), a [DatabaseReplacedException] when the content was replaced but
+     * the new time could not be made sure of, and another [IOException] when nothing was replaced.
      */
     public fun replace(bytes: ByteArray, expected: FileVersion? = null)
 
@@ -47,3 +47,9 @@ public interface DatabaseStore {
  * was replaced, and the change is to be made again on the file as it is now.
  */
 public class DatabaseChangedException(message: String) : IOException(message)
+
+/**
+ * [DatabaseStore.replace] replaced the database, but could not make sure of what a sync app needs of the new file (its
+ * time): the save is not reported as done, yet the file is the new one, and the copy kept before it is its backup.
+ */
+public class DatabaseReplacedException(message: String) : IOException(message)

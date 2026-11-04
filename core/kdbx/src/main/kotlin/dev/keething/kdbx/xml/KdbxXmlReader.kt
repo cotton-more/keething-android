@@ -5,6 +5,7 @@ import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.FieldValue
 import dev.keething.kdbx.crypto.ChaCha20
 import dev.keething.kdbx.reader.KdbxException
+import dev.keething.kdbx.tree.XmlTree
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.StringReader
@@ -171,6 +172,7 @@ internal object KdbxXmlReader {
         override fun startElement(uri: String, localName: String, qName: String, attributes: Attributes) {
             val name = qName.ifEmpty { localName }
             if (stack.isEmpty() && name != "KeePassFile") fail(KdbxException.Corrupt("not KeePass XML"))
+            if (stack.size == XmlTree.MAX_DEPTH) fail(KdbxException.Corrupt("XML nested deeper than ${XmlTree.MAX_DEPTH} levels"))
             stack.add(name)
             if (attributes.getValue("Protected").equals("true", ignoreCase = true)) {
                 if (stream == null) fail(KdbxException.Corrupt("protected value without a stream"))

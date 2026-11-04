@@ -24,7 +24,7 @@ import dev.keething.android.attachment.AttachmentNames
 import dev.keething.android.attachment.AttachmentTypes
 import dev.keething.android.attachment.SaveRequest
 import dev.keething.android.clipboard.SensitiveClipboard
-import dev.keething.android.editor.SAVE_BUSY
+import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.recyclebin.RecycleBinMoves
@@ -73,6 +73,8 @@ internal data class CardContent(
     val card: EntryCard,
     val inRecycleBin: Boolean,
     val icon: ImageBitmap?,
+    /** Its database has the recycle bin turned off: Delete is for good, asked first (keething-spec edit.delete-for-good AC1). */
+    val binTurnedOff: Boolean = false,
     /** The face the list shows for it (a small card, a network), also on the card's header. */
     val face: EntryFace? = null,
     /** Fields named as a card's or a network's, without types: the card offers to type them (SPEC §6.3). */
@@ -159,7 +161,7 @@ internal class EntryCardViewModel(
         if (suggesting) return
         val entry = unlockedVault()?.entries?.firstOrNull { it.id == entryId } ?: return
         val suggestion = TypeSuggestion.of(entry) ?: return
-        val pending = database.session.save(VaultEdit.Update(entry.id, entry.lastModified, suggestion.changes(entry))) ?: return problem(SAVE_BUSY)
+        val pending = database.session.save(VaultEdit.Update(entry.id, entry.lastModified, suggestion.changes(entry))) ?: return problem(SAVE_LOCKED)
         suggesting = true
         viewModelScope.launch {
             val failure = pending.await().problem(database.file)
@@ -316,7 +318,7 @@ internal class EntryCardViewModel(
         val pending = database.session.save(VaultEdit.Update(entry.id, entry.lastModified, changes))
         if (pending == null) {
             changes.wipe()
-            return problem(SAVE_BUSY)
+            return problem(SAVE_LOCKED)
         }
         // The session reads the change's secrets until the save is over.
         pending.invokeOnCompletion { changes.wipe() }
@@ -401,7 +403,7 @@ internal class EntryCardViewModel(
         val entry = vault.entries.firstOrNull { it.id == entryId } ?: return
         val edit = EntryMove.edit(entry, choice) ?: return
         val tree = GroupTree.of(vault)
-        val pending = database.session.save(edit) ?: return problem(SAVE_BUSY)
+        val pending = database.session.save(edit) ?: return problem(SAVE_LOCKED)
         movingEntry = true
         viewModelScope.launch {
             val outcome = pending.await()
@@ -422,6 +424,19 @@ internal class EntryCardViewModel(
     fun moveToRecycleBin(): Boolean {
         val entry = unlockedVault()?.entries?.firstOrNull { it.id == entryId } ?: return false
         recycleBin.moveToRecycleBin(database, entry)
+        return true
+    }
+
+    /**
+     * Delete for good (keething-spec edit.delete-for-good), after the card asked: an entry in the bin, or any when its
+     * database has the bin turned off. False: nothing to delete.
+     */
+    fun deleteForGood(): Boolean {
+        val vault = unlockedVault() ?: return false
+        val entry = vault.recycleBin.firstOrNull { it.id == entryId }
+            ?: vault.entries.firstOrNull { it.id == entryId }?.takeIf { !vault.recycleBinEnabled }
+            ?: return false
+        recycleBin.deleteForGood(database, entry)
         return true
     }
 
@@ -456,7 +471,7 @@ internal class EntryCardViewModel(
         val icon = entry.customIconId?.let(vault.customIcons::get)?.image
             ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.asImageBitmap()
         return CardContent(
-            card, inRecycleBin = inBin != null, icon = icon, face = EntryFace.of(entry),
+            card, inRecycleBin = inBin != null, icon = icon, binTurnedOff = !vault.recycleBinEnabled, face = EntryFace.of(entry),
             suggestion = if (inBin == null) TypeSuggestion.of(entry) else null,
         )
     }

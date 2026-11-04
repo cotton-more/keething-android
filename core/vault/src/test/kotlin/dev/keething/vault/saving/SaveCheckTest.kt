@@ -125,6 +125,17 @@ class SaveCheckTest {
     }
 
     @Test
+    fun anEntryDeletedForGoodIsGoneAndNothingElseChanged() {
+        val binned = a.copy(groupPath = listOf("Recycle Bin"), groupId = "BIN")
+        val inBin = Vault(entries = listOf(b), groups = listOf(root, work), recycleBin = listOf(binned))
+        val edit = VaultEdit.DeleteForGood("a", null)
+
+        check(inBin.copy(recycleBin = emptyList()), edit, from = inBin)
+        fails("the entry is still there", inBin, edit, from = inBin)
+        fails("another entry changed", inBin.copy(entries = listOf(b.copy(title = "?")), recycleBin = emptyList()), edit, from = inBin)
+    }
+
+    @Test
     fun aRestoredEntryIsBackInItsGroupAndGroupsMadeOnTheWayAreAllowed() {
         val binned = a.copy(groupPath = listOf("Recycle Bin"), groupId = "BIN")
         val inBin = Vault(entries = listOf(b), groups = listOf(root, work), recycleBin = listOf(binned))

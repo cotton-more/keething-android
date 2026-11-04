@@ -6,6 +6,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.kdbx.creating.KdfCalibration
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxFormat
+import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
 import kotlin.time.Duration
 
@@ -30,6 +31,8 @@ public object EncryptionMeasurement {
                 KdfCalibration.Request(kind, e.memoryMiB.toLong() shl 20, e.lanes, e.seconds),
                 checkCancelled = checkCancelled,
             )
+        } catch (_: KdbxException.NotEnoughMemory) {
+            throw CreateFailure.NotEnoughMemory()
         } catch (_: OutOfMemoryError) {
             throw CreateFailure.NotEnoughMemory()
         }

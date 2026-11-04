@@ -93,6 +93,7 @@ internal fun OpenFailure.describe(file: String): String = when (this) {
     // Damaged is not a wrong password (SPEC §3.2): a sync may have caught the file half-written.
     is OpenFailure.Damaged -> "The file is damaged or not completely synced yet ($detail)."
     OpenFailure.OutOfMemory -> "Not enough memory to open the database."
+    OpenFailure.Locked -> "The database locked while it was being opened."
 }
 
 private fun Duration.minutesText(): String {

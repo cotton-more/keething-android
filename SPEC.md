@@ -54,15 +54,15 @@ Goals (v1)
 
 The first releases only read the database, so they cannot damage it; the owner rarely edits on the phone.
 Writing comes after them (ROADMAP step 7) and must be done before a Google Play release:
-- Edit, create, recycle and restore entries (delete is undoable from a snackbar; emptying the recycle bin
-  is left to the Mac); custom fields.
+- Edit, create, recycle and restore entries (delete is undoable from a snackbar), delete one for good from the bin
+  (emptying the recycle bin is not offered: one at a time, the owner); custom fields.
 - Autofill's offer to save a new login or update a changed password, with the password generator for
   sign-ups.
 - The password generator (Mac SPEC §3.20): in the editor's password field, and on its own from the list
   (a password without an entry, copied).
 
 Non-goals (v1): SSH agent, e-mail aliases,
-reports (but Groups & tags), restoring a version from the history, YubiKey, Twofish, deleting entries for good / emptying the recycle bin, adding / removing / renaming
+reports (but Groups & tags), restoring a version from the history, YubiKey, Twofish, emptying the recycle bin at once (an entry is deleted for good one at a time, §6.2), adding / removing / renaming
 attachments, reordering custom fields, a Quick Settings tile for codes (Quick note's is §6.4), a one-time code pinned to the notification
 shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
 foreground service for little gain), an entry pinned to the notification shade with Copy username / password /
@@ -366,6 +366,21 @@ keeps the new time. The way out is in §3.3 step 7.
   that failed to open (damaged) is not read again until the file changes.
 - An earlier vault stays intact until the lock (a card may still show one of its entries); the lock wipes
   every vault of the session.
+- **Nothing a file holds crashes the app or locks the user out** (keething-spec kdbx.hardening; the review of the
+  Mac's engine, 2026-10-30). The key derivation runs before the header's HMAC can be checked, so its parameters are
+  checked first, against KeePass 2.x's own limits (`KdfLimits`, the same as a new file's, §3.5): Argon2 version 0x13,
+  1 to 2³²−1 iterations, 1 to 2²⁴−1 lanes, memory in whole KiB, at least 8 KiB a lane, under 2 GiB; AES-KDF at least
+  one round. A file outside them is refused as unsupported, the parameter named ("This database cannot be opened:
+  key derivation Argon2 memory of 4 TiB (KeePass reads less than 2 GiB)."), never as a wrong password or damaged;
+  so is Argon2 memory within them but more than the app's heap allows (512 MiB with `largeHeap`, less 48 MiB for the
+  rest), refused before it is allocated. A derivation that runs stops within milliseconds when its unlock or reload
+  is given up: a lock gives up the key it runs with (`DatabaseKey.abandon`, checked between about a millisecond's
+  steps); a key wiped or given up is never used again (`WipedKeyException`). A protected value is decrypted into its
+  secret as it is read, so any character in it, a control character too, opens and is written back as it was; text
+  that looks like markup in a plain value stays that text. A time a date cannot hold (outside the years 1 to 9999,
+  such as `AAAAAAAAAIA=`, Int64.min) reads as no time and is written back as it was. XML nested deeper than 128
+  levels is refused as damaged, by both readers: the tree's walks (writing, copying, the schema's check) recurse once
+  a level, and the whole save at that depth runs on a 160 KiB stack in the tests (an Android thread has 1 MiB).
 - An entry's one-time code (keething-spec `kdbx.otp-storage`, the Mac's `TOTPFormat`) is read from one format, the
   first there: a non-blank `otp` (KeePassXC's `otpauth://` link; one that does not parse is no code, with no
   fallback), else `TOTP Seed` with `TOTP Settings` (`<period>;<digits>`), else KeePass 2.x's own `TimeOtp-*` fields
@@ -384,8 +399,10 @@ keeps the new time. The way out is in §3.3 step 7.
 ### 3.3 Writing
 
 What the phone writes (`VaultEdit`): an entry's fields (title, username, password, URL, notes, custom fields,
-their types, tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it.
-Deleting for good, history, attachments, one-time codes (but that of an entry received, §10), renaming tags and the
+their types, tags, expiry), a new entry at the end of a group's entries, an entry into the recycle bin and back out of it,
+an entry deleted for good (`VaultEdit.DeleteForGood`: from the bin, or any entry when the bin is turned off; with its
+history, a `DeletedObjects` record, and its attachments nothing else uses dropped as every write drops them; keething-spec
+edit.delete-for-good). History, attachments, one-time codes (but that of an entry received, §10), renaming tags and the
 recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
 `VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
 made, moved, deleted when empty; keething-spec `plans/done/android-groups.md` AG1, AG2). The editor makes an entry's move
@@ -402,7 +419,10 @@ unpadded), `TimeOtp-Length`, `TimeOtp-Period` and `TimeOtp-Algorithm`, all four.
 (KeePass: more than 8 digits; `TOTP Settings`: SHA-256 or SHA-512) is written as `otp`. The fields go where the
 entry's first code field was, else after its other fields; the save's check reads the code back from whichever.
 
-Notes keep their own protection (keething-spec kdbx.round-trip AC6; `EntryChanges.notesProtected`): an edit writes
+Title, UserName, Password and URL are written protected when their value was, or when `Meta/MemoryProtection` says
+so (keething-spec kdbx.round-trip AC6, edit.save-entry AC4): an edit never writes a protected value in the clear (the
+review's L7; until 2026-11-04 only `Meta/MemoryProtection` decided). Notes keep their own protection
+(`EntryChanges.notesProtected`): an edit writes
 them protected as asked, else as the value was, else as `Meta/MemoryProtection`'s `ProtectNotes` says for Notes the
 entry did not have; a new entry's Notes take `ProtectNotes` unless asked otherwise. Before notes (AN1) an edit of a
 protected Notes wrote it unprotected. An entry's kind (§6.4) is one `CustomData` item written as the field types' is
@@ -434,8 +454,12 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    goes into or above it); new groups as KeePassXC writes one, after the parent's groups; a group renamed as
    `Group::setName`, moved as `Group::setParent`; a group deleted gets a `DeletedObject` (`DeletedObjects` made after
    the root group when the file has none).
-4. Write: same format, new master seed / IV / inner stream key; the KDF parameters and salt kept, so the key
-   in memory writes it and a save derives nothing; attachments nothing refers to dropped, identical ones
+4. Write: same format, new master seed / IV / inner stream key; the KDF parameters and salt kept, so the derived
+   key that opened the file in step 1, its header's HMAC checked there, writes it, and nothing in between looks a
+   key up or derives one (`EditableDatabase.write`; keething-spec kdbx.hardening AC1); characters XML 1.0 cannot
+   hold (U+0000–U+001F but tab, LF and CR, U+FFFE, U+FFFF) are left out of plain values, as KeePass 2.x and KeePassXC
+   do (`XmlText`; AC7: such a value no longer fails the save), and out of a title, username and URL even when
+   protected; attachments nothing refers to dropped, identical ones
    stored once, `Ref`s renumbered, every reference still meaning the same bytes. A `PreviousParentGroup` out of
    the schema's order (Keething put an entry's after `Times` until 2026-10, the Mac and this app alike) is moved
    to its place by any save, in histories too. The version: raised from 4.0 to 4.1 only when the document holds
@@ -446,7 +470,8 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    `PreviousParentGroup` (the recycle bin). Never lowered; asked nothing, the 4.0 file stays in the backup.
    KeePass reads 4.1 from 2.48 (May 2021).
 5. **Check before replacing**: nothing KeePass's XML schema does not allow may be added (below; a violation
-   the file already had is kept and no reason to refuse); open the new bytes with the built-in reader; every
+   the file already had is kept and no reason to refuse); open the new bytes with the built-in reader, with the
+   derived key of step 1 alone (`EditableDatabase.readBack`; AC1), plain values expected as step 4 writes them; every
    other entry and group exactly as before, the changed entry exactly as asked, every attachment byte for byte.
    "Before" is the reader's own reading of the same decrypted XML the tree was made from, so a fault in the tree
    shows as a difference. With groups (`SaveCheck`, the Mac's `expectedStructure`): an entry's new groups are built
@@ -460,12 +485,16 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    checked, found by the file's order (a group's groups follow it), so two groups of one name in one parent are each
    themselves (the Mac goes by path and does not offer such a group). The recycle bin's own groups are checked too:
    as before for an entry's edit (but the bin a recycled entry makes, in the root group), and a group's edit takes them along when the
-   bin is inside the group changed, its entries' paths with them.
+   bin is inside the group changed, its entries' paths with them. An entry deleted for good: gone, every other entry
+   and every group as before.
 6. If the file on disk changed meanwhile (byte for byte, and by its version once more as the store replaces it),
    do it all again on the new file (once more, then fail).
 7. Back up the old file into app-private storage (`filesDir/backups/<database id>/`, `<name> <local date and
-   time>.kdbx`, `_2`… for more within a second, numbered after the last one there; the newest 10 in the database's
-   folder, whatever the file was called, other files left alone, so two `Personal.kdbx` keep theirs apart and a
+   time>.kdbx`, `_2`… for more within a second, numbered after the last one there, flushed to the storage before the
+   replace; the newest 10 in the database's folder, newest by when they were written, not by the local time in their
+   names (a time zone changed would push the newest out: keething-spec kdbx.backups AC3), and only once the replace
+   went through: a save that did not replace the file takes its copy back and pushes none out (kdbx.hardening AC9),
+   whatever the file was called, other files left alone, so two `Personal.kdbx` keep theirs apart and a
    database located under another name keeps its older ones; the flat files of before the list stay in
    `filesDir/backups` as they were; not in the Syncthing folder, and the app allows no Android backup, so they
    stay on the phone) and replace: temporary file in the same folder, then rename. The temporary file is
@@ -473,7 +502,11 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
    app's temporary file, only the final one. Through the folder's grant the database is renamed aside first and the
-   new file renamed in (§3.1, `FolderDatabaseStore`; keething-spec databases.saf AC4, AC5).
+   new file renamed in (§3.1, `FolderDatabaseStore`; keething-spec databases.saf AC4, AC5). The new file is flushed
+   (`FileDescriptor.sync`) before anything is renamed, the backup before the replace (kdbx.hardening AC5). The
+   database is reached by documents, never by a path, so a symbolic link never comes into it: the phone's shared
+   storage refuses to make one (`ln -s` in `/sdcard`: permission denied, Pixel 6, 2026-11-04) and a card's FAT or
+   exFAT has none (kdbx.hardening AC9).
    A file's time cannot be set through the Storage Access Framework, and Syncthing on Android takes times less than
    2 s apart for equal (its `ModTimeWindow`, on any file system but ext2–4): so the new file is written only once the
    clock is at least 2 s from the replaced file's time and from those its earlier saves replaced in the last minute,
@@ -528,8 +561,10 @@ test folder's fictitious databases it found what an older Keething wrote — `de
 **Not checked**: KeePass 2.x itself opening the files (KPScript under Mono, before a release; keething-spec
 `kdbx.keepass-schema` AC6).
 
-The session saves one change at a time with the key in memory (`VaultSession.save`); the vault is then the
-written file as read back, and the app's own write is not read again; the outcome names the groups the save deleted
+The session saves one change at a time with the key in memory (`VaultSession.save`): a change asked for while
+another is being saved waits for it, then reads the file it left, so two changes saved together both end up in the
+file (keething-spec kdbx.hardening AC4; until 2026-11-04 the second was refused, "try again in a moment"). The vault
+is then the written file as read back, and the app's own write is not read again; the outcome names the groups the save deleted
 (`SaveOutcome.Saved`, as they were, innermost first: what the file lost, not a guess beforehand) for the snackbar
 "Saved and checked. The empty group “Work › Old” was deleted." (two or more: "The empty groups “…” and “…” were
 deleted."), which the card says after the editor's save. Refused because the entry changed or went elsewhere, or the file's groups refuse the
@@ -576,7 +611,7 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   parameters as KeePass writes them (`$UUID`; Argon2 `V` 0x13, `S`, `P`, `M` in bytes, `I`; AES-KDF under KeePass's own
   id `c9d9f39a…` with `R` and `S`), no public custom data. Parameters KeePass 2.x would not run are refused before
   anything is measured (iterations 1 to 2³²−1, lanes 1 to 2²⁴−1, memory in whole KiB, at least 8 KiB a lane, under
-  2 GiB; AES-KDF at least 1 round; the phone's own Argon2 also stops at 2³¹−1 iterations). The XML as keepassxc-cli
+  2 GiB; AES-KDF at least 1 round; `KdfLimits`, the limits a file read is held to too, §3.2). The XML as keepassxc-cli
   2.7.12's `db-create` writes it, as KDBX 4: Generator `Keething`, the name given (outer blanks and control characters
   dropped, or empty), `MemoryProtection` the password only, the bin enabled but not made (the first delete makes it,
   §3.3), `HistoryMaxItems` 10, `HistoryMaxSize` 6 MiB, no KeePassXC custom data; one root group named as the database,
@@ -701,6 +736,17 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   reader that must not show a protected text asks it; keething-spec `plans/done/android-notes.md` P4, as on the Mac);
   the values in the editor while it is open (Compose's text fields hold strings; the editor goes with the
   lock). What a save writes is made into secrets, wiped once the save is over.
+- **A lock while a save runs** (keething-spec kdbx.hardening AC3, the owner's choice of 2026-10-30 for both apps: a
+  lock waits for a save, as the Mac's Quit does). The lock (the button, the timeout, a database closed) hides the vault
+  at once and wipes the session's key; no save starts any more, and one waiting for the save before it never does. The
+  save running works on its own copy of the key and may finish for 10 s of the phone being awake (the main thread's
+  clock, which stands still in deep sleep). Then it is told to stop and its key is given up and wiped: it stops right
+  before the backup or right before the replace, so the file and its backups are as they were. A replace already begun
+  goes to its end (§3.1). The ids of the changes the file did not get (stopped, failed after the lock, never started),
+  never a value, are kept through the lock; the next unlock of that database says them on the list until OK:
+  "Not saved — The change to “GitHub” was not saved: the database locked while it was being saved. The file is as it
+  was; make the change again." (a new entry, a move to the bin, a restore, a group's change each named so). A save
+  blocked inside the storage provider's own call keeps what it read until that call returns, then stops.
 - The keyboard is asked not to learn what is typed in the editor and the search field
   (`IME_FLAG_NO_PERSONALIZED_LEARNING`, Gboard's incognito mode): entries' names and notes stay out of its
   dictionary. Password fields are never learnt anyway.
@@ -1175,7 +1221,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   copy the username (shown), the password or the one-time code (live), open the site (as the card's link), then
   Edit, Remove from Recent (a recent row: "Removed from Recent" with Undo, which puts it back in its place, the
   entry itself untouched) and Move to the recycle bin (as Delete on the card, with Undo); an entry in the bin has
-  only the copies and the site. A row's code is a pill beside the title, or under it where the pill would leave
+  the copies, the site, Restore (the list then says "Restored to …", as the card does) and Delete for good… (asked
+  first, as on its card).
+  A row's code is a pill beside the title, or under it where the pill would leave
   the title less than about seven and a half characters (large text on a narrow phone).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
   payment card's, a Wi-Fi network's, a bank account's, an identity document's, an SSH login's or a crypto wallet's
@@ -1197,7 +1245,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   offered as in the editor ("made with the move"); a group chosen moves the entry at once through the checked save
   (no history snapshot, as KeePassXC moves one), the snackbar "Moved to “Archive › Japan”. The empty group “Travel ›
   Japan › Hotels” was deleted." (the groups the move left empty, as in the editor); the group it is in already does
-  nothing. In the recycle bin: Restore in the bar, History under ⋮, no Edit. A note's text and protected Notes:
+  nothing. In the recycle bin: Restore in the bar, History and Delete for good… under ⋮, no Edit (with the bin turned
+  off, Delete for good… stands for Move to the recycle bin on every card). A note's text and protected Notes:
   §6.4. Custom fields are read by their
   types (§6.3): a field typed `password` is masked with the password's key in front, protected or not. The header
   is compact: the icon (56 dp) beside the title, under the title one place chip (the owner, 2026-10-31): while two or more databases are open the entry's database
@@ -1377,6 +1426,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   keeps its scroll position: the row fades out at once (not when the save is done) and the rows below close
   up; a failed save or Undo puts it back in its place. A vault read again (a save, a sync) is listed while
   the one before stays on screen, so no reload empties the list or scrolls it to the top.
+- **Delete for good** (⋮ on a card in the bin, a long press on a row in the bin, or ⋮ on any card when the database
+  has the bin turned off; keething-spec
+  edit.delete-for-good): asked first, "Delete “…” for good?", saying it cannot be undone and that copies syncing with
+  the file delete it too; the red Delete for good comes alive after a second, Cancel, Back or a tap outside keep the
+  entry. The card closes and the list says "Deleted “…” for good", no Undo; the row leaves at once, a failed save puts
+  it back. One entry at a time: there is no Empty recycle bin (the owner, 2026-11-04).
 - **Groups & tags** (the folder in the list's header; the Mac's Groups & Tags window, §3.25 there, without the tags'
   and the bin's groups' changes): **a block per open database**, in the window's order, even with one (keething-spec
   `plans/done/android-groups.md` G7). Its header (the database's dot, its label, "38 entries") stays pinned while its block
@@ -1436,8 +1491,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   The oldest version kept has nothing to compare with; "No earlier versions are kept" when there are none.
   The versions are wiped when the screen goes (a lock closes it); the values compared are plain strings
   while it is open, as in the editor.
-- **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit and delete ("Restored to
-  Web & Mail").
+- **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit, and Delete for good… under ⋮
+  ("Restored to Web & Mail"); a bin row's long press offers both too.
 - **Settings**: **Databases**: every database (tile, label, its folder or "Not found · Download", "No access · Sync/Work",
   "Needs its folder · Sync/KeePass" in red, a key for
   one with a key file, a fingerprint for one the fingerprint opens); a tap opens **its page**: tile, label, path from
