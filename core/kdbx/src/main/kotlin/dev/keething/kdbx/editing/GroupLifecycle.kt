@@ -18,7 +18,8 @@ import java.time.Instant
  *   `Times/LocationChanged`);
  * - a group deleted (empty, or left empty by an entry's move) goes for good with a `DeletedObjects` record, so a
  *   synchronising copy deletes it too;
- * - the root group, the recycle bin and the groups in it are never changed here; a restore makes groups again
+ * - the root group, the recycle bin, the templates group (keething-spec groups.templates AC3, AC4) and the groups in
+ *   them are never changed here; a restore makes groups again
  *   outside the bin ([home]).
  */
 internal object GroupLifecycle {
@@ -30,7 +31,7 @@ internal object GroupLifecycle {
      */
     fun create(groups: List<NewGroup>, parentId: String, root: XElement, now: Instant): XElement {
         val path = EntryLifecycle.group(parentId, root)
-        if (path == null || EntryLifecycle.isInRecycleBin(path, root)) throw EditException.GroupNotFound()
+        if (path == null || EntryLifecycle.isInRecycleBin(path, root) || EntryLifecycle.isInTemplates(path, root)) throw EditException.GroupNotFound()
         if (groups.any { it.name.isBlank() }) throw EditException.InvalidName()
         var parent = path.last()
         for (group in groups) parent = make(NewGroup(group.id, group.name.trim()), parent, root, now)
@@ -46,11 +47,12 @@ internal object GroupLifecycle {
     fun resolving(destination: GroupDestination, root: XElement): GroupDestination {
         var parent = EntryLifecycle.group(destination.groupId, root)?.last() ?: return destination
         val bin = EntryLifecycle.recycleBinUuid(root)
+        val templates = root.first("Meta")?.first("EntryTemplatesGroup")?.text?.trim()
         var result = destination
         while (true) {
             val wanted = TextFolding.fold(result.newGroups.firstOrNull()?.name?.trim() ?: break)
             val existing = parent.all("Group").firstOrNull { group ->
-                EntryLifecycle.uuidText(group) != bin && TextFolding.fold(name(group).trim()) == wanted
+                EntryLifecycle.uuidText(group).let { it != bin && it != templates } && TextFolding.fold(name(group).trim()) == wanted
             } ?: break
             result = GroupDestination(EntryLifecycle.uuidText(existing), result.newGroups.drop(1))
             parent = existing
@@ -61,7 +63,7 @@ internal object GroupLifecycle {
     /** A new, empty group in [parentId] (outside the recycle bin), its name trimmed and not one the parent has. */
     fun createNamed(group: NewGroup, parentId: String, root: XElement, now: Instant) {
         val path = EntryLifecycle.group(parentId, root) ?: throw EditException.GroupNotFound()
-        if (EntryLifecycle.isInRecycleBin(path, root)) throw EditException.GroupNotChangeable()
+        if (EntryLifecycle.isInRecycleBin(path, root) || EntryLifecycle.isInTemplates(path, root)) throw EditException.GroupNotChangeable()
         make(NewGroup(group.id, freeName(group.name, path.last(), except = null)), path.last(), root, now)
     }
 
@@ -92,7 +94,7 @@ internal object GroupLifecycle {
         val group = path.last()
         val parent = path[path.size - 2]
         val target = targetPath.last()
-        if (EntryLifecycle.isInRecycleBin(targetPath, root) || targetPath.any { it === group } || target === parent) {
+        if (EntryLifecycle.isInRecycleBin(targetPath, root) || EntryLifecycle.isInTemplates(targetPath, root) || targetPath.any { it === group } || target === parent) {
             throw EditException.GroupNotChangeable()
         }
         if (isTaken(name(group), target, except = group)) throw EditException.GroupNameTaken()
@@ -217,7 +219,9 @@ internal object GroupLifecycle {
     /** The group and the groups it is in, when it may be renamed, moved or deleted: not the root, the bin or in it. */
     private fun changeable(groupId: String, root: XElement): List<XElement> {
         val path = EntryLifecycle.group(groupId, root) ?: throw EditException.GroupNotFound()
-        if (path.size < 2 || EntryLifecycle.isInRecycleBin(path, root)) throw EditException.GroupNotChangeable()
+        if (path.size < 2 || EntryLifecycle.isInRecycleBin(path, root) || EntryLifecycle.isInTemplates(path, root)) {
+            throw EditException.GroupNotChangeable()
+        }
         return path
     }
 

@@ -281,7 +281,7 @@ internal class AppContainer(context: Context) {
      * What a database's Close says, with its Undo, what Locate… refused and what the chooser's run did: on the screen
      * showing (the list, Databases).
      */
-    val windowNotices = Channel<Notice>(Channel.BUFFERED)
+    val windowNotices = Channel<Notice>(Channel.BUFFERED).also { notices -> sessions.kdbx3.tell = { notices.trySend(it) } }
 
     /** The chooser, its run and the fingerprint for every database that can (plan AD13): kept across screens. */
     val chooser = WindowChooser(

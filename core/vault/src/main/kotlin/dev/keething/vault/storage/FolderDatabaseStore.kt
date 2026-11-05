@@ -8,6 +8,7 @@ import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.storage.FolderWatch
 import dev.keething.domain.storage.GrantedFolder
+import dev.keething.domain.storage.NewFilePlace
 import dev.keething.domain.storage.StoppedSave
 import dev.keething.domain.storage.folderOf
 import dev.keething.domain.storage.nameOf
@@ -16,6 +17,7 @@ import dev.keething.domain.time.Clock
 import dev.keething.vault.storage.SaveNotes.SaveNote
 import java.io.IOException
 import java.nio.file.AccessDeniedException
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.NoSuchFileException
 import java.time.Duration
 import java.time.Instant
@@ -321,6 +323,28 @@ public class FolderDatabaseStore(
         }
     }
 
+    override fun keepBeside(bytes: ByteArray, name: String): String = lock.withLock {
+        // The number goes before the database's own extension: "Notes (KDBX 3.1)" has none.
+        val extension = fileName.substring(fileName.lastIndexOf('.').takeIf { it > 0 } ?: fileName.length)
+        val stem = if (extension.isNotEmpty() && name.endsWith(extension)) name.dropLast(extension.length) else name
+        val ending = name.substring(stem.length)
+        for (number in 1..MOST_NUMBERED) {
+            val numbered = if (number == 1) name else "$stem $number$ending"
+            val file = FolderNewFile(folder, inFolder(numbered))
+            when (file.check()) {
+                NewFilePlace.NO_FOLDER -> throw NoSuchFileException(databaseFolder)
+                NewFilePlace.TAKEN -> continue
+                NewFilePlace.FREE -> try {
+                    file.create(bytes, readOnly = false)
+                    return numbered
+                } catch (_: FileAlreadyExistsException) {
+                    // Taken since the check (a sync): the next number.
+                }
+            }
+        }
+        throw IOException("no free name for $name")
+    }
+
     override fun conflictCopies(): List<ConflictCopy> =
         folder.list(databaseFolder).orEmpty()
             .filterNot { it.isFolder }
@@ -421,6 +445,9 @@ public class FolderDatabaseStore(
     public companion object {
         private const val READ_ATTEMPTS = 3
         private const val WRITE_ATTEMPTS = 2
+
+        /** How far [keepBeside] numbers a name before it gives up. */
+        private const val MOST_NUMBERED = 100
         private val SYNC_TIME_WINDOW = Duration.ofSeconds(2)
         private val TIME_MARGIN = Duration.ofMillis(50)
 

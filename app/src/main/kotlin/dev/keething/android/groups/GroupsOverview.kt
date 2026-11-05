@@ -13,7 +13,13 @@ import java.text.Collator
  * has the search that lists its entries. The counts are those of the list: the Mac app's settings entry is
  * not one of them.
  */
-internal class GroupsOverview(val groups: List<GroupRow>, val recycleBin: Int, val tags: List<TagRow>) {
+internal class GroupsOverview(
+    val groups: List<GroupRow>,
+    val recycleBin: Int,
+    val tags: List<TagRow>,
+    /** The templates group's name and how many entries it holds, never shown (keething-spec groups.templates AC3). */
+    val templates: Pair<String, Int>? = null,
+) {
     /** A group outside the bin, in tree order (parents first, siblings by name); the root group first. */
     data class GroupRow(
         val id: String,
@@ -59,7 +65,7 @@ internal class GroupsOverview(val groups: List<GroupRow>, val recycleBin: Int, v
                     .distinct().toList()
                 TagRow(tag.name, others, tag.count)
             }
-            return GroupsOverview(groups, vault.recycleBin.size, tags)
+            return GroupsOverview(groups, vault.recycleBin.size, tags, vault.templatesGroup?.let { it.name to vault.templates.size })
         }
     }
 }

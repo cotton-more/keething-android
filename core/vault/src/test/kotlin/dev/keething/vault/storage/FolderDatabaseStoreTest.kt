@@ -938,6 +938,30 @@ class FolderDatabaseStoreTest {
         assertFalse(waited, "the watch waited for the save")
     }
 
+    // A copy kept beside it (keething-spec kdbx.kdbx3 AC7)
+
+    // spec: kdbx.kdbx3/AC7
+    @Test
+    fun aCopyIsKeptBesideTheDatabaseAndNeverOverAFileThere() {
+        folder.put(DATABASE, old, earlier)
+        folder.put("Sync/Personal (KDBX 3.1).kdbx", theirs, earlier)
+        folder.put("Sync/personal (kdbx 3.1) 2.KDBX", theirs, earlier)
+
+        assertEquals("Personal (KDBX 3.1) 3.kdbx", store.keepBeside(old, "Personal (KDBX 3.1).kdbx"))
+
+        assertContentEquals(old, folder.bytesOf("Sync/Personal (KDBX 3.1) 3.kdbx"))
+        assertContentEquals(theirs, folder.bytesOf("Sync/Personal (KDBX 3.1).kdbx"))
+        assertContentEquals(theirs, folder.bytesOf("Sync/personal (kdbx 3.1) 2.KDBX"))
+        assertContentEquals(old, folder.bytesOf(DATABASE))
+        assertEquals("Notes (KDBX 3.1) 2", storeAt("Sync/Notes").also { folder.put("Sync/Notes (KDBX 3.1)", theirs) }.keepBeside(old, "Notes (KDBX 3.1)"))
+    }
+
+    @Test
+    fun aCopyWithNoFolderKeepsNothing() {
+        assertFailsWith<IOException> { storeAt("Gone/Personal.kdbx").keepBeside(old, "Personal (KDBX 3.1).kdbx") }
+        assertTrue(mutations().isEmpty())
+    }
+
     // Conflict copies
 
     @Test

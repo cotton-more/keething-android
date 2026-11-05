@@ -36,8 +36,36 @@ import java.time.Instant
  * Blocks: call it off the main thread.
  */
 internal class VaultSaver(private val store: DatabaseStore, private val backups: DatabaseBackups) {
-    fun save(edit: VaultEdit, key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult = try {
-        saveOrRefuse(edit, key, now, stopped)
+    fun save(edit: VaultEdit, key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult =
+        refusing { saveOrRefuse(stopped, make = { original -> makeFile(original, edit, key, now) }, now = now) }
+
+    /**
+     * Upgrades a KDBX 3.1 database to KDBX 4.0 (keething-spec kdbx.kdbx3 AC7, AC8): the 3.1 file is first kept beside
+     * it as `<stem> (KDBX 3.1)<extension>` ([DatabaseStore.keepBeside]), then the database is written as KDBX 4.0, its
+     * cipher, compression and key derivation as read, and read back: everything in it as before. Saved like any change
+     * (backed up, replaced only while the file is what was read). A file that is KDBX 4 by now is
+     * [SaveFailure.ChangedElsewhere]; a copy that cannot be kept, [SaveFailure.CopyNotKept], nothing written.
+     */
+    fun upgrade(key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult {
+        // The 3.1 file kept: a second attempt (the file changed meanwhile) keeps it again only when it is another file.
+        var kept: ByteArray? = null
+        var keptAs: String? = null
+        return refusing {
+            val result = saveOrRefuse(stopped, make = { original -> upgraded(original, key) }, now = now) { original ->
+                if (kept?.contentEquals(original) == true) return@saveOrRefuse
+                keptAs = try {
+                    store.keepBeside(original, copyName(store.fileName))
+                } catch (failure: Exception) {
+                    throw Refused(SaveFailure.CopyNotKept(failure.message ?: failure.javaClass.simpleName))
+                }
+                kept = original
+            }
+            if (result is SaveResult.Saved) SaveResult.Saved(result.opened, keptCopy = keptAs) else result
+        }
+    }
+
+    private fun refusing(save: () -> SaveResult): SaveResult = try {
+        save()
     } catch (refused: Refused) {
         SaveResult.Failed(refused.failure)
     } catch (_: WipedKeyException) {
@@ -48,10 +76,16 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         SaveResult.Failed(SaveFailure.OutOfMemory)
     }
 
-    private fun saveOrRefuse(edit: VaultEdit, key: DatabaseKey, now: Instant, stopped: () -> Boolean): SaveResult {
+    /** [beforeBackup]: what is done once the new file is made and the old one is still what was read. */
+    private fun saveOrRefuse(
+        stopped: () -> Boolean,
+        make: (original: ByteArray) -> Made,
+        now: Instant,
+        beforeBackup: (original: ByteArray) -> Unit = {},
+    ): SaveResult {
         repeat(ATTEMPTS) {
             val original = read()
-            val made = makeFile(original, edit, key, now)
+            val made = make(original)
             // The file must still be what was read; otherwise read it again and redo the edit on top.
             val current = store.read()
             if (current !is DatabaseRead.Found || !current.bytes.contentEquals(original)) {
@@ -61,6 +95,12 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             if (stopped()) {
                 made.discard()
                 throw Refused(SaveFailure.Locked)
+            }
+            try {
+                beforeBackup(original)
+            } catch (refused: Refused) {
+                made.discard()
+                throw refused
             }
             try {
                 backups.keep(original, store.fileName, now)
@@ -181,6 +221,52 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         }
     }
 
+    /** [original], a KDBX 3.1 file, written as KDBX 4.0; then that read back and checked: nothing in it changed. */
+    private fun upgraded(original: ByteArray, key: DatabaseKey): Made {
+        val editable = try {
+            KdbxReader.openForUpgrade(original, key)
+        } catch (failure: KdbxException) {
+            // Upgraded elsewhere since it was read: read it again.
+            if (failure is KdbxException.UnsupportedVersion && failure.major == 4) throw Refused(SaveFailure.ChangedElsewhere)
+            throw Refused(SaveFailure.CannotOpen(failure.toOpenFailure()))
+        }
+        var before: Vault? = null
+        try {
+            before = VaultAssembler.assemble(editable.document, editable.binaries.map(Secret::size))
+            val written = try {
+                editable.write()
+            } catch (failure: EditException.BreaksFormat) {
+                throw Refused(SaveFailure.BreaksFormat(failure.what))
+            } catch (failure: EditException) {
+                throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
+            }
+            val reread = try {
+                editable.readBack(written.file)
+            } catch (_: KdbxException) {
+                throw Refused(SaveFailure.VerificationFailed("the new file does not open"))
+            }
+            var after: Vault? = null
+            try {
+                if (!reread.format.version.startsWith("4.")) throw Refused(SaveFailure.VerificationFailed("the new file is not KDBX 4"))
+                after = VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
+                try {
+                    SaveCheck.verifyUnchanged(before, after, groups(editable.document), groups(reread.document))
+                } catch (failure: SaveCheck.Failed) {
+                    throw Refused(SaveFailure.VerificationFailed(failure.detail))
+                }
+                if (reread.binaries != written.binaries) throw Refused(SaveFailure.VerificationFailed("attachments differ"))
+                return Made(written.file, reread, after, emptyList())
+            } catch (refused: Refused) {
+                after?.wipe()
+                reread.binaries.forEach(Secret::wipe)
+                throw refused
+            }
+        } finally {
+            before?.wipe()
+            editable.wipe()
+        }
+    }
+
     /** Every group of the file in file order, the recycle bin's own too. */
     private fun groups(document: KdbxDocument): List<VaultGroup> = document.groups.map { VaultGroup(it.uuid, it.name, it.path) }
 
@@ -223,8 +309,14 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     /** A save that wrote nothing, and why. */
     private class Refused(val failure: SaveFailure) : Exception()
 
-    private companion object {
+    internal companion object {
         /** The file read once more when it changed during the save, then the save gives up. */
-        const val ATTEMPTS = 2
+        private const val ATTEMPTS = 2
+
+        /** The name the 3.1 file is kept under beside the database (keething-spec kdbx.kdbx3 AC7): `<stem> (KDBX 3.1)<extension>`. */
+        fun copyName(fileName: String): String {
+            val dot = fileName.lastIndexOf('.').takeIf { it > 0 } ?: fileName.length
+            return "${fileName.substring(0, dot)} (KDBX 3.1)${fileName.substring(dot)}"
+        }
     }
 }

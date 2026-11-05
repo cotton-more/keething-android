@@ -87,8 +87,8 @@ import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.databases.WindowDatabasesModel
 import dev.keething.android.databases.WindowDatabasesScreen
 import dev.keething.android.ui.Notice
-import dev.keething.android.session.ViewOnly
 import dev.keething.android.session.isViewOnly
+import dev.keething.android.unlock.Kdbx3QuestionDialog
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -644,13 +644,20 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
     }
     // An entry's database by its ref; null once it is not open (its screens go: NavigationState.keepOpen).
     val databaseOf = { ref: EntryRef -> sessions.session(ref.database) }
-    // An entry of a database viewed only is never edited: that is said instead (keething-spec kdbx.kdbx3 AC6).
+    // An entry of a database viewed only is never edited: its question is asked again (keething-spec kdbx.kdbx3 AC6).
     val edit: (String) -> Unit = { id ->
-        if (databaseOf(EntryRef.of(id))?.isViewOnly == true) {
-            container.windowNotices.trySend(ViewOnly.notice())
+        val database = databaseOf(EntryRef.of(id))
+        if (database?.isViewOnly == true) {
+            sessions.kdbx3.ask(database)
         } else {
             navigation.open(Screen.Editor(id))
         }
+    }
+    // A KDBX 3.1 database's question over the list (AC5, AC6): opened without its lock screen's, or a change tried.
+    val kdbx3Asking by sessions.kdbx3.asking.collectAsStateWithLifecycle()
+    kdbx3Asking?.let { asked ->
+        val name = sessions.list.record(asked.id)?.displayName ?: asked.location.fileName
+        Kdbx3QuestionDialog(name) { upgrade -> sessions.kdbx3.answer(asked, upgrade) }
     }
     // Codes another app handed over (SPEC §10) are read once the vault is open.
     val incoming by container.incomingCodes.collectAsStateWithLifecycle()
@@ -711,7 +718,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                     val places = sessions.newEntryDatabases(open)
                                     // Only databases viewed only are open: a new entry has nowhere to go.
                                     if (places.isEmpty() && open.isNotEmpty()) {
-                                        container.windowNotices.trySend(ViewOnly.notice())
+                                        sessions.kdbx3.ask(open.first().database)
                                         return@onNew
                                     }
                                     // The database the search names, else the card beside the list's, else the last new entry's.

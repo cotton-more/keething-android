@@ -110,16 +110,78 @@ public object KdbxReader {
     }
 
     /**
-     * A KDBX 3.1 file (keething-spec kdbx.kdbx3 AC1-AC4): AES-KDF from the header's transform seed and rounds, the
-     * payload decrypted, its stream start bytes checked (anything else there is a wrong key: KDBX 3.1 has no header
-     * HMAC, so a damaged start reads as one too, as in KeePass), then the HashedBlockStream with each block's hash,
-     * gzip, and the XML with its protected values (Salsa20), its `Meta/Binaries` and its `Meta/HeaderHash`.
+     * A KDBX 3.1 file opened to be upgraded (keething-spec kdbx.kdbx3 AC8): read as [open] reads it, its tree put the way
+     * KDBX 4.0 holds it ([Kdbx3Upgrade]), to be written as KDBX 4.0 with the cipher, the compression and the key
+     * derivation it was read with (AES-KDF, the transform seed and rounds as they were, so the same key opens it). Throws
+     * [KdbxException.UnsupportedVersion] for any file but KDBX 3.
      */
-    private fun read3(file: ByteArray, key: DatabaseKey, historyOf: String?): KdbxDatabase {
+    public fun openForUpgrade(file: ByteArray, key: DatabaseKey): EditableDatabase {
+        if (!isKdbx3(file)) Header.version(file).let { (major, minor) -> throw KdbxException.UnsupportedVersion(major, minor) }
+        var proven: DerivedKey? = null
+        try {
+            return decryptPayload3(file, { header ->
+                key.transformed(header.kdf).also { (transformed, _) -> proven = DerivedKey(header.kdf.identity, transformed) }
+            }) { header, payload, _ ->
+                val documentStream = InnerStream.of(header.streamId, header.streamKey)
+                val treeStream = InnerStream.of(header.streamId, header.streamKey)
+                header.streamKey.fill(0)
+                var read: Pair<KdbxDocument, List<Secret>>? = null
+                try {
+                    read = KdbxXmlReader.readKdbx3(payload, documentStream, null, header.sha256)
+                    val root = XmlTree.parse(payload, stream = treeStream)
+                    val flags = try {
+                        Kdbx3Upgrade.toKdbx4(root, read.second.size)
+                    } catch (failure: KdbxException) {
+                        root.wipeSecrets()
+                        throw failure
+                    }
+                    val template = KdbxTemplate(4, 0, header.cipherId, header.format.cipher, header.format.compressed, header.kdf, null)
+                    EditableDatabase(read.first, root, read.second, flags, template, checkNotNull(proven))
+                } catch (failure: KdbxException) {
+                    read?.first?.entries?.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
+                    read?.second?.forEach(Secret::wipe)
+                    throw failure
+                } finally {
+                    documentStream.wipe()
+                    treeStream.wipe()
+                }
+            }
+        } catch (failure: Throwable) {
+            proven?.wipe()
+            throw failure
+        }
+    }
+
+    /**
+     * A KDBX 3.1 file (keething-spec kdbx.kdbx3 AC1-AC4): AES-KDF from the header's transform seed and rounds, then the
+     * XML with its protected values (Salsa20), its `Meta/Binaries` and its `Meta/HeaderHash`.
+     */
+    private fun read3(file: ByteArray, key: DatabaseKey, historyOf: String?): KdbxDatabase =
+        decryptPayload3(file, { header -> key.transformed(header.kdf) }) { header, payload, keyDerivation ->
+            val stream = InnerStream.of(header.streamId, header.streamKey)
+            header.streamKey.fill(0)
+            try {
+                val (document, binaries) = KdbxXmlReader.readKdbx3(payload, stream, historyOf, header.sha256)
+                KdbxDatabase(header.format, document, binaries, keyDerivation)
+            } finally {
+                stream.wipe()
+            }
+        }
+
+    /**
+     * Decrypts a KDBX 3.1 file and hands its XML to [read]; the XML is wiped afterwards. The payload is decrypted, its
+     * stream start bytes checked (anything else there is a wrong key: KDBX 3.1 has no header HMAC, so a damaged start
+     * reads as one too, as in KeePass), then taken out of the HashedBlockStream with each block's hash, and gunzipped.
+     */
+    private fun <T> decryptPayload3(
+        file: ByteArray,
+        transform: (Header3) -> Pair<ByteArray, Boolean>,
+        read: (header: Header3, xml: ByteArray, keyDerivation: Duration?) -> T,
+    ): T {
         val header = Header3.parse(file)
         try {
             if (header.format.cipher == KdbxFormat.Cipher.TWOFISH) throw KdbxException.UnsupportedCipher("Twofish")
-            val (transformedAndFresh, kdfTime) = measureTimedValue { key.transformed(header.kdf) }
+            val (transformedAndFresh, kdfTime) = measureTimedValue { transform(header) }
             val (transformed, fresh) = transformedAndFresh
             val cipherKey = try {
                 sha256(header.masterSeed, transformed)
@@ -146,14 +208,7 @@ public object KdbxReader {
                 payload = unzipped
             }
             try {
-                val stream = InnerStream.of(header.streamId, header.streamKey)
-                header.streamKey.fill(0)
-                try {
-                    val (document, binaries) = KdbxXmlReader.readKdbx3(payload, stream, historyOf, header.sha256)
-                    return KdbxDatabase(header.format, document, binaries, kdfTime.takeIf { fresh })
-                } finally {
-                    stream.wipe()
-                }
+                return read(header, payload, kdfTime.takeIf { fresh })
             } finally {
                 payload.fill(0)
             }

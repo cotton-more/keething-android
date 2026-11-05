@@ -113,6 +113,34 @@ class VaultSessionTest {
     }
 
     @Test
+    fun aKdbx31FileIsToldFromItsFirst12BytesBeforeAnyKey() = runTest {
+        val kdbx3 = fixtureBytes("interop/keepassdx-4.5.8")
+
+        assertTrue(Fixture(this, FakeStore(kdbx3.copyOf(12))).session.isKdbx3File())
+        assertFalse(Fixture(this, FakeStore(fixtureBytes("kdbx4-aes-aeskdf").copyOf(12))).session.isKdbx3File())
+        assertFalse(Fixture(this, FakeStore("not a database".encodeToByteArray())).session.isKdbx3File())
+        assertFalse(Fixture(this, FakeStore(null)).session.isKdbx3File())
+    }
+
+    // spec: kdbx.kdbx3/AC8
+    @Test
+    fun aKdbx31DatabaseUpgradedIsAKdbx4DatabaseLikeAnyOther() = runTest {
+        val f = unlocked("interop/keepassdx-4.5.8")
+        val entry = f.vault.entries.first()
+
+        val upgraded = assertNotNull(f.session.upgrade())
+
+        assertEquals(SaveOutcome.Saved(keptCopy = "test (KDBX 3.1).kdbx"), upgraded.await())
+        val state = f.unlockedState
+        assertTrue(!state.viewOnly)
+        assertEquals(entry, state.vault.entries.first())
+        assertEquals(listOf("test (KDBX 3.1).kdbx"), f.store.kept.keys.toList())
+        assertNull(f.session.upgrade(), "nothing left to upgrade")
+        val saved = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "x"))))
+        assertIs<SaveOutcome.Saved>(saved.await())
+    }
+
+    @Test
     fun unlockOnlyFromLocked() = runTest {
         val f = unlocked()
 

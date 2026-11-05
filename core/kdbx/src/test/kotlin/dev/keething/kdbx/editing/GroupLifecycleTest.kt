@@ -166,10 +166,12 @@ class GroupLifecycleTest {
         assertEquals(emptyList(), GroupLifecycle.removeEmpty(web(root), root, now), "it has entries")
 
         val templates = made("Templates", top, root)
-        assertNotNull(root.first("Meta")!!.first("EntryTemplatesGroup")).text = templates
-        assertEquals(emptyList(), GroupLifecycle.removeEmpty(templates, root, now))
+        // Made before the file names it the templates group: none is made in it after (groups.templates AC3).
         val child = made("Child", templates, root)
+        assertNotNull(root.first("Meta")!!.first("EntryTemplatesGroup")).text = templates
+        assertFailsWith<EditException.GroupNotFound> { made("Another", templates, root) }
         assertEquals(listOf(child), GroupLifecycle.removeEmpty(child, root, now), "it stops at the templates group")
+        assertEquals(emptyList(), GroupLifecycle.removeEmpty(templates, root, now))
         val (bin, inBin) = binned("Old", root)
         assertEquals(emptyList(), GroupLifecycle.removeEmpty(inBin, root, now), "a group in the bin")
         group(bin, root).remove(group(inBin, root))

@@ -13,6 +13,13 @@ public data class Vault(
     val groups: List<VaultGroup> = emptyList(),
     /** The entries in the recycle bin (at any depth), in file order. */
     val recycleBin: List<Entry> = emptyList(),
+    /**
+     * The entries in the templates group (at any depth; keething-spec groups.templates): forms another app fills new
+     * entries from, never listed, searched or offered. Its groups are not in [groups].
+     */
+    val templates: List<Entry> = emptyList(),
+    /** The templates group itself, null when the file has none. */
+    val templatesGroup: VaultGroup? = null,
     /** `Meta/RecycleBinEnabled`. */
     val recycleBinEnabled: Boolean = true,
     /** `Meta/DefaultUserName`: the username a new entry starts with. */
@@ -28,6 +35,7 @@ public data class Vault(
     public fun wipe() {
         entries.forEach(Entry::wipe)
         recycleBin.forEach(Entry::wipe)
+        templates.forEach(Entry::wipe)
         settings?.wipe()
     }
 

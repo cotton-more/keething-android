@@ -3,6 +3,7 @@ package dev.keething.vault.session
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseBackups
+import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.storage.KeyFileRead
@@ -13,6 +14,8 @@ import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.key.KeyFile
 import dev.keething.kdbx.key.KeyFileException
+import dev.keething.kdbx.reader.KdbxException
+import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.opening.AttachmentContents
 import dev.keething.vault.opening.HistoryResult
 import dev.keething.vault.opening.OpenFailure
@@ -74,6 +77,9 @@ public class VaultSession(
 ) {
     private val mutableState = MutableStateFlow<SessionState>(SessionState.Locked(LockReason.Initial))
     public val state: StateFlow<SessionState> = mutableState.asStateFlow()
+
+    /** Told on the main thread of every change refused because the database is viewed only ([save]; keething-spec kdbx.kdbx3 AC6). */
+    public var onViewOnlyRefusal: (() -> Unit)? = null
 
     /** Told at once of every state set, before anyone collecting [state] (the coordinator follows it so). */
     internal var onStateChange: ((SessionState) -> Unit)? = null
@@ -452,7 +458,39 @@ public class VaultSession(
      */
     public fun save(edit: VaultEdit): Deferred<SaveOutcome>? {
         val unlocked = mutableState.value as? SessionState.Unlocked ?: return null
-        if (unlocked.viewOnly) return CompletableDeferred(SaveOutcome.Failed(SaveFailure.ViewOnly))
+        if (unlocked.viewOnly) {
+            onViewOnlyRefusal?.invoke()
+            return CompletableDeferred(SaveOutcome.Failed(SaveFailure.ViewOnly))
+        }
+        return saving(edit) { attempt, running -> saver.save(edit, attempt, clock.now(), running::stopped) }
+    }
+
+    /**
+     * Whether the database file is KDBX 3.1, told from its first 12 bytes, before any key (keething-spec kdbx.kdbx3 AC5);
+     * false when it cannot be read or is no KeePass file. Blocks on the storage: call it off the main thread.
+     */
+    public fun isKdbx3File(): Boolean {
+        val read = runCatching { store.read() }.getOrNull() as? DatabaseRead.Found ?: return false
+        return try {
+            KdbxReader.isKdbx3(read.bytes)
+        } catch (_: KdbxException) {
+            false
+        }
+    }
+
+    /**
+     * Upgrades the database viewed only, a KDBX 3.1 one, to KDBX 4.0 (keething-spec kdbx.kdbx3 AC7, AC8): its 3.1 file kept
+     * beside it first, then written as KDBX 4.0 like a save, in its turn among the saves; the vault then becomes the
+     * new file read back, a KDBX 4 database like any other. Null when not unlocked, or not viewed only.
+     */
+    public fun upgrade(): Deferred<SaveOutcome>? {
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return null
+        if (!unlocked.viewOnly) return null
+        return saving(null) { attempt, running -> saver.upgrade(attempt, clock.now(), running::stopped) }
+    }
+
+    /** Runs [save] in its turn with a copy of the key ([edit]: what a lock that overtook it kept out of the file). */
+    private fun saving(edit: VaultEdit?, save: (DatabaseKey, RunningSave) -> SaveResult): Deferred<SaveOutcome>? {
         val attempt = key?.copy() ?: return null
         val token = generation
         val running = RunningSave(attempt)
@@ -464,7 +502,7 @@ public class VaultSession(
                 fileWork.withLock {
                     // A lock came while it waited for the save before it: it does not start (AC3).
                     if (token != generation) return@withLock
-                    val result = withContext(io) { saver.save(edit, attempt, clock.now(), running::stopped) }
+                    val result = withContext(io) { save(attempt, running) }
                     inFile = result is SaveResult.Saved
                     val copies = conflictCopies()
                     if (token != generation) {
@@ -477,7 +515,7 @@ public class VaultSession(
                             key = attempt
                             running.keyTaken = true
                             adopt(OpenResult.Opened(result.opened), copies)
-                            outcome.complete(SaveOutcome.Saved(result.deletedGroups))
+                            outcome.complete(SaveOutcome.Saved(result.deletedGroups, result.keptCopy))
                         }
                         is SaveResult.Failed -> {
                             outcome.complete(SaveOutcome.Failed(result.failure))
@@ -490,7 +528,7 @@ public class VaultSession(
                 running.deadline?.cancel()
                 if (!running.keyTaken) attempt.wipe()
                 // Overtaken by a lock, and the file does not have it: the next unlock says so (this one, if it came first).
-                if (token != generation && !inFile) {
+                if (token != generation && !inFile && edit != null) {
                     unsaved = unsaved + UnsavedChange.of(edit)
                     (mutableState.value as? SessionState.Unlocked)?.let { set(it.copy(unsaved = unsaved)) }
                 }

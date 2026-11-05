@@ -40,7 +40,12 @@ Goals (v1)
   countdown, notes, custom fields in file order with the Mac app's layout rules (sections, lists of codes,
   dates, links), attachments.
 - Groups & tags (§6.2): the group tree and the tags, each with how many entries it has; a tap lists them; groups
-  renamed, made, moved and deleted when empty there.
+  renamed, made, moved and deleted when empty there. A **templates group** (the group `Meta/EntryTemplatesGroup` names,
+  not the root group, the recycle bin or a group in it; KeePassDX puts one with seven forms into every new database) is
+  set apart as the recycle bin is (`VaultAssembler`, `Vault.templates`; keething-spec groups.templates): its entries are
+  never in the list, search, Recent, the counts, autofill or the reports, and Groups & tags shows it only as a row
+  ("Templates · another app's forms, not listed", its count), nothing to tap; no group is made, moved or renamed in or
+  into it, nor is it changed or deleted (`EntryLifecycle.isInTemplates`), and a save writes it back as it was.
 - Copy any field; the clipboard is marked sensitive and cleared after 30 s.
 - Attachments: open and save a copy. One-time codes: show and copy, and set them up in the editor (keething-spec edit.one-time-code).
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
@@ -74,7 +79,7 @@ Planned beyond the first releases (decided by the owner on 2026-10-27; keething-
 databases side by side (in: the list, one list over several open, the chooser and one fingerprint for several,
 §3.1, §5), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
-3.1 (read and viewed only, §3.2; its upgrade to KDBX 4 next), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
+3.1 (read, viewed only or upgraded to KDBX 4 when the user agrees, §3.2), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
 the owner on 2026-10-31; keething-spec `plans/done/android-groups.md`): an entry's group changed in the editor (in, §6.2)
 and from its card (a move: in), new groups made from the editor's group picker (in), groups renamed, made, moved and
 deleted when empty from Groups & tags (in; over every open database, a block each: in, §6.2); renaming tags and the recycle bin's groups stay with
@@ -97,7 +102,7 @@ core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attach
 core/totp     one-time codes: otpauth links, KeePassXC's and KeePass's formats, code generation → domain
 core/search   search rules, ranking, site matching with the public suffix list (a resource,
               `tools/update-public-suffix-list.sh`)                                       → domain
-core/kdbx     the KDBX 4 file format (3.1 read only): crypto, reader, writer, XML tree, KeePass's schema   → domain
+core/kdbx     the KDBX 4 file format (3.1 read, and upgraded to 4.0): crypto, reader, writer, XML tree, KeePass's schema   → domain
 core/vault    application layer: open, edit, save with the checks, the lock / unlock /
               auto-lock state machine, the fingerprint unlock's rules    → domain, kdbx, totp
 core/autofill autofill's rules: what a field asks for, the target, the matching entries (§7)
@@ -353,9 +358,25 @@ keeps the new time. The way out is in §3.3 step 7.
   kdbx.kdbx3): AES-KDF from the header's transform seed and rounds, the stream start bytes (other bytes there are a
   wrong key: 3.1 has no header HMAC, so a damaged start reads as one too, as in KeePass), the HashedBlockStream with
   each block's SHA-256, protected values with Salsa20, attachments from `Meta/Binaries`, `Meta/HeaderHash` checked
-  when there. It is viewed only: Edit and New say "This database is KDBX 3.1, which Keething opens to view only."
-  instead of opening the editor, Save into leaves it out, and any save is refused before the file is read
-  (`SaveFailure.ViewOnly`). KDBX 2 and older are refused as unsupported.
+  when there. KDBX 2 and older are refused as unsupported. Keething changes databases only in KDBX 4, so a 3.1 file
+  asks once per opening: **upgrade it to KDBX 4, or view only** (`Kdbx3Question`). Its lock screen asks before the
+  key, the version told from the file's first 12 bytes (`VaultSession.isKdbx3File`): a card in place of the password
+  ("This database is KDBX 3.1": Keething changes databases only in KDBX 4; KeePass 2.35+ and KeePassXC 2.3+ read
+  KDBX 4, older apps do not; the 3.1 file is kept as a copy beside it; View only / Upgrade), the fingerprint offered
+  only once it is answered. Opened another way (the chooser's run, a fingerprint over the list, autofill), it opens
+  viewed only and the same question shows over the list. Every lock forgets the answer. Viewed only, it reads like
+  any other; Edit, New and a one-tap change (refused before the file is read, `SaveFailure.ViewOnly`) ask the
+  question again, and Save into leaves it out. **The upgrade** (`VaultSession.upgrade`, `VaultSaver.upgrade`) runs
+  as soon as it is open, as a save in its turn: the file read, opened for the upgrade (`KdbxReader.openForUpgrade`:
+  the tree put the way KDBX 4.0 holds it, `Kdbx3Upgrade`: attachments from `Meta/Binaries` into the inner header,
+  each `Ref` from the attachment's `ID` to its place there, `Meta/HeaderHash` gone, ISO times to base64 seconds),
+  written as KDBX 4.0 with the cipher, compression and key derivation as read (AES-KDF with the 3.1 file's transform
+  seed and rounds, so the same key opens it; ChaCha20 for protected values) and read back: every entry, group and
+  setting as before, times to the second (`SaveCheck.verifyUnchanged`). Before the backup and the replace, the 3.1
+  file is kept beside the database as `<stem> (KDBX 3.1)<extension>`, never over a file there (` 2`, ` 3` … before
+  the extension; `FolderDatabaseStore.keepBeside`); it is not a backup and nothing prunes it. A copy that cannot be
+  kept stops the upgrade with nothing written (`SaveFailure.CopyNotKept`); a file that is KDBX 4 by then is read again.
+  The window says "<file> is KDBX 4 now. The KDBX 3.1 file is kept beside it as “…”.", or why it was not upgraded.
 - A missing file (Syncthing in the middle of a replace) is retried every second for 10 s before it is
   reported; the vault shown stays meanwhile.
   With file versioning on (it was on for the test folder on the emulator), Syncthing first moves the old file

@@ -197,6 +197,18 @@ internal object EntryLifecycle {
     fun recycleBinEnabled(root: XElement): Boolean =
         !(root.first("Meta")?.first("RecycleBinEnabled")?.text?.trim().equals("false", ignoreCase = true))
 
+    /**
+     * Whether [groups] (a path from the root) is in the templates group (keething-spec groups.templates AC1): the group
+     * `Meta/EntryTemplatesGroup` names, when it is not the root group nor the recycle bin or a group in it.
+     */
+    fun isInTemplates(groups: List<XElement>, root: XElement): Boolean {
+        val templates = root.first("Meta")?.first("EntryTemplatesGroup")?.text?.trim()?.takeUnless { it.isEmpty() || it == NULL_UUID } ?: return false
+        val at = groups.indexOfFirst { uuidText(it) == templates }
+        if (at < 1) return false
+        val path = group(templates, root) ?: return false
+        return path.size > 1 && !isInRecycleBin(path, root)
+    }
+
     fun recycleBinUuid(root: XElement): String? {
         val uuid = root.first("Meta")?.first("RecycleBinUUID")?.text?.trim() ?: ""
         return uuid.takeUnless { it.isEmpty() || it == NULL_UUID }

@@ -136,6 +136,80 @@ class OtherAppsDatabasesTest {
         assertTrue(store.content.contentEquals(file), "the file as it was")
     }
 
+    // spec: kdbx.kdbx3/AC7
+    // spec: kdbx.kdbx3/AC8
+    @Test
+    fun keepassdxsDatabaseIsUpgradedToKdbx40ItsKdbx31FileKeptBesideIt() {
+        val file = fixtureBytes(keepassdx)
+        val store = FakeStore(file)
+        val before = open(store)
+        val backedUp = mutableListOf<ByteArray>()
+
+        val result = VaultSaver(store) { bytes, _, _ -> backedUp += bytes.copyOf() }.upgrade(key(), Instant.now())
+
+        val opened = assertIs<SaveResult.Saved>(result).opened
+        assertEquals(listOf("test (KDBX 3.1).kdbx"), store.kept.keys.toList())
+        assertTrue(store.kept.values.single().contentEquals(file), "the 3.1 file as it was")
+        assertEquals(1, backedUp.size, "backed up as before any save")
+        val upgraded = store.content!!
+        assertEquals("4.0", KdbxReader.format(upgraded).version)
+        assertEquals(KdbxReader.format(file).kdf, KdbxReader.format(upgraded).kdf)
+        assertTrue(!opened.viewOnly)
+        assertEquals(before.titled("Main").customFields, opened.vault.titled("Main").customFields)
+        assertEquals(before.titled("Main").attachments.map { it.name }, opened.vault.titled("Main").attachments.map { it.name })
+
+        // From then on a KDBX 4 database like any other.
+        val main = opened.vault.titled("Main")
+        val edited = VaultSaver(store) { _, _, _ -> }
+            .save(VaultEdit.Update(main.id, main.lastModified, EntryChanges(notes = "Edited on the phone.")), key(), Instant.now())
+        assertEquals("Edited on the phone.", assertIs<SaveResult.Saved>(edited).opened.vault.titled("Main").notes)
+    }
+
+    // spec: kdbx.kdbx3/AC7
+    @Test
+    fun aKdbx31FileThatCannotBeKeptIsNotUpgraded() {
+        val file = fixtureBytes(keepassdx)
+        val store = FakeStore(file).apply { failKeep = true }
+
+        val result = VaultSaver(store) { _, _, _ -> error("no backup without the copy") }.upgrade(key(), Instant.now())
+
+        assertIs<SaveFailure.CopyNotKept>(assertIs<SaveResult.Failed>(result).failure)
+        assertTrue(store.content.contentEquals(file), "the file as it was")
+        assertEquals(0, store.replaced)
+    }
+
+    @Test
+    fun aDatabaseAlreadyKdbx4IsNotUpgradedAgain() {
+        val store = FakeStore(fixtureBytes(kdbx4.first()))
+
+        val result = VaultSaver(store) { _, _, _ -> }.upgrade(key(), Instant.now())
+
+        assertEquals(SaveFailure.ChangedElsewhere, assertIs<SaveResult.Failed>(result).failure)
+        assertTrue(store.kept.isEmpty())
+    }
+
+    // spec: kdbx.kdbx3/AC8
+    @Test
+    fun keepassxcOpensKeepassdxsUpgradedDatabase() {
+        if (!CLI.canExecute()) return
+        val folder = Files.createTempDirectory("interop").toFile()
+        try {
+            val store = FakeStore(fixtureBytes(keepassdx))
+            assertIs<SaveResult.Saved>(VaultSaver(store) { _, _, _ -> }.upgrade(key(), Instant.now()))
+            val upgraded = File(folder, "upgraded.kdbx").apply { writeBytes(store.content!!) }
+
+            val process = ProcessBuilder(CLI.path, "show", "-q", "-s", "-a", "PIN", upgraded.path, "Main").start()
+            process.outputStream.use { it.write("pw\n".encodeToByteArray()) }
+            val out = process.inputStream.use { it.readBytes() }.decodeToString()
+            assertTrue(process.waitFor(60, TimeUnit.SECONDS))
+
+            assertEquals(0, process.exitValue())
+            assertEquals("1234\n", out)
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+
     private fun writtenBack(bytes: ByteArray): ByteArray {
         val editable = KdbxReader.openForEditing(bytes, key())
         return try {

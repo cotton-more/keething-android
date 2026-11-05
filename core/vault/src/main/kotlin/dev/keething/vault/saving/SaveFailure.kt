@@ -51,6 +51,12 @@ public sealed interface SaveFailure {
     /** A KDBX 3.1 database, viewed only: Keething changes databases only in KDBX 4 (keething-spec kdbx.kdbx3 AC6). */
     public data object ViewOnly : SaveFailure
 
+    /**
+     * The KDBX 3.1 file could not be kept beside the database before its upgrade ([detail]: why); nothing was written
+     * (keething-spec kdbx.kdbx3 AC7).
+     */
+    public data class CopyNotKept(val detail: String) : SaveFailure
+
     /** The file changed on disk while saving, twice in a row. */
     public data object FileKeepsChanging : SaveFailure
 
@@ -70,9 +76,10 @@ public sealed interface SaveFailure {
 internal sealed interface SaveResult {
     /**
      * The file was replaced; [opened] is it read back, ready to be the vault. [deletedGroups]: the groups deleted for
-     * good, as they were (the empty ones a move left, innermost first, or the empty group deleted).
+     * good, as they were (the empty ones a move left, innermost first, or the empty group deleted). [keptCopy]: the
+     * name an upgrade's KDBX 3.1 file was kept under beside the database.
      */
-    class Saved(val opened: OpenedVault, val deletedGroups: List<VaultGroup> = emptyList()) : SaveResult
+    class Saved(val opened: OpenedVault, val deletedGroups: List<VaultGroup> = emptyList(), val keptCopy: String? = null) : SaveResult
 
     class Failed(val failure: SaveFailure) : SaveResult
 }

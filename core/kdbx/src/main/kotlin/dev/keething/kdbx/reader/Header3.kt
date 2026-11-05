@@ -12,6 +12,8 @@ import java.security.MessageDigest
  */
 internal class Header3(
     val format: KdbxFormat,
+    /** The cipher's id as the header has it: a KDBX 4 header names the cipher the same way. */
+    val cipherId: ByteArray,
     /** AES-KDF as KDBX 4 would store it: the same parameters field, so the key derived is the same. */
     val kdf: KdfParameters,
     val masterSeed: ByteArray,
@@ -77,6 +79,7 @@ internal class Header3(
             val (kdf, summary) = Header.kdf(parameters)
             return Header3(
                 format = KdbxFormat("$major.$minor", cipher, summary, compressed = compression == 1),
+                cipherId = cipherId,
                 kdf = kdf,
                 masterSeed = seed,
                 iv = iv,

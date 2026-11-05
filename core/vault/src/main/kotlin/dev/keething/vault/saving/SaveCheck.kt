@@ -55,6 +55,26 @@ internal object SaveCheck {
         if (applied.deletedGroupIds.toSet() != gone || applied.deletedGroupIds.size != gone.size) fail("the groups deleted are not those reported")
     }
 
+    /**
+     * The check of a database written in another format (a KDBX 3.1 file upgraded; keething-spec kdbx.kdbx3 AC8): every
+     * entry, group and setting as before, the times to the second, as the new file stores them.
+     */
+    fun verifyUnchanged(before: Vault, after: Vault, fileBefore: List<VaultGroup>, fileAfter: List<VaultGroup>) {
+        fun Instant?.seconds() = this?.let(::seconds)
+        fun Entry.toSeconds() = copy(expiryTime = expiryTime.seconds(), lastModified = lastModified.seconds(), created = created.seconds())
+        fun Vault.toSeconds() = copy(
+            entries = entries.map { it.toSeconds() },
+            settings = settings?.toSeconds(),
+            recycleBin = recycleBin.map { it.toSeconds() },
+            templates = templates.map { it.toSeconds() },
+            customIcons = emptyMap(),
+        )
+        if (all(before).mapValues { it.value.toSeconds() } != all(after)) fail("entries differ")
+        if (before.toSeconds() != after.toSeconds()) fail("the database changed")
+        if (fileBefore != fileAfter) fail("the groups changed")
+        if (before.customIcons.mapValues { it.value.image.toList() } != after.customIcons.mapValues { it.value.image.toList() }) fail("the custom icons changed")
+    }
+
     private fun verifyEntry(
         before: Vault,
         after: Vault,
@@ -348,9 +368,9 @@ internal object SaveCheck {
         tags = tags.map(XmlText::writable).filter { it.isNotEmpty() },
     )
 
-    /** Every entry by id: those outside the bin, the settings entry and those in the bin. */
+    /** Every entry by id: those outside the bin, the settings entry, those in the bin and the templates. */
     private fun all(vault: Vault): Map<String, Entry> =
-        (vault.entries + listOfNotNull(vault.settings) + vault.recycleBin).associateBy { it.id }
+        (vault.entries + listOfNotNull(vault.settings) + vault.recycleBin + vault.templates).associateBy { it.id }
 
     private fun seconds(time: Instant): Instant = time.truncatedTo(ChronoUnit.SECONDS)
 

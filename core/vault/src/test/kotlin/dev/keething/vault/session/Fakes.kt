@@ -69,6 +69,17 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
         change(bytes.copyOf())
     }
 
+    /** The files [keepBeside] kept, by the name each got; [failKeep]: it keeps nothing and throws. */
+    val kept = LinkedHashMap<String, ByteArray>()
+    var failKeep = false
+
+    override fun keepBeside(bytes: ByteArray, name: String): String {
+        if (failKeep) throw IOException("no room")
+        val given = generateSequence(1) { it + 1 }.map { if (it == 1) name else name.replace(".kdbx", " $it.kdbx") }.first { it !in kept }
+        kept[given] = bytes.copyOf()
+        return given
+    }
+
     override fun conflictCopies(): List<ConflictCopy> = copies
 
     override fun watch(onChange: () -> Unit): AutoCloseable {

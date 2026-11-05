@@ -107,6 +107,9 @@ internal class Sessions(
     /** The app's locks, counted: a new database made across one stays locked, and New database's form goes. */
     val locks = AppLocks(SystemClock::elapsedRealtime)
 
+    /** The question a KDBX 3.1 database asks, and its upgrade (keething-spec kdbx.kdbx3 AC5–AC8). */
+    val kdbx3 = Kdbx3Question(scope)
+
     /** A session per database of the window; Lock and the background timeout lock them all. */
     private val vaults = VaultSessions(list, scope, ::start, AndroidClock, lockTimeout = { settings.lockTimeout.value })
 
@@ -348,7 +351,7 @@ internal class Sessions(
         watching.launch {
             fingerprint.state.map { it.copy(prompting = false, opening = false) }.distinctUntilChanged().collect { Log.i(TAG, it.describe()) }
         }
-        return DatabaseSession(number, record.id, record.file, store, session, fingerprint)
+        return DatabaseSession(number, record.id, record.file, store, session, fingerprint).also { kdbx3.follow(it, watching) }
     }
 
     private fun BiometricState.describe(): String = "fingerprint: " + listOfNotNull(

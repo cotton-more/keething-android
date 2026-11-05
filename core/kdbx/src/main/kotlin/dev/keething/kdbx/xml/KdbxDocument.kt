@@ -29,6 +29,8 @@ public data class KdbxMeta(
     val databaseName: String = "",
     /** `Color` as written (KeePass 2.x writes `#RRGGBB`), its outer spaces aside: "" when the file has none. */
     val color: String = "",
+    /** `EntryTemplatesGroup` as written, its outer spaces aside: "" when the file names none (keething-spec groups.templates). */
+    val templatesGroupUuid: String = "",
 )
 
 public data class KdbxGroup(

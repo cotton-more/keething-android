@@ -25,6 +25,13 @@ public interface DatabaseStore {
      */
     public fun replace(bytes: ByteArray, expected: FileVersion? = null)
 
+    /**
+     * Keeps [bytes] as a new file beside the database, named [name], or with ` 2`, ` 3` … before the database's extension when
+     * that name is taken: never over a file there (keething-spec kdbx.kdbx3 AC7). Returns the name it got; throws an
+     * [IOException] when nothing was kept.
+     */
+    public fun keepBeside(bytes: ByteArray, name: String): String = throw IOException("no folder to keep $name in")
+
     /** Syncthing's conflict copies of the database in its folder, newest first. */
     public fun conflictCopies(): List<ConflictCopy>
 

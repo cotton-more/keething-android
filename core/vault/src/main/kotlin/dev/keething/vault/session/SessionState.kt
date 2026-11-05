@@ -42,9 +42,9 @@ public sealed interface SaveOutcome {
     /**
      * The file was replaced and the vault is the file read back. [deletedGroups]: the groups the save deleted for good,
      * as they were (the empty ones a move left, innermost first, or the empty group deleted; keething-spec
-     * groups.entry-group AC7).
+     * groups.entry-group AC7). [keptCopy]: an upgrade's, the name its KDBX 3.1 file was kept under beside it.
      */
-    public data class Saved(val deletedGroups: List<VaultGroup> = emptyList()) : SaveOutcome
+    public data class Saved(val deletedGroups: List<VaultGroup> = emptyList(), val keptCopy: String? = null) : SaveOutcome
 
     public data class Failed(val failure: SaveFailure) : SaveOutcome
 

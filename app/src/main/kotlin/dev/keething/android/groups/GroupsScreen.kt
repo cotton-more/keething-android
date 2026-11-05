@@ -85,6 +85,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Sell
@@ -700,6 +701,20 @@ private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.Gr
             )
         }
     }
+    // Another app's forms for new entries (keething-spec groups.templates AC3): named and marked, nothing to open or change.
+    overview.templates?.let { (name, count) ->
+        item(key = "templates/$id", contentType = "row") {
+            OverviewRow(
+                icon = Icons.Rounded.Description,
+                title = name,
+                supporting = "Templates · another app's forms, not listed",
+                count = count,
+                shape = segmentShape(0, 1),
+                onClick = null,
+                modifier = Modifier.padding(top = if (overview.recycleBin > 0) 0.dp else 12.dp),
+            )
+        }
+    }
     item(key = "gap/$id", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
     item(key = "tags/$id", contentType = "header") { SectionTitle("Tags") }
     if (overview.tags.isEmpty()) {
@@ -738,7 +753,8 @@ private fun OverviewRow(
     supporting: String?,
     count: Int,
     shape: RoundedCornerShape,
-    onClick: () -> Unit,
+    /** Null: only said (the templates group). */
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     indent: Int = 0,
     /** A group's row: its sheet. */
@@ -751,11 +767,17 @@ private fun OverviewRow(
             .heightIn(min = 56.dp)
             .clip(shape)
             .background(MaterialTheme.extraColors.row)
-            .combinedClickable(
-                onClick = onClick,
-                onClickLabel = "Show the entries",
-                onLongClick = onLongClick,
-                onLongClickLabel = if (onLongClick != null) "Change the group" else null,
+            .then(
+                if (onClick == null) {
+                    Modifier
+                } else {
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onClickLabel = "Show the entries",
+                        onLongClick = onLongClick,
+                        onLongClickLabel = if (onLongClick != null) "Change the group" else null,
+                    )
+                },
             )
             .padding(start = 16.dp + 20.dp * indent, end = 20.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -123,6 +123,7 @@ internal object KdbxXmlReader {
         private val history = ArrayList<KdbxEntry>()
 
         private var recycleBinUuid = ""
+        private var templatesGroupUuid = ""
         private var recycleBinEnabled = ""
         private var defaultUserName = ""
         private var databaseName = ""
@@ -156,7 +157,7 @@ internal object KdbxXmlReader {
         private val protectedText = StringBuilder()
 
         fun document(): KdbxDocument = KdbxDocument(
-            KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons, databaseName, color),
+            KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons, databaseName, color, templatesGroupUuid),
             groups.filterNotNull(),
             entries,
             history,
@@ -216,7 +217,7 @@ internal object KdbxXmlReader {
             val grand = grand()
             val inEntry = entry != null
             when (name) {
-                "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName", "DatabaseName", "Color" -> if (parent == "Meta") beginCapture()
+                "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName", "DatabaseName", "Color", "EntryTemplatesGroup" -> if (parent == "Meta") beginCapture()
                 "HeaderHash" -> if (parent == "Meta" && headerSha256 != null) beginCapture()
                 "Icon" -> if (parent == "CustomIcons" && grand == "Meta") {
                     iconUuid = ""
@@ -303,6 +304,7 @@ internal object KdbxXmlReader {
 
                 when (name) {
                     "RecycleBinUUID" -> if (parent == "Meta") recycleBinUuid = trimmed
+                    "EntryTemplatesGroup" -> if (parent == "Meta") templatesGroupUuid = trimmed
                     "RecycleBinEnabled" -> if (parent == "Meta") recycleBinEnabled = trimmed
                     "DefaultUserName" -> if (parent == "Meta") defaultUserName = captured
                     "DatabaseName" -> if (parent == "Meta") databaseName = trimmed

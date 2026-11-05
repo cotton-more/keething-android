@@ -179,8 +179,16 @@ internal fun LockScreen(
         model.refresh()
         linesModel.refresh()
     }
-    // Not in the run: the chooser asked the fingerprint for every database that could.
-    LaunchedEffect(visit, run) { if (run == null) model.offerFingerprint(visit) }
+    // A KDBX 3.1 file asks its question before the key, told from the file (keething-spec kdbx.kdbx3 AC5): null until
+    // the file was looked at, again after every lock (an answer lasts one opening).
+    val kdbx3 = container.sessions.kdbx3
+    var asksKdbx3 by remember(database.number) { mutableStateOf<Boolean?>(null) }
+    val locked = session is SessionState.Locked
+    LaunchedEffect(database.number, locked) {
+        if (locked) asksKdbx3 = !kdbx3.answered(database) && kdbx3.isKdbx3(database)
+    }
+    // Not in the run: the chooser asked the fingerprint for every database that could. Not before the question.
+    LaunchedEffect(visit, run, asksKdbx3) { if (run == null && asksKdbx3 == false) model.offerFingerprint(visit) }
     val runState = run?.state?.collectAsStateWithLifecycle()?.value
     // A failed unlock may have found the file gone (or back): the line looks again.
     LaunchedEffect(session) { if (session is SessionState.Locked) linesModel.refresh() }
@@ -324,6 +332,10 @@ internal fun LockScreen(
                 lock.showsLocate -> NotFound(lock.missingText.orEmpty(), lock.locateLabel, othersAbove = run == null && purpose == null, onLocate = {
                     files.locate(database.id, lock.line.reach == Reach.NO_ACCESS)
                 })
+                asksKdbx3 == true -> Kdbx3QuestionCard { upgrade ->
+                    kdbx3.answer(database, upgrade)
+                    asksKdbx3 = false
+                }
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     // The run's: "Wrong password … Type it again, or skip it."
                     runState?.failure?.let { RunFailure(it.describe(lock.line.path) + " Type it again, or skip it.") }
