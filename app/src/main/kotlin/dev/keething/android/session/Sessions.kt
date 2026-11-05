@@ -206,8 +206,11 @@ internal class Sessions(
         list.window.mapNotNull { vaults.session(it.id) }.forEach { it.biometric.refresh() }
     }
 
-    /** The [open] databases as a new entry sees them: where it can go (keething-spec databases.one-list AC4, AC5). */
-    fun newEntryDatabases(open: List<OpenDatabase>): List<NewEntryDatabase> = open.map {
+    /**
+     * The [open] databases as a new entry sees them: where it can go (keething-spec databases.one-list AC4, AC5). One
+     * viewed only (KDBX 3.1; keething-spec kdbx.kdbx3 AC6) takes nothing: neither a new entry nor a moved one, nor a group.
+     */
+    fun newEntryDatabases(open: List<OpenDatabase>): List<NewEntryDatabase> = open.filterNot { it.unlocked.viewOnly }.map {
         NewEntryDatabase(it.database.id, it.database.number, it.unlocked.vault, it.mark, DatabaseText.folder(DatabaseText.pathOf(it.database.location, storageRoot), storageRoot))
     }
 

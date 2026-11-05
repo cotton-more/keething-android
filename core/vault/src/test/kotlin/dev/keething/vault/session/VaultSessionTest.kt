@@ -96,6 +96,23 @@ class VaultSessionTest {
     }
 
     @Test
+    fun aKdbx31DatabaseIsUnlockedViewOnlyAndRefusesEveryChangeWithoutTheFile() = runTest {
+        val f = unlocked("interop/keepassdx-4.5.8")
+        assertTrue(f.unlockedState.viewOnly)
+        val before = f.store.content!!.copyOf()
+        val reads = f.store.reads
+        val entry = f.vault.entries.first()
+
+        val outcome = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "x"))))
+
+        assertEquals(SaveOutcome.Failed(SaveFailure.ViewOnly), outcome.await())
+        assertEquals(reads, f.store.reads, "the file not even read")
+        assertTrue(f.store.content.contentEquals(before))
+        assertTrue(f.backups.isEmpty())
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+    }
+
+    @Test
     fun unlockOnlyFromLocked() = runTest {
         val f = unlocked()
 

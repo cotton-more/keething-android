@@ -4,7 +4,7 @@ package dev.keething.kdbx.crypto
  * ChaCha20 (RFC 8439: 96-bit nonce, 32-bit block counter starting at 0): the outer cipher KDBX 4 may use and
  * the stream that hides protected values inside its XML. Encrypting and decrypting are the same XOR.
  */
-internal class ChaCha20(key: ByteArray, nonce: ByteArray) {
+internal class ChaCha20(key: ByteArray, nonce: ByteArray) : KeyStream {
     private val state = IntArray(16)
     private val x = IntArray(16)
     private val block = ByteArray(64)
@@ -17,8 +17,7 @@ internal class ChaCha20(key: ByteArray, nonce: ByteArray) {
         for (i in 0 until 3) state[13 + i] = Bytes.intLe(nonce, 4 * i)
     }
 
-    /** XORs the keystream into [bytes], continuing where the last call stopped. */
-    fun apply(bytes: ByteArray, offset: Int = 0, count: Int = bytes.size - offset) {
+    override fun apply(bytes: ByteArray, offset: Int, count: Int) {
         var i = offset
         val end = offset + count
         while (i < end) {
@@ -30,7 +29,7 @@ internal class ChaCha20(key: ByteArray, nonce: ByteArray) {
         }
     }
 
-    fun wipe() {
+    override fun wipe() {
         state.fill(0)
         x.fill(0)
         block.fill(0)

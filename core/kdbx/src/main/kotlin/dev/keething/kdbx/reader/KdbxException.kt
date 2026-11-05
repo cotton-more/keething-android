@@ -4,7 +4,7 @@ package dev.keething.kdbx.reader
 public sealed class KdbxException(message: String) : Exception(message) {
     public class NotKdbx : KdbxException("not a KeePass database")
 
-    /** KDBX 3.1 and older are not read. */
+    /** KDBX 2 and older (and any version after 4) are not read; KDBX 3.x is read but not edited (keething-spec kdbx.kdbx3). */
     public class UnsupportedVersion(public val major: Int, public val minor: Int) :
         KdbxException("KDBX $major.$minor")
 

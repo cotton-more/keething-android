@@ -74,7 +74,7 @@ Planned beyond the first releases (decided by the owner on 2026-10-27; keething-
 databases side by side (in: the list, one list over several open, the chooser and one fingerprint for several,
 §3.1, §5), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
-3.1 (refused until then), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
+3.1 (read and viewed only, §3.2; its upgrade to KDBX 4 next), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
 the owner on 2026-10-31; keething-spec `plans/done/android-groups.md`): an entry's group changed in the editor (in, §6.2)
 and from its card (a move: in), new groups made from the editor's group picker (in), groups renamed, made, moved and
 deleted when empty from Groups & tags (in; over every open database, a block each: in, §6.2); renaming tags and the recycle bin's groups stay with
@@ -97,7 +97,7 @@ core/domain   shared kernel, small on purpose: Entry, Vault, CustomField, Attach
 core/totp     one-time codes: otpauth links, KeePassXC's and KeePass's formats, code generation → domain
 core/search   search rules, ranking, site matching with the public suffix list (a resource,
               `tools/update-public-suffix-list.sh`)                                       → domain
-core/kdbx     the KDBX 4 file format: crypto, reader, writer, XML tree, KeePass's schema   → domain
+core/kdbx     the KDBX 4 file format (3.1 read only): crypto, reader, writer, XML tree, KeePass's schema   → domain
 core/vault    application layer: open, edit, save with the checks, the lock / unlock /
               auto-lock state machine, the fingerprint unlock's rules    → domain, kdbx, totp
 core/autofill autofill's rules: what a field asks for, the target, the matching entries (§7)
@@ -349,6 +349,13 @@ keeps the new time. The way out is in §3.3 step 7.
   in-memory key (§4), so it does not ask for anything.
 - A file caught half-written (bad checksum / HMAC) keeps the current vault and tries again on the next
   change (as on the Mac: damaged ≠ wrong password).
+- A KDBX 3.1 file (KeePassDX's new databases, KeePass 2.x's when nothing needs 4.x) is read too (keething-spec
+  kdbx.kdbx3): AES-KDF from the header's transform seed and rounds, the stream start bytes (other bytes there are a
+  wrong key: 3.1 has no header HMAC, so a damaged start reads as one too, as in KeePass), the HashedBlockStream with
+  each block's SHA-256, protected values with Salsa20, attachments from `Meta/Binaries`, `Meta/HeaderHash` checked
+  when there. It is viewed only: Edit and New say "This database is KDBX 3.1, which Keething opens to view only."
+  instead of opening the editor, Save into leaves it out, and any save is refused before the file is read
+  (`SaveFailure.ViewOnly`). KDBX 2 and older are refused as unsupported.
 - A missing file (Syncthing in the middle of a replace) is retried every second for 10 s before it is
   reported; the vault shown stays meanwhile.
   With file versioning on (it was on for the test folder on the emulator), Syncthing first moves the old file
@@ -1957,7 +1964,8 @@ that time. A donation link, if any, comes only with the Play release.
 ## 9. Fixtures
 
 `fixtures/` holds fictitious databases copied from the Mac project (password `pw`): KDBX 4 with AES + AES-KDF,
-AES + Argon2d, ChaCha20 + Argon2id, a KDBX 3 one (must be refused as unsupported), `kdbx4-export.xml` (keepassxc-cli's XML export of
+AES + Argon2d, ChaCha20 + Argon2id, a KDBX 3.1 one (`kdbx3.kdbx`, read and viewed only; with its version set to 2.0
+it is the refused one), `kdbx4-export.xml` (keepassxc-cli's XML export of
 another fictitious database: two entries with attachments; KDBX 4 exports carry no `Meta/Binaries`), `sample.xml` (hand-made, the real structure) and KeePass's `KDBX_XML.xsd` as published, its source in `KDBX_XML.source.txt` (§3.3). The core's tests use them
 the way the Mac tests do (an export's `Meta/Binaries` are not read: KDBX 4 keeps attachments in the file's
 inner header). `fixtures/keyfiles/` (the Mac's `Fixtures/keyfiles`, made by keepassxc-cli 2.7.12 from

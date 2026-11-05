@@ -3,12 +3,14 @@ package dev.keething.kdbx.xml
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.FieldValue
-import dev.keething.kdbx.crypto.ChaCha20
+import dev.keething.kdbx.crypto.KeyStream
 import dev.keething.kdbx.reader.KdbxException
+import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.kdbx.tree.XmlTree
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.StringReader
+import java.security.MessageDigest
 import java.util.Base64
 import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
@@ -34,10 +36,27 @@ internal object KdbxXmlReader {
         xml: ByteArray,
         offset: Int = 0,
         length: Int = xml.size - offset,
-        stream: ChaCha20? = null,
+        stream: KeyStream? = null,
         historyOf: String? = null,
-    ): KdbxDocument {
-        val handler = Handler(stream, historyOf)
+    ): KdbxDocument = parse(Handler(stream, historyOf, null), xml, offset, length)
+
+    /**
+     * Reads a KDBX 3.1 file's XML (keething-spec kdbx.kdbx3 AC2-AC4): the attachments too, from `Meta/Binaries` (base64,
+     * gzip when `Compressed="True"`, decrypted with the stream when `Protected="True"`), in their order, an entry's
+     * `Ref` (the attachment's `ID`) turned into its place in that list; and `Meta/HeaderHash`, when there, checked
+     * against [headerSha256].
+     */
+    fun readKdbx3(
+        xml: ByteArray,
+        stream: KeyStream,
+        historyOf: String?,
+        headerSha256: ByteArray,
+    ): Pair<KdbxDocument, List<Secret>> {
+        val handler = Handler(stream, historyOf, headerSha256)
+        return parse(handler, xml, 0, xml.size) to handler.binaries
+    }
+
+    private fun parse(handler: Handler, xml: ByteArray, offset: Int, length: Int): KdbxDocument {
         try {
             val reader = SAXParserFactory.newInstance().newSAXParser().xmlReader
             reader.contentHandler = handler
@@ -77,7 +96,12 @@ internal object KdbxXmlReader {
         val customData = LinkedHashMap<String, String>()
     }
 
-    private class Handler(private val stream: ChaCha20?, private val historyOf: String?) : DefaultHandler2() {
+    /** [headerSha256]: a KDBX 3.1 file's, to check `Meta/HeaderHash` against; null for KDBX 4. */
+    private class Handler(
+        private val stream: KeyStream?,
+        private val historyOf: String?,
+        private val headerSha256: ByteArray?,
+    ) : DefaultHandler2() {
         var failure: KdbxException? = null
             private set
 
@@ -106,6 +130,12 @@ internal object KdbxXmlReader {
         private val customIcons = LinkedHashMap<String, CustomIcon>()
         private var iconUuid = ""
         private var iconData = ""
+
+        /** KDBX 3.1: the attachments of `Meta/Binaries` in their order, and each one's place by its `ID`. */
+        val binaries = ArrayList<Secret>()
+        private val binaryPlaces = HashMap<Int, Int>()
+        private var binaryId: Int? = null
+        private var binaryCompressed = false
 
         // Text capture for small elements.
         private var capturing = false
@@ -142,6 +172,7 @@ internal object KdbxXmlReader {
             entry?.fields?.forEach { wipe(it.value) }
             historyOwner?.fields?.forEach { wipe(it.value) }
             wipe(itemValue)
+            binaries.forEach(Secret::wipe)
         }
 
         private fun fail(failure: KdbxException): Nothing {
@@ -186,6 +217,7 @@ internal object KdbxXmlReader {
             val inEntry = entry != null
             when (name) {
                 "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName", "DatabaseName", "Color" -> if (parent == "Meta") beginCapture()
+                "HeaderHash" -> if (parent == "Meta" && headerSha256 != null) beginCapture()
                 "Icon" -> if (parent == "CustomIcons" && grand == "Meta") {
                     iconUuid = ""
                     iconData = ""
@@ -225,12 +257,17 @@ internal object KdbxXmlReader {
                         itemInTheClear = attributes.getValue("ProtectInMemory").equals("true", ignoreCase = true)
                         beginCapture()
                     } else if (parent == "Binary") {
-                        itemRef = attributes.getValue("Ref")?.trim()?.toIntOrNull()
+                        val ref = attributes.getValue("Ref")?.trim()?.toIntOrNull()
+                        itemRef = if (headerSha256 != null) ref?.let(binaryPlaces::get) else ref
                     }
                 }
                 "Binary" -> if (parent == "Entry" && inEntry) {
                     itemKey = ""
                     itemRef = null
+                } else if (parent == "Binaries" && grand == "Meta" && headerSha256 != null) {
+                    binaryId = attributes.getValue("ID")?.trim()?.toIntOrNull()
+                    binaryCompressed = attributes.getValue("Compressed").equals("true", ignoreCase = true)
+                    beginCapture()
                 }
                 "Item" -> if (inEntryDataItem(0)) {
                     dataKey = ""
@@ -270,6 +307,7 @@ internal object KdbxXmlReader {
                     "DefaultUserName" -> if (parent == "Meta") defaultUserName = captured
                     "DatabaseName" -> if (parent == "Meta") databaseName = trimmed
                     "Color" -> if (parent == "Meta") color = trimmed
+                    "HeaderHash" -> if (parent == "Meta" && headerSha256 != null) checkHeaderHash(trimmed)
                     "Data" -> if (parent == "Icon" && grand == "CustomIcons") iconData = trimmed
                     "Icon" -> if (parent == "CustomIcons" && grand == "Meta") addIcon()
                     "UUID" -> when {
@@ -306,7 +344,11 @@ internal object KdbxXmlReader {
                         entry?.fields?.add(KdbxField(itemKey, itemValue ?: FieldValue.Plain("")))
                         itemValue = null
                     }
-                    "Binary" -> if (parent == "Entry" && inEntry) entry?.attachments?.add(KdbxAttachmentRef(itemKey, itemRef))
+                    "Binary" -> if (parent == "Entry" && inEntry) {
+                        entry?.attachments?.add(KdbxAttachmentRef(itemKey, itemRef))
+                    } else if (parent == "Binaries" && grand == "Meta" && headerSha256 != null) {
+                        addBinary(secret.also { secret = null }, trimmed)
+                    }
                     "Item" -> if (inEntryDataItem(0)) entry?.customData?.put(dataKey, dataValue)
                     "Entry" -> when {
                         parent == "Group" && inEntry -> finishEntry(entries)
@@ -338,6 +380,47 @@ internal object KdbxXmlReader {
             protectedText.setLength(0)
             stream!!.apply(bytes)
             return Secret.adopt(bytes)
+        }
+
+        private fun checkHeaderHash(text: String) {
+            if (text.isEmpty()) return
+            val stored = try {
+                Base64.getMimeDecoder().decode(text)
+            } catch (_: IllegalArgumentException) {
+                fail(KdbxException.Corrupt("header hash"))
+            }
+            if (!MessageDigest.isEqual(stored, headerSha256)) fail(KdbxException.Corrupt("header hash"))
+        }
+
+        /** [decrypted]: the attachment's bytes when it was protected; otherwise [text] holds them in base64. */
+        private fun addBinary(decrypted: Secret?, text: String) {
+            var content = decrypted
+            try {
+                val id = binaryId ?: fail(KdbxException.Corrupt("attachment without an ID"))
+                if (id in binaryPlaces) fail(KdbxException.Corrupt("attachment ID $id twice"))
+                if (content == null) {
+                    content = try {
+                        Secret.adopt(Base64.getMimeDecoder().decode(text))
+                    } catch (_: IllegalArgumentException) {
+                        fail(KdbxException.Corrupt("attachment $id"))
+                    }
+                }
+                if (binaryCompressed) {
+                    val packed = content
+                    content = try {
+                        packed.useBytes { Secret.adopt(KdbxReader.gunzip(it)) }
+                    } catch (_: KdbxException) {
+                        fail(KdbxException.Corrupt("attachment $id"))
+                    } finally {
+                        packed.wipe()
+                    }
+                }
+                binaryPlaces[id] = binaries.size
+                binaries += content
+                content = null
+            } finally {
+                content?.wipe()
+            }
         }
 
         private fun addIcon() {

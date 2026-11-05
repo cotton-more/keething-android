@@ -87,6 +87,8 @@ import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.databases.WindowDatabasesModel
 import dev.keething.android.databases.WindowDatabasesScreen
 import dev.keething.android.ui.Notice
+import dev.keething.android.session.ViewOnly
+import dev.keething.android.session.isViewOnly
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -642,6 +644,14 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
     }
     // An entry's database by its ref; null once it is not open (its screens go: NavigationState.keepOpen).
     val databaseOf = { ref: EntryRef -> sessions.session(ref.database) }
+    // An entry of a database viewed only is never edited: that is said instead (keething-spec kdbx.kdbx3 AC6).
+    val edit: (String) -> Unit = { id ->
+        if (databaseOf(EntryRef.of(id))?.isViewOnly == true) {
+            container.windowNotices.trySend(ViewOnly.notice())
+        } else {
+            navigation.open(Screen.Editor(id))
+        }
+    }
     // Codes another app handed over (SPEC §10) are read once the vault is open.
     val incoming by container.incomingCodes.collectAsStateWithLifecycle()
     LaunchedEffect(incoming) {
@@ -687,7 +697,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 codesOnly = navigation.codesOnly,
                                 selectedId = navigation.cardBesideList,
                                 onOpen = navigation::openCard,
-                                onEdit = { id -> navigation.open(Screen.Editor(id)) },
+                                onEdit = edit,
                                 onSettings = { navigation.open(Screen.Settings) },
                                 onGroups = { navigation.open(Screen.Groups) },
                                 onLeaveCodes = { navigation.codesOnly = false },
@@ -697,10 +707,16 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 onLockScreen = { showLockScreen(it) },
                                 onCloseDatabase = { closeDatabase(it) },
                                 onDatabases = { navigation.open(Screen.WindowDatabases) },
-                                onNew = { choice ->
+                                onNew = onNew@{ choice ->
+                                    val places = sessions.newEntryDatabases(open)
+                                    // Only databases viewed only are open: a new entry has nowhere to go.
+                                    if (places.isEmpty() && open.isNotEmpty()) {
+                                        container.windowNotices.trySend(ViewOnly.notice())
+                                        return@onNew
+                                    }
                                     // The database the search names, else the card beside the list's, else the last new entry's.
                                     val start = NewEntryDatabases.start(
-                                        sessions.newEntryDatabases(open),
+                                        places,
                                         navigation.query.text.toString(),
                                         navigation.cardBesideList?.let(EntryRef::of),
                                         container.settings.lastNewEntryDatabase,
@@ -736,7 +752,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 onSearch = navigation::search,
                                 onShowPassword = { view -> navigation.open(Screen.Password(key.entryId, view)) },
                                 onShowAddress = { rowId -> navigation.open(Screen.Password(key.entryId, PasswordView.ADDRESS_QR, rowId)) },
-                                onEdit = { navigation.open(Screen.Editor(key.entryId)) },
+                                onEdit = { edit(key.entryId) },
                                 onHistory = { navigation.open(Screen.History(key.entryId)) },
                                 onSendTo = { their ->
                                     val chosen = listOf(key.entryId)

@@ -87,12 +87,13 @@ class KdbxReaderTest {
     }
 
     @Test
-    fun kdbx3IsRefusedAsUnsupported() {
-        val failure = assertFailsWith<KdbxException.UnsupportedVersion> {
-            KdbxReader.open(Fixtures.bytes("kdbx3.kdbx"), key())
-        }
+    fun kdbx2IsRefusedAsUnsupported() {
+        // The KDBX 3.1 fixture with its version set to 2.0 (KDBX 3.1 itself is read: Kdbx3ReaderTest).
+        val file = Fixtures.bytes("kdbx3.kdbx").also { it[8] = 0; it[10] = 2 }
 
-        assertEquals("KDBX 3.1", failure.message)
+        val failure = assertFailsWith<KdbxException.UnsupportedVersion> { KdbxReader.open(file, key()) }
+
+        assertEquals("KDBX 2.0", failure.message)
     }
 
     @Test

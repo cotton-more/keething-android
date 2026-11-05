@@ -48,6 +48,9 @@ public sealed interface SaveFailure {
      */
     public data class BreaksFormat(val what: String) : SaveFailure
 
+    /** A KDBX 3.1 database, viewed only: Keething changes databases only in KDBX 4 (keething-spec kdbx.kdbx3 AC6). */
+    public data object ViewOnly : SaveFailure
+
     /** The file changed on disk while saving, twice in a row. */
     public data object FileKeepsChanging : SaveFailure
 

@@ -447,10 +447,12 @@ public class VaultSession(
      * unlocked. Refused because the entry changed or went elsewhere, or the file's groups no longer allow the change,
      * the vault is read again; refused because the password changed elsewhere, the session locks. A lock lets a running
      * save finish for a while ([lock]); one still waiting its turn then does not start. The save reads [edit]'s secrets
-     * until the result is complete: wipe them only then.
+     * until the result is complete: wipe them only then. A database viewed only refuses it at once, the file not read
+     * ([SaveFailure.ViewOnly]).
      */
     public fun save(edit: VaultEdit): Deferred<SaveOutcome>? {
-        if (mutableState.value !is SessionState.Unlocked) return null
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return null
+        if (unlocked.viewOnly) return CompletableDeferred(SaveOutcome.Failed(SaveFailure.ViewOnly))
         val attempt = key?.copy() ?: return null
         val token = generation
         val running = RunningSave(attempt)
@@ -543,7 +545,9 @@ public class VaultSession(
         triedVersion = opened.version
         // A stopped save put right stays said until the app said it, whatever the reads after it say.
         val stoppedSave = opened.stoppedSave ?: (mutableState.value as? SessionState.Unlocked)?.stoppedSave
-        val unlocked = SessionState.Unlocked(opened.vault, copies, keyDerivation = opened.keyDerivation, stoppedSave = stoppedSave, unsaved = unsaved)
+        val unlocked = SessionState.Unlocked(
+            opened.vault, copies, keyDerivation = opened.keyDerivation, stoppedSave = stoppedSave, unsaved = unsaved, viewOnly = opened.viewOnly,
+        )
         set(unlocked)
         // The same contents read again: the state keeps the equal one before, so this copy is nobody's.
         if (mutableState.value !== unlocked) opened.vault.wipe()

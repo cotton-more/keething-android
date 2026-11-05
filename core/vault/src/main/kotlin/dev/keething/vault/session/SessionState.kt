@@ -78,6 +78,11 @@ public sealed interface SessionState {
          * were saved: said until [VaultSession.unsavedSaid].
          */
         val unsaved: List<UnsavedChange> = emptyList(),
+        /**
+         * A KDBX 3.1 database: read like any other, every change refused ([SaveFailure.ViewOnly]; keething-spec
+         * kdbx.kdbx3 AC6). Keething changes databases only in KDBX 4.
+         */
+        val viewOnly: Boolean = false,
     ) : SessionState
 }
 

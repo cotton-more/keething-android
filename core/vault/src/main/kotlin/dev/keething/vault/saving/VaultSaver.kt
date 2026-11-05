@@ -121,6 +121,8 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         val editable = try {
             KdbxReader.openForEditing(original, key)
         } catch (failure: KdbxException) {
+            // A KDBX 3.1 file (turned into one elsewhere since it was read, or never read here) is never changed.
+            if (failure is KdbxException.UnsupportedVersion && failure.major == 3) throw Refused(SaveFailure.ViewOnly)
             throw Refused(SaveFailure.CannotOpen(failure.toOpenFailure()))
         }
         var before: Vault? = null

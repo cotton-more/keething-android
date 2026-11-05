@@ -8,6 +8,7 @@ import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.kdbx.schema.SchemaCheck
+import dev.keething.vault.saving.SaveFailure
 import dev.keething.vault.saving.SaveResult
 import dev.keething.vault.saving.VaultSaver
 import dev.keething.vault.session.FakeStore
@@ -34,6 +35,7 @@ import org.w3c.dom.Element
  */
 class OtherAppsDatabasesTest {
     private val kdbx4 = listOf("interop/keepassxc-2.7.12", "interop/strongbox-1.65.2")
+    private val keepassdx = "interop/keepassdx-4.5.8"
 
     private fun key() = DatabaseKey.of(Secret.of("pw"))
 
@@ -45,13 +47,14 @@ class OtherAppsDatabasesTest {
     private fun Vault.titled(title: String): Entry = (entries + recycleBin).single { it.title == title }
 
     @Test
-    fun eachAppsKdbx4DatabaseReadsAsItWasMade() {
-        for (name in kdbx4) {
+    fun eachAppsDatabaseReadsAsItWasMade() {
+        for (name in kdbx4 + keepassdx) {
             val store = FakeStore(fixtureBytes(name))
             val vault = open(store)
 
             val main = vault.titled("Main")
-            assertEquals(listOf("alpha", "beta"), main.tags, name)
+            // KeePassDX adds a tag of its own, "OTP", to an entry with a one-time code.
+            assertTrue(main.tags.containsAll(listOf("alpha", "beta")), name)
             assertTrue(main.expires, name)
             val pin = main.customFields.single { it.name == "PIN" }
             assertTrue(pin.isProtected, name)
@@ -117,10 +120,20 @@ class OtherAppsDatabasesTest {
     }
 
     @Test
-    fun keepassdxsNewDatabaseIsKdbx31() {
-        // KeePassDX 4.5.8 writes a new database as KDBX 3.1 (AES-KDF): refused until kdbx.kdbx3 is built.
-        val failure = assertIs<OpenResult.Failed>(VaultOpener().open(FakeStore(fixtureBytes("interop/keepassdx-4.5.8")), key())).failure
-        assertEquals(OpenFailure.Unsupported("KDBX 3.1"), failure)
+    fun keepassdxsKdbx31DatabaseIsViewedOnlyAndASaveWritesNothing() {
+        // KeePassDX 4.5.8 writes a new database as KDBX 3.1 (AES-KDF).
+        val file = fixtureBytes(keepassdx)
+        val store = FakeStore(file)
+        val opened = assertIs<OpenResult.Opened>(VaultOpener().open(store, key())).opened
+        assertTrue(opened.viewOnly)
+        assertTrue(!assertIs<OpenResult.Opened>(VaultOpener().open(FakeStore(fixtureBytes(kdbx4.first())), key())).opened.viewOnly)
+        val main = opened.vault.titled("Main")
+
+        val result = VaultSaver(store) { _, _, _ -> }
+            .save(VaultEdit.Update(main.id, main.lastModified, EntryChanges(notes = "Edited on the phone.")), key(), Instant.now())
+
+        assertEquals(SaveFailure.ViewOnly, assertIs<SaveResult.Failed>(result).failure)
+        assertTrue(store.content.contentEquals(file), "the file as it was")
     }
 
     private fun writtenBack(bytes: ByteArray): ByteArray {

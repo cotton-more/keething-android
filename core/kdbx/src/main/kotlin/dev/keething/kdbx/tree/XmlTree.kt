@@ -3,6 +3,7 @@ package dev.keething.kdbx.tree
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.text.XmlText
 import dev.keething.kdbx.crypto.ChaCha20
+import dev.keething.kdbx.crypto.KeyStream
 import dev.keething.kdbx.reader.KdbxException
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -37,7 +38,7 @@ internal object XmlTree {
      * secret; so does one marked `ProtectInMemory="True"`, how `keepassxc-cli export` writes a protected value in
      * the clear (the fixtures).
      */
-    fun parse(xml: ByteArray, offset: Int = 0, length: Int = xml.size - offset, stream: ChaCha20? = null): XElement {
+    fun parse(xml: ByteArray, offset: Int = 0, length: Int = xml.size - offset, stream: KeyStream? = null): XElement {
         val builder = Builder(stream)
         try {
             val reader = SAXParserFactory.newInstance().newSAXParser().xmlReader
@@ -122,7 +123,7 @@ internal object XmlTree {
         sink.ascii(">")
     }
 
-    private class Builder(private val stream: ChaCha20?) : DefaultHandler2() {
+    private class Builder(private val stream: KeyStream?) : DefaultHandler2() {
         var root: XElement? = null
             private set
         var failure: KdbxException? = null

@@ -4,9 +4,11 @@ import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.FieldValue
 import dev.keething.kdbx.Fixtures
 import dev.keething.kdbx.crypto.ChaCha20
+import dev.keething.kdbx.crypto.Salsa20
 import dev.keething.kdbx.reader.KdbxException
 import java.time.Instant
 import java.util.Base64
+import java.util.zip.GZIPOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -221,6 +223,60 @@ class KdbxXmlReaderTest {
         val withHistory = read(xml, ChaCha20(key, nonce), historyOf = "a")
         assertEquals("old-password", withHistory.history.single().fields.single().value.text())
         assertEquals("second-password", withHistory.entries[1].fields.single().value.text())
+    }
+
+    // spec: kdbx.kdbx3/AC3
+    @Test
+    fun kdbx3AttachmentsAreReadFromMetaBinariesByTheirIdsProtectedOrCompressed() {
+        val key = ByteArray(32) { it.toByte() }
+        val nonce = ByteArray(8) { (it + 7).toByte() }
+        val encrypt = Salsa20(key, nonce)
+        fun protect(bytes: ByteArray): String = Base64.getEncoder().encodeToString(bytes.copyOf().also { encrypt.apply(it) })
+        val gzipped = java.io.ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write("packed".encodeToByteArray()) } }
+        // In document order: the protected attachment in Meta comes before the entry's password in the stream.
+        val secretAttachment = protect("private key".encodeToByteArray())
+        val password = protect("pw-after".encodeToByteArray())
+        val xml = doc(
+            meta = """
+            <Binaries>
+              <Binary ID="7" Protected="True">$secretAttachment</Binary>
+              <Binary ID="2" Compressed="True">${Base64.getEncoder().encodeToString(gzipped.toByteArray())}</Binary>
+              <Binary ID="3">${Base64.getEncoder().encodeToString("plain".encodeToByteArray())}</Binary>
+            </Binaries>
+            """,
+            root = """
+            <Group><UUID>R</UUID><Name>P</Name>
+              <Entry><UUID>a</UUID>
+                <String><Key>Password</Key><Value Protected="True">$password</Value></String>
+                <Binary><Key>key.pem</Key><Value Ref="7"/></Binary>
+                <Binary><Key>packed.txt</Key><Value Ref="2"/></Binary>
+                <Binary><Key>plain.txt</Key><Value Ref="3"/></Binary>
+                <Binary><Key>missing</Key><Value Ref="0"/></Binary>
+              </Entry>
+            </Group>
+            """,
+        )
+
+        val (d, binaries) = KdbxXmlReader.readKdbx3(xml.encodeToByteArray(), Salsa20(key, nonce), null, ByteArray(32))
+
+        val refs = d.entries.single().attachments.associate { it.name to it.ref }
+        assertEquals(mapOf("key.pem" to 0, "packed.txt" to 1, "plain.txt" to 2, "missing" to null), refs)
+        assertEquals(listOf("private key", "packed", "plain"), binaries.map { it.reveal() })
+        assertEquals("pw-after", (d.entries.single().fields.single().value as FieldValue.Protected).secret.reveal())
+    }
+
+    // spec: kdbx.kdbx3/AC4
+    @Test
+    fun aKdbx3HeaderHashIsCheckedWhenThere() {
+        val header = ByteArray(32) { it.toByte() }
+        val stored = Base64.getEncoder().encodeToString(header)
+        val group = "<Group><UUID>R</UUID><Name>P</Name></Group>"
+        fun read(meta: String) = KdbxXmlReader.readKdbx3(doc(meta, group).encodeToByteArray(), Salsa20(ByteArray(32), ByteArray(8)), null, header)
+
+        read("<HeaderHash>$stored</HeaderHash>")
+        read("")
+        val failure = assertFailsWith<KdbxException.Corrupt> { read("<HeaderHash>${Base64.getEncoder().encodeToString(ByteArray(32))}</HeaderHash>") }
+        assertEquals("header hash", failure.detail)
     }
 
     @Test

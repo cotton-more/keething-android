@@ -28,6 +28,13 @@ tasks:
     cmds:
       - ./gradlew {{if eq .CLI_ARGS "app"}}:app{{else}}:core:{{.CLI_ARGS}}{{end}}:test
 
+  test:only:
+    desc: "One module's tests matching a filter: task test:only -- kdbx Kdbx3ReaderTest (Gradle's --tests pattern)"
+    requires:
+      vars: [CLI_ARGS]
+    cmds:
+      - set -- {{.CLI_ARGS}}; if [ "$1" = app ]; then p=:app; else p=:core:$1; fi; ./gradlew $p:test --tests "$2"
+
   build:
     desc: The debug APK (app/build/outputs/apk/debug)
     cmds:

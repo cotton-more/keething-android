@@ -6,7 +6,7 @@ import dev.keething.kdbx.key.KdfParameters
 import dev.keething.kdbx.reader.KdbxFormat.Cipher
 import dev.keething.kdbx.reader.KdbxFormat.Kdf
 
-/** The outer header of a KDBX 4 file: format, cipher, key derivation, seeds (Mac `Header`). */
+/** The outer header of a KDBX 4 file: format, cipher, key derivation, seeds (Mac `Header`). KDBX 3.1's is [Header3]. */
 internal class Header(
     val format: KdbxFormat,
     val kdf: KdfParameters,
@@ -39,7 +39,8 @@ internal class Header(
         const val ARGON2D = "ef636ddf8c29444b91f7a9a403e30a0c"
         const val ARGON2ID = "9e298b1956db4773b23dfc3ec6f0a1e6"
 
-        fun parse(file: ByteArray): Header {
+        /** The version in the file's first 12 bytes, major and minor; nothing else is read. */
+        fun version(file: ByteArray): Pair<Int, Int> {
             val r = ByteReader(file)
             val signature1 = r.int32()
             val signature2 = r.int32()
@@ -48,7 +49,14 @@ internal class Header(
             if (signature1 != SIGNATURE_1 || signature2 != SIGNATURE_2 || minor == null || major == null) {
                 throw KdbxException.NotKdbx()
             }
+            return major to minor
+        }
+
+        /** A KDBX 4 header; a KDBX 3 file is [Header3]'s, any other version is refused. */
+        fun parse(file: ByteArray): Header {
+            val (major, minor) = version(file)
             if (major != 4) throw KdbxException.UnsupportedVersion(major, minor)
+            val r = ByteReader(file, 12)
 
             var cipherId: ByteArray? = null
             var compression = 0

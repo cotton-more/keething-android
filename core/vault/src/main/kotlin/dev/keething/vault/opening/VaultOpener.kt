@@ -70,6 +70,8 @@ internal class OpenedVault(
     val keyDerivation: Duration?,
     /** A save the app did not finish, put right before this read and not said yet (keething-spec databases.saf AC5). */
     val stoppedSave: StoppedSave? = null,
+    /** A KDBX 3.1 file: read to be viewed only (keething-spec kdbx.kdbx3 AC6). */
+    val viewOnly: Boolean = false,
 )
 
 internal sealed interface OpenResult {
@@ -166,7 +168,7 @@ internal fun KdbxDatabase.toOpenedVault(version: FileVersion, assembled: Vault? 
     val indexes = document.entries.associate { entry ->
         entry.uuid to entry.attachments.mapNotNull { ref -> ref.ref?.let { ref.name to it } }.toMap()
     }
-    return OpenedVault(vault, AttachmentContents(binaries, indexes), version, keyDerivation, stoppedSave)
+    return OpenedVault(vault, AttachmentContents(binaries, indexes), version, keyDerivation, stoppedSave, viewOnly = format.version.startsWith("3."))
 }
 
 internal fun KdbxException.toOpenFailure(): OpenFailure = when (this) {

@@ -1,8 +1,7 @@
 package dev.keething.kdbx.reader
 
 import dev.keething.domain.secret.Secret
-import dev.keething.kdbx.crypto.ChaCha20
-import java.security.MessageDigest
+import dev.keething.kdbx.crypto.KeyStream
 
 /**
  * The header at the start of the decrypted payload: the key of the stream that hides protected values, and
@@ -18,16 +17,8 @@ internal class InnerHeader(
     /** Where the XML starts. */
     val end: Int,
 ) {
-    /** ChaCha20 keyed with the SHA-512 of the stream key (KDBX 4's only stream in practice). */
-    fun stream(): ChaCha20 {
-        if (streamId != 3) throw KdbxException.UnsupportedInnerStream(streamId)
-        val hash = MessageDigest.getInstance("SHA-512").digest(streamKey)
-        try {
-            return ChaCha20(hash.copyOfRange(0, 32), hash.copyOfRange(32, 44))
-        } finally {
-            hash.fill(0)
-        }
-    }
+    /** The stream its id names (ChaCha20, KDBX 4's only stream in practice), keyed with its key. */
+    fun stream(): KeyStream = InnerStream.of(streamId, streamKey)
 
     fun wipeKey() {
         streamKey.fill(0)

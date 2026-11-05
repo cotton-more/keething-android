@@ -7,7 +7,7 @@ import kotlin.test.assertFailsWith
 
 /**
  * Reference values from the Mac tests (`KDBXTests.swift`): Python's hashlib (BLAKE2b) and OpenSSL 3+
- * (`openssl kdf ARGON2D/ARGON2ID`, `openssl enc -chacha20`).
+ * (`openssl kdf ARGON2D/ARGON2ID`, `openssl enc -chacha20`); Salsa20 from the eSTREAM test vectors.
  */
 class CryptoTest {
     @Test
@@ -95,6 +95,23 @@ class CryptoTest {
         val stream = ChaCha20(key, nonce)
         stream.apply(pieces, 0, 7)
         stream.apply(pieces, 7, 73)
+        assertContentEquals(whole, pieces)
+    }
+
+    @Test
+    fun salsa20KeystreamMatchesEstreamSet1Vector0AlsoWhenAppliedInPieces() {
+        val key = ByteArray(32).also { it[0] = 0x80.toByte() }
+        val whole = ByteArray(64)
+        Salsa20(key, ByteArray(8)).apply(whole)
+
+        assertEquals(
+            "e3be8fdd8beca2e3ea8ef9475b29a6e7003951e1097a5c38d23b7a5fad9f6844b22c97559e2723c7cbbd3fe4fc8d9a0744652a83e72a9c461876af4d7ef1a117",
+            whole.hex(),
+        )
+        val pieces = ByteArray(64)
+        val stream = Salsa20(key, ByteArray(8))
+        stream.apply(pieces, 0, 13)
+        stream.apply(pieces, 13, 51)
         assertContentEquals(whole, pieces)
     }
 
