@@ -148,7 +148,9 @@ private fun lifecycle(store: FileStore, key: DatabaseKey, start: Vault) {
     }
     fun entry(id: String) = (vault.entries + vault.recycleBin).first { it.id == id }
 
-    val group = start.groups.firstOrNull { !it.isRoot } ?: start.groups.first()
+    // A group with entries of its own: one left empty by the probe's moves would be deleted (Strongbox's empty
+    // "Sample Group"), as groups.entry-group AC5 says.
+    val group = start.groups.firstOrNull { g -> !g.isRoot && start.entries.any { it.groupId == g.id } } ?: start.groups.first()
     // The richest entry: the most custom fields, then attachments; its notes get a line.
     val existing = start.entries.maxBy { it.customFields.size * 100 + it.attachments.size }
     println("Lifecycle (the existing entry has ${existing.customFields.size} custom fields, ${existing.attachments.size} attachments):")
