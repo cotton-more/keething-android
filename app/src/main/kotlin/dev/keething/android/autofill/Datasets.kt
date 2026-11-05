@@ -76,8 +76,9 @@ internal class FillResponses(private val context: Context, private val sessions:
             }
         }
         val pick = AutofillRequest(AutofillMode.PICK, form, ids)
+        // Alone it is a chip with its title: pinned, it is an icon only at the keyboard's edge, easily missed.
         val title = if (shown == 0) "Search Keething" else "Another entry"
-        response.addDataset(authenticated(pick, form.fields, presentations.action(title, "to fill $label", R.drawable.ic_autofill_search, shown, pinned = true)))
+        response.addDataset(authenticated(pick, form.fields, presentations.action(title, "to fill $label", R.drawable.ic_autofill_search, shown, pinned = shown > 0)))
     }
 
     /**

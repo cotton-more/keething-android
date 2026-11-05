@@ -53,12 +53,14 @@ public data class Entry(
     val urlHost: String? get() = UrlHost.of(url)
 
     /**
-     * The entry's web addresses as written: its URL, then its additional URLs. A protected value is never
-     * read (fail closed).
+     * The entry's web addresses as written: its URL, then its additional URLs and its custom fields of type `url`
+     * (keething-spec autofill.matching AC1). A protected value is never read (fail closed).
      */
     val addresses: List<String>
-        get() = (listOf(url) + customFields.filter { it.isAdditionalUrl }.mapNotNull { it.plainText })
+        get() = (listOf(url) + customFields.filter { it.isAdditionalUrl || isUrlField(it) }.mapNotNull { it.plainText })
             .filter { it.isNotEmpty() }
+
+    private fun isUrlField(field: CustomField): Boolean = fieldTypes[field.name]?.trim().equals("url", ignoreCase = true)
 
     /**
      * Whether the entry is a note (keething-spec types.note AC1–AC3; Mac `Entry.isNote`): the one definition the card,

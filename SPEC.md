@@ -1837,10 +1837,10 @@ service, the screen it opens and the system's view structure are in `app/autofil
   Android's browsers name a page by its host only (`localhost` for `http://localhost:8000`, checked in
   Chrome and Firefox), so a port written in an entry matches any port then.
 - **The entries** (`AutofillMatcher`): for a page, the Mac app's site matching (`SiteMatcher`: the same
-  host first, then the same registrable domain by the public suffix list; the entry's URL and its
-  `KP2A_URL` fields; a protected field is never read), with one rule more: a plain `http://` page gets only
+  host first, then the same registrable domain by the public suffix list; the entry's URL, its
+  `KP2A_URL` fields and its custom fields of type `url`; a protected field is never read), with one rule more: a plain `http://` page gets only
   addresses written with `http://`, so a password kept for an https site is never sent unencrypted. For an
-  app: the entries that name it (`androidapp://<package>`, as Keepass2Android writes it), then the entries
+  app: the entries that name it (`androidapp://<package>`, as Keepass2Android writes it, in any of those addresses), then the entries
   of the websites the app is verified for (Android app links: the site's `assetlinks.json` names the app's
   key and the system checked it; read offline with `DomainVerificationManager`, `verified` hosts only, a
   `*.bank.de` wildcard is a domain match). So one entry with `https://bank.de` serves the bank's app as on
@@ -1855,8 +1855,9 @@ service, the screen it opens and the system's view structure are in `app/autofil
   open one, with the editor's Save into while two or more are open.
 - **Unlocked**: up to 6 matching entries, best first (title, username), as the keyboard's chips (inline
   suggestions, Gboard) or the dropdown under the field; their username and password go into the response,
-  so a tap fills at once. Then "Search Keething" ("Another entry" when entries were offered), pinned at
-  the keyboard's edge as a search icon: it opens the picker. A form that asks only for a code offers only
+  so a tap fills at once. Then "Another entry", pinned at the keyboard's edge as a search icon: it opens
+  the picker. With no entry offered, "Search Keething" is a chip with its title instead (a lone icon at the
+  keyboard's edge passes for the keyboard's own search). A form that asks only for a code offers only
   entries with one.
 - **One-time code**: an entry with a code is offered without its values; the tap opens the autofill screen
   invisibly, which makes the current code then and fills it (with the username and password when the form

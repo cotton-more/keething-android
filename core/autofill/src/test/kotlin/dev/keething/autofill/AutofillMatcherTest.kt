@@ -84,4 +84,21 @@ class AutofillMatcherTest {
     fun aProtectedAddressIsNeverRead() {
         assertEquals(false, app("de.bank.app").any { it.first == "hidden" })
     }
+
+    @Test
+    fun customFieldsOfTypeUrlAreAddressesToo() {
+        val shop = Entry(
+            id = "shop", title = "Shop", url = "https://shop.example",
+            customFields = listOf(
+                CustomField.plain("Android App", "androidapp://de.shop.app"),
+                CustomField.plain("Second site", "https://shop-two.example"),
+                CustomField.plain("Note", "androidapp://de.not.typed"),
+            ),
+            fieldTypes = mapOf("Android App" to "url", "Second site" to "URL"),
+        )
+        val m = AutofillMatcher(listOf(shop))
+        assertEquals(listOf("shop"), m.candidates(FillTarget.App("de.shop.app")).map { it.entry.id })
+        assertEquals(listOf("shop"), m.candidates(FillTarget.WebPage(SiteAddress.parse("https://shop-two.example")!!, "com.android.chrome")).map { it.entry.id })
+        assertEquals(emptyList(), m.candidates(FillTarget.App("de.not.typed")).map { it.entry.id })
+    }
 }
