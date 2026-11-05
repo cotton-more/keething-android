@@ -56,6 +56,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
 import dev.keething.android.session.OpenDatabase
+import dev.keething.android.ui.keepOutOfAutofill
 import kotlinx.coroutines.flow.StateFlow
 import dev.keething.android.session.entries
 import dev.keething.vault.databases.EntryRef
@@ -276,7 +277,7 @@ private fun NameField(value: String, onChange: (String) -> Unit, label: String, 
     TextField(
         value = value,
         onValueChange = { onChange(it.replace('\n', ' ').take(ShareRequest.MAX_NAME_LENGTH)) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
         label = { Text(label) },
         placeholder = { Text(placeholder) },
         singleLine = true,

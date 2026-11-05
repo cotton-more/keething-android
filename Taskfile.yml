@@ -33,7 +33,7 @@ tasks:
     requires:
       vars: [CLI_ARGS]
     cmds:
-      - set -- {{.CLI_ARGS}}; if [ "$1" = app ]; then p=:app; else p=:core:$1; fi; ./gradlew $p:test --tests "$2"
+      - set -- {{.CLI_ARGS}}; if [ "$1" = app ]; then t=:app:testDebugUnitTest; else t=:core:$1:test; fi; ./gradlew $t --tests "$2"
 
   build:
     desc: The debug APK (app/build/outputs/apk/debug)

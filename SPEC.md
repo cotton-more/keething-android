@@ -813,6 +813,11 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
 - `FLAG_SECURE` on every window that can show a secret (no screenshots, blank in recents). A debug build
   only leaves it off while `files/allow-screenshots` exists (`adb shell run-as dev.keething.android touch
   files/allow-screenshots`), so the emulator can be checked with screenshots; a release build ignores it.
+- No autofill on Keething's own screens (keething-spec autofill.own-screens): every text field carries
+  `Modifier.keepOutOfAutofill()` (Compose reports fields to autofill itself, whatever the window says, and leaves
+  out only those whose content data type is None), and each activity's window root excludes its views
+  (`secureWindow`). No service, Keething's or another such as Google's, is asked to fill a field there or offered
+  the master password or anything else typed there to save. The keyboard's inline autofill suggestions go with it.
 - Clipboard: secrets (protected and concealed values, one-time codes) are marked
   `ClipDescription.EXTRA_IS_SENSITIVE` (no preview on Android 13+); plain values (username, URL, notes) are
   not, so their preview shows. Every copy is cleared after 30 s (fixed, not a setting) if it is still the

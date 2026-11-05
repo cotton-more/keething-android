@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
 import dev.keething.android.ui.NoLearningKeyboard
+import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.ui.readableInset
 import dev.keething.sharing.message.ShareRequest
 import java.time.Duration
@@ -131,7 +132,7 @@ private fun AskField(label: String, value: String, onChange: (String) -> Unit, p
     TextField(
         value = value,
         onValueChange = { text -> onChange(text.replace('\n', ' ')) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
         label = { Text(label) },
         placeholder = { Text(placeholder) },
         singleLine = true,

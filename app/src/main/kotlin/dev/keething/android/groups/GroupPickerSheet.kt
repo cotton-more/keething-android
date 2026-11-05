@@ -72,6 +72,7 @@ import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.PathText
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.editing.GroupChoice
 import dev.keething.card.editing.GroupPicker
@@ -123,7 +124,7 @@ internal fun GroupPickerSheet(
                 TextField(
                     value = field,
                     onValueChange = { field = it },
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                    modifier = Modifier.keepOutOfAutofill().fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
                     placeholder = { Text(if (canMake) "Find or make a group" else "Find a group") },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                     trailingIcon = if (field.text.isNotEmpty()) {

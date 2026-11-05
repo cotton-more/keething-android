@@ -35,6 +35,7 @@ import dev.keething.android.ui.Notice
 import dev.keething.android.ui.NoticeEffect
 import dev.keething.android.ui.NoticeHost
 import dev.keething.android.ui.PathText
+import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.card.editing.GroupChanges
 import dev.keething.card.editing.GroupTree
 import dev.keething.domain.vault.Entry
@@ -566,7 +567,7 @@ private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, m
                         if (it.text != field.text) model.edited()
                         field = it
                     },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    modifier = Modifier.keepOutOfAutofill().fillMaxWidth().focusRequester(focus),
                     label = { Text("Name") },
                     singleLine = true,
                     isError = problem != null,

@@ -144,6 +144,7 @@ import dev.keething.android.databases.NotOpenLine
 import dev.keething.android.databases.NotOpenSheet
 import dev.keething.android.databases.rememberFileActions
 import dev.keething.android.databases.Reach
+import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.unlock.FingerprintQuestion
 import dev.keething.vault.biometric.FingerprintAnswer
 import dev.keething.vault.databases.DatabaseId
@@ -951,7 +952,7 @@ internal fun SearchField(
                 NoLearningKeyboard {
                     BasicTextField(
                         state = query,
-                        modifier = Modifier
+                        modifier = Modifier.keepOutOfAutofill()
                             .weight(1f)
                             .onFocusChanged { onFocusChange(it.isFocused) }
                             .semantics { contentDescription = "Search entries" },

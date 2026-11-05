@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.card.editing.EntryDraft
 
 /**
@@ -96,7 +97,7 @@ internal fun TagsField(draft: EntryDraft, update: (EntryDraft) -> Unit, knownTag
                 BasicTextField(
                     value = draft.tagInput,
                     onValueChange = { update(draft.typingTag(it)) },
-                    modifier = Modifier
+                    modifier = Modifier.keepOutOfAutofill()
                         .widthIn(min = 120.dp)
                         .focusRequester(focus)
                         .onFocusChanged { focused = it.isFocused }

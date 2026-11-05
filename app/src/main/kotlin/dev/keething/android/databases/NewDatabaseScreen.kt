@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.domain.storage.StoragePlace
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -220,7 +221,7 @@ private fun FieldTextField(value: String, onValueChange: (String) -> Unit, label
     TextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
         label = { Text(label) },
         placeholder = { Text(placeholder) },
         singleLine = true,
@@ -308,7 +309,7 @@ private fun PasswordFields(model: NewDatabaseModel) {
     SecretTextMenu(copyable = false) {
         SecureTextField(
             state = model.password,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
             label = { Text("Master password") },
             textStyle = style,
             textObfuscationMode = mode,
@@ -328,7 +329,7 @@ private fun PasswordFields(model: NewDatabaseModel) {
     SecretTextMenu(copyable = false) {
         SecureTextField(
             state = model.again,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
             label = { Text("Again") },
             textStyle = style,
             textObfuscationMode = mode,

@@ -13,6 +13,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.platform.LocalContext
 import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.FitText
+import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.ui.rememberSecondsNow
 import dev.keething.card.TotpDisplay
 import dev.keething.card.editing.AddedCode
@@ -468,7 +469,7 @@ private fun EditorField(
         TextField(
             value = value,
             onValueChange = onChange,
-            modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
+            modifier = modifier.keepOutOfAutofill().fillMaxWidth().onFocusChanged { focused = it.isFocused }
                 // Never copied: a keyboard's Cut (Ctrl+X, Gboard's Cut key) would take the text to nowhere, so it is refused.
                 .then(if (secret && !copyable) Modifier.onPreviewKeyEvent { it.isCut } else Modifier),
             label = { Text(label, color = if (highlighted) MaterialTheme.colorScheme.primary else Color.Unspecified) },
@@ -525,7 +526,7 @@ private fun NoteTextBlock(editor: EntryEditor, draft: EntryDraft, update: (Entry
             TextField(
                 value = draft.notes,
                 onValueChange = { update(draft.copy(notes = it)) },
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                modifier = Modifier.keepOutOfAutofill().fillMaxWidth().focusRequester(focus),
                 label = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Text", color = MaterialTheme.colorScheme.primary)
@@ -1461,7 +1462,7 @@ private fun AddOneTimeCodeDialog(
                                 keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
                                 shape = RoundedCornerShape(18.dp),
                                 colors = editorFieldColors(MaterialTheme.colorScheme.surfaceContainerHigh),
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
                             )
                         }
                     }
@@ -1522,7 +1523,7 @@ private fun AddCodesDialog(onAdd: (text: String, prefix: String) -> String?, onD
                                 keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
                                 shape = RoundedCornerShape(18.dp),
                                 colors = editorFieldColors(MaterialTheme.colorScheme.surfaceContainerHigh),
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
                             )
                         }
                     }

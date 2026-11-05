@@ -28,6 +28,7 @@ import dev.keething.android.databases.Reach
 import dev.keething.android.ui.AppLogo
 import dev.keething.android.ui.ButtonLabel
 import androidx.compose.foundation.text.input.clearText
+import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.vault.databases.DatabaseId
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
@@ -692,7 +693,7 @@ private fun PasswordRow(
         SecretTextMenu(copyable = false, modifier = Modifier.weight(1f)) {
             SecureTextField(
                 state = model.password,
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                modifier = Modifier.keepOutOfAutofill().fillMaxWidth().focusRequester(focus),
                 placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 textStyle = if (revealed) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
                 textObfuscationMode = if (revealed) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
