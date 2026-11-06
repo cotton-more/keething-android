@@ -231,7 +231,7 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
         id = entry.id,
         title = entry.displayTitle,
         // A card or a network says which it is ("Visa •• 4242 · 12/26"), a note its line; other entries their username and site.
-        subtitle = faces[entry.id]?.subtitle ?: listOf(entry.username, entry.urlHost.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · "),
+        subtitle = faces[entry.id]?.subtitle ?: entry.username.ifEmpty { entry.webHost.orEmpty() },
         group = if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1),
         avatar = EntryAvatar.of(entry.displayTitle),
         customIconId = entry.customIconId?.takeIf { it in vault.customIcons },

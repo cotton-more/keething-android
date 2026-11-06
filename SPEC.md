@@ -1207,7 +1207,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (a phone in landscape) the logo, name and database are on the left and the field on the right; with the keyboard
   up only the database's line stays beside the field.
 - **List**: search results (empty query: recently used, then all by title) over every open database (§3.1); a row =
-  title, username, site, and under them the group's path with a folder (`Finanzen › Banken`; none for the root group,
+  title, the username (the site's host only without one, never an app's address: keething-spec search.list AC1, the
+  owner 2026-11-06), and under them the group's path with a folder (`Finanzen › Banken`; none for the root group,
   the path inside the bin for an entry in it, as the Mac's rows; on one line, a path too long is cut as fish shell
   writes a directory, the owner 2026-10-31: the group's own name always whole, the levels above it cut to their first
   letter from the left as far as needed, `A › 2 › C › I › Read only`, then `… › Read only`; TalkBack reads it whole); while two or more databases are open the line says

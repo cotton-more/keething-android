@@ -103,12 +103,16 @@ class VaultListingTest {
 
         val gh = rows.getValue("gh")
         assertEquals("GitHub", gh.title)
-        assertEquals("octocat · github.com", gh.subtitle)
+        assertEquals("octocat", gh.subtitle, "the username alone, the site only without one")
         assertTrue(gh.hasAttachments)
         assertNotNull(gh.totp)
         assertEquals("www.amazon.de", rows.getValue("az").subtitle, "no username: the site alone")
         assertEquals("", rows.getValue("pp").subtitle)
         assertNull(rows.getValue("db").totp)
+
+        val app = Entry(id = "app", title = "Parking", url = "androidapp://com.example.parking")
+        val withApp = VaultListing(Vault(entries = listOf(app)), now, Collator.getInstance(Locale.ENGLISH))
+        assertEquals("", withApp.sections("", emptyList()).single().rows.single().subtitle, "an app's address is no site")
     }
 
     @Test

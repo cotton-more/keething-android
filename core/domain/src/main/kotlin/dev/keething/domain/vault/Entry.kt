@@ -49,8 +49,11 @@ public data class Entry(
     /** Title for display: the title, else the URL's host, else "(Untitled)". */
     val displayTitle: String get() = title.ifEmpty { urlHost ?: "(Untitled)" }
 
-    /** The host of the entry's URL, for showing (title fallback, list subtitle). */
+    /** The host of the entry's URL, for showing (title fallback, Open Website's label). */
     val urlHost: String? get() = UrlHost.of(url)
+
+    /** The host of the entry's URL when it is a web address, not an app's (keething-spec search.list AC1). */
+    val webHost: String? get() = if (AndroidAppAddress.packageOf(url) != null) null else urlHost
 
     /**
      * The entry's web addresses as written: its URL, then its additional URLs and its custom fields of type `url`
