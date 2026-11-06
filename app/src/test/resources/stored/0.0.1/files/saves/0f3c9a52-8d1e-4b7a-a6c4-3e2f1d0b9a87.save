@@ -1,0 +1,9 @@
+#Fri Nov 06 21:05:12 CET 2026
+folder=content\://com.android.externalstorage.documents/tree/primary%3ASync%2FKeePassBar-test%2FF5
+path=F5 Personal.kdbx
+begun=2026-11-06T20\:05\:12Z
+size=8261
+sha256=5f0c1d2e3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f
+temporary=.syncthing.F5 Personal.kdbx.tmp
+aside=.syncthing.F5 Personal.kdbx.old.tmp
+state=SAVING

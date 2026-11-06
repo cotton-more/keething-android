@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="databases">{&quot;version&quot;:1,&quot;current&quot;:&quot;7C1E2A4B-0D5F-4E3A-9B61-2F8C4D7E9A10&quot;,&quot;databases&quot;:[{&quot;id&quot;:&quot;7C1E2A4B-0D5F-4E3A-9B61-2F8C4D7E9A10&quot;,&quot;file&quot;:{&quot;grant&quot;:&quot;content://com.android.externalstorage.documents/tree/primary%3ASync%2FKeePassBar-test%2FF5&quot;,&quot;volume&quot;:&quot;primary&quot;,&quot;folder&quot;:&quot;Sync/KeePassBar-test/F5&quot;,&quot;path&quot;:&quot;F5 Personal.kdbx&quot;},&quot;useBiometric&quot;:true,&quot;fingerprintAsked&quot;:true,&quot;opensWithoutPassword&quot;:false,&quot;lastOpened&quot;:1793823480.0,&quot;inWindow&quot;:true,&quot;checkedInChooser&quot;:true},{&quot;id&quot;:&quot;B3D9F0E2-6A71-4C88-8E25-51A0C6F3D274&quot;,&quot;file&quot;:{&quot;grant&quot;:&quot;content://com.android.externalstorage.documents/tree/primary%3ASync%2FKeePassBar-test%2FF5&quot;,&quot;volume&quot;:&quot;primary&quot;,&quot;folder&quot;:&quot;Sync/KeePassBar-test/F5&quot;,&quot;path&quot;:&quot;F5 Keyed.kdbx&quot;},&quot;keyFile&quot;:{&quot;grant&quot;:&quot;content://com.android.externalstorage.documents/tree/primary%3ASync%2FKeePassBar-test%2FF5&quot;,&quot;volume&quot;:&quot;primary&quot;,&quot;folder&quot;:&quot;Sync/KeePassBar-test/F5&quot;,&quot;path&quot;:&quot;hex64.key&quot;},&quot;useBiometric&quot;:false,&quot;fingerprintAsked&quot;:true,&quot;opensWithoutPassword&quot;:false,&quot;lastOpened&quot;:1793823540.0,&quot;inWindow&quot;:false,&quot;checkedInChooser&quot;:false}]}</string>
+    <string name="lockTimeoutMinutes">15</string>
+    <string name="requestValidityDays">7</string>
+    <string name="biometricUnlock">on</string>
+    <string name="passwordReminderDays">30</string>
+    <string name="lastTypedUnlock.7C1E2A4B-0D5F-4E3A-9B61-2F8C4D7E9A10">1793823480000</string>
+    <string name="recentEntries">7C1E2A4B-0D5F-4E3A-9B61-2F8C4D7E9A10:5A2B8C3D9E0F41A2B3C4D5E6F7A8B9C0</string>
+    <string name="passwordGenerator">kind=passphrase
+pinLength=6
+strongLength=20
+classes=upper,lower,digits,symbols
+excludeLookAlikes=false
+memorableWords=4
+memorableDigits=1
+memorableSymbols=1
+passphraseWords=6
+separator=&quot;.&quot;</string>
+</map>

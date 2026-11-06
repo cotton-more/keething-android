@@ -78,6 +78,47 @@ class DatabaseListTest {
         assertEquals("{\"version\":1,\"databases\":[{\"broken", store.string("databases.unreadable.1234567"), "still there")
     }
 
+    // spec: app.upgrade-safety/AC3
+    @Test
+    fun anUnreadableListIsSaidUntilADatabaseJoins() {
+        val store = MapSettings()
+        store.setString(DatabaseList.STORE_KEY, "{\"version\":1,\"databases\":[{\"broken")
+
+        val list = list(store, now = Instant.ofEpochSecond(1_234_567))
+
+        assertTrue(list.setAside)
+        assertTrue(list(store).setAside, "said at the next start too")
+        list.add("/a/Personal.kdbx")
+        assertFalse(list.setAside)
+        list.remove(list.records.single().id)
+        assertFalse(list.setAside, "an empty list since is not the one set aside")
+        assertFalse(list(store).setAside)
+    }
+
+    // spec: app.upgrade-safety/AC3
+    @Test
+    fun aListOfANewerVersionIsReadAsFarAsItIsUnderstoodAndKeptAsItWasBesides() {
+        val store = MapSettings()
+        val newer = "{\"version\":2,\"databases\":[{\"id\":\"A\",\"path\":\"/a/Personal.kdbx\",\"added\":true}]}"
+        store.setString(DatabaseList.STORE_KEY, newer)
+
+        val list = list(store, now = Instant.ofEpochSecond(1_234_567))
+
+        assertEquals(listOf("A"), list.records.map { it.id.value }, "the databases stay")
+        assertFalse(list.setAside, "nothing for the user to do")
+        assertEquals(newer, store.string("databases.version2.1234567"), "what a later app added is not lost")
+        list.add("/b/Work.kdbx")
+        assertEquals(newer, store.string("databases.version2.1234567"), "still there")
+    }
+
+    @Test
+    fun aListReadAsItIsIsNotSetAside() {
+        val store = MapSettings()
+        store.setString(DatabaseList.STORE_KEY, "{\"version\":1,\"databases\":[]}")
+        assertFalse(list(store).setAside)
+        assertFalse(list(MapSettings()).setAside, "a first start")
+    }
+
     @Test
     fun aRecordWithoutIdOrPathOrAFieldOfAnotherTypeMakesTheListUnreadable() {
         for (stored in listOf(

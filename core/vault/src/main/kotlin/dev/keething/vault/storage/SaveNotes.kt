@@ -75,7 +75,23 @@ public class SaveNotes(private val directory: File) {
     /** Whether a save of a database in the grant [folder] left it to put right, or is under way: its grant is kept. */
     public fun unsettled(folder: String): Boolean = all().any { it.folder == folder && !it.settled }
 
-    private fun all(): List<SaveNote> = directory.listFiles { file -> file.name.endsWith(SUFFIX) }.orEmpty().mapNotNull(::read)
+    /**
+     * The notes this version cannot read (damaged, or a later version's), by file name: nothing says which database
+     * they are of, so they are left alone, said to the user, then [setUnreadableAside] (keething-spec
+     * app.upgrade-safety AC3).
+     */
+    public fun unreadable(): List<String> = noteFiles().filter { read(it) == null }.map { it.name }.sorted()
+
+    /** The notes [unreadable] gave kept under another name, never deleted: said once. */
+    public fun setUnreadableAside() {
+        for (file in noteFiles().filter { read(it) == null }) {
+            if (!file.renameTo(File(directory, file.name + UNREADABLE))) throw IOException("an unreadable note could not be set aside")
+        }
+    }
+
+    private fun noteFiles(): List<File> = directory.listFiles { file -> file.name.endsWith(SUFFIX) }.orEmpty().toList()
+
+    private fun all(): List<SaveNote> = noteFiles().mapNotNull(::read)
 
     private fun read(file: File): SaveNote? {
         val properties = Properties()
@@ -86,6 +102,9 @@ public class SaveNotes(private val directory: File) {
         } catch (_: IllegalArgumentException) {
             return null
         }
+        // A note of a later version is not this one's to put right (keething-spec app.upgrade-safety AC3); none: 1.
+        val version = properties.getProperty(VERSION)?.let { it.toIntOrNull() ?: return null } ?: 1
+        if (version > CURRENT_VERSION) return null
         return SaveNote(
             file,
             folder = properties.getProperty(FOLDER) ?: return null,
@@ -110,6 +129,11 @@ public class SaveNotes(private val directory: File) {
 
     internal companion object {
         private const val SUFFIX = ".save"
+        private const val UNREADABLE = ".unreadable"
+        private const val VERSION = "version"
+
+        /** The version of the notes this app writes (keething-spec app.upgrade-safety AC2); the first ones had none. */
+        private const val CURRENT_VERSION = 1
         private const val FOLDER = "folder"
         private const val PATH = "path"
         private const val BEGUN = "begun"
@@ -218,6 +242,7 @@ public class SaveNotes(private val directory: File) {
         fun write() {
             // Not in an apply: Properties has a size of its own.
             val properties = Properties()
+            properties.setProperty(VERSION, CURRENT_VERSION.toString())
             properties.setProperty(FOLDER, folder)
             properties.setProperty(PATH, path)
             properties.setProperty(BEGUN, begun.toString())

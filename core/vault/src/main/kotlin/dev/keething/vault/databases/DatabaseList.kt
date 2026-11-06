@@ -116,7 +116,9 @@ public data class Databases(val records: List<DatabaseRecord>, val currentId: Da
  *
  * It starts empty: there is no default path, and the one database of before the list is not carried over — it is
  * opened again from the welcome (plan AD4). An unreadable stored list is kept under another key, never overwritten,
- * and the list starts empty. Call it on the main thread.
+ * and the list starts empty, [setAside] until a database joins it; one of a version newer than [VERSION] is read as far
+ * as this version understands it, and kept as it was under another key too (keething-spec app.upgrade-safety AC3).
+ * Call it on the main thread.
  */
 public class DatabaseList(
     private val store: SettingsStore,
@@ -130,11 +132,21 @@ public class DatabaseList(
     init {
         val raw = store.string(STORE_KEY)
         val stored = raw?.let(::decode)
-        if (raw != null && stored == null) store.setString("$STORE_KEY.unreadable.${now().epochSecond}", raw)
-        mutableState = MutableStateFlow(stored ?: Databases(emptyList(), null))
+        if (raw != null && stored != null && stored.second > VERSION) store.setString("$STORE_KEY.version${stored.second}.${now().epochSecond}", raw)
+        if (raw != null && stored == null) {
+            store.setString("$STORE_KEY.unreadable.${now().epochSecond}", raw)
+            store.setString(SET_ASIDE_KEY, now().epochSecond.toString())
+        }
+        mutableState = MutableStateFlow(stored?.first ?: Databases(emptyList(), null))
         state = mutableState.asStateFlow()
         if (stored == null) save()
     }
+
+    /**
+     * The list kept before could not be read and was set aside, and no database has joined the list since: the welcome
+     * says so (keething-spec app.upgrade-safety AC3).
+     */
+    public val setAside: Boolean get() = records.isEmpty() && store.string(SET_ASIDE_KEY) != null
 
     private val observers = mutableListOf<() -> Unit>()
 
@@ -233,6 +245,7 @@ public class DatabaseList(
 
     private fun change(databases: Databases) {
         mutableState.value = databases
+        if (databases.records.isNotEmpty()) store.setString(SET_ASIDE_KEY, null)
         save()
         observers.toList().forEach { it() }
     }
@@ -240,7 +253,7 @@ public class DatabaseList(
     private fun save() {
         val databases = state.value
         val root = buildMap {
-            put("version", 1)
+            put("version", VERSION)
             databases.currentId?.let { put("current", it.value) }
             put("databases", databases.records.map(::encode))
         }
@@ -249,6 +262,12 @@ public class DatabaseList(
 
     public companion object {
         public const val STORE_KEY: String = "databases"
+
+        /** The version of the list's JSON this app writes; a newer one is kept as it was besides (keething-spec app.upgrade-safety AC3). */
+        public const val VERSION: Int = 1
+
+        /** When the list kept before was set aside, unreadable; gone once a database joins the list. */
+        private const val SET_ASIDE_KEY = "$STORE_KEY.setAside"
 
         /**
          * A database's file or key file: by path as before databases.saf (`"path"`, `"keyFilePath"`: the list of before
@@ -299,16 +318,16 @@ public class DatabaseList(
         }
 
         /**
-         * Null when the text is not a list: not JSON, a record without `id` or a file (`path` or `file`), a field of the
-         * wrong type.
+         * The list and its version (none: 0). Null when the text is not a list: not JSON, a record without `id` or a file
+         * (`path` or `file`), a field of the wrong type.
          * Fields missing (an older or newer list) read as their defaults; unknown ones are ignored.
          */
-        private fun decode(raw: String): Databases? = try {
+        private fun decode(raw: String): Pair<Databases, Int>? = try {
             val root = Json.parse(raw) as? Map<*, *> ?: throw Unreadable()
-            root.field<Double>("version")
+            val version = root.field<Double>("version")?.toInt() ?: 0
             val records = (root.field<List<*>>("databases") ?: throw Unreadable()).map { record(it as? Map<*, *> ?: throw Unreadable()) }
             val current = root.field<String>("current")?.let(::DatabaseId)?.takeIf { id -> records.any { it.id == id } }
-            Databases(records, current ?: records.firstOrNull()?.id)
+            Databases(records, current ?: records.firstOrNull()?.id) to version
         } catch (_: JsonException) {
             null
         } catch (_: Unreadable) {

@@ -8,6 +8,9 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.os.Environment
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import dev.keething.android.attachment.AndroidAttachments
 import dev.keething.android.attachment.AttachmentFiles
 import dev.keething.android.autofill.AutofillEntries
@@ -35,6 +38,7 @@ import dev.keething.android.session.AndroidClock
 import dev.keething.android.session.LockAlarm
 import dev.keething.android.session.Sessions
 import dev.keething.android.settings.AppSettings
+import dev.keething.android.settings.SettingsVersion
 import dev.keething.android.settings.SharedPreferencesSettingsStore
 import dev.keething.android.sharing.CodePictures
 import dev.keething.android.sharing.FileSharingStore
@@ -120,6 +124,7 @@ internal class AppContainer(context: Context) {
     private val keyFiles = KeyFiles(folder = folderOf, file = fileOf)
 
     private val settingsStore = SharedPreferencesSettingsStore(context.getSharedPreferences("settings", Context.MODE_PRIVATE))
+        .also(SettingsVersion::migrate)
 
     private val databaseList = DatabaseList(settingsStore)
 
@@ -161,6 +166,18 @@ internal class AppContainer(context: Context) {
 
     /** What a new database's Create is making (plan AD7): an ended process's leftovers go at the next start. */
     private val creationNote = CreationNote(File(context.filesDir, "creating.note"), folderOf)
+
+    /**
+     * The notes of stopped saves this version could not read, found at the start (keething-spec app.upgrade-safety
+     * AC3): said until OK, then set aside.
+     */
+    var unreadableSaves: Int by mutableIntStateOf(0)
+        private set
+
+    fun unreadableSavesSaid() {
+        unreadableSaves = 0
+        appScope.launch(Dispatchers.IO) { runCatching { saveNotes.setUnreadableAside() } }
+    }
 
     /** Opened once the start has dealt with an ended Create's leftovers: a Create's note waits for it. */
     private val leftoversDealtWith = CountDownLatch(1)
@@ -335,6 +352,7 @@ internal class AppContainer(context: Context) {
                 leftoversDealtWith.countDown()
             }
             withContext(Dispatchers.IO) { FolderDatabaseStore.putRightStoppedSaves(saveNotes, folderOf, AndroidClock) }
+            unreadableSaves = withContext(Dispatchers.IO) { runCatching { saveNotes.unreadable().size }.getOrDefault(0) }
             grantKeeper.sweep()
         }
     }

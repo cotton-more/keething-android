@@ -425,6 +425,7 @@ internal fun KeethingApp(container: AppContainer) {
     val list by container.sessions.list.state.collectAsStateWithLifecycle()
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         container.newDatabases.notCreated?.let { left -> NotCreatedDialog(left) { container.newDatabases.notCreated = null } }
+        if (container.unreadableSaves > 0) UnreadableSavesDialog(container.unreadableSaves, container::unreadableSavesSaid)
         // New database, over whatever was shown (the welcome, a lock screen, Settings): its Create outlives the screen.
         container.newDatabases.form?.let { form ->
             NewDatabaseScreen(form, onClose = container.newDatabases::close)
@@ -599,6 +600,26 @@ private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit)
                     "Keething was closed while writing it. This may be left of it, written in part: " +
                         left.kept.joinToString(", ") { DatabaseText.pathOf(it, Environment.getExternalStorageDirectory().path) } + ". Delete it if it is not yours, then create the database again."
                 },
+            )
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+    )
+}
+
+/**
+ * Stopped saves whose notes this version could not read (keething-spec app.upgrade-safety AC3): they may have been cut
+ * short, and nothing says which database they were of.
+ */
+@Composable
+private fun UnreadableSavesDialog(count: Int, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (count == 1) "A save may not have finished" else "$count saves may not have finished") },
+        text = {
+            Text(
+                "Keething was closed while saving, and could not read its note of " + (if (count == 1) "that save" else "those saves") +
+                    ", so it could not check or put it right. Open your databases and check that the last change you made is there; " +
+                    "make it again if it is missing.",
             )
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },

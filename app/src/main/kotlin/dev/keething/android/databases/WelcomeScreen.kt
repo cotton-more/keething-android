@@ -53,6 +53,16 @@ internal fun WelcomeScreen(container: AppContainer) {
         AppLogo(Modifier.size(104.dp))
         Spacer(Modifier.height(24.dp))
         Text("Welcome to Keething", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+        // keething-spec app.upgrade-safety AC3: the list kept before could not be read.
+        if (container.sessions.list.setAside) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Keething could not read its list of databases. Your databases themselves are untouched: open them again.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(Modifier.height(12.dp))
         Text(
             "Your passwords live in a KeePass database: one encrypted file that stays yours. Keep it in a folder that " +

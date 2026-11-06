@@ -182,7 +182,11 @@ write in place could be sent half-written), noted in the app's storage first so 
 put right, at the database's next read and at the app's start, and said over the list with OK until OK is tapped ("The
 last save was put right · Keething was closed while it saved Personal.kdbx. The save was finished: the file has the
 change." or "… It could not be finished, so the file is as it was before (or as a sync made it since): make the change
-again if it is missing."; keething-spec databases.saf AC5). The version is `Os.fstat` on the provider's descriptor
+again if it is missing."; keething-spec databases.saf AC5). A note the app cannot read (damaged, or `version` newer
+than its own) is not acted on: at the start it is said once over whatever shows ("A save may not have finished ·
+Keething was closed while saving, and could not read its note of that save, so it could not check or put it right. Open
+your databases and check that the last change you made is there; make it again if it is missing.", OK), then kept as
+`<name>.save.unreadable` (keething-spec app.upgrade-safety AC3). The version is `Os.fstat` on the provider's descriptor
 (device, inode, size, time). Names are taken regardless of case. A **key file** in a folder the list already reaches
 goes through that folder; one elsewhere is granted alone in the file picker (`ACTION_OPEN_DOCUMENT`, read only:
 `ProviderFile`), since a key file is not rewritten (a sync's replace ends that grant; the key file then says no access,
@@ -215,7 +219,9 @@ file no folder of the list holds says no access, with Choose key file…. A key 
 reaches goes through that folder, the database's own first (AC9). A grant nothing of the list is reached through any
 more is given back (`GrantKeeper`, AC14), with the notes of a removed database's saves that leave nothing to put right.
 A record without `id` or a file, a field of another type or text that is not JSON makes the list **unreadable**: it is kept under `databases.unreadable.<seconds>`, never overwritten, and the
-list starts empty; any other field missing reads as its default, unknown ones are ignored. The first database added
+list starts empty, the welcome saying so until a database joins it (`databases.setAside`; keething-spec
+app.upgrade-safety AC3); any other field missing reads as its default, unknown ones are ignored. A list of a `version`
+newer than the app's is read so, and kept as it was under `databases.version<n>.<seconds>`. The first database added
 is current: the one the lock screen shows. **The window** (`inWindow`, kept with the list) is the databases side by
 side, each with a session of its own (§4); the current one is always in it. **Opening or choosing another database
 closes nothing** (keething-spec databases.list AC4): it joins the window and becomes current, the databases already
@@ -1122,7 +1128,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   picker (keething-spec app.first-start AC1, AC2), why a folder: "Keething asks for the folder your database is in.
   Android then gives it that folder and nothing else on the phone; with the folder Keething sees a sync replace the
   file, and saves beside it safely."; and a cloud drive: "On Google Drive, Dropbox or OneDrive? Keep the database in a
-  folder on the phone that Syncthing or FolderSync keeps up to date, and choose that folder."
+  folder on the phone that Syncthing or FolderSync keeps up to date, and choose that folder." The list kept before
+  set aside, unreadable (§3.1), a line in the error colour under the title says so: "Keething could not read its list of
+  databases. Your databases themselves are untouched: open them again."
 - **New database** (keething-spec `databases.new-database`, `databases.new-database-create`; agreed on the canvas, row
   "Databases: Settings, a database's page, New database"), from the welcome, the lock screen's sheet and Settings →
   Databases, over whatever was shown (its close button and Back leave it, not while the file is written): **Name**
@@ -1992,6 +2000,12 @@ service, the screen it opens and the system's view structure are in `app/autofil
   password: whoever has that file can sign an update the phone accepts); the owner's phone gets the own key.
 - Updates keep the same signing key (otherwise Android refuses the update and the app must be uninstalled,
   which deletes the biometric key and settings).
+- An update keeps what the app stores (keething-spec app.upgrade-safety): the `settings` carry `storeVersion`
+  (`SettingsVersion`: 1; none was kept before it, 0.0.1), turned into the current one at the start before anything
+  reads them, a step per change of how something is kept; the list (`version`), the saves' notes (`version`) and the
+  fingerprint's files (`KPBR`/`KPBS` 1) carry their own. `app/src/test/resources/stored/<release>` keeps what each
+  release stored, and `StoredStateTest` reads it all back; each release adds its own, and before each one its release
+  build is installed over the previous release on the test phone.
 - minSdk 34 (only the owner's phone and an emulator), targetSdk = the newest installed (Android 17).
 - Google's developer verification for side-loaded apps (rolling out 2026–2027): check its state before the
   first install; installing over `adb` is expected to stay possible.

@@ -59,6 +59,40 @@ class SaveNotesTest {
         assertEquals(0, notes.left("another grant", DATABASE).size, "the grant is its address: not folded")
     }
 
+    // spec: app.upgrade-safety/AC2
+    @Test
+    fun aNoteCarriesItsVersionOneWithoutIsTheFirstVersionsAndANewerOneIsLeftAlone() {
+        stoppedSave()
+        val note = File(appStorage, "saves").listFiles()!!.single()
+        val written = note.readLines()
+        assertTrue("version=1" in written)
+
+        note.writeText(written.filterNot { it.startsWith("version=") }.joinToString("\n"))
+        assertEquals(1, notes.left(folder.id, DATABASE).size, "as 0.0.1 wrote it")
+
+        note.writeText(written.map { if (it.startsWith("version=")) "version=2" else it }.joinToString("\n"))
+        assertEquals(0, notes.left(folder.id, DATABASE).size, "not this version's to put right")
+        assertTrue(note.exists())
+    }
+
+    // spec: app.upgrade-safety/AC3
+    @Test
+    fun unreadableNotesAreToldThenKeptUnderAnotherNameNeverDeleted() {
+        stoppedSave()
+        assertEquals(emptyList(), notes.unreadable(), "a readable note is put right, not told")
+        val saves = File(appStorage, "saves")
+        File(saves, "damaged.save").writeText("folder=only half of it")
+        File(saves, "later.save").writeText(saves.listFiles()!!.first { it.name != "damaged.save" }.readText().replace("version=1", "version=2"))
+
+        assertEquals(listOf("damaged.save", "later.save"), notes.unreadable())
+        notes.setUnreadableAside()
+
+        assertEquals(emptyList(), notes.unreadable(), "told once")
+        assertEquals("folder=only half of it", File(saves, "damaged.save.unreadable").readText())
+        assertTrue(File(saves, "later.save.unreadable").exists())
+        assertEquals(1, notes.left(folder.id, DATABASE).size, "the readable one stays")
+    }
+
     @Test
     fun aDatabaseLeavingTheListTakesTheNotesOfItsSavesThatLeaveNothingToPutRight() {
         stoppedSave()
