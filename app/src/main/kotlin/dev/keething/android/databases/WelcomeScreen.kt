@@ -71,12 +71,30 @@ internal fun WelcomeScreen(container: AppContainer) {
             }
         }
         Spacer(Modifier.height(24.dp))
-        Text(
+        Hint(
             "Already use KeePass, KeePassXC, KeePassDX or Strongbox? Open your database: it stays theirs too, and " +
-                "Keething writes it in their format. Keething asks for the folder it is in, and opens nothing else.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+                "Keething writes it in their format.",
+        )
+        // Before any picker: why a folder, and what works for a cloud drive (keething-spec app.first-start AC1, AC2).
+        Spacer(Modifier.height(12.dp))
+        Hint(
+            "Keething asks for the folder your database is in. Android then gives it that folder and nothing else on " +
+                "the phone; with the folder Keething sees a sync replace the file, and saves beside it safely.",
+        )
+        Spacer(Modifier.height(12.dp))
+        Hint(
+            "On Google Drive, Dropbox or OneDrive? Keep the database in a folder on the phone that Syncthing or " +
+                "FolderSync keeps up to date, and choose that folder.",
         )
     }
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+    )
 }

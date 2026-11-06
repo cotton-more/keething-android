@@ -174,6 +174,7 @@ internal fun LockScreen(
     val session by model.session.collectAsStateWithLifecycle()
     val biometric by model.biometric.collectAsStateWithLifecycle()
     val fingerprintNotice by model.fingerprintNotice.collectAsStateWithLifecycle()
+    val wrongInARow by model.wrongInARow.collectAsStateWithLifecycle()
     val timeout by container.settings.lockTimeout.collectAsStateWithLifecycle()
     val visit by container.sessions.visit.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -296,7 +297,7 @@ internal fun LockScreen(
         // why the fingerprint is not offered or its stored password went (also when one fingerprint for several said
         // it, plan AD13), what was typed here aside; then why it is locked. In the run a wrong password is said over the
         // field instead.
-        val reasonNotice = reason?.notice(timeout, lock?.line?.path ?: database.location.fileName)
+        val reasonNotice = reason?.notice(timeout, lock?.line?.path ?: database.location.fileName, wrongInARow)
         val dueNotice = biometric.reminderDays?.takeIf { biometric.isSetUp && biometric.passwordDue }?.let(::passwordDueNotice)
         val setUpAgain = biometric.setUpAgain?.takeIf { biometric.enabled && !biometric.stored }?.notice()
         // On, nothing stored yet (its page, a stored password gone): what is typed now sets it up.

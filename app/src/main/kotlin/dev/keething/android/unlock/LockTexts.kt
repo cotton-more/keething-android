@@ -13,12 +13,15 @@ import kotlin.time.Duration
  */
 internal data class LockNotice(val text: String, val isProblem: Boolean, val fingerprint: Boolean = false)
 
-/** Nothing to say at the start and after the lock button: the user knows. [file]: the database's path, for the words. */
-internal fun LockReason.notice(timeout: Duration, file: String): LockNotice? = when (this) {
+/**
+ * Nothing to say at the start and after the lock button: the user knows. [file]: the database's path, for the words;
+ * [wrongInARow]: the wrong keys typed in a row on its lock screen.
+ */
+internal fun LockReason.notice(timeout: Duration, file: String, wrongInARow: Int = 1): LockNotice? = when (this) {
     LockReason.Initial, LockReason.Manual -> null
     LockReason.Timeout -> LockNotice("Locked after ${timeout.minutesText()} in the background", isProblem = false)
     LockReason.PasswordChanged -> LockNotice("The database password was changed. Enter the new one.", isProblem = true)
-    is LockReason.UnlockFailed -> LockNotice(failure.describe(file), isProblem = true)
+    is LockReason.UnlockFailed -> LockNotice(failure.describe(file, wrongInARow), isProblem = true)
 }
 
 /** What the lock screen says after a fingerprint attempt; null when the reason chip says it, or nothing needs saying. */
@@ -79,22 +82,63 @@ internal fun besideField(biometric: BiometricState, offered: Boolean, typed: Boo
 internal fun passwordDueNotice(days: Int): LockNotice =
     LockNotice("It has been $days days: type the master password, so it is not forgotten.", isProblem = false)
 
-/** Why it did not open; [file]: the database's path on the phone, for the words. */
-internal fun OpenFailure.describe(file: String): String = when (this) {
+/**
+ * Why it did not open; [file]: the database's path on the phone, for the words. From the second wrong key in a row
+ * ([wrongInARow]) a hardware key is named: the file does not tell that one is needed, and a first one is likelier a typo
+ * (keething-spec app.first-start AC5).
+ */
+internal fun OpenFailure.describe(file: String, wrongInARow: Int = 1): String = when (this) {
     // The file cannot tell a typo from a missing key file (keething-spec unlock.key-file AC4).
-    OpenFailure.WrongPassword -> "Wrong password — or this database needs a key file."
-    OpenFailure.WrongPasswordOrKeyFile -> "Wrong password or key file."
-    OpenFailure.WrongKeyFile -> "This key file does not open the database (or it needs a password too)."
+    OpenFailure.WrongPassword -> "Wrong password — or this database needs a key file." + hardwareKey(wrongInARow)
+    OpenFailure.WrongPasswordOrKeyFile -> "Wrong password or key file." + hardwareKey(wrongInARow)
+    OpenFailure.WrongKeyFile -> "This key file does not open the database (or it needs a password too)." + hardwareKey(wrongInARow)
     is OpenFailure.KeyFileMissing -> "The key file $name is not there."
     is OpenFailure.KeyFileUnusable -> "The key file cannot be used: $why."
     OpenFailure.Missing -> "There is no database at $file. Syncthing may be replacing it: try again in a moment."
     OpenFailure.AccessDenied -> "Keething may not read the file any more: locate it to choose its folder again."
-    is OpenFailure.Unsupported -> "This database cannot be opened: $what."
+    is OpenFailure.Unsupported -> describe()
     // Damaged is not a wrong password (SPEC §3.2): a sync may have caught the file half-written.
     is OpenFailure.Damaged -> "The file is damaged or not completely synced yet ($detail)."
     OpenFailure.OutOfMemory -> "Not enough memory to open the database."
     OpenFailure.Locked -> "The database locked while it was being opened."
 }
+
+private fun hardwareKey(wrongInARow: Int): String =
+    if (wrongInARow < 2) "" else " A database that also needs a YubiKey (or another hardware key) cannot be opened in Keething."
+
+/** What it is and, where something can be done, what to do (keething-spec app.first-start AC3, AC4). */
+private fun OpenFailure.Unsupported.describe(): String = when (kind) {
+    OpenFailure.Unsupported.Kind.NOT_KEEPASS -> "This file is not a KeePass database."
+    OpenFailure.Unsupported.Kind.OLD_FORMAT ->
+        "This database is in an old KeePass format ($what), which Keething does not read. Save it again in KeePass or " +
+            "KeePassXC, and it opens here."
+    OpenFailure.Unsupported.Kind.NEWER_FORMAT ->
+        "This database is in a newer KeePass format ($what) than this Keething reads. An update of Keething may open it."
+    OpenFailure.Unsupported.Kind.TWOFISH ->
+        "This database is encrypted with Twofish, which Keething does not read. In KeePassXC (Database › Database " +
+            "Security › Encryption Settings) or KeePass, choose AES-256 or ChaCha20 and save; then it opens here."
+    OpenFailure.Unsupported.Kind.CIPHER -> "This database is encrypted with a cipher Keething does not know ($what)."
+    OpenFailure.Unsupported.Kind.KEY_DERIVATION -> "This database's key derivation is one Keething does not run: ${what.removePrefix(KDF)}."
+    OpenFailure.Unsupported.Kind.MEMORY ->
+        "This phone does not give Keething enough memory for this database's key derivation (${what.removePrefix(KDF)}). " +
+            "Lower Argon2's memory in the database's settings on the computer (in KeePassXC: Database › Database " +
+            "Security), then it opens here."
+    OpenFailure.Unsupported.Kind.INNER_STREAM -> "This database protects its values in a way Keething does not know ($what)."
+}
+
+/** The same in a few words, for a row of the chooser ("Cannot be read: …"). */
+internal fun OpenFailure.Unsupported.named(): String = when (kind) {
+    OpenFailure.Unsupported.Kind.NOT_KEEPASS -> "not a KeePass database"
+    OpenFailure.Unsupported.Kind.OLD_FORMAT -> "an old KeePass format ($what)"
+    OpenFailure.Unsupported.Kind.NEWER_FORMAT -> "a newer KeePass format ($what)"
+    OpenFailure.Unsupported.Kind.TWOFISH -> "encrypted with Twofish"
+    OpenFailure.Unsupported.Kind.MEMORY -> "needs more memory than this phone gives Keething"
+    OpenFailure.Unsupported.Kind.CIPHER, OpenFailure.Unsupported.Kind.INNER_STREAM -> "unknown $what"
+    OpenFailure.Unsupported.Kind.KEY_DERIVATION -> what
+}
+
+/** How the file layer's words for a key derivation begin. */
+private const val KDF = "key derivation "
 
 private fun Duration.minutesText(): String {
     val minutes = inWholeMinutes

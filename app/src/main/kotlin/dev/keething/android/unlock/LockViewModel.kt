@@ -13,6 +13,7 @@ import dev.keething.vault.databases.CurrentDatabase
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.FileLocation
+import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,10 +51,35 @@ internal class LockViewModel(
     var typedHere = false
         private set
 
+    private val mutableWrongInARow = MutableStateFlow(0)
+
+    /**
+     * The wrong keys typed here in a row (keething-spec app.first-start AC5): a fingerprint's rejected password is no
+     * typing, and an unlock, or a failure of another kind, starts it again.
+     */
+    val wrongInARow: StateFlow<Int> = mutableWrongInARow.asStateFlow()
+
     private val mutablePasswordWanted = MutableStateFlow(0)
 
     /** Counts the times the password is wanted: the fingerprint prompt closed without a fingerprint. The field takes the focus. */
     val passwordWanted: StateFlow<Int> = mutablePasswordWanted.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            var opening = false
+            session.collect { state ->
+                when (state) {
+                    is SessionState.Unlocking -> opening = true
+                    is SessionState.Locked -> if (opening) {
+                        opening = false
+                        val wrong = (state.reason as? LockReason.UnlockFailed)?.failure?.isWrongKey == true
+                        mutableWrongInARow.value = if (wrong && !lastAttemptByFingerprint) mutableWrongInARow.value + 1 else 0
+                    }
+                    else -> mutableWrongInARow.value = 0
+                }
+            }
+        }
+    }
 
     /** On every return to the screen: a fingerprint may have been added or removed. */
     fun refresh() {

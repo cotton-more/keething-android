@@ -196,7 +196,7 @@ class SaveHardeningTest {
 
         val failure = assertIs<OpenResult.Failed>(VaultOpener().open(FakeStore(file), key())).failure
 
-        assertEquals(OpenFailure.Unsupported("key derivation Argon2 memory of 4 TiB (KeePass reads less than 2 GiB)"), failure)
+        assertEquals(OpenFailure.Unsupported("key derivation Argon2 memory of 4 TiB (KeePass reads less than 2 GiB)", OpenFailure.Unsupported.Kind.KEY_DERIVATION), failure)
     }
 
     // AC9: a failed save and the backups

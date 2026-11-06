@@ -98,7 +98,7 @@ class NotOpenDatabasesTest {
         assertEquals(NotOpenState.NeedsKeyFile("work.keyx", "it is empty"), unusable)
         val damaged = state(failed(OpenFailure.Damaged("a block's hash")), fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.FINGERPRINTS_CHANGED))
         assertEquals(NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash")), damaged, "what typing cannot fix before the fingerprint's verdict")
-        assertEquals(NotOpenState.CannotBeRead(OpenFailure.Unsupported("KDBX 3.1")), state(failed(OpenFailure.Unsupported("KDBX 3.1"))))
+        assertEquals(NotOpenState.CannotBeRead(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT)), state(failed(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT))))
 
         val changed = on.copy(stored = false, setUpAgain = SetUpAgain.FINGERPRINTS_CHANGED)
         assertEquals(NotOpenState.FingerprintToSetUp(SetUpAgain.FINGERPRINTS_CHANGED), state(failed(OpenFailure.WrongPassword), fingerprint = changed, skipped = true), "the fingerprint's verdict before skipped")

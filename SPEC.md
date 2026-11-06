@@ -398,8 +398,8 @@ keeps the new time. The way out is in §3.3 step 7.
   Mac's engine, 2026-10-30). The key derivation runs before the header's HMAC can be checked, so its parameters are
   checked first, against KeePass 2.x's own limits (`KdfLimits`, the same as a new file's, §3.5): Argon2 version 0x13,
   1 to 2³²−1 iterations, 1 to 2²⁴−1 lanes, memory in whole KiB, at least 8 KiB a lane, under 2 GiB; AES-KDF at least
-  one round. A file outside them is refused as unsupported, the parameter named ("This database cannot be opened:
-  key derivation Argon2 memory of 4 TiB (KeePass reads less than 2 GiB)."), never as a wrong password or damaged;
+  one round. A file outside them is refused as unsupported, the parameter named ("This database's key derivation is
+  one Keething does not run: Argon2 memory of 4 TiB (KeePass reads less than 2 GiB)."), never as a wrong password or damaged;
   so is Argon2 memory within them but more than the app's heap allows (512 MiB with `largeHeap`, less 48 MiB for the
   rest), refused before it is allocated. A derivation that runs stops within milliseconds when its unlock or reload
   is given up: a lock gives up the key it runs with (`DatabaseKey.abandon`, checked between about a millisecond's
@@ -733,7 +733,16 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   is not a wrong key (the file missing, damaged) is not tried twice. A rejected key says what was given: a
   password alone "Wrong password — or this database needs a key file." (the file cannot tell which, so every
   database says it), a password and a key file "Wrong password or key file.", a key file alone "This key file
-  does not open the database (or it needs a password too)." A stored password (§5) rejected while the database
+  does not open the database (or it needs a password too)." From the second wrong key typed in a row on the lock
+  screen (an unlock, or a failure of another kind, starts the count again; a stored password rejected is no typing)
+  each adds "A database that also needs a YubiKey (or another hardware key) cannot be opened in Keething." (the file
+  does not tell that one is needed; keething-spec app.first-start AC5). A database not read is said by what it is,
+  with what to do where something can be done (`OpenFailure.Unsupported.Kind`, `LockTexts`; app.first-start AC3,
+  AC4): Twofish ("… In KeePassXC (Database › Database Security › Encryption Settings) or KeePass, choose AES-256 or
+  ChaCha20 and save; then it opens here."), KDBX 2 or older (save it again in KeePass or KeePassXC), a newer format
+  than KDBX 4 (an update may open it), not a KeePass file, an unknown cipher, key derivation or inner stream (named),
+  and Argon2 memory more than the phone gives the app (lower it on the computer); the list's databases not open say the
+  same in a few words ("Cannot be read: encrypted with Twofish"; the chooser's row only "Cannot be read"). A stored password (§5) rejected while the database
   has a key file, or with the key file missing, is kept: the key file may be the wrong part; so is one rejected
   while the key file was chosen, changed or forgotten since the last unlock that opened it (each database's
   `biometricKeyFileChanged.<id>`, cleared by the next unlock that opens it, or the app's switch off), else Forget on a key file the database needs would cost
@@ -1109,8 +1118,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   why a database ("Your passwords live in a KeePass database: one encrypted file that stays yours. Keep it in a
   folder that syncs, and the same file opens on your computer too."), **Create a new database…** (New database, below)
   and **Open a database…** (its folder, then its files, §3.1), and "Already use KeePass, KeePassXC, KeePassDX or
-  Strongbox? Open your database: it stays theirs too, and Keething writes it in their format. Keething asks for the
-  folder it is in, and opens nothing else."
+  Strongbox? Open your database: it stays theirs too, and Keething writes it in their format." Under it, before any
+  picker (keething-spec app.first-start AC1, AC2), why a folder: "Keething asks for the folder your database is in.
+  Android then gives it that folder and nothing else on the phone; with the folder Keething sees a sync replace the
+  file, and saves beside it safely."; and a cloud drive: "On Google Drive, Dropbox or OneDrive? Keep the database in a
+  folder on the phone that Syncthing or FolderSync keeps up to date, and choose that folder."
 - **New database** (keething-spec `databases.new-database`, `databases.new-database-create`; agreed on the canvas, row
   "Databases: Settings, a database's page, New database"), from the welcome, the lock screen's sheet and Settings →
   Databases, over whatever was shown (its close button and Back leave it, not while the file is written): **Name**

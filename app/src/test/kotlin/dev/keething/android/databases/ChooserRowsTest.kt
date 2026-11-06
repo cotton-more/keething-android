@@ -94,7 +94,7 @@ class ChooserRowsTest {
     @Test
     fun aDatabaseThatFailedSoTypingCannotOpenItCannotBeChecked() {
         assertEquals("Cannot be read", row(failed(OpenFailure.Damaged("truncated"))).opensWith)
-        assertFalse(row(failed(OpenFailure.Unsupported("KDBX 3.1"))).canCheck)
+        assertFalse(row(failed(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT))).canCheck)
         val unusable = row(failed(OpenFailure.KeyFileUnusable("it is empty")), line("Work", keyFile = "work.keyx"))
         assertEquals("work.keyx cannot be used", unusable.opensWith)
         assertFalse(unusable.canCheck)

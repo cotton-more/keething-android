@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.unlock.named
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.SetUpAgain
@@ -106,7 +107,7 @@ internal data class NotOpenDatabase(val line: DatabaseLine, val state: NotOpenSt
                 state.unusable?.let { "Its key file ${state.name} cannot be used: $it" } ?: "Needs its key file: ${state.name} is not there"
             is NotOpenState.CannotBeRead -> "Cannot be read: " + when (val failure = state.failure) {
                 is OpenFailure.Damaged -> "damaged or not completely synced yet (${failure.detail})"
-                is OpenFailure.Unsupported -> failure.what
+                is OpenFailure.Unsupported -> failure.named()
                 OpenFailure.AccessDenied -> "Keething may not read the file any more: locate it"
                 OpenFailure.OutOfMemory -> "not enough memory to open it"
                 else -> "it did not open"

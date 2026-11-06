@@ -41,8 +41,10 @@ public sealed interface OpenFailure {
     /** The file may not be read: its grant is gone, or it is kept by its path and its folder not chosen yet. */
     public data object AccessDenied : OpenFailure
 
-    /** A database the app does not read (KDBX 3, Twofish…): [what]. */
-    public data class Unsupported(val what: String) : OpenFailure
+    /** A database the app does not read (KDBX 2, Twofish…): [what] names it, [kind] says which, for the words. */
+    public data class Unsupported(val what: String, val kind: Kind) : OpenFailure {
+        public enum class Kind { NOT_KEEPASS, OLD_FORMAT, NEWER_FORMAT, TWOFISH, CIPHER, KEY_DERIVATION, MEMORY, INNER_STREAM }
+    }
 
     /** Truncated or altered: [detail]. A file caught half-written by a sync is this (SPEC §3.2). */
     public data class Damaged(val detail: String) : OpenFailure
@@ -174,10 +176,14 @@ internal fun KdbxDatabase.toOpenedVault(version: FileVersion, assembled: Vault? 
 internal fun KdbxException.toOpenFailure(): OpenFailure = when (this) {
     is KdbxException.WrongPassword -> OpenFailure.WrongPassword
     is KdbxException.Corrupt -> OpenFailure.Damaged(detail)
-    is KdbxException.NotKdbx,
-    is KdbxException.UnsupportedVersion,
-    is KdbxException.UnsupportedCipher,
-    is KdbxException.UnsupportedKdf,
-    is KdbxException.UnsupportedInnerStream,
-    -> OpenFailure.Unsupported(message ?: "")
+    is KdbxException.NotKdbx -> unsupported(OpenFailure.Unsupported.Kind.NOT_KEEPASS)
+    is KdbxException.UnsupportedVersion ->
+        unsupported(if (major > 4) OpenFailure.Unsupported.Kind.NEWER_FORMAT else OpenFailure.Unsupported.Kind.OLD_FORMAT)
+    is KdbxException.UnsupportedCipher ->
+        unsupported(if (cipher == "Twofish") OpenFailure.Unsupported.Kind.TWOFISH else OpenFailure.Unsupported.Kind.CIPHER)
+    is KdbxException.NotEnoughMemory -> unsupported(OpenFailure.Unsupported.Kind.MEMORY)
+    is KdbxException.UnsupportedKdf -> unsupported(OpenFailure.Unsupported.Kind.KEY_DERIVATION)
+    is KdbxException.UnsupportedInnerStream -> unsupported(OpenFailure.Unsupported.Kind.INNER_STREAM)
 }
+
+private fun KdbxException.unsupported(kind: OpenFailure.Unsupported.Kind) = OpenFailure.Unsupported(message ?: "", kind)
