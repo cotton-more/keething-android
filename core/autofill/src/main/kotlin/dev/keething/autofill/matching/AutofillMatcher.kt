@@ -1,6 +1,7 @@
 package dev.keething.autofill.matching
 
 import dev.keething.autofill.target.FillTarget
+import dev.keething.domain.vault.AndroidAppAddress
 import dev.keething.domain.vault.Entry
 import dev.keething.search.site.SiteAddress
 import dev.keething.search.site.SiteMatch
@@ -68,18 +69,5 @@ public class AutofillMatcher(entries: List<Entry>, collator: Collator = Collator
     private fun SiteMatch.autofill(): AutofillMatch = when (this) {
         SiteMatch.EXACT_HOST -> AutofillMatch.EXACT_HOST
         SiteMatch.SAME_DOMAIN -> AutofillMatch.SAME_DOMAIN
-    }
-}
-
-/** `androidapp://com.example.app` (Keepass2Android's way to name an app in an entry's URL fields). */
-internal object AndroidAppAddress {
-    const val SCHEME = "androidapp://"
-    private val PACKAGE = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
-
-    fun packageOf(text: String): String? {
-        val trimmed = text.trim()
-        if (!trimmed.startsWith(SCHEME, ignoreCase = true)) return null
-        val name = trimmed.substring(SCHEME.length).takeWhile { it !in "/?#" }
-        return name.takeIf(PACKAGE::matches)
     }
 }

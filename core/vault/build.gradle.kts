@@ -56,3 +56,11 @@ tasks.register<JavaExec>("makeWalletDatabase") {
     mainClass.set("dev.keething.vault.probe.MakeWalletDatabaseKt")
     args(providers.gradleProperty("output").getOrElse(""))
 }
+
+// The card's app addresses' fictitious test database, written by the phone's core: `task app-address:database -- <new.kdbx>`.
+tasks.register<JavaExec>("makeAppAddressDatabase") {
+    description = "A new fictitious database of app addresses (password pw) for the phone's checks"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.keething.vault.probe.MakeAppAddressDatabaseKt")
+    args(providers.gradleProperty("output").getOrElse(""))
+}

@@ -1272,7 +1272,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
   and a reload that failed (the vault read before is shown) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
-  open the browser, attachments open in another app / save to a folder, §4). Every row that copies on a tap
+  open the browser, attachments open in another app / save to a folder, §4). An app's address (`androidapp://<package>`
+  in the URL, a `KP2A_URL…` field or a field typed `url` or untyped; keething-spec card.app-address, canvas
+  https://claude.ai/artifact/M7w5or3TN83mFj1DmRPAkE) is shown as the app the phone has: its own icon in place of the
+  tile, its name, the address under it, an open button; an app the phone does not have shows the default app icon,
+  the package and a button to its page in the store (`market://details?id=`: the store's own icon when one app opens
+  such links, an install icon when several do, none when none does). The field's name shows above only when it is
+  the user's own (not `URL`, `URL 2`, `KP2A_URL…`); nothing is fetched or written. Every row that copies on a tap
   has the same copy button (username, URL, code, custom fields alike). **Edit** is a button at the bottom
   right, in reach of the thumb; the bar's ⋮ holds History, Move to group…, Send to a request (§10) and Move to the
   recycle bin (at once, the list offering Undo). **Move to group…** (keething-spec groups.entry-group AC2 from the

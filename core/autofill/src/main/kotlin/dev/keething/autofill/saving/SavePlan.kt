@@ -1,7 +1,7 @@
 package dev.keething.autofill.saving
 
-import dev.keething.autofill.matching.AndroidAppAddress
 import dev.keething.autofill.target.FillTarget
+import dev.keething.domain.vault.AndroidAppAddress
 import dev.keething.domain.vault.Entry
 
 /** A login as typed into a form: what a save request carries (SPEC §7, Save). */

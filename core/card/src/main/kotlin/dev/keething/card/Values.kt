@@ -1,6 +1,7 @@
 package dev.keething.card
 
 import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.vault.AndroidAppAddress
 import dev.keething.domain.vault.UrlHost
 import dev.keething.totp.TotpGenerator
 import java.time.Instant
@@ -124,5 +125,15 @@ public data class TotpDisplay(
 
         private fun group(code: String): String =
             if (code.length >= 4 && code.length % 2 == 0) code.substring(0, code.length / 2) + " " + code.substring(code.length / 2) else code
+    }
+}
+
+/** An `androidapp://` address as the card shows it (keething-spec card.app-address AC1, AC6). */
+internal object AppAddressStyle {
+    private val generic = Regex("""(?i)url( [0-9]+)?|kp2a_url.*""")
+
+    fun of(text: String, label: String): ValueStyle.App? {
+        val packageName = AndroidAppAddress.packageOf(text) ?: return null
+        return ValueStyle.App(packageName, label.trim().takeUnless { it.isEmpty() || generic.matches(it) })
     }
 }

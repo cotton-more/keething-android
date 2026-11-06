@@ -248,6 +248,13 @@ internal fun EntryCardScreen(
         onToggle = model::toggleReveal,
         onToggleSection = model::toggleSection,
         onOpenLink = openLink,
+        onStart = { intent, failure ->
+            try {
+                context.startActivity(intent)
+            } catch (_: ActivityNotFoundException) {
+                model.problem(failure)
+            }
+        },
         onOpenAttachment = model::openAttachment,
         onSaveAttachment = { row -> saveDialog.launch(model.saveRequest(row)) },
         onPasswordMenu = { action ->
@@ -705,6 +712,8 @@ internal class CardActions(
     /** Shows these concealed rows if any is masked, else masks them (a payment card's number and CVC). */
     val onToggleRows: (List<FieldRow>) -> Unit,
     val onOpenLink: (String) -> Unit,
+    /** Another app started (an app the entry names, its store page), with what to say when it cannot be. */
+    val onStart: (Intent, failure: String) -> Unit = { _, _ -> },
     val onOpenAttachment: (FieldRow) -> Unit,
     val onSaveAttachment: (FieldRow) -> Unit,
     val onPasswordMenu: (PasswordAction) -> Unit,

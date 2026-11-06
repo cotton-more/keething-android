@@ -11,6 +11,12 @@ public sealed interface ValueStyle {
     /** An http(s) address the browser can open. */
     public data class Link(val url: String) : ValueStyle
 
+    /**
+     * An app's address, `androidapp://<package>` (keething-spec card.app-address): shown as the app when the phone has
+     * it. [fieldName] is the field's name when it is the user's own, null for `URL`, `URL <n>` and `KP2A_URL…`.
+     */
+    public data class App(val packageName: String, val fieldName: String?) : ValueStyle
+
     public data class Date(val date: FieldDate) : ValueStyle
 }
 
@@ -91,6 +97,9 @@ public data class FieldRow(
 
     /** The address a link row opens. */
     val link: String? get() = (style as? ValueStyle.Link)?.url
+
+    /** The app an app address names. */
+    val app: ValueStyle.App? get() = style as? ValueStyle.App
 
     /** The text shown in clear: [shownText], else the value (revealing a protected one). */
     public fun revealedText(): String = shownText ?: storedText()

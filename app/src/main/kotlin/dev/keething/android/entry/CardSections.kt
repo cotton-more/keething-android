@@ -1,6 +1,7 @@
 package dev.keething.android.entry
 
 import android.text.format.Formatter
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,9 +16,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Android
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.InstallMobile
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.MoreVert
@@ -37,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,6 +70,9 @@ import dev.keething.card.FieldType
 import dev.keething.card.PaymentCard
 import dev.keething.card.RevealState
 import dev.keething.card.TotpDisplay
+import dev.keething.card.ValueStyle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import java.time.Instant
 import java.time.format.FormatStyle
 import java.time.format.DateTimeFormatter
@@ -193,6 +201,10 @@ internal fun FieldRowView(
     shape: Shape,
     tile: Tile? = null,
 ) {
+    row.app?.let { app ->
+        AppRowView(row, app, actions, shape)
+        return
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -250,6 +262,80 @@ internal fun FieldRowView(
             }
         }
         if (row.kind == FieldRow.Kind.PASSWORD && !row.isEmpty) PasswordMenu(actions)
+    }
+}
+
+/**
+ * An app's address shown as the app (keething-spec card.app-address): installed, its icon, its name and an open
+ * button; missing, the default app icon, the package and a store button. A tap copies the address as stored. Read
+ * again whenever the card comes back, so an app installed from the store shows at once.
+ */
+@Composable
+private fun AppRowView(row: FieldRow, app: ValueStyle.App, actions: CardActions, shape: Shape) {
+    val context = LocalContext.current
+    val iconSize = with(LocalDensity.current) { 40.dp.roundToPx() }
+    var resumed by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumed++ }
+    val onPhone = remember(app.packageName, resumed) { AppOnPhone.of(context, app.packageName, iconSize) }
+    val installed = onPhone as? AppOnPhone.Installed
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(shape)
+            .background(MaterialTheme.extraColors.row)
+            .copyOnTap(row, actions)
+            .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        InFirstLine {
+            if (installed != null) {
+                Image(installed.icon, contentDescription = null, Modifier.size(40.dp))
+            } else {
+                val colors = MaterialTheme.colorScheme
+                TileView(Tile(Icons.Rounded.Android, colors.secondaryContainer, colors.onSecondaryContainer))
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f).heightIn(min = FIRST_LINE), verticalArrangement = Arrangement.Center) {
+            app.fieldName?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(
+                installed?.name ?: app.packageName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontFamily = if (installed == null) MonospaceFamily else null,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                row.storedText().trim(),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = MonospaceFamily,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        when (onPhone) {
+            is AppOnPhone.Installed -> onPhone.launch?.let { launch ->
+                IconButton(onClick = { actions.onStart(launch, "${onPhone.name} could not be opened") }) {
+                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open ${onPhone.name}", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+            is AppOnPhone.Missing -> when (val store = onPhone.store) {
+                is AppOnPhone.Store.One -> IconButton(onClick = { actions.onStart(store.intent, "${store.name} could not be opened") }) {
+                    Image(store.icon, contentDescription = "Find in ${store.name}", Modifier.size(24.dp))
+                }
+                is AppOnPhone.Store.Several -> IconButton(onClick = { actions.onStart(store.intent, "No store opens this app") }) {
+                    Icon(Icons.Rounded.InstallMobile, contentDescription = "Find in a store", tint = MaterialTheme.colorScheme.primary)
+                }
+                null -> Unit
+            }
+        }
+        if (row.isCopyable) {
+            IconButton(onClick = { actions.onCopy(row) }) {
+                Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy ${row.noticeLabel.lowercase()}", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
     }
 }
 

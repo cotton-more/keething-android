@@ -132,15 +132,15 @@ public object EntryCardBuilder {
         if (entry.username.isNotEmpty()) credentials += row(RowIds.USERNAME, FieldRow.Kind.USERNAME, "Username", FieldValue.Plain(entry.username))
         if (!entry.password.isEmpty()) credentials += row(RowIds.PASSWORD, FieldRow.Kind.PASSWORD, "Password", FieldValue.Protected(entry.password))
         if (entry.url.isNotEmpty()) {
-            credentials += FieldRow(RowIds.URL, FieldRow.Kind.URL, "URL", FieldValue.Plain(entry.url), style = linkStyle(OpenableUrl.of(entry.url)))
+            credentials += FieldRow(RowIds.URL, FieldRow.Kind.URL, "URL", FieldValue.Plain(entry.url), style = addressStyle(entry.url, "URL"))
         }
         // Additional URLs join the credentials.
         var urlNumber = if (entry.url.isEmpty()) 0 else 1
         for ((i, field) in context.fields) {
             if (!field.isAdditionalUrl) continue
             urlNumber++
-            val url = field.plainText?.let(OpenableUrl::of)
-            credentials += FieldRow(RowIds.custom(i), FieldRow.Kind.CUSTOM, if (urlNumber == 1) "URL" else "URL $urlNumber", field.value, style = linkStyle(url))
+            val label = if (urlNumber == 1) "URL" else "URL $urlNumber"
+            credentials += FieldRow(RowIds.custom(i), FieldRow.Kind.CUSTOM, label, field.value, style = field.plainText?.let { addressStyle(it, label) } ?: ValueStyle.Text)
         }
         if (entry.totp != null) {
             credentials += FieldRow(RowIds.TOTP, FieldRow.Kind.TOTP, "One-time code", FieldValue.Plain(""), totp = entry.totp)
@@ -223,7 +223,9 @@ public object EntryCardBuilder {
         return if (entry.notesProtected) row.concealed() else row
     }
 
-    private fun linkStyle(url: String?): ValueStyle = url?.let(ValueStyle::Link) ?: ValueStyle.Text
+    /** An address in the URL or a `KP2A_URL…` field: an app's, else a link when the browser can open it. */
+    private fun addressStyle(text: String, label: String): ValueStyle =
+        AppAddressStyle.of(text, label) ?: OpenableUrl.of(text)?.let(ValueStyle::Link) ?: ValueStyle.Text
 
     /**
      * A `Section_` prefix shared by two or more fields makes a titled section, placed where its first field
@@ -328,6 +330,11 @@ internal class CardContext(
                 id, FieldRow.Kind.CUSTOM, label, field.value, style = ValueStyle.Date(date), shownText = date.displayText(locale),
                 noticeLabel = notice, expiry = if (ends) date.expiry(now) else null, type = type,
             )
+        }
+        if (type == null || type == FieldType.URL) {
+            AppAddressStyle.of(text, label)?.let { app ->
+                return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, style = app, noticeLabel = notice, type = type)
+            }
         }
         interpreter.link(field)?.let { url ->
             return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, style = ValueStyle.Link(url), noticeLabel = notice, type = type)

@@ -391,6 +391,41 @@ class CardFieldsTest {
     }
 
     @Test
+    fun anAppAddressIsReadInTheUrlTheKp2aFieldsAndUrlOrUntypedFieldsOnly() {
+        val c = card(
+            listOf(
+                field("KP2A_URL_1", "androidapp://com.example.two"), field("App", "AndroidApp://com.example.three/"),
+                field("Typed", "androidapp://com.example.four"), field("Text", "androidapp://com.example.five"),
+                field("Secret", "androidapp://com.example.six", protected = true), field("Short", "androidapp://single"),
+            ),
+            url = "androidapp://com.example.one",
+            types = mapOf("Typed" to "url", "Text" to "text"),
+        )
+        assertEquals(
+            listOf("com.example.one", "com.example.two", "com.example.three", "com.example.four", null, null, null),
+            c.rows.filter { it.kind == FieldRow.Kind.URL || it.kind == FieldRow.Kind.CUSTOM }.map { it.app?.packageName },
+        )
+        assertTrue(c.rows.none { it.app != null && it.link != null }, "an app address is not a link for the browser")
+    }
+
+    @Test
+    fun aFieldsNameShowsAboveTheAppOnlyWhenItIsTheUsersOwn() {
+        val c = card(
+            listOf(field("KP2A_URL_1", "androidapp://com.example.two"), field("url 3", "androidapp://com.example.three"), field("Bonus card app", "androidapp://com.example.four")),
+            url = "androidapp://com.example.one",
+        )
+        assertEquals(listOf(null, null, null, "Bonus card app"), c.rows.mapNotNull { it.app }.map { it.fieldName })
+    }
+
+    @Test
+    fun anAppAddressCopiesAsStored() {
+        val row = card(listOf(field("App", " AndroidApp://com.example.app/ ")), url = "androidapp://com.example.one").rows
+            .filter { it.app != null }
+        assertEquals(listOf("androidapp://com.example.one", " AndroidApp://com.example.app/ "), row.map { it.clipboardText() })
+        assertTrue(row.all { it.isCopyable })
+    }
+
+    @Test
     fun webAddressesInOtherFieldsAreLinksABareHostOnlyInAFieldNamedLikeOne() {
         val rows = card(
             listOf(
