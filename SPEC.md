@@ -144,8 +144,9 @@ Rules carried over from the Mac app:
 - Fail closed on secrets: search, logs and autofill never see protected values except where a value is the
   thing being copied or filled.
 - No `Log` of entry values or the master password, ever. The release build writes no state, timing or count to the
-  log either: R8 removes `Log.v`, `Log.d` and `Log.i` (`app/proguard-rules.pro`); `Log.w` and `Log.e` say a failure's
-  class, a count or a fixed text, never a message that could quote what was read.
+  log either: R8 removes `Log.v`, `Log.d` and `Log.i` (`app/proguard-no-log.pro`); `Log.w` and `Log.e` say a failure's
+  class, a count or a fixed text, never a message that could quote what was read. Only a measurement build
+  (`-Pkeething.timings`, DEVELOPMENT.md) keeps `Log.i`'s timing lines; `tools/build-apk.sh` never ships one.
 
 The Mac app's code (Swift) is the reference for every format detail: read it before writing the Kotlin
 version. The key places:

@@ -50,6 +50,11 @@ tasks:
     cmds:
       - tools/build-apk.sh --install
 
+  apk:timings:
+    desc: "A measurement build (release, Log.i's timing lines kept), installed on the connected phone; never shipped (DEVELOPMENT.md)"
+    cmds:
+      - tools/build-apk.sh --install --timings
+
   clean:
     desc: Gradle's build outputs
     cmds:
@@ -126,6 +131,19 @@ tasks:
         out="$1"; shift
         [[ "$out" == /* ]] || out="{{.USER_WORKING_DIR}}/$out"
         ./gradlew -q --console=plain :core:kdbx:makeLargeDatabase -Parguments="$out $*"
+
+  large:save:
+    desc: "A large database's unlock and saves within a JVM heap: task large:save -- <heap, e.g. 400m> <copy.kdbx> [beside.kdbx or -] [saves] (password pw; the copy is changed)"
+    silent: true
+    cmds:
+      - |
+        set -- {{.CLI_ARGS}}
+        heap="$1"; shift
+        files=()
+        for f in "$@"; do
+          case "$f" in /*|-|[0-9]|[0-9][0-9]) files+=("$f") ;; *) files+=("{{.USER_WORKING_DIR}}/$f") ;; esac
+        done
+        ./gradlew -q --console=plain :core:vault:saveMemory -Pheap="$heap" -Parguments="${files[*]}"
 
   notes:database:
     desc: "The notes' test database, written by the phone's core: task notes:database -- <new.kdbx> (password pw; needs keepassxc-cli)"

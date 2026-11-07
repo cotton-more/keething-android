@@ -19,6 +19,28 @@ tasks.withType<Test>().configureEach {
     systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
 }
 
+// The save's memory budget (keething-spec app.large-database AC2): a 40 MiB database unlocked and saved in a JVM of its
+// own with a small heap, so that a copy of the file brought back fails it. Run by `test` (and so by `task test`).
+val memoryBudgetTest by tasks.registering(Test::class) {
+    description = "A large database's unlock and saves within a heap of six times its size"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform { includeTags("memory-budget") }
+    val database = project(":core:kdbx").tasks.named("largeDatabaseFixture")
+    dependsOn(database)
+    val file = database.map { it.outputs.files.singleFile }
+    inputs.files(database)
+    jvmArgumentProviders += CommandLineArgumentProvider { listOf("-Dkeething.largeDatabase=${file.get().absolutePath}") }
+    maxHeapSize = "256m"
+    // One collector without regions, nearer to how ART holds large arrays than G1's humongous regions.
+    jvmArgs("-XX:+UseSerialGC")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform { excludeTags("memory-budget") }
+    dependsOn(memoryBudgetTest)
+}
+
 // The phone's writing tried on a copy of a real database, KeePass's schema included: `tools/kdbx-probe.sh <copy.kdbx>`.
 tasks.register<JavaExec>("probe") {
     description = "Round trip and lifecycle on a copy of a database; the password on standard input"
@@ -63,4 +85,15 @@ tasks.register<JavaExec>("makeAppAddressDatabase") {
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("dev.keething.vault.probe.MakeAppAddressDatabaseKt")
     args(providers.gradleProperty("output").getOrElse(""))
+}
+
+// A large database's unlock and saves within a limited heap (app.large-database): `task large:save -- <heap> <copy.kdbx> …`.
+tasks.register<JavaExec>("saveMemory") {
+    description = "Unlock and saves of a copy of a large database (password pw) within the heap given"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.keething.vault.probe.SaveMemoryProbeKt")
+    maxHeapSize = providers.gradleProperty("heap").getOrElse("512m")
+    // One collector without regions, nearer to how ART holds large arrays than G1's humongous regions.
+    jvmArgs("-XX:+UseSerialGC")
+    args(providers.gradleProperty("arguments").getOrElse("").split(' ').filter { it.isNotEmpty() })
 }

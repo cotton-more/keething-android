@@ -70,6 +70,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // A measurement build keeps Log.i, the timing lines (keething-spec app.large-database; DEVELOPMENT.md
+            // "Measuring a large database"): -Pkeething.timings. tools/build-apk.sh builds a shipped APK without it.
+            if (!providers.gradleProperty("keething.timings").map(String::toBoolean).getOrElse(false)) proguardFile("proguard-no-log.pro")
         }
     }
 

@@ -5,18 +5,14 @@ import dev.keething.domain.text.XmlText
 import dev.keething.kdbx.crypto.ChaCha20
 import dev.keething.kdbx.crypto.KeyStream
 import dev.keething.kdbx.reader.KdbxException
+import dev.keething.kdbx.xml.Sax
+import dev.keething.kdbx.xml.SaxReading
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
-import java.io.StringReader
 import java.util.Base64
-import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
-import org.xml.sax.InputSource
-import org.xml.sax.SAXException
-import org.xml.sax.SAXParseException
-import org.xml.sax.ext.DefaultHandler2
 
 /**
  * Reads the KeePass XML into an [XElement] tree and writes it back (SPEC §3.3; Mac `XMLTree`). Text is unescaped
@@ -38,28 +34,13 @@ internal object XmlTree {
      * secret; so does one marked `ProtectInMemory="True"`, how `keepassxc-cli export` writes a protected value in
      * the clear (the fixtures).
      */
-    fun parse(xml: ByteArray, offset: Int = 0, length: Int = xml.size - offset, stream: KeyStream? = null): XElement {
-        val builder = Builder(stream)
-        try {
-            val reader = SAXParserFactory.newInstance().newSAXParser().xmlReader
-            reader.contentHandler = builder
-            reader.errorHandler = builder
-            reader.entityResolver = builder
-            reader.setProperty("http://xml.org/sax/properties/lexical-handler", builder)
-            reader.parse(InputSource(ByteArrayInputStream(xml, offset, length)))
-            return builder.root ?: throw KdbxException.Corrupt("empty XML")
-        } catch (failure: SAXParseException) {
-            builder.wipe()
-            // Only the position: the parser's description may quote the document.
-            throw builder.failure ?: KdbxException.Corrupt("XML error at line ${failure.lineNumber}")
-        } catch (failure: SAXException) {
-            builder.wipe()
-            throw builder.failure ?: KdbxException.Corrupt("XML")
-        } catch (_: IOException) {
-            builder.wipe()
-            throw KdbxException.Corrupt("XML")
-        }
-    }
+    fun parse(xml: ByteArray, stream: KeyStream? = null): XElement = parse(ByteArrayInputStream(xml), stream)
+
+    /** As the XML is decrypted: [input] is read to the end of the document and left open. */
+    fun parse(input: InputStream, stream: KeyStream? = null): XElement = reading(stream).also { Sax.parse(input, it) }.result()
+
+    /** The tree built from the parser's events: for one parse that feeds others too ([Sax.parse]). */
+    fun reading(stream: KeyStream?): SaxReading<XElement> = Builder(stream)
 
     /**
      * Writes the document as UTF-8. [protect] turns a secret into what the file stores ([seal]); a tree with a
@@ -123,11 +104,8 @@ internal object XmlTree {
         sink.ascii(">")
     }
 
-    private class Builder(private val stream: KeyStream?) : DefaultHandler2() {
-        var root: XElement? = null
-            private set
-        var failure: KdbxException? = null
-            private set
+    private class Builder(private val stream: KeyStream?) : SaxReading<XElement>() {
+        private var root: XElement? = null
 
         private val stack = ArrayList<XElement>()
 
@@ -139,14 +117,11 @@ internal object XmlTree {
         private val names = HashMap<String, String>()
         private val whitespace = HashMap<String, XText>()
 
-        fun wipe() {
+        override fun result(): XElement = root ?: throw KdbxException.Corrupt("empty XML")
+
+        override fun wipe() {
             root?.wipeSecrets()
             stack.forEach(XElement::wipeSecrets)
-        }
-
-        private fun fail(failure: KdbxException): Nothing {
-            this.failure = failure
-            throw SAXException(failure.message)
         }
 
         private fun name(name: String) = names.getOrPut(name) { name }
@@ -210,15 +185,6 @@ internal object XmlTree {
             stream!!.apply(bytes)
             return Secret.adopt(bytes)
         }
-
-        // A file has no DOCTYPE; refusing one rules out entity tricks with every parser.
-        override fun startDTD(name: String?, publicId: String?, systemId: String?) {
-            fail(KdbxException.Corrupt("XML with a DOCTYPE"))
-        }
-
-        override fun resolveEntity(publicId: String?, systemId: String?): InputSource = InputSource(StringReader(""))
-
-        override fun fatalError(e: SAXParseException): Unit = throw e
     }
 
     private enum class Protection { NONE, SEALED, CLEAR }

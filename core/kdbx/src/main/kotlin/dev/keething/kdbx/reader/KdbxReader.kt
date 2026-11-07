@@ -8,9 +8,11 @@ import dev.keething.kdbx.crypto.KeyStream
 import dev.keething.kdbx.editing.EditableDatabase
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.key.DerivedKey
+import dev.keething.kdbx.tree.XElement
 import dev.keething.kdbx.tree.XmlTree
 import dev.keething.kdbx.xml.KdbxDocument
 import dev.keething.kdbx.xml.KdbxXmlReader
+import dev.keething.kdbx.xml.Sax
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.security.GeneralSecurityException
@@ -54,20 +56,43 @@ public object KdbxReader {
         if (isKdbx3(file)) read3(file, key, historyOf) else read(file, { header -> key.transformed(header.kdf) }, historyOf)
 
     /**
-     * Opens a file with [derived] alone, the key a save just wrote it with ([EditableDatabase.readBack]): nothing is
-     * looked up or derived; a file with other KDF parameters is not that save's.
+     * Reads back the file a save just wrote ([EditableDatabase.readBack]) with [derived] alone, the key it was written
+     * with: nothing is looked up or derived; a file with other KDF parameters is not that save's. Its attachments are
+     * compared with [written], the ones it was written with, as they are read, and not kept a second time: the
+     * database holds [written] themselves, and [ReadBack.binariesDiffer] says whether the file holds the same.
      */
-    internal fun open(file: ByteArray, derived: DerivedKey): KdbxDatabase = read(file, { header -> derived.forKdf(header.kdf) to false }, null)
+    internal fun readBack(file: ByteArray, derived: DerivedKey, written: List<Secret>): ReadBack {
+        var differ = false
+        val database = read(file, { header -> derived.forKdf(header.kdf) to false }, null, written) { differ = it }
+        return ReadBack(database, differ)
+    }
 
-    private fun read(file: ByteArray, transform: (Header) -> Pair<ByteArray, Boolean>, historyOf: String?): KdbxDatabase =
-        decryptPayload(file, transform) { header, plain, inner, keyDerivation ->
-            val stream = streamOf(inner)
+    internal class ReadBack(val database: KdbxDatabase, val binariesDiffer: Boolean)
+
+    /**
+     * [expected]: a save's read-back, the attachments compared as they are read ([InnerHeader.read]); never wiped here,
+     * they are the save's. [differ] is told whether they were the file's.
+     */
+    private fun read(
+        file: ByteArray,
+        transform: (Header) -> Pair<ByteArray, Boolean>,
+        historyOf: String?,
+        expected: List<Secret>? = null,
+        differ: (Boolean) -> Unit = {},
+    ): KdbxDatabase =
+        decryptPayload(file, transform) { header, payload, keyDerivation ->
+            val inner = InnerHeader.read(payload.input, expected)
+            val stream = streamOf(inner, owned = expected == null)
             inner.wipeKey()
+            var document: KdbxDocument? = null
             try {
-                val document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, stream, historyOf)
+                document = KdbxXmlReader.read(payload.input, stream, historyOf)
+                payload.finish()
+                differ(inner.binariesDiffer)
                 KdbxDatabase(header.format, document, inner.binaries, keyDerivation)
             } catch (failure: KdbxException) {
-                inner.binaries.forEach(Secret::wipe)
+                document?.wipeSecrets()
+                if (expected == null) inner.binaries.forEach(Secret::wipe)
                 throw failure
             } finally {
                 stream.wipe()
@@ -76,26 +101,33 @@ public object KdbxReader {
 
     /**
      * Opens a file to change it and write it back (SPEC §3.3; Mac `KDBXReader.openForEditing`): the XML is read
-     * twice from the same decrypted bytes, into the document the reader always makes and into a tree that keeps
-     * everything. The derived key that has just opened the file, its header's HMAC checked, goes with it: the save
-     * writes the new file with that key and reads it back with it (keething-spec kdbx.hardening AC1).
+     * into two readings at once, one parse feeding both, as it is decrypted: the document the reader always makes and a
+     * tree that keeps everything. The derived key that has just opened the file, its header's HMAC checked, goes with
+     * it: the save writes the new file with that key and reads it back with it (keething-spec kdbx.hardening AC1).
      */
     public fun openForEditing(file: ByteArray, key: DatabaseKey): EditableDatabase {
         var proven: DerivedKey? = null
         try {
             return decryptPayload(file, { header ->
                 key.transformed(header.kdf).also { (transformed, _) -> proven = DerivedKey(header.kdf.identity, transformed) }
-            }) { header, plain, inner, _ ->
+            }) { header, payload, _ ->
+                val inner = InnerHeader.read(payload.input)
                 val documentStream = streamOf(inner)
                 val treeStream = streamOf(inner)
                 inner.wipeKey()
+                val documentReading = KdbxXmlReader.reading(documentStream)
+                val treeReading = XmlTree.reading(treeStream)
                 var document: KdbxDocument? = null
+                var root: XElement? = null
                 try {
-                    document = KdbxXmlReader.read(plain, inner.end, plain.size - inner.end, documentStream)
-                    val root = XmlTree.parse(plain, inner.end, plain.size - inner.end, treeStream)
+                    Sax.parse(payload.input, documentReading, treeReading)
+                    document = documentReading.result()
+                    root = treeReading.result()
+                    payload.finish()
                     EditableDatabase(document, root, inner.binaries, inner.binaryFlags, header.template, checkNotNull(proven))
                 } catch (failure: KdbxException) {
-                    document?.entries?.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
+                    document?.wipeSecrets()
+                    root?.wipeSecrets()
                     inner.binaries.forEach(Secret::wipe)
                     throw failure
                 } finally {
@@ -251,23 +283,30 @@ public object KdbxReader {
         return joined(data, blocks)
     }
 
-    /** The inner stream; when it cannot be made, the inner header's key and attachments are wiped first. */
-    private fun streamOf(inner: InnerHeader): KeyStream = try {
+    /**
+     * The inner stream; when it cannot be made, the inner header's key is wiped first, and its attachments when they
+     * are its [owned] (not a read-back's).
+     */
+    private fun streamOf(inner: InnerHeader, owned: Boolean = true): KeyStream = try {
         inner.stream()
     } catch (failure: KdbxException) {
         inner.wipeKey()
-        inner.binaries.forEach(Secret::wipe)
+        if (owned) inner.binaries.forEach(Secret::wipe)
         throw failure
     }
 
+    private fun KdbxDocument.wipeSecrets() {
+        (entries + history).forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
+    }
+
     /**
-     * Verifies and decrypts the file, then hands the payload (inner header, then XML) to [read]; the payload is
-     * wiped afterwards.
+     * Verifies the header and opens the payload ([Payload]: its blocks checked, decrypted and gunzipped as [read] reads
+     * them); its plain bytes are wiped afterwards.
      */
     private fun <T> decryptPayload(
         file: ByteArray,
         transform: (Header) -> Pair<ByteArray, Boolean>,
-        read: (header: Header, plain: ByteArray, inner: InnerHeader, keyDerivation: Duration?) -> T,
+        read: (header: Header, payload: Payload, keyDerivation: Duration?) -> T,
     ): T {
         val header = Header.parse(file)
         if (header.format.cipher == KdbxFormat.Cipher.TWOFISH) throw KdbxException.UnsupportedCipher("Twofish")
@@ -289,23 +328,7 @@ public object KdbxReader {
         try {
             val headerMac = hmac(blockKey(-1L, hmacBase)) { update(file, 0, header.checksumStart) }
             if (!MessageDigest.isEqual(headerMac, header.hmac)) throw KdbxException.WrongPassword()
-
-            val encrypted = readBlocks(file, header.end, hmacBase)
-            var plain = decrypt(encrypted, header.format.cipher, cipherKey, header.iv)
-            if (header.format.compressed) {
-                val unzipped = try {
-                    gunzip(plain)
-                } finally {
-                    plain.fill(0)
-                }
-                plain = unzipped
-            }
-            try {
-                val inner = InnerHeader.parse(plain, plain.size)
-                return read(header, plain, inner, kdfTime.takeIf { fresh })
-            } finally {
-                plain.fill(0)
-            }
+            return Payload.open(file, header, cipherKey, hmacBase).use { payload -> read(header, payload, kdfTime.takeIf { fresh }) }
         } finally {
             cipherKey.fill(0)
             hmacBase.fill(0)
@@ -317,31 +340,6 @@ public object KdbxReader {
     private fun blockKey(index: Long, base: ByteArray): ByteArray = sha512(Bytes.le64(index), base)
 
     // Payload
-
-    /** The HMAC block stream: every block is verified before any of it is used. */
-    private fun readBlocks(file: ByteArray, start: Int, base: ByteArray): ByteArray {
-        val blocks = mutableListOf<IntRange>()
-        val r = ByteReader(file, start)
-        var index = 0L
-        while (true) {
-            val mac = r.bytes(32)
-            val size = r.size()
-            val from = r.position
-            if (mac == null || size == null || !r.skip(size)) throw KdbxException.Corrupt("block $index truncated")
-            val key = blockKey(index, base)
-            val expected = hmac(key) {
-                update(Bytes.le64(index))
-                update(Bytes.le32(size))
-                update(file, from, size)
-            }
-            key.fill(0)
-            if (!MessageDigest.isEqual(expected, mac)) throw KdbxException.Corrupt("block $index HMAC")
-            if (size == 0) break
-            blocks += from until from + size
-            index++
-        }
-        return joined(file, blocks)
-    }
 
     private fun joined(data: ByteArray, blocks: List<IntRange>): ByteArray {
         val out = ByteArray(blocks.sumOf { it.last - it.first + 1 })

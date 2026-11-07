@@ -3,6 +3,7 @@ package dev.keething.kdbx.editing
 import dev.keething.domain.secret.Secret
 import dev.keething.kdbx.tree.XElement
 import java.security.MessageDigest
+import java.util.IdentityHashMap
 
 /**
  * The file's attachments (the inner header's binaries with their flags) and the entries' references to them,
@@ -15,6 +16,12 @@ internal class AttachmentPool(binaries: List<Secret>, flags: List<Byte>) {
         private set
     var flags: List<Byte> = flags
         private set
+
+    /**
+     * Each attachment's digest, made once: history versions refer to the same attachment again and again, and a large
+     * database's attachments take a while to hash (keething-spec app.large-database AC1).
+     */
+    private val digests = IdentityHashMap<Secret, String>()
 
     /**
      * Drops the attachments nothing refers to, stores identical contents once, and renumbers the references; the
@@ -41,6 +48,8 @@ internal class AttachmentPool(binaries: List<Secret>, flags: List<Byte>) {
         binaries = used.map { binaries[it] }
     }
 
+    private fun digest(binary: Secret): String = digests.getOrPut(binary) { sha256(binary) }
+
     /** What each reference points to, in document order: a digest per reference; null when not a valid index. */
     fun digests(root: XElement): List<String?> = references(root).map { value ->
         value.attribute("Ref")?.trim()?.toIntOrNull()?.let(binaries::getOrNull)?.let(::digest)
@@ -63,7 +72,7 @@ internal class AttachmentPool(binaries: List<Secret>, flags: List<Byte>) {
             return found
         }
 
-        private fun digest(binary: Secret): String = binary.useBytes { bytes ->
+        private fun sha256(binary: Secret): String = binary.useBytes { bytes ->
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         }
     }

@@ -105,6 +105,33 @@ Reads and writes back the copy unchanged and compares KeePassXC's exports, then 
 every file it writes are checked against KeePass's `fixtures/KDBX_XML.xsd` and by the app's own check; none may
 add a violation. Always on a copy outside the Syncthing folder.
 
+## Measuring a large database
+
+keething-spec app.large-database (plans/android-large-database.md there): how fast and in how much memory a large
+database unlocks, searches, opens a card and saves.
+
+    task large:database -- large-5000.kdbx                     # 5,000 entries, 40 MiB of attachments, Argon2 64 MiB × 2
+    task large:database -- large-10000.kdbx 10000 80           # the 87 MiB one
+    task large:save -- 512m <copy.kdbx> [beside.kdbx or -] [saves]   # on the Mac: unlock and saves within a JVM heap
+
+The generator's content is the same each time (a fixed seed), password `pw`. `task large:save` changes the copy; it
+prints the times and fails with `OutOfMemory` when the heap given is too small (the least heap that passes is what a
+save needs on a JVM; the phone needs somewhat more). `memoryBudgetTest` in core:vault, run by `task test`, keeps a
+40 MiB database's unlock and saves within 256 MiB.
+
+On the phone (the Pixel 6): push the files to a folder the app has, say `adb push large-5000.kdbx /sdcard/Documents/Large/`,
+and add it in the app. Then:
+
+    task apk:timings                                  # a release build that keeps Log.i's timing lines, installed
+    adb logcat -c; adb logcat -s Session List Card    # unlock, search, open a card, save a change
+    adb shell dumpsys meminfo dev.keething.android | grep -E "Java Heap|TOTAL PSS"   # sampled while it runs
+
+`Session` says "unlocked: N entries, key derived in … ms" and "save done/failed in … ms", `List` "listing prepared in …"
+and "search of N characters in … ms", `Card` "built in … ms". The screens are captured black (`FLAG_SECURE`): drive them
+through `adb shell uiautomator dump` and taps. A measurement build (`-Pkeething.timings`) is never shipped:
+`tools/build-apk.sh` builds without it unless `--timings`, which only installs. Put the release build back afterwards
+(`task apk:install`). The numbers go into the plan's §1 and the release's checks.
+
 ## Stopping a save in the middle on the phone
 
     adb shell run-as dev.keething.android sh -c 'echo "rename .syncthing" > files/debug-pause'

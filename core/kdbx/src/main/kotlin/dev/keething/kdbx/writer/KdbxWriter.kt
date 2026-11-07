@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.zip.Deflater
 import java.util.zip.GZIPOutputStream
 import javax.crypto.Cipher
 import javax.crypto.Mac
@@ -44,11 +45,11 @@ internal object KdbxWriter {
         key: DatabaseKey,
         random: SecureRandom = SecureRandom(),
     ): ByteArray {
-        val (transformed, _) = key.transformed(template.kdf)
+        val payload = payload(root, binaries, binaryFlags, template, random)
         try {
-            return write(root, binaries, binaryFlags, template, transformed, random)
+            return seal(payload, key)
         } finally {
-            transformed.fill(0)
+            payload.wipe()
         }
     }
 
@@ -61,23 +62,27 @@ internal object KdbxWriter {
         derived: DerivedKey,
         random: SecureRandom = SecureRandom(),
     ): ByteArray {
-        val transformed = derived.forKdf(template.kdf)
+        val payload = payload(root, binaries, binaryFlags, template, random)
         try {
-            return write(root, binaries, binaryFlags, template, transformed, random)
+            return seal(payload, derived)
         } finally {
-            transformed.fill(0)
+            payload.wipe()
         }
     }
 
-    /** [transformed] stays the caller's to wipe. */
-    private fun write(
+    /**
+     * The first half of a write: the payload made from the tree (the inner header with the attachments, the XML), with
+     * the new master seed, IV and inner stream key drawn for it. Nothing of [root] or [binaries] is needed after it, so
+     * the caller may let them go before the file is assembled ([seal]): a large database's tree is larger than its file
+     * (keething-spec app.large-database AC2). [PlainPayload.wipe] when done.
+     */
+    fun payload(
         root: XElement,
         binaries: List<Secret>,
         binaryFlags: List<Byte>,
         template: KdbxTemplate,
-        transformed: ByteArray,
-        random: SecureRandom,
-    ): ByteArray {
+        random: SecureRandom = SecureRandom(),
+    ): PlainPayload {
         if (template.cipher == KdbxFormat.Cipher.TWOFISH) throw KdbxException.UnsupportedCipher("Twofish")
         require(binaryFlags.size == binaries.size) { "a flag for every attachment" }
         WrittenDocuments.observer?.let { observe -> observe(XmlTree.withoutSecrets(root), KdbxSchema.violations(root)) }
@@ -85,25 +90,49 @@ internal object KdbxWriter {
         val masterSeed = ByteArray(32).also(random::nextBytes)
         val iv = ByteArray(if (template.cipher == KdbxFormat.Cipher.CHACHA20) 12 else 16).also(random::nextBytes)
         val streamKey = ByteArray(64).also(random::nextBytes)
+        val plain = ChunkBuffer()
         try {
-            val header = header(template, masterSeed, iv, minor = maxOf(template.minor, requiredMinor(root)))
-            val cipherKey = sha256(masterSeed, transformed)
-            val hmacBase = sha512(masterSeed, transformed, byteArrayOf(1))
-            try {
-                val payload = WipeableBuffer(binaries.sumOf { it.size } + (1 shl 20))
-                try {
-                    writePayload(payload, root, binaries, binaryFlags, streamKey, template.compressed)
-                    val (encrypted, length) = encrypt(payload, template.cipher, cipherKey, iv)
-                    return assemble(header, encrypted, length, hmacBase)
-                } finally {
-                    payload.wipe()
-                }
-            } finally {
-                cipherKey.fill(0)
-                hmacBase.fill(0)
-            }
+            writePayload(plain, root, binaries, binaryFlags, streamKey, template.compressed)
+            return PlainPayload(plain, template, masterSeed, iv, minor = maxOf(template.minor, requiredMinor(root)))
+        } catch (failure: Throwable) {
+            plain.wipe()
+            throw failure
         } finally {
             streamKey.fill(0)
+        }
+    }
+
+    /** The second half: [payload] sealed into the file with [derived], the key that opened the file (a save). */
+    fun seal(payload: PlainPayload, derived: DerivedKey): ByteArray {
+        val transformed = derived.forKdf(payload.template.kdf)
+        try {
+            return seal(payload, transformed)
+        } finally {
+            transformed.fill(0)
+        }
+    }
+
+    /** [payload] sealed with [key], derived now for the template's KDF parameters. */
+    fun seal(payload: PlainPayload, key: DatabaseKey): ByteArray {
+        val (transformed, _) = key.transformed(payload.template.kdf)
+        try {
+            return seal(payload, transformed)
+        } finally {
+            transformed.fill(0)
+        }
+    }
+
+    /** [transformed] stays the caller's to wipe. */
+    private fun seal(payload: PlainPayload, transformed: ByteArray): ByteArray {
+        val template = payload.template
+        val header = header(template, payload.masterSeed, payload.iv, payload.minor)
+        val cipherKey = sha256(payload.masterSeed, transformed)
+        val hmacBase = sha512(payload.masterSeed, transformed, byteArrayOf(1))
+        try {
+            return assemble(header, payload.plain, template.cipher, cipherKey, payload.iv, hmacBase)
+        } finally {
+            cipherKey.fill(0)
+            hmacBase.fill(0)
         }
     }
 
@@ -153,9 +182,14 @@ internal object KdbxWriter {
         return out.toByteArray()
     }
 
-    /** The inner header, then the XML with the protected values sealed by the new inner stream; gzipped when asked. */
+    /**
+     * The inner header, then the XML with the protected values sealed by the new inner stream; gzipped when asked. An
+     * attachment that does not compress (an image, a PDF, an archive: its first 64 KiB tried) goes into the gzip stream
+     * as stored blocks: deflating it would cost most of a large database's save and gain nothing (keething-spec
+     * app.large-database AC1). It is still one gzip stream any KeePass app reads.
+     */
     private fun writePayload(
-        payload: WipeableBuffer,
+        payload: ChunkBuffer,
         root: XElement,
         binaries: List<Secret>,
         binaryFlags: List<Byte>,
@@ -177,7 +211,7 @@ internal object KdbxWriter {
                     sink.write(3)
                     sink.write(Bytes.le32(bytes.size + 1))
                     sink.write(binaryFlags[index].toInt())
-                    sink.write(bytes)
+                    if (gzip != null && !compresses(bytes)) gzip.stored { sink.write(bytes) } else sink.write(bytes)
                 }
             }
             field(0, ByteArray(0))
@@ -196,50 +230,102 @@ internal object KdbxWriter {
         }
     }
 
-    /** Encrypts the payload, ChaCha20 in place, AES into a new array: the encrypted bytes and their length. */
-    private fun encrypt(payload: WipeableBuffer, cipher: KdbxFormat.Cipher, key: ByteArray, iv: ByteArray): Pair<ByteArray, Int> =
+    /**
+     * The file in one array of its exact size: the header, its SHA-256 and HMAC, then the payload encrypted chunk by
+     * chunk straight into the HMAC block stream (1 MiB blocks and an empty last one). No other copy of the file is made;
+     * ChaCha20 encrypts the payload's chunks in place.
+     */
+    private fun assemble(
+        header: ByteArray,
+        payload: ChunkBuffer,
+        cipher: KdbxFormat.Cipher,
+        key: ByteArray,
+        iv: ByteArray,
+        hmacBase: ByteArray,
+    ): ByteArray {
+        val length = when (cipher) {
+            // PKCS#7 padding: 1 to 16 bytes, a whole block when the payload is a multiple of 16.
+            KdbxFormat.Cipher.AES256 -> (payload.size / 16 + 1) * 16
+            KdbxFormat.Cipher.CHACHA20 -> payload.size
+            KdbxFormat.Cipher.TWOFISH -> throw KdbxException.UnsupportedCipher("Twofish")
+        }
+        // The blocks with bytes, then the empty one.
+        val blocks = (length + BLOCK_SIZE - 1) / BLOCK_SIZE + 1
+        val size = header.size + 64L + blocks * 36L + length
+        if (size > Int.MAX_VALUE - 8) throw OutOfMemoryError("a file of $size bytes")
+        val file = ByteArray(size.toInt())
+        header.copyInto(file)
+        MessageDigest.getInstance("SHA-256").digest(header).copyInto(file, header.size)
+        hmac(blockKey(-1L, hmacBase)) { update(header) }.copyInto(file, header.size + 32)
+        val out = BlockStream(file, header.size + 64, hmacBase)
         when (cipher) {
             KdbxFormat.Cipher.CHACHA20 -> {
                 val stream = ChaCha20(key, iv)
-                stream.apply(payload.bytes, 0, payload.size)
-                stream.wipe()
-                payload.bytes to payload.size
+                try {
+                    payload.forEachChunk { chunk, count ->
+                        stream.apply(chunk, 0, count)
+                        out.write(chunk, 0, count)
+                    }
+                } finally {
+                    stream.wipe()
+                }
             }
-            KdbxFormat.Cipher.AES256 ->
-                Cipher.getInstance("AES/CBC/PKCS5Padding")
+            else -> {
+                val aes = Cipher.getInstance("AES/CBC/PKCS5Padding")
                     .apply { init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv)) }
-                    .doFinal(payload.bytes, 0, payload.size)
-                    .let { it to it.size }
-            KdbxFormat.Cipher.TWOFISH -> throw KdbxException.UnsupportedCipher("Twofish")
+                val encrypted = ByteArray(ChunkBuffer.CHUNK_SIZE + 16)
+                payload.forEachChunk { chunk, count -> out.write(encrypted, 0, aes.update(chunk, 0, count, encrypted)) }
+                out.write(encrypted, 0, aes.doFinal(encrypted, 0))
+            }
+        }
+        out.finish()
+        check(out.position == file.size)
+        return file
+    }
+
+    /**
+     * The HMAC block stream written into [file] from [start]: each block's bytes go in place, and its HMAC and size before
+     * them once it is full (or [finish]ed), keyed by its index.
+     */
+    private class BlockStream(private val file: ByteArray, start: Int, private val hmacBase: ByteArray) {
+        /** Where the next block (its HMAC and size, then its bytes) begins. */
+        var position = start
+            private set
+        private var index = 0L
+        private var filled = 0
+
+        fun write(bytes: ByteArray, offset: Int, count: Int) {
+            var from = offset
+            val end = offset + count
+            while (from < end) {
+                val n = minOf(BLOCK_SIZE - filled, end - from)
+                bytes.copyInto(file, position + 36 + filled, from, from + n)
+                filled += n
+                from += n
+                if (filled == BLOCK_SIZE) seal()
+            }
         }
 
-    /** The header, its SHA-256 and HMAC, then the HMAC block stream: 1 MiB blocks and an empty last one. */
-    private fun assemble(header: ByteArray, encrypted: ByteArray, length: Int, hmacBase: ByteArray): ByteArray {
-        val blocks = (length + BLOCK_SIZE - 1) / BLOCK_SIZE
-        val file = ByteArray(header.size + 64 + (blocks + 1) * 36 + length)
-        header.copyInto(file)
-        var at = header.size
-        MessageDigest.getInstance("SHA-256").digest(header).copyInto(file, at)
-        at += 32
-        hmac(blockKey(-1L, hmacBase)) { update(header) }.copyInto(file, at)
-        at += 32
-        var offset = 0
-        for (index in 0L..blocks.toLong()) {
-            val size = minOf(BLOCK_SIZE, length - offset)
+        /** The last block, when it has bytes, then the empty one that ends the stream. */
+        fun finish() {
+            if (filled > 0) seal()
+            seal()
+        }
+
+        private fun seal() {
             val key = blockKey(index, hmacBase)
             hmac(key) {
                 update(Bytes.le64(index))
-                update(Bytes.le32(size))
-                update(encrypted, offset, size)
-            }.copyInto(file, at)
+                update(Bytes.le32(filled))
+                // The empty last block ends the file: its bytes start past the end.
+                if (filled > 0) update(file, position + 36, filled)
+            }.copyInto(file, position)
             key.fill(0)
-            Bytes.putIntLe(file, at + 32, size)
-            encrypted.copyInto(file, at + 36, offset, offset + size)
-            at += 36 + size
-            offset += size
+            Bytes.putIntLe(file, position + 32, filled)
+            position += 36 + filled
+            index++
+            filled = 0
         }
-        check(at == file.size)
-        return file
     }
 
     private fun blockKey(index: Long, base: ByteArray): ByteArray = sha512(Bytes.le64(index), base)
@@ -255,8 +341,50 @@ internal object KdbxWriter {
     private inline fun hmac(key: ByteArray, feed: Mac.() -> Unit): ByteArray =
         Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")); feed() }.doFinal()
 
+    /** Whether [bytes] compress by a tenth at least, told from their first 64 KiB; small ones are taken to. */
+    private fun compresses(bytes: ByteArray): Boolean {
+        val sample = minOf(bytes.size, 64 * 1024)
+        if (sample < 4096) return true
+        val deflater = Deflater(Deflater.BEST_SPEED, true)
+        val out = ByteArray(sample + 1024)
+        try {
+            deflater.setInput(bytes, 0, sample)
+            deflater.finish()
+            var size = 0
+            while (!deflater.finished() && size < out.size) size += deflater.deflate(out, size, out.size - size)
+            return size < sample * 9 / 10
+        } finally {
+            deflater.end()
+            out.fill(0)
+        }
+    }
+
     /** Gzip whose own buffer, compressed plain text, is wiped at the end. */
     private class WipingGzip(out: OutputStream) : GZIPOutputStream(out, 64 * 1024) {
+        /** [write] stored without compressing, then back to the default level. */
+        fun stored(write: () -> Unit) {
+            level(Deflater.NO_COMPRESSION)
+            try {
+                write()
+            } finally {
+                level(Deflater.DEFAULT_COMPRESSION)
+            }
+        }
+
+        /**
+         * [level] applied before any more input is given: zlib compresses the input it is holding with the level it had,
+         * which would be the whole attachment.
+         */
+        private fun level(level: Int) {
+            def.setLevel(level)
+            def.setInput(ByteArray(0))
+            while (true) {
+                val n = def.deflate(buf, 0, buf.size)
+                if (n == 0) break
+                out.write(buf, 0, n)
+            }
+        }
+
         fun end() {
             buf.fill(0)
             def.end()
@@ -264,33 +392,69 @@ internal object KdbxWriter {
     }
 }
 
-/** A growing byte buffer for the plain payload: every array it leaves behind is wiped, and so is the last. */
-internal class WipeableBuffer(capacity: Int) : OutputStream() {
-    var bytes = ByteArray(maxOf(capacity, 16))
-        private set
-    var size = 0
+/** A payload made ([KdbxWriter.payload]) and not yet sealed: the plain bytes, and what the file's header will say. */
+internal class PlainPayload(
+    val plain: ChunkBuffer,
+    val template: KdbxTemplate,
+    val masterSeed: ByteArray,
+    val iv: ByteArray,
+    /** The version's minor number, raised to 4.1 when the document needs it ([KdbxWriter.requiredMinor]). */
+    val minor: Int,
+) {
+    fun wipe() {
+        plain.wipe()
+    }
+}
+
+/**
+ * The plain payload as it is written, in chunks of 1 MiB: it grows without copying what it holds, so a large file is
+ * never held twice while it is made. [wipe] overwrites every chunk.
+ */
+internal class ChunkBuffer : OutputStream() {
+    private val chunks = ArrayList<ByteArray>()
+    private var used = CHUNK_SIZE
+
+    var size = 0L
         private set
 
     override fun write(b: Int) {
-        ensure(1)
-        bytes[size++] = b.toByte()
+        if (used == CHUNK_SIZE) next()
+        chunks.last()[used++] = b.toByte()
+        size++
     }
 
     override fun write(b: ByteArray, off: Int, len: Int) {
-        ensure(len)
-        b.copyInto(bytes, size, off, off + len)
+        var from = off
+        val end = off + len
+        while (from < end) {
+            if (used == CHUNK_SIZE) next()
+            val n = minOf(CHUNK_SIZE - used, end - from)
+            b.copyInto(chunks.last(), used, from, from + n)
+            used += n
+            from += n
+        }
         size += len
     }
 
+    /** Each chunk in order with the number of bytes it holds; [block] may change them in place. */
+    fun forEachChunk(block: (chunk: ByteArray, count: Int) -> Unit) {
+        chunks.forEachIndexed { index, chunk -> block(chunk, if (index == chunks.lastIndex) used else CHUNK_SIZE) }
+    }
+
     fun wipe() {
-        bytes.fill(0)
+        chunks.forEach { it.fill(0) }
+        chunks.clear()
+        used = CHUNK_SIZE
         size = 0
     }
 
-    private fun ensure(more: Int) {
-        if (size + more <= bytes.size) return
-        val grown = bytes.copyOf(maxOf(bytes.size * 2, size + more))
-        bytes.fill(0)
-        bytes = grown
+    private fun next() {
+        if (size + CHUNK_SIZE > Int.MAX_VALUE) throw OutOfMemoryError("a payload of more than 2 GiB")
+        chunks += ByteArray(CHUNK_SIZE)
+        used = 0
+    }
+
+    companion object {
+        const val CHUNK_SIZE = 1 shl 20
     }
 }

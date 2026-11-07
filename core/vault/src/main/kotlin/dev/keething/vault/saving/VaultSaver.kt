@@ -21,6 +21,7 @@ import dev.keething.vault.opening.VaultAssembler
 import dev.keething.vault.opening.toOpenFailure
 import dev.keething.vault.opening.toOpenedVault
 import java.io.IOException
+import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
 
@@ -76,22 +77,28 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         SaveResult.Failed(SaveFailure.OutOfMemory)
     }
 
-    /** [beforeBackup]: what is done once the new file is made and the old one is still what was read. */
+    /**
+     * [make] takes the file read and lets it go once it has opened it: the file is not held through the save, since a
+     * large one costs memory the save needs (keething-spec app.large-database AC2). It is read again once the new file is
+     * made: that read, the same bytes as the first (their SHA-256), is checked and backed up. [beforeBackup]: what is
+     * done once the new file is made and the old one is still what was read.
+     */
     private fun saveOrRefuse(
         stopped: () -> Boolean,
-        make: (original: ByteArray) -> Made,
+        make: (original: Original) -> Made,
         now: Instant,
         beforeBackup: (original: ByteArray) -> Unit = {},
     ): SaveResult {
         repeat(ATTEMPTS) {
-            val original = read()
-            val made = make(original)
+            val first = Original.read(store)
+            val made = make(first)
             // The file must still be what was read; otherwise read it again and redo the edit on top.
             val current = store.read()
-            if (current !is DatabaseRead.Found || !current.bytes.contentEquals(original)) {
+            if (current !is DatabaseRead.Found || !first.isIn(current.bytes)) {
                 made.discard()
                 return@repeat
             }
+            val original = current.bytes
             if (stopped()) {
                 made.discard()
                 throw Refused(SaveFailure.Locked)
@@ -132,20 +139,39 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
             }
             backups.saved()
-            val version = store.version()
-            if (version == null) {
+            val saved = store.version()
+            if (saved == null) {
                 made.discard()
                 throw Refused(SaveFailure.WriteFailed("the new file is gone"))
             }
-            return SaveResult.Saved(made.reread.toOpenedVault(version, made.vault), made.deletedGroups)
+            return SaveResult.Saved(made.reread.toOpenedVault(saved, made.vault), made.deletedGroups)
         }
         throw Refused(SaveFailure.FileKeepsChanging)
     }
 
-    private fun read(): ByteArray = when (val read = store.read()) {
-        is DatabaseRead.Found -> read.bytes
-        DatabaseRead.Missing -> throw Refused(SaveFailure.CannotOpen(OpenFailure.Missing))
-        DatabaseRead.AccessDenied -> throw Refused(SaveFailure.CannotOpen(OpenFailure.AccessDenied))
+    /**
+     * The file as a save first read it: its bytes until [open] takes them, then only their SHA-256. Each step that holds
+     * the bytes is a function of its own, so that no frame of the save keeps them once they are let go.
+     */
+    private class Original private constructor(bytes: ByteArray) {
+        private val digest = sha256(bytes)
+        private var bytes: ByteArray? = bytes
+
+        /** The bytes opened with [opening], which takes them: nothing here holds them afterwards. */
+        fun <T> open(opening: (ByteArray) -> T): T = opening(checkNotNull(bytes).also { bytes = null })
+
+        /** Whether [current] are the same bytes. */
+        fun isIn(current: ByteArray): Boolean = MessageDigest.isEqual(sha256(current), digest)
+
+        companion object {
+            fun read(store: DatabaseStore): Original = when (val read = store.read()) {
+                is DatabaseRead.Found -> Original(read.bytes)
+                DatabaseRead.Missing -> throw Refused(SaveFailure.CannotOpen(OpenFailure.Missing))
+                DatabaseRead.AccessDenied -> throw Refused(SaveFailure.CannotOpen(OpenFailure.AccessDenied))
+            }
+
+            private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
+        }
     }
 
     /** The new file, read back and checked; [vault] is what an unlock would show of it. */
@@ -157,9 +183,9 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     }
 
     /** Opens [original], applies the change and writes the new file; then reads that back and checks it. */
-    private fun makeFile(original: ByteArray, edit: VaultEdit, key: DatabaseKey, now: Instant): Made {
+    private fun makeFile(original: Original, edit: VaultEdit, key: DatabaseKey, now: Instant): Made {
         val editable = try {
-            KdbxReader.openForEditing(original, key)
+            original.open { KdbxReader.openForEditing(it, key) }
         } catch (failure: KdbxException) {
             // A KDBX 3.1 file (turned into one elsewhere since it was read, or never read here) is never changed.
             if (failure is KdbxException.UnsupportedVersion && failure.major == 3) throw Refused(SaveFailure.ViewOnly)
@@ -184,7 +210,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             // Attachments nothing refers to any more are dropped; every reference must still mean the same bytes.
             // Nothing KeePass's schema does not allow may be added (SPEC §3.3).
             val written = try {
-                editable.write()
+                editable.writeLast()
             } catch (failure: EditException.BreaksFormat) {
                 throw Refused(SaveFailure.BreaksFormat(failure.what))
             } catch (failure: EditException) {
@@ -194,9 +220,11 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             // Read back what was written, as an unlock would, with the derived key that opened the original: this proves
             // the whole file but the derivation, which is the original's (the same key, KDF parameters and salt).
             val reread = try {
-                editable.readBack(written.file)
+                editable.readBack(written)
             } catch (_: KdbxException) {
                 throw Refused(SaveFailure.VerificationFailed("the new file does not open"))
+            } catch (failure: EditException) {
+                throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
             }
             var after: Vault? = null
             try {
@@ -206,7 +234,6 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 } catch (failure: SaveCheck.Failed) {
                     throw Refused(SaveFailure.VerificationFailed(failure.detail))
                 }
-                if (reread.binaries != written.binaries) throw Refused(SaveFailure.VerificationFailed("attachments differ"))
                 // As they were: the check found these gone and nothing else.
                 val groups = before.groups.associateBy { it.id }
                 return Made(written.file, reread, after, applied.deletedGroupIds.mapNotNull(groups::get))
@@ -222,9 +249,9 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     }
 
     /** [original], a KDBX 3.1 file, written as KDBX 4.0; then that read back and checked: nothing in it changed. */
-    private fun upgraded(original: ByteArray, key: DatabaseKey): Made {
+    private fun upgraded(original: Original, key: DatabaseKey): Made {
         val editable = try {
-            KdbxReader.openForUpgrade(original, key)
+            original.open { KdbxReader.openForUpgrade(it, key) }
         } catch (failure: KdbxException) {
             // Upgraded elsewhere since it was read: read it again.
             if (failure is KdbxException.UnsupportedVersion && failure.major == 4) throw Refused(SaveFailure.ChangedElsewhere)
@@ -234,16 +261,18 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         try {
             before = VaultAssembler.assemble(editable.document, editable.binaries.map(Secret::size))
             val written = try {
-                editable.write()
+                editable.writeLast()
             } catch (failure: EditException.BreaksFormat) {
                 throw Refused(SaveFailure.BreaksFormat(failure.what))
             } catch (failure: EditException) {
                 throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
             }
             val reread = try {
-                editable.readBack(written.file)
+                editable.readBack(written)
             } catch (_: KdbxException) {
                 throw Refused(SaveFailure.VerificationFailed("the new file does not open"))
+            } catch (failure: EditException) {
+                throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
             }
             var after: Vault? = null
             try {
@@ -254,7 +283,6 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 } catch (failure: SaveCheck.Failed) {
                     throw Refused(SaveFailure.VerificationFailed(failure.detail))
                 }
-                if (reread.binaries != written.binaries) throw Refused(SaveFailure.VerificationFailed("attachments differ"))
                 return Made(written.file, reread, after, emptyList())
             } catch (refused: Refused) {
                 after?.wipe()

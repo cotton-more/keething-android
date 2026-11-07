@@ -8,16 +8,10 @@ import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.kdbx.tree.XmlTree
 import java.io.ByteArrayInputStream
-import java.io.IOException
-import java.io.StringReader
+import java.io.InputStream
 import java.security.MessageDigest
 import java.util.Base64
-import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.Attributes
-import org.xml.sax.InputSource
-import org.xml.sax.SAXException
-import org.xml.sax.SAXParseException
-import org.xml.sax.ext.DefaultHandler2
 
 /**
  * Event-based reader of the KeePass XML (Mac `KDBXXMLReader`): groups, entries, `Meta`; histories are
@@ -32,13 +26,15 @@ import org.xml.sax.ext.DefaultHandler2
  */
 internal object KdbxXmlReader {
     /** [historyOf]: the UUID of the entry whose history items are read too ([KdbxDocument.history]). */
-    fun read(
-        xml: ByteArray,
-        offset: Int = 0,
-        length: Int = xml.size - offset,
-        stream: KeyStream? = null,
-        historyOf: String? = null,
-    ): KdbxDocument = parse(Handler(stream, historyOf, null), xml, offset, length)
+    fun read(xml: ByteArray, stream: KeyStream? = null, historyOf: String? = null): KdbxDocument =
+        read(ByteArrayInputStream(xml), stream, historyOf)
+
+    /** As the XML is decrypted: [input] is read to the end of the document and left open. */
+    fun read(input: InputStream, stream: KeyStream? = null, historyOf: String? = null): KdbxDocument =
+        reading(stream, historyOf).also { Sax.parse(input, it) }.result()
+
+    /** The document read from the parser's events: for one parse that feeds others too ([Sax.parse]). */
+    fun reading(stream: KeyStream?, historyOf: String? = null): SaxReading<KdbxDocument> = Handler(stream, historyOf, null)
 
     /**
      * Reads a KDBX 3.1 file's XML (keething-spec kdbx.kdbx3 AC2-AC4): the attachments too, from `Meta/Binaries` (base64,
@@ -53,29 +49,8 @@ internal object KdbxXmlReader {
         headerSha256: ByteArray,
     ): Pair<KdbxDocument, List<Secret>> {
         val handler = Handler(stream, historyOf, headerSha256)
-        return parse(handler, xml, 0, xml.size) to handler.binaries
-    }
-
-    private fun parse(handler: Handler, xml: ByteArray, offset: Int, length: Int): KdbxDocument {
-        try {
-            val reader = SAXParserFactory.newInstance().newSAXParser().xmlReader
-            reader.contentHandler = handler
-            reader.errorHandler = handler
-            reader.entityResolver = handler
-            reader.setProperty("http://xml.org/sax/properties/lexical-handler", handler)
-            reader.parse(InputSource(ByteArrayInputStream(xml, offset, length)))
-            return handler.document()
-        } catch (failure: SAXParseException) {
-            handler.wipe()
-            // Only the position: the parser's description may quote the document.
-            throw handler.failure ?: KdbxException.Corrupt("XML error at line ${failure.lineNumber}")
-        } catch (failure: SAXException) {
-            handler.wipe()
-            throw handler.failure ?: KdbxException.Corrupt("XML")
-        } catch (_: IOException) {
-            handler.wipe()
-            throw KdbxException.Corrupt("XML")
-        }
+        Sax.parse(ByteArrayInputStream(xml), handler)
+        return handler.result() to handler.binaries
     }
 
     private class GroupFrame(val index: Int) {
@@ -101,10 +76,7 @@ internal object KdbxXmlReader {
         private val stream: KeyStream?,
         private val historyOf: String?,
         private val headerSha256: ByteArray?,
-    ) : DefaultHandler2() {
-        var failure: KdbxException? = null
-            private set
-
+    ) : SaxReading<KdbxDocument>() {
         private val stack = ArrayList<String>()
 
         /** Stack depth of the `History` element being skipped; 0 when not skipping. */
@@ -156,15 +128,14 @@ internal object KdbxXmlReader {
         private var protectedDepth = 0
         private val protectedText = StringBuilder()
 
-        fun document(): KdbxDocument = KdbxDocument(
+        override fun result(): KdbxDocument = KdbxDocument(
             KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons, databaseName, color, templatesGroupUuid),
             groups.filterNotNull(),
             entries,
             history,
         )
 
-        /** Overwrites every secret read so far (the read failed). */
-        fun wipe() {
+        override fun wipe() {
             fun wipe(value: FieldValue?) {
                 (value as? FieldValue.Protected)?.secret?.wipe()
             }
@@ -174,11 +145,6 @@ internal object KdbxXmlReader {
             historyOwner?.fields?.forEach { wipe(it.value) }
             wipe(itemValue)
             binaries.forEach(Secret::wipe)
-        }
-
-        private fun fail(failure: KdbxException): Nothing {
-            this.failure = failure
-            throw SAXException(failure.message)
         }
 
         private fun beginCapture() {
@@ -452,15 +418,6 @@ internal object KdbxXmlReader {
                 customData = e.customData.toMap(),
             )
         }
-
-        // A file has no DOCTYPE; refusing one rules out entity tricks with every parser.
-        override fun startDTD(name: String?, publicId: String?, systemId: String?) {
-            fail(KdbxException.Corrupt("XML with a DOCTYPE"))
-        }
-
-        override fun resolveEntity(publicId: String?, systemId: String?): InputSource = InputSource(StringReader(""))
-
-        override fun fatalError(e: SAXParseException): Unit = throw e
     }
 
     /** KeePass's "no UUID": 16 zero bytes. */

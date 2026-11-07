@@ -7,6 +7,7 @@ import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.editing.EntryLifecycle
 import dev.keething.kdbx.editing.HostileFiles
+import dev.keething.kdbx.editing.WrittenDatabase
 import dev.keething.kdbx.editing.field
 import dev.keething.kdbx.key.AppMemory
 import dev.keething.kdbx.key.DatabaseKey
@@ -63,7 +64,7 @@ class HardeningTest {
         key.wipe()
 
         val written = editable.write()
-        val reread = editable.readBack(written.file)
+        val reread = editable.readBack(written)
 
         assertEquals("new one", password(written.file, key(), id), "the real password opens it, not zeros")
         assertEquals(null, reread.keyDerivation, "read back with the key that opened the original: nothing derived")
@@ -75,7 +76,7 @@ class HardeningTest {
     fun theKeyThatOpenedAFileReadsBackOnlyAFileOfTheSameKeyDerivation() {
         val editable = KdbxReader.openForEditing(fixture("kdbx4-aes-aeskdf"), key())
 
-        val other = assertFailsWith<KdbxException.Corrupt> { editable.readBack(fixture("kdbx4-aes-argon2d")) }
+        val other = assertFailsWith<KdbxException.Corrupt> { editable.readBack(WrittenDatabase(fixture("kdbx4-aes-argon2d"), emptyList())) }
 
         assertContains(other.detail, "key derivation")
     }
@@ -89,7 +90,7 @@ class HardeningTest {
 
         val editable = KdbxReader.openForEditing(fixture(), key())
         assertFailsWith<WipedKeyException> { editable.write(wiped) }
-        val written = editable.write().file
+        val written = editable.write()
         editable.wipe()
         assertFailsWith<WipedKeyException>("the derived key that opened the file, wiped with it") { editable.write() }
         assertFailsWith<WipedKeyException> { editable.readBack(written) }

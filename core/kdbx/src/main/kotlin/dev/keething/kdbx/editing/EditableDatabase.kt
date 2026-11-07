@@ -16,6 +16,7 @@ import dev.keething.kdbx.schema.SchemaViolation
 import dev.keething.kdbx.tree.XElement
 import dev.keething.kdbx.tree.XmlTree
 import dev.keething.kdbx.writer.KdbxWriter
+import dev.keething.kdbx.writer.PlainPayload
 import dev.keething.kdbx.xml.KdbxDocument
 import java.time.Instant
 
@@ -29,7 +30,7 @@ public class EditableDatabase internal constructor(
      * compares the written file with. A fault in the tree would show there as a difference.
      */
     public val document: KdbxDocument,
-    internal val root: XElement,
+    root: XElement,
     /** The inner header's attachments in file order; the entries' `Ref`s point into it. */
     public val binaries: List<Secret>,
     internal val binaryFlags: List<Byte>,
@@ -37,6 +38,11 @@ public class EditableDatabase internal constructor(
     /** The derived key that opened the file (keething-spec kdbx.hardening AC1): [write] seals with it, [readBack] opens with it. */
     private val derived: DerivedKey,
 ) {
+    /** The tree, until [writeLast] lets it go. */
+    private var tree: XElement? = root
+
+    internal val root: XElement get() = checkNotNull(tree) { "written for the last time: the tree is gone" }
+
     /** What KeePass's schema does not allow in the file as it was read: kept, never a reason to refuse a save. */
     private val schemaBefore: Set<SchemaViolation> = KdbxSchema.violations(root)
 
@@ -121,12 +127,20 @@ public class EditableDatabase internal constructor(
      * when the file would have a schema violation it did not have when read ([KdbxSchema]), and a
      * [dev.keething.kdbx.key.WipedKeyException] once [wipe]d (AC2).
      */
-    public fun write(): WrittenDatabase = write { pool -> KdbxWriter.write(root, pool.binaries, pool.flags, template, derived) }
+    public fun write(): WrittenDatabase = write(lettingGo = false) { payload -> KdbxWriter.seal(payload, derived) }
+
+    /**
+     * As [write], the last thing done with the tree (a save): its secrets are wiped and it is let go as soon as the
+     * payload is made, before the file is assembled, since a large database's tree takes more memory than its file
+     * (keething-spec app.large-database AC2). Only [document], [readBack] and [wipe] are left to use; [apply] and
+     * another write fail.
+     */
+    public fun writeLast(): WrittenDatabase = write(lettingGo = true) { payload -> KdbxWriter.seal(payload, derived) }
 
     /** As [write], sealed with another master key, derived now for the file's KDF parameters. */
-    public fun write(key: DatabaseKey): WrittenDatabase = write { pool -> KdbxWriter.write(root, pool.binaries, pool.flags, template, key) }
+    public fun write(key: DatabaseKey): WrittenDatabase = write(lettingGo = false) { payload -> KdbxWriter.seal(payload, key) }
 
-    private fun write(seal: (AttachmentPool) -> ByteArray): WrittenDatabase {
+    private fun write(lettingGo: Boolean, seal: (PlainPayload) -> ByteArray): WrittenDatabase {
         KdbxSchema.placePreviousParentGroups(root)
         val pool = AttachmentPool(binaries, binaryFlags)
         val referenced = pool.digests(root)
@@ -134,14 +148,39 @@ public class EditableDatabase internal constructor(
         if (pool.digests(root) != referenced) throw EditException.Malformed("attachments renumbered wrongly")
         val broken = KdbxSchema.added(schemaBefore, KdbxSchema.violations(root))
         if (broken.isNotEmpty()) throw EditException.BreaksFormat(broken.first().describe(more = broken.size - 1))
-        return WrittenDatabase(seal(pool), pool.binaries)
+        val payload = KdbxWriter.payload(root, pool.binaries, pool.flags, template)
+        try {
+            if (lettingGo) {
+                tree?.wipeSecrets()
+                tree = null
+            }
+            return WrittenDatabase(seal(payload), pool.binaries)
+        } finally {
+            payload.wipe()
+        }
     }
 
     /**
-     * [file], which [write] made, read back as an unlock would read it, with the same derived key (AC1): the save's
-     * check of the new file. Throws a [KdbxException] when it does not open with that key.
+     * The file [write] made read back as an unlock would read it, with the same derived key (AC1): the save's check of
+     * the new file. Its attachments are compared with [written]'s as they are read rather than read into a second set
+     * (keething-spec app.large-database AC2): the database returned holds [written]'s own, which [wipe] then leaves to
+     * it. Throws a [KdbxException] when the file does not open with that key, and [EditException.Malformed] when its
+     * attachments are not the ones written.
      */
-    public fun readBack(file: ByteArray): KdbxDatabase = KdbxReader.open(file, derived)
+    public fun readBack(written: WrittenDatabase): KdbxDatabase {
+        val read = KdbxReader.readBack(written.file, derived, written.binaries)
+        if (read.binariesDiffer) {
+            read.database.document.let { document ->
+                (document.entries + document.history).forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
+            }
+            throw EditException.Malformed("attachments differ")
+        }
+        handedOver += written.binaries
+        return read.database
+    }
+
+    /** The attachments a [readBack] handed on with the database it returned: theirs to wipe, no longer this one's. */
+    private val handedOver = mutableListOf<Secret>()
 
     /** What KeePass's schema does not allow in the tree as it stands ([KdbxSchema]): for the probe. */
     public fun schemaViolations(): Set<SchemaViolation> = KdbxSchema.violations(root)
@@ -149,12 +188,12 @@ public class EditableDatabase internal constructor(
     /** The XML as it stands, every protected value left empty: for checking it against `KDBX_XML.xsd` (the probe). */
     public fun xmlWithoutSecrets(): ByteArray = XmlTree.withoutSecrets(root)
 
-    /** Overwrites every secret: the tree's, the document's, the attachments and the derived key. */
+    /** Overwrites every secret: the tree's, the document's, the attachments (but those [readBack] handed on) and the derived key. */
     public fun wipe() {
         derived.wipe()
-        root.wipeSecrets()
+        tree?.wipeSecrets()
         document.entries.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
-        binaries.forEach(Secret::wipe)
+        binaries.filter { binary -> handedOver.none { it === binary } }.forEach(Secret::wipe)
     }
 }
 
@@ -178,5 +217,5 @@ public data class AppliedEdit(
     val deletedGroupIds: List<String> = emptyList(),
 )
 
-/** A written file and the attachments in it, in order (this database's own: wiped with it). */
+/** A written file and the attachments in it, in order (the [EditableDatabase]'s own: wiped with it, unless read back). */
 public class WrittenDatabase(public val file: ByteArray, public val binaries: List<Secret>)
