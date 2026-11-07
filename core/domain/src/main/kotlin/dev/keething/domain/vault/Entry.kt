@@ -36,6 +36,11 @@ public data class Entry(
     val totp: TotpConfig? = null,
     /** It has fields of a one-time code ([TotpFormat.FIELD_NAMES]), whether or not they make a code [totp] can read. */
     val hasCodeFields: Boolean = false,
+    /**
+     * The one-time code's own fields as the file holds them, in file order, protection kept: what puts the code back
+     * as it was after it is removed (keething-spec app.codes-view AC5, [TotpChange.Fields]).
+     */
+    val codeFields: List<CustomField> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
     val expires: Boolean = false,
     val expiryTime: Instant? = null,
@@ -81,6 +86,7 @@ public data class Entry(
     public fun wipe() {
         password.wipe()
         customFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
+        codeFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
         totp?.secret?.wipe()
     }
 

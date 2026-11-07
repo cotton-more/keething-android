@@ -14,7 +14,7 @@ import dev.keething.totp.TotpResolver
 /**
  * Applies KeePass's meaning to an entry of the file (Mac `EntryMapper`): which fields are the standard ones,
  * which hold the one-time code, how tags are written, the field types and the kind in its `CustomData`. A secret it does not keep (a duplicate field, the
- * code's fields once read) is wiped.
+ * code's fields once read, beside the copy [Entry.codeFields] keeps) is wiped.
  *
  * [binarySizes]: the sizes of the file's attachments, which `Ref`s point into. [iconIds]: the custom icons
  * the file has.
@@ -28,6 +28,7 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
         var notes = ""
         var notesProtected = false
         val totpFields = mutableMapOf<String, String>()
+        val codeFields = mutableListOf<CustomField>()
         val customFields = mutableListOf<CustomField>()
 
         for (field in raw.fields) {
@@ -46,7 +47,10 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
                     notes = text(field.value)
                     notesProtected = field.value is FieldValue.Protected
                 }
-                in TotpFormat.FIELD_NAMES -> totpFields[field.key] = text(field.value)
+                in TotpFormat.FIELD_NAMES -> {
+                    codeFields += CustomField(field.key, kept(field.value))
+                    totpFields[field.key] = text(field.value)
+                }
                 else -> customFields += CustomField(field.key, field.value)
             }
         }
@@ -67,6 +71,7 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
             entryType = raw.customData[EntryType.CUSTOM_DATA_KEY],
             totp = TotpResolver.resolve(totpFields),
             hasCodeFields = totpFields.isNotEmpty(),
+            codeFields = codeFields,
             attachments = raw.attachments.map { Attachment(it.name, it.ref?.let(binarySizes::getOrNull)) },
             expires = raw.expires,
             expiryTime = raw.expiryTime,
@@ -84,6 +89,12 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
     private fun text(value: FieldValue): String = when (value) {
         is FieldValue.Plain -> value.text
         is FieldValue.Protected -> value.secret.reveal().also { value.secret.wipe() }
+    }
+
+    /** A code field's value kept as the file has it ([Entry.codeFields]): a protected one as a secret of its own. */
+    private fun kept(value: FieldValue): FieldValue = when (value) {
+        is FieldValue.Plain -> value
+        is FieldValue.Protected -> FieldValue.Protected(value.secret.copy())
     }
 
     private companion object {

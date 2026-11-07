@@ -34,7 +34,7 @@ public data class EntryChanges(
     val expiry: Expiry? = null,
     /**
      * The one-time code (Mac SPEC §3.23): set (every code field removed, then written in the entry's format or the
-     * database's, [TotpFormat.forNewCode]) or removed.
+     * database's, [TotpFormat.forNewCode]), removed, or its fields put back as they were ([TotpChange.Fields]).
      */
     val totp: TotpChange? = null,
     /**
@@ -55,6 +55,7 @@ public data class EntryChanges(
         password?.wipe()
         customFields?.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
         (totp as? TotpChange.Set)?.config?.secret?.wipe()
+        (totp as? TotpChange.Fields)?.fields?.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
     }
 
     public companion object {
@@ -78,4 +79,12 @@ public sealed interface TotpChange {
     }
 
     public data object Remove : TotpChange
+
+    /**
+     * Every code field removed, then exactly [fields] written ([Entry.codeFields] as they were): the undo of a removed
+     * code (keething-spec app.codes-view AC5). Each is a code field's ([TotpFormat.FIELD_NAMES]); others are ignored.
+     */
+    public data class Fields(val fields: List<CustomField>) : TotpChange {
+        override fun toString(): String = "Fields(${fields.map { it.name }})"
+    }
 }

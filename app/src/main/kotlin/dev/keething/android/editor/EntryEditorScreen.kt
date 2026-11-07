@@ -1369,7 +1369,7 @@ private fun OwnCodeRow(editor: EntryEditor, draft: EntryDraft, update: (EntryDra
     }
 }
 
-private val TotpConfig.Algorithm.title: String
+internal val TotpConfig.Algorithm.title: String
     get() = when (this) {
         TotpConfig.Algorithm.SHA1 -> "SHA-1"
         TotpConfig.Algorithm.SHA256 -> "SHA-256"
@@ -1378,7 +1378,7 @@ private val TotpConfig.Algorithm.title: String
 
 /** One of a code's settings: its name over a segmented choice. */
 @Composable
-private fun <T> CodeChoice(name: String, options: List<T>, chosen: T, label: (T) -> String, onChoose: (T) -> Unit) {
+internal fun <T> CodeChoice(name: String, options: List<T>, chosen: T, label: (T) -> String, onChoose: (T) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(name, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {

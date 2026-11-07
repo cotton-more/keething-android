@@ -420,7 +420,7 @@ public class EntryEditor private constructor(
         public const val NO_QR_CODE: String = "No QR code found in the image."
 
         /** What the editor says when a code is not taken (the Mac's words). */
-        private fun codeProblem(problem: TotpSetupException): String = when (problem) {
+        internal fun codeProblem(problem: TotpSetupException): String = when (problem) {
             is TotpSetupException.Empty -> "Paste the secret or the otpauth:// link the site shows."
             is TotpSetupException.Unreadable -> "That is not a one-time code secret (Base32 letters A–Z and digits 2–7) or an otpauth:// link."
             is TotpSetupException.TooShort -> "That secret is too short to be a real one; check that all of it was copied."

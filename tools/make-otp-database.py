@@ -6,7 +6,7 @@ apps keep them in (keething-spec kdbx.otp-storage), for checking on a phone that
 
 KeePass 2.x's own TimeOtp-* fields in each of its four secret encodings (one broken: no code), KeePassXC's otp link
 and the legacy TOTP Seed / TOTP Settings; further codes (custom fields holding an otpauth link, keething-spec
-app.codes-view), beside an entry's own code and on their own. Most of its codes are KeePass's, so a code written into it takes that format.
+app.codes-view), beside an entry's own code and on their own; two entries with nothing but a title and a code. Most of its codes are KeePass's, so a code written into it takes that format.
 keepassxc-cli writes KDBX 3.1 on import, which the app refuses, so the import is merged into a copy of a KDBX 4
 fixture (that adds the fixture's two entries).
 """
@@ -42,6 +42,12 @@ ENTRIES = [
     ("No code yet (fictitious)", []),
 ]
 
+# Entries with nothing but their title and a code (deleting the code moves the entry to the recycle bin).
+BARE_ENTRIES = [
+    ("Only a code (fictitious)", [("otp", "otpauth://totp/Bare:me?secret=ONSWG4TFORXXK3DE&issuer=Bare", True)]),
+    ("Only a further code (fictitious)", [("Backup", "otpauth://totp/Bare:backup?secret=MZXW6YTBOI======&issuer=Bare", True)]),
+]
+
 
 def uuid():
     return base64.b64encode(os.urandom(16)).decode()
@@ -57,6 +63,9 @@ def xml():
         f"<Entry><UUID>{uuid()}</UUID>{field('Title', title)}{field('UserName', 'me')}{field('Password', 'Otp-Pa55!', True)}"
         f"{''.join(field(*f) for f in fields)}</Entry>"
         for title, fields in ENTRIES
+    ) + "".join(
+        f"<Entry><UUID>{uuid()}</UUID>{field('Title', title)}{''.join(field(*f) for f in fields)}</Entry>"
+        for title, fields in BARE_ENTRIES
     )
     return ('<?xml version="1.0" encoding="utf-8" standalone="yes"?><KeePassFile><Meta><Generator>test</Generator>'
             f'<DatabaseName>One-time code formats</DatabaseName></Meta><Root><Group><UUID>{uuid()}</UUID>'

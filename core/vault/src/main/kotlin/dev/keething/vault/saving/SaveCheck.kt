@@ -1,6 +1,7 @@
 package dev.keething.vault.saving
 
 import dev.keething.domain.text.TextFolding
+import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.text.XmlText
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
@@ -12,6 +13,7 @@ import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.editing.AppliedEdit
+import dev.keething.totp.TotpResolver
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -184,7 +186,7 @@ internal object SaveCheck {
             is VaultEdit.Update -> {
                 val actual = new[id] ?: fail("the edit did not come out as asked")
                 val newNotes = notes.protected.takeIf { notes.missingIn == id }
-                var expected = applyTo(old[id] ?: fail("entries differ"), edit.changes, newNotes).copy(lastModified = actual.lastModified)
+                var expected = applyTo(old[id] ?: fail("entries differ"), edit.changes, newNotes, actual).copy(lastModified = actual.lastModified)
                 if (destination != null) {
                     val group = groups[destination.finalGroupId] ?: fail("the group is missing")
                     expected = expected.copy(groupPath = group.path, groupId = group.id)
@@ -204,6 +206,7 @@ internal object SaveCheck {
                         customIconId = applied.customIconId?.takeIf { it in after.customIcons },
                     ),
                     edit.fields,
+                    written = actual,
                 )
                 if (actual != expected || after.recycleBin.any { it.id == id }) fail("the new entry did not come out as asked")
             }
@@ -322,9 +325,10 @@ internal object SaveCheck {
 
     /**
      * An entry as [changes] leave it: tags trimmed and times to the second, as the file stores them. [newNotesProtected]:
-     * the protection Notes take when the entry has none and the change writes them.
+     * the protection Notes take when the entry has none and the change writes them. [written]: the entry as saved, whose
+     * code fields a set code is checked by its code, not its fields.
      */
-    private fun applyTo(entry: Entry, changes: EntryChanges, newNotesProtected: Boolean? = null): Entry {
+    private fun applyTo(entry: Entry, changes: EntryChanges, newNotesProtected: Boolean? = null, written: Entry? = null): Entry {
         var expected = entry
         changes.title?.let { expected = expected.copy(title = it) }
         changes.username?.let { expected = expected.copy(username = it) }
@@ -348,7 +352,22 @@ internal object SaveCheck {
             expected = expected.copy(expires = expiry.expires)
             expiry.time?.let { expected = expected.copy(expiryTime = seconds(it)) }
         }
-        changes.totp?.let { expected = expected.copy(totp = (it as? TotpChange.Set)?.config, hasCodeFields = it is TotpChange.Set) }
+        when (val totp = changes.totp) {
+            // The format the code is written in is the writer's choice: its fields are taken as written, the code compared.
+            is TotpChange.Set -> expected = expected.copy(totp = totp.config, hasCodeFields = true, codeFields = written?.codeFields.orEmpty())
+            TotpChange.Remove -> expected = expected.copy(totp = null, hasCodeFields = false, codeFields = emptyList())
+            is TotpChange.Fields -> {
+                val fields = totp.fields.filter { it.name in TotpFormat.FIELD_NAMES }
+                val texts = fields.associate { field ->
+                    field.name to when (val value = field.value) {
+                        is FieldValue.Plain -> value.text
+                        is FieldValue.Protected -> value.secret.reveal()
+                    }
+                }
+                expected = expected.copy(totp = TotpResolver.resolve(texts), hasCodeFields = fields.isNotEmpty(), codeFields = fields)
+            }
+            null -> {}
+        }
         return expected.asWritten()
     }
 

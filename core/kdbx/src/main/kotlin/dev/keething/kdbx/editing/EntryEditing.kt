@@ -195,8 +195,9 @@ internal object EntryEditing {
     /**
      * One source for the code (keething-spec `kdbx.otp-storage`): every code field goes, then a set one is written in
      * the entry's format, else the one most of the database's codes use, else as a protected `otp` link (as KeePassXC
-     * writes it); as a link too when that format cannot hold the code. The fields go where the entry's first code field
-     * was, else after its other fields.
+     * writes it); as a link too when that format cannot hold the code. Fields put back are written as given
+     * (keething-spec app.codes-view AC5). The fields go where the entry's first code field was, else after its other
+     * fields.
      */
     private fun setTotp(change: TotpChange, entry: XElement, root: XElement) {
         val all = strings(entry)
@@ -207,9 +208,15 @@ internal object EntryEditing {
             element.wipeSecrets()
             entry.remove(element)
         }
-        if (change !is TotpChange.Set) return
-        val format = TotpFormat.forNewCode(own, if (own == null) totpFormats(root) else emptyMap())
-        val fields = format.fields(change.config, change.uri) ?: TotpFormat.LINK.fields(change.config, change.uri).orEmpty()
+        val fields = when (change) {
+            TotpChange.Remove -> return
+            // Put back as they were: the fields given, each a secret of its own.
+            is TotpChange.Fields -> change.fields.filter { it.name in TotpFormat.FIELD_NAMES }.map { it.name to copyOf(it.value) }
+            is TotpChange.Set -> {
+                val format = TotpFormat.forNewCode(own, if (own == null) totpFormats(root) else emptyMap())
+                format.fields(change.config, change.uri) ?: TotpFormat.LINK.fields(change.config, change.uri).orEmpty()
+            }
+        }
         for ((key, value) in fields) {
             val element = XElement("String").apply {
                 append(XElement("Key", key))

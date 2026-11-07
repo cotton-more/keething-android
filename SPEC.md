@@ -1614,7 +1614,23 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   and title, under it the username (own code) or the field's name with a field icon (further code), under that
   the entry's group line as its row in the list has it (the path behind a folder, nothing for the root group; with two
   or more databases open "● <database> › <path>"), then the live code large with its ring, red in its last five seconds. A tap anywhere on it copies the code as any code copy (the
-  notice names a further code by its field); ⋯ opens a sheet with the code, Copy code and Open entry. Two columns from
+  notice names a further code by its field); ⋯ opens a sheet with the code, Copy code, Open entry, Edit code… and
+  Delete from the entry. **Edit code** (`EditCodeSheet`, `CodeEdits.edit`): the code live as it would be, a further
+  code's name (checked as any field's), the secret kept or replaced (Camera, Image, Paste or typed, read as the editor
+  reads one; a link brings its own digits, period and algorithm), digits, period and algorithm; the own code saved as
+  the editor saves it (in the entry's format), a further one's link into its field (its protection and type kept); the
+  rest of the entry untouched, the old version into its history. **Delete from the entry** says under it what goes
+  ("The field “One-time code 2” goes from Microsoft", "Its one-time code goes from GitHub"): only that code's fields, no
+  further code taking the own code's place; the notice says it again ("“One-time code 2” deleted from Microsoft", "One-time
+  code deleted from GitHub") with Undo, which writes the fields back as the file held them (`Entry.codeFields`,
+  `TotpChange.Fields`: KeePass's `TimeOtp-*` in their own encoding, not written again in the database's format), a
+  further one where it stood. A code that is all its entry holds but the title (no username, password, URL, notes,
+  attachments, other field or code): **Move entry to the recycle bin** instead, as the card's Delete, with Undo.
+  **＋** beside the search field adds a code (`AddCodeSheet`): Camera, Image, Paste, or typed; then the code live, the
+  database ("Into", only while two or more take entries; the start as a new entry's), and, when that database has an
+  entry of the link's issuer as title (folded as the search folds), "Add to “X”" first (its own code when it has none,
+  else the next "One-time code N", protected) or "A new entry" (title and username from the link's issuer and account,
+  in the root group); nothing written until Add code. Two columns from
   840 dp. "Search codes" searches the tiles: the title, the username and a further code's field name, nothing else of
   the entry (not its URL, notes or other fields), the filters (`@`, `#`, `+`, `!`) as in the list. Reached from the
   launcher shortcut and from the Codes button in the list's header (icon A, the ring, before Sharing); Back (after

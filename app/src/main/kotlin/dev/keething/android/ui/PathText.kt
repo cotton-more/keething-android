@@ -21,7 +21,7 @@ import dev.keething.card.GroupPathFormatter
 
 /**
  * A group's path on one line (the owner, 2026-10-31): the first of [GroupPathFormatter.shortenings] that fits, so the
- * first level and the group's own name stay whole and the levels between are cut to their first letter, then to "…".
+ * group's own name stays whole and the levels above it are cut to their first letter from the left, then to "…".
  * TalkBack reads the path whole. [lead] goes before it on the line (a database's label), [prefixStyle] is the levels
  * before the last, [last] the last level as shown (a part of it bold); null: plain.
  */

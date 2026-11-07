@@ -10,6 +10,13 @@ import dev.keething.android.clipboard.SensitiveClipboard
 import dev.keething.android.recyclebin.RecycleBinMoves
 import dev.keething.android.databases.DatabaseText
 import dev.keething.android.editor.unsavedText
+import dev.keething.android.editor.SAVE_LOCKED
+import dev.keething.android.editor.problem
+import dev.keething.card.editing.CodeEdits
+import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.vault.GroupDestination
+import dev.keething.domain.vault.VaultEdit
+import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.session.OpenDatabase
 import dev.keething.vault.databases.EntryRef
 import dev.keething.vault.databases.OpenEntry
@@ -109,6 +116,8 @@ internal class EntryListViewModel(
     private val besideCard: () -> Boolean = { false },
     /** The list of databases: the current one's name before its vault is listed. */
     databases: StateFlow<Databases> = MutableStateFlow(Databases(emptyList(), null)),
+    /** A new entry was saved into this database (a code added, keething-spec app.codes-view AC7): the next one starts there. */
+    private val newEntryMade: (DatabaseId) -> Unit = {},
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
@@ -287,6 +296,90 @@ internal class EntryListViewModel(
         clipboard.copy(TotpGenerator.code(config, Instant.now()), sensitive = true)
         used(entry)
         notice(Notice.copied("One-time code"))
+    }
+
+    /**
+     * Whether deleting [tile]'s code moves its entry to the recycle bin instead (keething-spec app.codes-view AC6): the
+     * code is all it holds but its title.
+     */
+    fun deletesEntry(tile: CodeTile): Boolean = openEntry(EntryRef.of(tile.entryId))?.entry?.let { CodeEdits.isAllItHolds(it, tile.fieldName) } == true
+
+    /**
+     * Edit code (AC4): [tile]'s code becomes [config], a further one renamed [name]; saved as any edit, the old version
+     * into the history. Why it cannot be saved as asked (a name taken), or null once the save is under way.
+     */
+    fun editCode(tile: CodeTile, config: TotpConfig, name: String?): String? {
+        val found = openEntry(EntryRef.of(tile.entryId)) ?: return SAVE_LOCKED
+        val field = tile.fieldName
+        if (field != null && name != null) CodeEdits.nameProblem(found.entry, field, name)?.let { return it }
+        val what = if (field == null) "One-time code" else "“${name?.trim()?.ifEmpty { null } ?: field}”"
+        save(found.database, VaultEdit.Update(found.entry.id, found.entry.lastModified, CodeEdits.edit(found.entry, field, config, name))) { problem ->
+            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice("$what changed in ${found.entry.displayTitle}"))
+        }
+        return null
+    }
+
+    /**
+     * Delete from the entry (AC5): [tile]'s code goes from its entry and nothing else; the notice names them and offers
+     * Undo, which puts the fields back as they were. The code all its entry holds: the entry to the recycle bin (AC6).
+     */
+    fun deleteCode(tile: CodeTile) {
+        val found = openEntry(EntryRef.of(tile.entryId))?.takeIf { !it.inRecycleBin } ?: return
+        val before = found.entry
+        val field = tile.fieldName
+        if (CodeEdits.isAllItHolds(before, field)) return recycleBin.moveToRecycleBin(found.database, before)
+        val title = before.displayTitle
+        save(found.database, VaultEdit.Update(before.id, before.lastModified, CodeEdits.delete(before, field))) { problem ->
+            val text = if (field == null) "One-time code deleted from $title" else "“${tile.subtitle}” deleted from $title"
+            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(text, undo = { restoreCode(tile, before) }))
+        }
+    }
+
+    /** Undo of [deleteCode]: the fields as they were in [before], into the entry as it is now. */
+    private fun restoreCode(tile: CodeTile, before: Entry) {
+        val current = openEntry(EntryRef.of(tile.entryId)) ?: return notice(Notice(SAVE_LOCKED, isProblem = true))
+        val changes = CodeEdits.restore(before, current.entry, tile.fieldName)
+        save(current.database, VaultEdit.Update(current.entry.id, current.entry.lastModified, changes)) { problem ->
+            problem?.let { notice(Notice(it, isProblem = true)) }
+        }
+    }
+
+    /**
+     * Add a code (AC7): into [into] of [database] (its own code when it has none, else the next "One-time code N"), or a
+     * new entry [title] with [username] in the database's root group.
+     */
+    fun addCode(database: DatabaseSession, into: Entry?, title: String, username: String, config: TotpConfig) {
+        if (into != null) {
+            val (changes, field) = CodeEdits.addTo(into, config)
+            save(database, VaultEdit.Update(into.id, into.lastModified, changes)) { problem ->
+                val what = field?.let { "“$it”" } ?: "One-time code"
+                notice(problem?.let { Notice(it, isProblem = true) } ?: Notice("$what added to ${into.displayTitle}"))
+            }
+            return
+        }
+        val vault = (database.session.state.value as? SessionState.Unlocked)?.vault ?: return notice(Notice(SAVE_LOCKED, isProblem = true))
+        val root = vault.groups.firstOrNull { it.isRoot } ?: return
+        val changes = CodeEdits.newEntry(title, username, config)
+        save(database, VaultEdit.Create(Entry.newId(), GroupDestination(root.id), changes)) { problem ->
+            if (problem == null) newEntryMade(database.id)
+            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice("“${changes.title.orEmpty().ifEmpty { "(Untitled)" }}” added with its code"))
+        }
+    }
+
+    /** [edit] saved in [database]; [done] gets why it failed, or null. The change's secrets are wiped once it is over. */
+    private fun save(database: DatabaseSession, edit: VaultEdit, done: (problem: String?) -> Unit) {
+        val changes = when (edit) {
+            is VaultEdit.Update -> edit.changes
+            is VaultEdit.Create -> edit.fields
+            else -> null
+        }
+        val pending = database.session.save(edit)
+        if (pending == null) {
+            changes?.wipe()
+            return done(SAVE_LOCKED)
+        }
+        pending.invokeOnCompletion { changes?.wipe() }
+        viewModelScope.launch { done(pending.await().problem(database.file)) }
     }
 
     /** The quick actions of a row; null when the entry has gone (deleted elsewhere, or locked). */

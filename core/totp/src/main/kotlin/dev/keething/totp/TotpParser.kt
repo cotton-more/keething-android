@@ -19,6 +19,9 @@ public sealed class TotpParseException(message: String) : Exception(message) {
     public class Unsupported(public val what: String) : TotpParseException("unsupported: $what")
 }
 
+/** A link's issuer ("GitHub") and account ("alex@example.com"); empty when the link names none. */
+public data class TotpLabel(val issuer: String, val account: String)
+
 /** The formats a one-time code is kept in (Mac `OtpAuthURIParser`, `LegacyTOTPParser` and `KeePassTOTPParser`). */
 public object TotpParser {
     private const val SCHEME = "otpauth://"
@@ -47,6 +50,25 @@ public object TotpParser {
                 ?: throw TotpParseException.Unsupported(name)
         } ?: TotpConfig.Algorithm.SHA1
         return TotpConfig(Secret.adopt(secret), digits, period, algorithm)
+    }
+
+    /**
+     * Whom an `otpauth://totp/` link's code is for (Key Uri Format): its issuer (the `issuer` parameter, else the label
+     * before `:`) and its account (the label after `:`, or all of it), decoded and trimmed, either empty when the link
+     * has none; null for anything but such a link.
+     */
+    public fun label(uri: String): TotpLabel? {
+        val trimmed = uri.trim()
+        if (!trimmed.lowercase().startsWith(SCHEME)) return null
+        val rest = trimmed.substring(SCHEME.length).substringBefore('#')
+        val head = rest.substringBefore('?')
+        if (!head.substringBefore('/').equals("totp", ignoreCase = true)) return null
+        val raw = head.substringAfter('/', missingDelimiterValue = "")
+        val label = percentDecoded(raw) ?: raw
+        val issuer = queryParameters(rest.substringAfter('?', missingDelimiterValue = ""))["issuer"]?.trim().orEmpty()
+        val prefix = if (':' in label) label.substringBefore(':').trim() else ""
+        val account = (if (':' in label) label.substringAfter(':') else label).trim()
+        return TotpLabel(issuer.ifEmpty { prefix }, account)
     }
 
     /** KeePass's legacy fields: `TOTP Seed` (Base32) and `TOTP Settings` (`<period>;<digits>`, `<period>;S` for Steam). */

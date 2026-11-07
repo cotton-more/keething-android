@@ -133,6 +133,7 @@ import dev.keething.android.databases.DatabaseMark
 import dev.keething.android.databases.databaseColors
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
+import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.ui.CodeRing
 import dev.keething.android.ui.CodesIcon
 import dev.keething.android.ui.CustomIconImages
@@ -211,6 +212,7 @@ internal fun EntryListScreen(
             sessions.open, sessions.state, sessions::entry, container.recents, container.toldUnlocks, container.recycleBin,
             container.clipboard, query,
             codesOnly = { codes }, besideCard = { holdRecent }, databases = sessions.list.state,
+            newEntryMade = { container.settings.lastNewEntryDatabase = it },
         )
     }
     val state by model.state.collectAsStateWithLifecycle()
@@ -330,14 +332,38 @@ internal fun EntryListScreen(
         )
     }
 
-    // A tile's ⋯ in the Codes view.
+    // A tile's ⋯ in the Codes view, and what it opens (keething-spec app.codes-view).
     var codeSheet by remember { mutableStateOf<CodeTile?>(null) }
+    var editing by remember { mutableStateOf<CodeTile?>(null) }
+    var adding by rememberSaveable { mutableStateOf(false) }
     codeSheet?.let { tile ->
         CodeSheet(
             tile, state.icons, now,
+            deletesEntry = remember(tile) { model.deletesEntry(tile) },
             onCopy = { model.copyCode(tile) },
             onOpenEntry = { onOpen(tile.entryId, CODES_ORIGIN) },
+            onEdit = { editing = tile },
+            onDelete = { model.deleteCode(tile) },
             onDismiss = { codeSheet = null },
+        )
+    }
+    editing?.let { tile ->
+        EditCodeSheet(tile, now, onSave = { config, name -> model.editCode(tile, config, name) }, onDismiss = { editing = null })
+    }
+    val openDatabases by container.sessions.open.collectAsStateWithLifecycle()
+    val places = remember(openDatabases) { container.sessions.newEntryDatabases(openDatabases).filter { it.takesEntries } }
+    val addCode: () -> Unit = {
+        // Only databases viewed only are open: a code has nowhere to go (as a new entry, KeethingApp's onNew).
+        if (places.isNotEmpty()) adding = true else openDatabases.firstOrNull()?.let { container.sessions.kdbx3.ask(it.database) }
+    }
+    if (adding && places.isNotEmpty()) {
+        val start = remember(places) { NewEntryDatabases.start(places, query.text.toString(), null, container.settings.lastNewEntryDatabase) }
+        AddCodeSheet(
+            places, start, now,
+            onAdd = { place, into, title, username, config ->
+                openDatabases.firstOrNull { it.database.id == place.id }?.let { model.addCode(it.database, into, title, username, config) }
+            },
+            onDismiss = { adding = false },
         )
     }
 
@@ -380,7 +406,7 @@ internal fun EntryListScreen(
                 onFocusChange = { searchFocused = it },
                 above = { if (searchFocused) SearchChipRow(chips) { query.setTextAndPlaceCursorAtEnd(it) } },
             ) {
-                if (!codesOnly) NewButton(onNew)
+                if (codesOnly) AddCodeButton(addCode) else NewButton(onNew)
             }
         },
         snackbarHost = { NoticeHost(snackbar) },
@@ -798,6 +824,20 @@ private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Un
             CodeRing(display.period, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.outlineVariant, size = 16.dp, stroke = 2.5.dp)
         }
     }
+}
+
+/** Next to the search field in the Codes view: Add a code (keething-spec app.codes-view AC7). */
+@Composable
+private fun AddCodeButton(onClick: () -> Unit) {
+    FilledIconButton(
+        onClick = onClick,
+        modifier = Modifier.size(56.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    ) { Icon(Icons.Rounded.Add, contentDescription = "Add a code") }
 }
 
 /**

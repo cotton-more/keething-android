@@ -22,8 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Title
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -192,20 +194,34 @@ private fun CodeSubtitle(tile: CodeTile) {
     }
 }
 
-/** A tile's ⋯ (the canvas's "A tile's ⋯"): Copy code and Open entry; each closes the sheet. */
+/**
+ * A tile's ⋯ (the canvas's "A tile's ⋯"): Copy code, Open entry, Edit code… and Delete from the entry, which names the
+ * entry and the field that goes so that it reads as a change to that entry (keething-spec app.codes-view AC5); the code
+ * all its entry holds, Move entry to the recycle bin instead (AC6). Each closes the sheet.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CodeSheet(
     tile: CodeTile,
     icons: CustomIconImages?,
     now: State<Instant>,
+    deletesEntry: Boolean,
     onCopy: () -> Unit,
     onOpenEntry: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val delete = when {
+        deletesEntry -> SheetItem("Move entry to the recycle bin", Icons.Rounded.Delete, "Its one-time code is all “${tile.title}” holds", danger = true, act = onDelete)
+        tile.further -> SheetItem("Delete from the entry", Icons.Rounded.Delete, "The field “${tile.subtitle}” goes from ${tile.title}", danger = true, act = onDelete)
+        else -> SheetItem("Delete from the entry", Icons.Rounded.Delete, "Its one-time code goes from ${tile.title}", danger = true, act = onDelete)
+    }
     val actions = listOf(
-        Triple("Copy code", Icons.Rounded.ContentCopy, onCopy),
-        Triple("Open entry", Icons.Rounded.Description, onOpenEntry),
+        SheetItem("Copy code", Icons.Rounded.ContentCopy, act = onCopy),
+        SheetItem("Open entry", Icons.Rounded.Description, act = onOpenEntry),
+        SheetItem("Edit code…", Icons.Rounded.Edit, act = onEdit),
+        delete,
     )
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(
@@ -222,10 +238,10 @@ internal fun CodeSheet(
                 Text(display.formatted, fontFamily = MonospaceFamily, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)
             }
             Column {
-                actions.forEachIndexed { index, (label, icon, act) ->
-                    SheetAction(label, icon, Modifier.padding(bottom = SegmentGap).clip(segmentShape(index, actions.size, outer = 16.dp))) {
+                actions.forEachIndexed { index, item ->
+                    SheetAction(item, Modifier.padding(bottom = SegmentGap).clip(segmentShape(index, actions.size, outer = 16.dp))) {
                         onDismiss()
-                        act()
+                        item.act()
                     }
                 }
             }
@@ -233,8 +249,11 @@ internal fun CodeSheet(
     }
 }
 
+private class SheetItem(val label: String, val icon: ImageVector, val detail: String? = null, val danger: Boolean = false, val act: () -> Unit)
+
 @Composable
-private fun SheetAction(label: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+private fun SheetAction(item: SheetItem, modifier: Modifier, onClick: () -> Unit) {
+    val colour = if (item.danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
     Row(
         modifier
             .fillMaxWidth()
@@ -245,7 +264,10 @@ private fun SheetAction(label: String, icon: ImageVector, modifier: Modifier, on
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Icon(item.icon, contentDescription = null, tint = if (item.danger) colour else MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text(item.label, style = MaterialTheme.typography.bodyLarge, color = colour)
+            item.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
     }
 }

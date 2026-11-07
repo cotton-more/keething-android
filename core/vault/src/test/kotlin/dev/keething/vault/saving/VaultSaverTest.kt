@@ -275,6 +275,36 @@ class VaultSaverTest {
         assertEquals(long, relinked.entries.single { it.id == ids[1] }.totp)
     }
 
+    // spec: app.codes-view/AC5
+    @Test
+    fun aRemovedCodeIsPutBackWithItsFieldsAsTheyWere() {
+        val key = key()
+        val id = unlock(FakeStore(fixtureBytes("kdbx4-aes-argon2d")), key).entries.first().id
+        val hex = "12345678901234567890".encodeToByteArray().joinToString("") { "%02x".format(it) }
+        val store = FakeStore(
+            CodeFiles.withCodeFields(
+                fixtureBytes("kdbx4-aes-argon2d"), key, id,
+                listOf("TimeOtp-Secret-Hex" to hex, "TimeOtp-Period" to "60", "TimeOtp-Algorithm" to "HMAC-SHA-1"),
+            ),
+        )
+        val saver = VaultSaver(store, backups)
+        val before = unlock(store, key).entries.single { it.id == id }
+        val fields = CodeFiles.codeFields(store.content!!, key, id)
+        assertEquals(listOf("TimeOtp-Secret-Hex", "TimeOtp-Period", "TimeOtp-Algorithm"), before.codeFields.map { it.name }, "the entry keeps its code's fields as read")
+
+        val removed = saved(saver.save(VaultEdit.Update(id, before.lastModified, EntryChanges(totp = TotpChange.Remove)), key, now)).entries.single { it.id == id }
+        assertNull(removed.totp)
+        assertEquals(emptyList(), removed.codeFields)
+        assertEquals(emptyList(), CodeFiles.codeFields(store.content!!, key, id))
+
+        // Not written again in the database's format: the same fields, the same encoding, no Length added.
+        val back = saved(saver.save(VaultEdit.Update(id, removed.lastModified, EntryChanges(totp = TotpChange.Fields(before.codeFields))), key, now))
+            .entries.single { it.id == id }
+        assertEquals(fields, CodeFiles.codeFields(store.content!!, key, id))
+        assertEquals(before.totp, back.totp)
+        assertEquals(before.codeFields, back.codeFields)
+    }
+
     @Test
     fun aSaveThatWouldAddWhatKeePasssSchemaDoesNotAllowIsRefusedAndNothingIsReplaced() {
         // The root group's custom icon is not in the file: a new entry would take it and refer to an icon that is not there.
