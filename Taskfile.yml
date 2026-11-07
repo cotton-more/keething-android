@@ -118,6 +118,15 @@ tasks:
     cmds:
       - tools/make-otp-database.py {{.CLI_ARGS | default "otp-formats.kdbx"}}
 
+  large:database:
+    desc: "A large fictitious database for app.large-database's measurements: task large:database -- <new.kdbx> [entries] [attachments MiB] [Argon2 MiB] [iterations] (password pw)"
+    cmds:
+      - |
+        set -- {{.CLI_ARGS}}
+        out="$1"; shift
+        [[ "$out" == /* ]] || out="{{.USER_WORKING_DIR}}/$out"
+        ./gradlew -q --console=plain :core:kdbx:makeLargeDatabase -Parguments="$out $*"
+
   notes:database:
     desc: "The notes' test database, written by the phone's core: task notes:database -- <new.kdbx> (password pw; needs keepassxc-cli)"
     cmds:

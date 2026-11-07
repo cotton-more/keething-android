@@ -2,6 +2,7 @@ package dev.keething.android.list
 
 import dev.keething.domain.storage.StoppedSave
 import dev.keething.android.session.file
+import android.util.Log
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
@@ -50,6 +51,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeSource
 
 internal data class ListUiState(
     /** The header: the open database's name (SPEC §3.1), or the open ones' labels joined ("Personal and Work"). */
@@ -127,8 +129,11 @@ internal class EntryListViewModel(
         .mapLatest { databases ->
             if (databases.isEmpty()) return@mapLatest null
             withContext(Dispatchers.Default) {
+                val started = TimeSource.Monotonic.markNow()
                 val listing = listingOf(databases, Instant.now())
                 Prepared(listing, CustomIconImages(listing.vault.customIcons))
+                    // Times and counts only (keething-spec app.large-database).
+                    .also { Log.i(TAG, "listing prepared in ${started.elapsedNow().inWholeMilliseconds} ms: ${listing.ids.size} entries") }
             }
         }
         .onEach { it?.let { prepared -> recycleBin.settled(prepared.listing.ids) } }
@@ -150,7 +155,13 @@ internal class EntryListViewModel(
         }
             .mapLatest { (prepared, text, codes, recentIds) ->
                 val listing = prepared?.listing ?: return@mapLatest Shown()
-                withContext(Dispatchers.Default) { if (codes) Shown(codes = listing.codes(text)) else Shown(listing.sections(text, recentIds)) }
+                withContext(Dispatchers.Default) {
+                    val started = TimeSource.Monotonic.markNow()
+                    (if (codes) Shown(codes = listing.codes(text)) else Shown(listing.sections(text, recentIds))).also { shown ->
+                        val rows = shown.codes.size + shown.sections.sumOf { it.rows.size }
+                        Log.i(TAG, "search of ${text.length} characters in ${started.elapsedNow().inWholeMilliseconds} ms: $rows rows")
+                    }
+                }
             }
             .stateIn(viewModelScope, SharingStarted.Eagerly, Shown())
 
@@ -443,3 +454,5 @@ private val CONFLICT_TIME: DateTimeFormatter = DateTimeFormatter.ofLocalizedDate
 /** `1.4 s`, `850 ms`, the unit kept with its number on a line. */
 internal fun Duration.seconds(): String =
     if (inWholeMilliseconds < 1_000) "$inWholeMilliseconds\u00A0ms" else "%.1f\u00A0s".format(inWholeMilliseconds / 1_000.0)
+
+private const val TAG = "List"

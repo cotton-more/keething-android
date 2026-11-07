@@ -26,6 +26,7 @@ import dev.keething.vault.saving.SaveResult
 import dev.keething.vault.saving.VaultSaver
 import java.io.IOException
 import kotlin.time.Duration
+import kotlin.time.TimeSource
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -80,6 +81,9 @@ public class VaultSession(
 
     /** Told on the main thread of every change refused because the database is viewed only ([save]; keething-spec kdbx.kdbx3 AC6). */
     public var onViewOnlyRefusal: (() -> Unit)? = null
+
+    /** Told on the main thread how long each save took in the file, and whether it was saved (keething-spec app.large-database). */
+    public var onSaveTimed: ((took: Duration, saved: Boolean) -> Unit)? = null
 
     /** Told at once of every state set, before anyone collecting [state] (the coordinator follows it so). */
     internal var onStateChange: ((SessionState) -> Unit)? = null
@@ -502,7 +506,9 @@ public class VaultSession(
                 fileWork.withLock {
                     // A lock came while it waited for the save before it: it does not start (AC3).
                     if (token != generation) return@withLock
+                    val started = TimeSource.Monotonic.markNow()
                     val result = withContext(io) { save(attempt, running) }
+                    onSaveTimed?.invoke(started.elapsedNow(), result is SaveResult.Saved)
                     inFile = result is SaveResult.Saved
                     val copies = conflictCopies()
                     if (token != generation) {

@@ -1,5 +1,6 @@
 package dev.keething.android.entry
 
+import android.util.Log
 import dev.keething.android.session.file
 import dev.keething.android.groups.GroupTexts
 import dev.keething.card.editing.EntryMove
@@ -51,6 +52,7 @@ import dev.keething.domain.vault.VaultEdit
 import dev.keething.vault.session.SessionState
 import java.time.Instant
 import java.time.LocalDate
+import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -124,8 +126,8 @@ internal class EntryCardViewModel(
     private val content: StateFlow<CardContent?> = database.session.state
         .map { (it as? SessionState.Unlocked)?.vault }
         .distinctUntilChanged { a, b -> a === b }
-        .map { vault -> vault?.let(::build) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, (database.session.state.value as? SessionState.Unlocked)?.vault?.let(::build))
+        .map { vault -> vault?.let(::timedBuild) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, (database.session.state.value as? SessionState.Unlocked)?.vault?.let(::timedBuild))
 
     val state: StateFlow<CardUiState> = combine(content, reveal, ::CardUiState)
         .stateIn(viewModelScope, SharingStarted.Eagerly, CardUiState(content.value, RevealState()))
@@ -462,6 +464,12 @@ internal class EntryCardViewModel(
 
     fun problem(text: String) {
         mutableNotices.trySend(Notice(text, isProblem = true))
+    }
+
+    /** [build], its time logged (keething-spec app.large-database): it runs on the main thread. */
+    private fun timedBuild(vault: Vault): CardContent? {
+        val started = TimeSource.Monotonic.markNow()
+        return build(vault).also { Log.i("Card", "built in ${started.elapsedNow().inWholeMilliseconds} ms") }
     }
 
     private fun build(vault: Vault): CardContent? {

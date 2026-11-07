@@ -345,6 +345,7 @@ internal class Sessions(
         )
         // Which states the session went through (names only, never data): how a lock came about.
         watching.launch { session.state.collect { Log.i(TAG, "${record.id.fileName.take(8)} ${it.describe()}") } }
+        session.onSaveTimed = { took, saved -> Log.i(TAG, "${record.id.fileName.take(8)} save ${if (saved) "done" else "failed"} in ${took.inWholeMilliseconds} ms") }
         // The app's lock count: a Lock that finds this database locked already leaves its own as it was.
         val fingerprint = BiometricUnlock(record.id, session, biometric, list, scope, watching, appLocks = { vaults.lockCount })
         watching.launch { fingerprint.refresh() }
@@ -388,7 +389,8 @@ internal class Sessions(
             }
         }
         SessionState.Unlocking -> "unlocking"
-        is SessionState.Unlocked -> "unlocked"
+        // Times and counts only (keething-spec app.large-database).
+        is SessionState.Unlocked -> "unlocked: ${vault.entries.size} entries" + (keyDerivation?.let { ", key derived in ${it.inWholeMilliseconds} ms" } ?: "")
     }
 
     private companion object {

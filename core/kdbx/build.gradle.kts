@@ -14,3 +14,12 @@ dependencies {
 tasks.withType<Test>().configureEach {
     systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
 }
+
+// The large fictitious database of app.large-database's measurements: `task large:database -- <new.kdbx> …`.
+tasks.register<JavaExec>("makeLargeDatabase") {
+    description = "A large fictitious database (password pw) for the phone's measurements"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.keething.kdbx.probe.MakeLargeDatabaseKt")
+    args(providers.gradleProperty("arguments").getOrElse("").split(' ').filter { it.isNotEmpty() })
+    maxHeapSize = "4g"
+}
