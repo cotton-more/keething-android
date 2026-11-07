@@ -1,5 +1,6 @@
 package dev.keething.android.editor
 
+import dev.keething.android.session.SizeTexts
 import dev.keething.android.unlock.describe
 import dev.keething.card.GroupPathFormatter
 import dev.keething.domain.vault.Vault
@@ -27,7 +28,8 @@ internal fun SaveFailure.describe(file: File): String = when (this) {
     is SaveFailure.CopyNotKept -> "The KDBX 3.1 file could not be kept beside the database ($detail), so nothing was changed."
     SaveFailure.FileKeepsChanging -> "The database file keeps changing (a sync?). Nothing was saved; try again in a moment."
     is SaveFailure.WriteFailed -> "Could not write the database: $detail."
-    SaveFailure.OutOfMemory -> "Not enough memory to write the database. Nothing was saved."
+    SaveFailure.OutOfMemory -> SizeTexts.OUT_OF_MEMORY
+    is SaveFailure.TooLarge -> SizeTexts.saveRefused(alone)
     SaveFailure.Locked -> "The database locked before the change was saved. Nothing was saved; the file is as it was."
     SaveFailure.InvalidName -> "A group needs a name. Nothing was saved."
     SaveFailure.GroupNameTaken -> "A group of that name is already there (made elsewhere?). Nothing was saved."

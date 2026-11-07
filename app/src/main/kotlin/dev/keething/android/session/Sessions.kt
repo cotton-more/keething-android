@@ -38,6 +38,7 @@ import dev.keething.vault.databases.VaultSessions
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.SaveRoom
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.VaultSession
 import java.io.File
@@ -109,6 +110,33 @@ internal class Sessions(
 
     /** The question a KDBX 3.1 database asks, and its upgrade (keething-spec kdbx.kdbx3 AC5–AC8). */
     val kdbx3 = Kdbx3Question(scope)
+
+    private val mutableReadOnlySaid = MutableStateFlow<String?>(null)
+
+    /** Why a change was refused before it started, shown over every screen until OK (keething-spec app.large-database AC3). */
+    val readOnlySaid: StateFlow<String?> = mutableReadOnlySaid.asStateFlow()
+
+    /**
+     * A change tried on [database] open read-only, before anything is typed or chosen (Edit, New, Move to group…, a
+     * group's changes): a KDBX 3.1 one asks its question again (keething-spec kdbx.kdbx3 AC6), one too large to save
+     * says so ([readOnlySaid]; app.large-database AC3).
+     */
+    fun readOnlyRefusal(database: DatabaseSession) {
+        val unlocked = database.session.state.value as? SessionState.Unlocked ?: return
+        val room = unlocked.room
+        when {
+            unlocked.viewOnly -> kdbx3.ask(database)
+            room is SaveRoom.TooLarge -> {
+                val name = open.value.firstOrNull { it.database === database }?.mark?.label?.full ?: File(database.location.fileName).name
+                mutableReadOnlySaid.value = SizeTexts.refused(name, room)
+            }
+        }
+    }
+
+    /** OK on [readOnlySaid]. */
+    fun readOnlySaidOk() {
+        mutableReadOnlySaid.value = null
+    }
 
     /** A session per database of the window; Lock and the background timeout lock them all. */
     private val vaults = VaultSessions(list, scope, ::start, AndroidClock, lockTimeout = { settings.lockTimeout.value })
@@ -211,9 +239,10 @@ internal class Sessions(
 
     /**
      * The [open] databases as a new entry sees them: where it can go (keething-spec databases.one-list AC4, AC5). One
-     * viewed only (KDBX 3.1; keething-spec kdbx.kdbx3 AC6) takes nothing: neither a new entry nor a moved one, nor a group.
+     * read-only (KDBX 3.1, keething-spec kdbx.kdbx3 AC6; too large to save, app.large-database AC3) takes nothing:
+     * neither a new entry nor a moved one, nor a group.
      */
-    fun newEntryDatabases(open: List<OpenDatabase>): List<NewEntryDatabase> = open.filterNot { it.unlocked.viewOnly }.map {
+    fun newEntryDatabases(open: List<OpenDatabase>): List<NewEntryDatabase> = open.filterNot { it.unlocked.readOnly }.map {
         NewEntryDatabase(it.database.id, it.database.number, it.unlocked.vault, it.mark, DatabaseText.folder(DatabaseText.pathOf(it.database.location, storageRoot), storageRoot))
     }
 
@@ -390,7 +419,8 @@ internal class Sessions(
         }
         SessionState.Unlocking -> "unlocking"
         // Times and counts only (keething-spec app.large-database).
-        is SessionState.Unlocked -> "unlocked: ${vault.entries.size} entries" + (keyDerivation?.let { ", key derived in ${it.inWholeMilliseconds} ms" } ?: "")
+        is SessionState.Unlocked -> "unlocked: ${vault.entries.size} entries" + (keyDerivation?.let { ", key derived in ${it.inWholeMilliseconds} ms" } ?: "") +
+            ", ${size.fileBytes shr 20} MiB, room $room"
     }
 
     private companion object {

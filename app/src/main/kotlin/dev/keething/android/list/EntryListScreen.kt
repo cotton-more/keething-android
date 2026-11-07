@@ -1,5 +1,6 @@
 package dev.keething.android.list
 
+import dev.keething.android.session.isReadOnly
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -152,6 +153,7 @@ import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.unlock.FingerprintQuestion
 import dev.keething.vault.biometric.FingerprintAnswer
 import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.EntryRef
 import androidx.compose.material.icons.rounded.Storage
 import dev.keething.android.ui.NoticeEffect
 import dev.keething.android.ui.NoticeHost
@@ -342,7 +344,11 @@ internal fun EntryListScreen(
             deletesEntry = remember(tile) { model.deletesEntry(tile) },
             onCopy = { model.copyCode(tile) },
             onOpenEntry = { onOpen(tile.entryId, CODES_ORIGIN) },
-            onEdit = { editing = tile },
+            // A database read-only refuses it before its sheet (keething-spec app.large-database AC3, kdbx.kdbx3 AC6).
+            onEdit = {
+                val database = container.sessions.session(EntryRef.of(tile.entryId).database)
+                if (database?.isReadOnly == true) container.sessions.readOnlyRefusal(database) else editing = tile
+            },
             onDelete = { model.deleteCode(tile) },
             onDismiss = { codeSheet = null },
         )
@@ -353,8 +359,8 @@ internal fun EntryListScreen(
     val openDatabases by container.sessions.open.collectAsStateWithLifecycle()
     val places = remember(openDatabases) { container.sessions.newEntryDatabases(openDatabases).filter { it.takesEntries } }
     val addCode: () -> Unit = {
-        // Only databases viewed only are open: a code has nowhere to go (as a new entry, KeethingApp's onNew).
-        if (places.isNotEmpty()) adding = true else openDatabases.firstOrNull()?.let { container.sessions.kdbx3.ask(it.database) }
+        // Only databases read-only are open: a code has nowhere to go (as a new entry, KeethingApp's onNew).
+        if (places.isNotEmpty()) adding = true else openDatabases.firstOrNull()?.let { container.sessions.readOnlyRefusal(it.database) }
     }
     if (adding && places.isNotEmpty()) {
         val start = remember(places) { NewEntryDatabases.start(places, query.text.toString(), null, container.settings.lastNewEntryDatabase) }

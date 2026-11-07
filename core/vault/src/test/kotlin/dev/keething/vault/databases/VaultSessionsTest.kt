@@ -9,11 +9,15 @@ import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.biometric.FakePasswordStores
 import dev.keething.vault.biometric.MapSettings
+import dev.keething.vault.opening.DatabaseSize
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.FakeClock
 import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.OpenSize
+import dev.keething.vault.saving.SaveFailure
+import dev.keething.vault.session.SaveRoom
 import dev.keething.vault.session.SaveOutcome
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.VaultSession
@@ -92,8 +96,13 @@ class VaultSessionsTest {
         /** Every start of the background timer, with the time it has (the app's alarm). */
         val timers = mutableListOf<Duration>()
 
+        /** The room each unlock is judged to have (keething-spec app.large-database AC3), and what it was judged with. */
+        var room: (DatabaseSize) -> SaveRoom = { SaveRoom.Enough }
+        val judged = mutableListOf<Pair<DatabaseSize, List<OpenSize>>>()
+
         val sessions: VaultSessions by lazy {
-            VaultSessions(list, scope.backgroundScope, factory, clock, lockTimeout = { timeout }, now = clock::now).also { sessions ->
+            val judge = { size: DatabaseSize, open: List<OpenSize> -> judged += size to open; room(size) }
+            VaultSessions(list, scope.backgroundScope, factory, clock, lockTimeout = { timeout }, now = clock::now, judgeRoom = judge).also { sessions ->
                 scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) { sessions.state.collect { told += it } }
                 sessions.observeLocks { locks += it }
                 sessions.observeTimer { timers += it }
@@ -255,6 +264,77 @@ class VaultSessionsTest {
 
         assertEquals(told, f.told.size, "the screens show the same")
         assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.WrongPassword)), f.state(w))
+    }
+
+
+    // The memory a save needs (keething-spec app.large-database AC3)
+
+    @Test
+    fun aDatabaseTooLargeToSaveOpensReadOnlyAndRefusesEveryChangeWithoutReadingItsFile() = runTest {
+        val f = Fixture(this)
+        val p = f.add("/a/p.kdbx")
+        f.room = { SaveRoom.TooLarge(alone = true) }
+        unlock(f, p)
+        val unlocked = assertIs<SessionState.Unlocked>(f.state(p))
+        assertEquals(SaveRoom.TooLarge(alone = true), unlocked.room)
+        assertTrue(unlocked.readOnly)
+        assertFalse(unlocked.viewOnly, "not KDBX 3.1: its question is not asked")
+        val size = fixtureBytes("kdbx4-aes-aeskdf").size.toLong()
+        assertEquals(size, unlocked.size.fileBytes, "the file's size as read")
+
+        val store = f.files.getValue("/a/p.kdbx")
+        val reads = store.reads
+        val entry = unlocked.vault.entries.first()
+        val saved = assertNotNull(f.session(p).save(VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified)))
+        runCurrent()
+        assertEquals(SaveOutcome.Failed(SaveFailure.TooLarge(alone = true)), saved.await())
+        assertEquals(reads, store.reads, "nothing read")
+        assertEquals(0, store.replaced, "nothing written")
+    }
+
+    @Test
+    fun theOneOpenedLaterIsJudgedBesideTheOpenOnesWhichKeepWhatTheyWereJudged() = runTest {
+        val f = Fixture(this)
+        val p = f.add("/a/p.kdbx")
+        val w = f.add("/a/w.kdbx")
+        unlock(f, p)
+        assertEquals(emptyList(), f.judged.single().second, "nothing else open")
+
+        f.room = { SaveRoom.TooLarge(alone = false) }
+        unlock(f, w)
+        val pSize = assertIs<SessionState.Unlocked>(f.state(p)).size
+        assertEquals(listOf(OpenSize(pSize, saves = true)), f.judged.last().second, "judged beside the open one, which saves")
+        assertEquals(SaveRoom.TooLarge(alone = false), assertIs<SessionState.Unlocked>(f.state(w)).room)
+        assertEquals(SaveRoom.Enough, assertIs<SessionState.Unlocked>(f.state(p)).room, "the one open first is not changed")
+
+        // A third one counts the read-only one as open but not saving.
+        val x = f.add("/a/x.kdbx")
+        f.room = { SaveRoom.Enough }
+        unlock(f, x)
+        assertEquals(listOf(true, false), f.judged.last().second.map { it.saves })
+    }
+
+    @Test
+    fun aReloadOrASaveKeepsTheRoomOfTheUnlockAndTheNextUnlockJudgesItAgain() = runTest {
+        val f = Fixture(this)
+        val p = f.add("/a/p.kdbx")
+        f.room = { SaveRoom.Near }
+        unlock(f, p)
+        val entry = f.vault(p).entries.first()
+        val saved = assertNotNull(f.session(p).save(VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified)))
+        runCurrent()
+        assertEquals(SaveOutcome.Saved(), saved.await())
+        f.session(p).reload()
+        runCurrent()
+        assertEquals(SaveRoom.Near, assertIs<SessionState.Unlocked>(f.state(p)).room)
+        assertEquals(1, f.judged.size, "judged once, at the unlock")
+
+        f.session(p).nearLimitSaid()
+        assertEquals(SaveRoom.Enough, assertIs<SessionState.Unlocked>(f.state(p)).room, "said once")
+        f.session(p).lock()
+        unlock(f, p)
+        assertEquals(SaveRoom.Near, assertIs<SessionState.Unlocked>(f.state(p)).room, "said again at the next unlock")
+        assertEquals(2, f.judged.size)
     }
 
     // Locking

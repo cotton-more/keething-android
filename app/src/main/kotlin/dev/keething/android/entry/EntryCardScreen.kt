@@ -1,5 +1,6 @@
 package dev.keething.android.entry
 
+import dev.keething.android.session.isReadOnly
 import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import dev.keething.android.sharing.ShareSheet
 import dev.keething.android.groups.GroupPickerSheet
@@ -347,7 +348,8 @@ internal fun EntryCardScreen(
                         inRecycleBin = content.inRecycleBin,
                         forGood = content.inRecycleBin || content.binTurnedOff,
                         onHistory = onHistory,
-                        onMove = { movingTo = model.groupsToMoveTo() },
+                        // A database read-only refuses it before the picker (keething-spec app.large-database AC3).
+                        onMove = { if (database.isReadOnly) container.sessions.readOnlyRefusal(database) else movingTo = model.groupsToMoveTo() },
                         onSend = { sending = true },
                         onDelete = { if (model.moveToRecycleBin()) onBack() },
                         onDeleteForGood = { deletingForGood = true },

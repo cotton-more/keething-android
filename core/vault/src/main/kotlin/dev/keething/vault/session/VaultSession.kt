@@ -17,6 +17,7 @@ import dev.keething.kdbx.key.KeyFileException
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.opening.AttachmentContents
+import dev.keething.vault.opening.DatabaseSize
 import dev.keething.vault.opening.HistoryResult
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.OpenResult
@@ -87,6 +88,12 @@ public class VaultSession(
 
     /** Told at once of every state set, before anyone collecting [state] (the coordinator follows it so). */
     internal var onStateChange: ((SessionState) -> Unit)? = null
+
+    /**
+     * Judges at each unlock whether a save of the file just read has the memory it needs (keething-spec
+     * app.large-database AC3; the coordinator's, which knows the other open databases); none: [SaveRoom.Enough].
+     */
+    internal var judgeRoom: ((DatabaseSize) -> SaveRoom)? = null
 
     private val saver = VaultSaver(store, backups)
 
@@ -363,6 +370,12 @@ public class VaultSession(
         scope.launch(io) { runCatching { store.stoppedSaveSaid() } }
     }
 
+    /** The app said that a save is near the memory's limit ([SaveRoom.Near]): said again at the next unlock. */
+    public fun nearLimitSaid() {
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return
+        if (unlocked.room == SaveRoom.Near) set(unlocked.copy(room = SaveRoom.Enough))
+    }
+
     /** The folder watcher saw a change: read the file again once the folder is quiet. */
     public fun fileChanged() {
         if (mutableState.value !is SessionState.Unlocked) return
@@ -458,7 +471,7 @@ public class VaultSession(
      * the vault is read again; refused because the password changed elsewhere, the session locks. A lock lets a running
      * save finish for a while ([lock]); one still waiting its turn then does not start. The save reads [edit]'s secrets
      * until the result is complete: wipe them only then. A database viewed only refuses it at once, the file not read
-     * ([SaveFailure.ViewOnly]).
+     * ([SaveFailure.ViewOnly]), and so does one too large to save ([SaveFailure.TooLarge]).
      */
     public fun save(edit: VaultEdit): Deferred<SaveOutcome>? {
         val unlocked = mutableState.value as? SessionState.Unlocked ?: return null
@@ -466,6 +479,7 @@ public class VaultSession(
             onViewOnlyRefusal?.invoke()
             return CompletableDeferred(SaveOutcome.Failed(SaveFailure.ViewOnly))
         }
+        tooLarge(unlocked)?.let { return it }
         return saving(edit) { attempt, running -> saver.save(edit, attempt, clock.now(), running::stopped) }
     }
 
@@ -485,12 +499,20 @@ public class VaultSession(
     /**
      * Upgrades the database viewed only, a KDBX 3.1 one, to KDBX 4.0 (keething-spec kdbx.kdbx3 AC7, AC8): its 3.1 file kept
      * beside it first, then written as KDBX 4.0 like a save, in its turn among the saves; the vault then becomes the
-     * new file read back, a KDBX 4 database like any other. Null when not unlocked, or not viewed only.
+     * new file read back, a KDBX 4 database like any other. Null when not unlocked, or not viewed only; refused at once
+     * when too large to save ([SaveFailure.TooLarge]).
      */
     public fun upgrade(): Deferred<SaveOutcome>? {
         val unlocked = mutableState.value as? SessionState.Unlocked ?: return null
         if (!unlocked.viewOnly) return null
+        tooLarge(unlocked)?.let { return it }
         return saving(null) { attempt, running -> saver.upgrade(attempt, clock.now(), running::stopped) }
+    }
+
+    /** A save of a database too large for it refused at once, nothing read (keething-spec app.large-database AC3). */
+    private fun tooLarge(unlocked: SessionState.Unlocked): Deferred<SaveOutcome>? {
+        val room = unlocked.room as? SaveRoom.TooLarge ?: return null
+        return CompletableDeferred(SaveOutcome.Failed(SaveFailure.TooLarge(room.alone)))
     }
 
     /** Runs [save] in its turn with a copy of the key ([edit]: what a lock that overtook it kept out of the file). */
@@ -588,9 +610,13 @@ public class VaultSession(
         loadedVersion = opened.version
         triedVersion = opened.version
         // A stopped save put right stays said until the app said it, whatever the reads after it say.
-        val stoppedSave = opened.stoppedSave ?: (mutableState.value as? SessionState.Unlocked)?.stoppedSave
+        val before = mutableState.value as? SessionState.Unlocked
+        val stoppedSave = opened.stoppedSave ?: before?.stoppedSave
+        // Judged at the unlock and kept: a reload or a save of the same session does not judge it again (AC3).
+        val room = before?.room ?: judgeRoom?.invoke(opened.size) ?: SaveRoom.Enough
         val unlocked = SessionState.Unlocked(
             opened.vault, copies, keyDerivation = opened.keyDerivation, stoppedSave = stoppedSave, unsaved = unsaved, viewOnly = opened.viewOnly,
+            size = opened.size, room = room,
         )
         set(unlocked)
         // The same contents read again: the state keeps the equal one before, so this copy is nobody's.

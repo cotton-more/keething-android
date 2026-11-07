@@ -137,7 +137,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 made.discard()
                 throw Refused(SaveFailure.WriteFailed("the new file is gone"))
             }
-            return SaveResult.Saved(made.reread.toOpenedVault(saved, made.vault), made.deletedGroups)
+            return SaveResult.Saved(made.reread.toOpenedVault(saved, made.file.size.toLong(), made.vault), made.deletedGroups)
         }
         throw Refused(SaveFailure.FileKeepsChanging)
     }

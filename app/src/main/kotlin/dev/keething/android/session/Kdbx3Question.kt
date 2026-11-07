@@ -89,3 +89,6 @@ internal class Kdbx3Question(private val scope: CoroutineScope) {
 
 /** Whether its database is open and viewed only (KDBX 3.1; keething-spec kdbx.kdbx3 AC6). */
 internal val DatabaseSession.isViewOnly: Boolean get() = (session.state.value as? SessionState.Unlocked)?.viewOnly == true
+
+/** Whether its database is open and read-only: viewed only, or too large to save (keething-spec app.large-database AC3). */
+internal val DatabaseSession.isReadOnly: Boolean get() = (session.state.value as? SessionState.Unlocked)?.readOnly == true

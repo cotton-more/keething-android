@@ -74,7 +74,12 @@ internal class OpenedVault(
     val stoppedSave: StoppedSave? = null,
     /** A KDBX 3.1 file: read to be viewed only (keething-spec kdbx.kdbx3 AC6). */
     val viewOnly: Boolean = false,
+    /** How large the file read was, and its attachments (keething-spec app.large-database AC3). */
+    val size: DatabaseSize = DatabaseSize(0, 0),
 )
+
+/** A database as read: the file's bytes, and its attachments' decrypted bytes (keething-spec app.large-database AC3). */
+public data class DatabaseSize(val fileBytes: Long, val attachmentBytes: Long)
 
 internal sealed interface OpenResult {
     class Opened(val opened: OpenedVault) : OpenResult
@@ -99,7 +104,7 @@ public open class VaultOpener {
         } catch (_: OutOfMemoryError) {
             return OpenResult.Failed(OpenFailure.OutOfMemory)
         }
-        return OpenResult.Opened(database.toOpenedVault(found.version, stoppedSave = found.stoppedSave))
+        return OpenResult.Opened(database.toOpenedVault(found.version, found.bytes.size.toLong(), stoppedSave = found.stoppedSave))
     }
 
     /**
@@ -157,10 +162,15 @@ public sealed interface HistoryResult {
 }
 
 /**
- * The vault of a database read, with its attachments; [version] is the file's that was read. [assembled] is its
- * vault when it was made already (a save's read-back).
+ * The vault of a database read, with its attachments; [version] is the file's that was read, [fileBytes] its size.
+ * [assembled] is its vault when it was made already (a save's read-back).
  */
-internal fun KdbxDatabase.toOpenedVault(version: FileVersion, assembled: Vault? = null, stoppedSave: StoppedSave? = null): OpenedVault {
+internal fun KdbxDatabase.toOpenedVault(
+    version: FileVersion,
+    fileBytes: Long,
+    assembled: Vault? = null,
+    stoppedSave: StoppedSave? = null,
+): OpenedVault {
     val vault = assembled ?: try {
         VaultAssembler.assemble(document, binaries.map(Secret::size))
     } catch (failure: RuntimeException) {
@@ -170,7 +180,8 @@ internal fun KdbxDatabase.toOpenedVault(version: FileVersion, assembled: Vault? 
     val indexes = document.entries.associate { entry ->
         entry.uuid to entry.attachments.mapNotNull { ref -> ref.ref?.let { ref.name to it } }.toMap()
     }
-    return OpenedVault(vault, AttachmentContents(binaries, indexes), version, keyDerivation, stoppedSave, viewOnly = format.version.startsWith("3."))
+    val size = DatabaseSize(fileBytes, binaries.sumOf { it.size.toLong() })
+    return OpenedVault(vault, AttachmentContents(binaries, indexes), version, keyDerivation, stoppedSave, viewOnly = format.version.startsWith("3."), size)
 }
 
 internal fun KdbxException.toOpenFailure(): OpenFailure = when (this) {

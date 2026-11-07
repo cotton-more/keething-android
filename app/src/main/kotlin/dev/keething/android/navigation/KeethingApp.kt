@@ -87,7 +87,8 @@ import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.databases.WindowDatabasesModel
 import dev.keething.android.databases.WindowDatabasesScreen
 import dev.keething.android.ui.Notice
-import dev.keething.android.session.isViewOnly
+import dev.keething.android.session.isReadOnly
+import dev.keething.android.list.ReadOnlyDialog
 import dev.keething.android.unlock.Kdbx3QuestionDialog
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
@@ -671,11 +672,12 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
     }
     // An entry's database by its ref; null once it is not open (its screens go: NavigationState.keepOpen).
     val databaseOf = { ref: EntryRef -> sessions.session(ref.database) }
-    // An entry of a database viewed only is never edited: its question is asked again (keething-spec kdbx.kdbx3 AC6).
+    // An entry of a database read-only is never edited: KDBX 3.1 asks its question again (keething-spec kdbx.kdbx3 AC6),
+    // one too large to save says so (app.large-database AC3).
     val edit: (String) -> Unit = { id ->
         val database = databaseOf(EntryRef.of(id))
-        if (database?.isViewOnly == true) {
-            sessions.kdbx3.ask(database)
+        if (database?.isReadOnly == true) {
+            sessions.readOnlyRefusal(database)
         } else {
             navigation.open(Screen.Editor(id))
         }
@@ -686,6 +688,9 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
         val name = sessions.list.record(asked.id)?.displayName ?: asked.location.fileName
         Kdbx3QuestionDialog(name) { upgrade -> sessions.kdbx3.answer(asked, upgrade) }
     }
+    // A change tried on a database too large to save, from any screen (keething-spec app.large-database AC3).
+    val readOnlySaid by sessions.readOnlySaid.collectAsStateWithLifecycle()
+    readOnlySaid?.let { text -> ReadOnlyDialog(text, onOk = sessions::readOnlySaidOk) }
     // Codes another app handed over (SPEC §10) are read once the vault is open.
     val incoming by container.incomingCodes.collectAsStateWithLifecycle()
     LaunchedEffect(incoming) {
@@ -744,9 +749,9 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 onDatabases = { navigation.open(Screen.WindowDatabases) },
                                 onNew = onNew@{ choice ->
                                     val places = sessions.newEntryDatabases(open)
-                                    // Only databases viewed only are open: a new entry has nowhere to go.
+                                    // Only databases read-only are open: a new entry has nowhere to go.
                                     if (places.isEmpty() && open.isNotEmpty()) {
-                                        sessions.kdbx3.ask(open.first().database)
+                                        sessions.readOnlyRefusal(open.first().database)
                                         return@onNew
                                     }
                                     // The database the search names, else the card beside the list's, else the last new entry's.
@@ -834,6 +839,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                             onSearch = navigation::search,
                             onLockScreen = { showLockScreen(it) },
                             databases = sessions::newEntryDatabases,
+                            onReadOnly = sessions::readOnlyRefusal,
                         )
                     }
                     entry<Screen.Settings> {

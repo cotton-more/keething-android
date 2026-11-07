@@ -67,6 +67,12 @@ public sealed interface SaveFailure {
     public data object OutOfMemory : SaveFailure
 
     /**
+     * Read-only: the database is too large for a save to fit safely in the memory the app is given, so nothing was
+     * tried (keething-spec app.large-database AC3; [dev.keething.vault.session.SaveRoom.TooLarge], whose [alone] it is).
+     */
+    public data class TooLarge(val alone: Boolean) : SaveFailure
+
+    /**
      * The database locked and the save did not finish in time (keething-spec kdbx.hardening AC3): it stopped before the
      * backup and the replace, so the file and its backups are as they were.
      */

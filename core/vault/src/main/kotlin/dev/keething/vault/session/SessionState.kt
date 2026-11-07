@@ -5,6 +5,7 @@ import dev.keething.domain.storage.StoppedSave
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
+import dev.keething.vault.opening.DatabaseSize
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.saving.SaveFailure
 import kotlin.time.Duration
@@ -83,7 +84,14 @@ public sealed interface SessionState {
          * kdbx.kdbx3 AC6). Keething changes databases only in KDBX 4.
          */
         val viewOnly: Boolean = false,
-    ) : SessionState
+        /** How large the file last read is, and its attachments (keething-spec app.large-database AC3). */
+        val size: DatabaseSize = DatabaseSize(0, 0),
+        /** Whether a save has the memory it needs, judged at the unlock and kept until the lock (AC3). */
+        val room: SaveRoom = SaveRoom.Enough,
+    ) : SessionState {
+        /** Every change refused: KDBX 3.1 ([viewOnly]), or too large for the memory the app is given ([room]). */
+        val readOnly: Boolean get() = viewOnly || room is SaveRoom.TooLarge
+    }
 }
 
 /**

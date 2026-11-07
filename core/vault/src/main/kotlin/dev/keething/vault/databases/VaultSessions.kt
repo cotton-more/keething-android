@@ -5,7 +5,11 @@ import dev.keething.domain.time.Clock
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import dev.keething.vault.biometric.BiometricUnlock
+import dev.keething.vault.opening.DatabaseSize
 import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.OpenSize
+import dev.keething.vault.session.SaveMemory
+import dev.keething.vault.session.SaveRoom
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.VaultSession
 import java.time.Instant
@@ -83,6 +87,8 @@ public class OpenEntry(public val database: DatabaseSession, public val entry: E
  *   ([checkBackgroundTime]), since Android freezes a background app and its timer with it.
  * - The app's [state] is told once per change: another database opening, or failing to, while one is open shows the
  *   same.
+ * - Each unlock is judged against the databases open then (keething-spec app.large-database AC3, [SaveMemory]): one too
+ *   large to save, alone or beside them, opens read-only; the ones already open keep what they were judged.
  *
  * Call it on [scope]'s thread (the main thread).
  */
@@ -94,6 +100,11 @@ public class VaultSessions(
     /** How long the app may stay in the background with a database open (SPEC §4); read when it is needed. */
     private val lockTimeout: () -> Duration,
     private val now: () -> Instant = Instant::now,
+    /**
+     * Whether a database just read may be saved beside the open ones (keething-spec app.large-database AC3): against the
+     * most memory the app may use.
+     */
+    private val judgeRoom: (DatabaseSize, List<OpenSize>) -> SaveRoom = { size, open -> SaveMemory.judge(size, open, Runtime.getRuntime().maxMemory()) },
 ) {
     /** A database's session, and the scope that ends with it. */
     private class Started(val database: DatabaseSession, val scope: CoroutineScope)
@@ -305,7 +316,14 @@ public class VaultSessions(
         val id = record.id
         val database = factory.start(record, ++made, { list.record(id)?.keyFile }, watching)
         database.session.onStateChange = { changed(id, it) }
+        database.session.judgeRoom = { size -> room(id, size) }
         return Started(database, watching)
+    }
+
+    /** Whether [id], just read at [size], may be saved beside the databases open now (AC3). */
+    private fun room(id: DatabaseId, size: DatabaseSize): SaveRoom {
+        val open = sessions.filterKeys { it != id }.values.mapNotNull { it.database.session.state.value as? SessionState.Unlocked }
+        return judgeRoom(size, open.map { OpenSize(it.size, saves = !it.readOnly) })
     }
 
     /** Locked if it was not (the app says so), then closed: a fingerprint prompt still up, or a screen of before, cannot open it. */
@@ -313,6 +331,7 @@ public class VaultSessions(
         val session = started.database.session
         if (session.state.value !is SessionState.Locked) session.lock(LockReason.Manual)
         session.onStateChange = null
+        session.judgeRoom = null
         session.close()
         started.scope.cancel()
         sessions.remove(id)

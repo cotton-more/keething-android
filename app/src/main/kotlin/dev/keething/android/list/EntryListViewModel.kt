@@ -19,11 +19,13 @@ import dev.keething.domain.vault.GroupDestination
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.session.OpenDatabase
+import dev.keething.android.session.SizeTexts
 import dev.keething.vault.databases.EntryRef
 import dev.keething.vault.databases.OpenEntry
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.SessionsState
 import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.SaveRoom
 import dev.keething.vault.session.SessionState
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.Notice
@@ -200,11 +202,30 @@ internal class EntryListViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ListUiState(databases.value.current?.displayName.orEmpty()))
 
-    /** Each open database's conflict copies and failed reload, named while two or more are open. */
+    /**
+     * Each open database's size against the memory a save needs, its conflict copies and failed reload, named while two
+     * or more are open.
+     */
     private fun banners(open: List<OpenDatabase>): List<ListBanner> = open.flatMap { database ->
         val file = database.database.file
         val named = open.size >= 2
+        val unlocked = database.unlocked
         listOfNotNull(
+            // keething-spec app.large-database AC3: read-only while it is shown; near the limit once an unlock, until OK.
+            when (val room = unlocked.room) {
+                is SaveRoom.TooLarge -> ListBanner(
+                    key = "too-large/${database.database.id}",
+                    title = if (named) "${database.mark.label.name}: read only, too large for this phone" else "Read only: too large for this phone",
+                    text = SizeTexts.tooLarge(file.name, unlocked.size, room.alone),
+                )
+                SaveRoom.Near -> ListBanner(
+                    key = "near-limit/${database.database.id}",
+                    title = if (named) "${database.mark.label.name}: near this phone's limit" else "Near this phone's limit",
+                    text = SizeTexts.nearLimit(file.name, unlocked.size),
+                    onDismiss = database.database.session::nearLimitSaid,
+                )
+                SaveRoom.Enough -> null
+            },
             database.unlocked.conflictCopies.firstOrNull()?.let { newest ->
                 ListBanner(
                     key = "conflict/${database.database.id}",

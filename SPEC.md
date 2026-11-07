@@ -638,6 +638,27 @@ too; the Java heap peaked at about 383 MB during a save (sampled every half seco
 is 512 MB), 476 MB PSS. Enough, but not with room for a much larger database: a save holds the file, its
 decrypted content, the tree, the new file and its reading back at once.
 
+**A database too large to save** (keething-spec app.large-database AC3; core/vault `SaveMemory`, `SaveRoom`,
+`VaultSessions`): at each unlock the app works out what a save of the file would need, 16 MiB, 1.3 times every open
+database's file and 3.5 times this one's (measured on the Pixel 6 after LD1, keething-spec
+plans/android-large-database.md §1, the estimate above each measured peak; entries do not count, bytes do), against
+the heap the system gives the app (`Runtime.maxMemory()`, 512 MiB with `largeHeap` there). From 75 % the list says so
+once an unlock ("Near this phone's limit": how large it is, its attachments, what to do; OK until the next unlock).
+From 90 % (the owner, 2026-11-07) the database opens **read-only** (`SessionState.Unlocked.room`, `readOnly`): a
+banner over the list while it is shown ("Read only: too large for this phone"); Edit, New, Move to group…, a group's
+changes (its sheet, New group) and a code's Edit stopped before anything is typed or chosen, a dialog saying why over
+whichever screen tried (`Sessions.readOnlyRefusal`; a KDBX 3.1 one asks its question there); a one-tap change refused
+at once with nothing read (`SaveFailure.TooLarge`); Save into leaving it out (as a KDBX 3.1 one). The judgement is kept until the lock: a reload or a save does not change it, nor does
+another database opening. The one opened later is judged with the open ones' saves in mind, so when two would not
+both fit it is the later one that opens read-only, and it says to lock the others and unlock it again. Its advice:
+alone, keep large files outside the database (its attachments the most of it) or split it in two; beside others, lock
+them. A save that runs out of memory all the same writes nothing and says to lock the other databases, then to keep
+large files outside or split it. On the Pixel 6 (2026-11-07, `task large:database`'s files): 41.4 MiB alone saves
+with nothing said; 82.7 MiB alone is near the limit (its save peaked at 366 of 512 MiB, in 7.8 s); the two together,
+whichever opened second is read-only; 100 MiB is read-only alone. Measured besides (2026-11-07): 89.8 MiB alone
+saved at a peak of 386 MiB (8.2 s), 79.5 MiB beside the 41.4 MiB one at 396 MiB (7.1 s), the 41.4 MiB one beside it
+at 324 MiB.
+
 ### 3.4 Conflicts
 
 - A `*.sync-conflict-*` copy of a database next to it is shown as a banner of that database (named while two or
@@ -1298,8 +1319,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   03/2029`, `alex@db.example.com:2222`, `Bitcoin · bc1qar…5mdq`, `Crypto wallet · recovery phrase`; a protected
   number gives no digits); the card's
   header shows it too (`EntryFace`). A
-  group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy
-  and a reload that failed (the vault read before is shown) are banners above the list.
+  group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy,
+  a reload that failed (the vault read before is shown) and a database too large to save or near that (§3.3) are
+  banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
   open the browser, attachments open in another app / save to a folder, §4). An app's address (`androidapp://<package>`
   in the URL, a `KP2A_URL…` field or a field typed `url` or untyped; keething-spec card.app-address, canvas

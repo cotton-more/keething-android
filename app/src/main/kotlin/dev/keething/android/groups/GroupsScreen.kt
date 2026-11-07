@@ -62,6 +62,7 @@ import dev.keething.android.databases.NotOpenDatabase
 import dev.keething.android.databases.databaseColors
 import dev.keething.android.session.OpenDatabase
 import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.DatabaseSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import androidx.compose.foundation.clickable
@@ -141,7 +142,11 @@ import kotlinx.coroutines.withContext
  * ([saving]), the snackbar how it went; a failure keeps the dialog with the reason. Overlays of a database that closes go.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal class GroupsViewModel(private val open: StateFlow<List<OpenDatabase>>) : ViewModel() {
+internal class GroupsViewModel(
+    private val open: StateFlow<List<OpenDatabase>>,
+    /** A change tried on a database read-only (KDBX 3.1, or too large to save): refused before it starts. */
+    private val readOnly: (DatabaseSession) -> Unit = {},
+) : ViewModel() {
     private val built = GroupsBlocks()
 
     val blocks: StateFlow<List<GroupsBlock>?> = open
@@ -196,7 +201,10 @@ internal class GroupsViewModel(private val open: StateFlow<List<OpenDatabase>>) 
         }
     }
 
+    /** Its changes (the sheet holds only those); a database read-only says why instead. */
     fun openSheet(ref: GroupRef) {
+        val database = open.value.firstOrNull { it.mark.id == ref.database } ?: return
+        if (database.unlocked.readOnly) return readOnly(database.database)
         sheet = ref
     }
 
@@ -217,12 +225,13 @@ internal class GroupsViewModel(private val open: StateFlow<List<OpenDatabase>>) 
         dialog = NameDialog.New(ref.database, ref.groupId)
     }
 
-    /** The bar's New group: at the top level, of the one database open or of the one chosen. */
+    /** The bar's New group: at the top level, of the one database that takes it or of the one chosen. */
     fun newGroupInBar() {
-        val databases = open.value
+        val databases = open.value.filterNot { it.unlocked.readOnly }
         when {
             databases.size >= 2 -> choosingDatabase = true
-            else -> databases.firstOrNull()?.let(::newGroupAtTop)
+            databases.isEmpty() -> open.value.firstOrNull()?.let { readOnly(it.database) }
+            else -> newGroupAtTop(databases.first())
         }
     }
 
@@ -362,8 +371,10 @@ internal fun GroupsScreen(
     onSearch: (String) -> Unit,
     onLockScreen: (DatabaseId) -> Unit,
     databases: (List<OpenDatabase>) -> List<NewEntryDatabase>,
+    /** A change tried on a database read-only: [dev.keething.android.session.Sessions.readOnlyRefusal]. */
+    onReadOnly: (DatabaseSession) -> Unit = {},
 ) {
-    val model = viewModel { GroupsViewModel(open) }
+    val model = viewModel { GroupsViewModel(open, onReadOnly) }
     val blocks by model.blocks.collectAsStateWithLifecycle()
     val foldedIds by folded.collectAsStateWithLifecycle()
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
