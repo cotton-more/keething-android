@@ -1243,8 +1243,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   kept as refs only (they survive a lock and say nothing without the database; 8 kept per database, §3.1). Syncthing's
   conflict copies and a failed reload are each open database's own banner (the reload's named while two or more are
   open). Search finds the title, username, URL, Notes, tags, groups and custom fields' names and plain values;
-  never a password, a protected value, protected Notes (a note's text by default, §6.4) or a code's key
-  (`SearchableText`). A note's row: §6.4.
+  never a password, a protected value, protected Notes (a note's text by default, §6.4) or a code's key,
+  a further code's `otpauth://` link in an unprotected field too (its name is searched; `SearchableText`). A note's row: §6.4.
   **Search field**: a magnifier and "Search"; while it has the focus, chips over the keyboard (one line, sideways):
   `@ group`, `# tag`, `! database` (only while two or more databases are open), `+ file`, `− bin` (the bin's toggles
   the recycle bin search; none in the Codes view). A tap on one adds its sign to the query, and then the chips are

@@ -69,11 +69,15 @@ internal class AutofillPresentations(private val context: Context, inline: Inlin
         return builder.build()
     }
 
-    /** What a long press on a keyboard chip opens: the app. One per chip position, so the chips do not share one. */
+    /**
+     * What a long press on a keyboard chip opens: the app, the one already running if it is (not a second one on top,
+     * which would take the notices meant for the one under it). One per chip position, so the chips do not share one.
+     */
     private fun attribution(position: Int): PendingIntent = PendingIntent.getActivity(
         context,
         position,
-        Intent(context, MainActivity::class.java),
+        Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 }

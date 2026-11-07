@@ -15,7 +15,8 @@ internal object SearchableText {
         parts += entry.groupPath
         for (field in entry.customFields) {
             parts += field.name
-            field.plainText?.let { parts += it }
+            // A further one-time code's link holds its key (keething-spec app.codes-view): its name is searched, not it.
+            field.plainText?.takeUnless { it.trimStart().startsWith("otpauth://", ignoreCase = true) }?.let { parts += it }
         }
         // A newline between fields keeps whitespace-free terms from matching across them.
         return parts.joinToString("\n")

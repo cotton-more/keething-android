@@ -73,6 +73,17 @@ class EntrySearchTest {
         assertTrue(hits("GEZDGNBV").isEmpty(), "TOTP secrets are not searchable")
     }
 
+    // spec: search.terms/AC4
+    @Test
+    fun aFurtherCodesLinkIsNeverSearchedItsNameIs() {
+        val link = " otpauth://totp/Microsoft:alex?secret=JBSWY3DPEHPK3PXP&issuer=Microsoft"
+        val es = listOf(Entry("6", title = "Microsoft", customFields = listOf(CustomField.plain("Work account", link), CustomField.plain("Org", "Acme"))))
+        assertTrue(search(es, "JBSWY3DP").isEmpty(), "the key in an unprotected link")
+        assertTrue(search(es, "otpauth").isEmpty())
+        assertEquals(listOf("Microsoft"), search(es, "work account"), "its field's name is")
+        assertEquals(listOf("Microsoft"), search(es, "acme"), "other plain values are")
+    }
+
     @Test
     fun rankingTitlePrefixThenTitleContainsThenOtherFields() {
         val es = listOf(entry("Foo", url = "https://git.example.com"), entry("My Git tool"), entry("Git"))
