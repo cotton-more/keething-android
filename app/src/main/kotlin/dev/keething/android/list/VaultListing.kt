@@ -7,7 +7,10 @@ import dev.keething.card.DeadlineList
 import dev.keething.card.EntryAvatar
 import dev.keething.card.EntryFace
 import dev.keething.card.ExpiryHint
+import dev.keething.card.ImportedFieldName
+import dev.keething.card.OneTimeCodes
 import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
@@ -43,15 +46,37 @@ internal data class EntryRow(
     val database: DatabaseMark? = null,
 )
 
+/**
+ * One one-time code of the Codes view (keething-spec app.codes-view AC1, AC2): an entry's own code, or a further one (a
+ * custom field holding an `otpauth://` link).
+ */
+internal data class CodeTile(
+    /** Unique in the view: the entry's ref for its own code, the ref and the field's name for a further one. */
+    val key: String,
+    /** The entry's ref ([EntryRef.text]). */
+    val entryId: String,
+    val title: String,
+    /** The username under the entry's own code, the field's name under a further one. */
+    val subtitle: String,
+    /** The custom field a further code is kept in; null for the entry's own. */
+    val fieldName: String?,
+    val totp: TotpConfig,
+    val avatar: EntryAvatar,
+    val customIconId: String?,
+    /** The entry's group's path, as its row shows it; empty for the root group. */
+    val group: List<String> = emptyList(),
+    /** Its database, while two or more are open: the group line says it, as a row's does. */
+    val database: DatabaseMark? = null,
+) {
+    val further: Boolean get() = fieldName != null
+}
+
 /** The most pressing date an entry says something ends on, when it ended or ends within 90 days. */
 internal data class RowDeadline(val text: String, val status: ExpiryHint.Status)
 
 internal data class ListSection(val kind: Kind, val rows: List<EntryRow>) {
-    /**
-     * [SUGGESTED]: the entries autofill matched to the app or page (SPEC §7). [CODES]: every entry with a
-     * one-time code, the "Codes" shortcut's list (SPEC §6.2).
-     */
-    enum class Kind { SUGGESTED, RECENT, ALL, RESULTS, RECYCLE_BIN, CODES }
+    /** [SUGGESTED]: the entries autofill matched to the app or page (SPEC §7). */
+    enum class Kind { SUGGESTED, RECENT, ALL, RESULTS, RECYCLE_BIN }
 }
 
 /** The sections without the rows of [ids]; the recycle bin keeps them, a section left empty goes. */
@@ -157,6 +182,57 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
     private val index = EntrySearch.index(vault.entries, collator, labels, allLabels)
     private val binIndex = EntrySearch.index(vault.recycleBin, collator, binLabels, allLabels)
 
+    /**
+     * The open databases' one-time codes, one tile each (keething-spec app.codes-view AC1): each entry's own, then its
+     * further ones in field order; a code that cannot be read is not one. Built when the Codes view first asks.
+     */
+    private val codeTiles: Map<String, CodeTile> by lazy { codeEntries.first.associateBy { it.key } }
+
+    /**
+     * The tiles as entries to search (AC3): the title, the username and a further code's field name, nothing else of
+     * the entry but what the filters read (its groups, tags, attachments and database); in the tiles' order.
+     */
+    private val codeEntries: Pair<List<CodeTile>, List<Entry>> by lazy {
+        val tiles = ArrayList<CodeTile>()
+        val searched = ArrayList<Entry>()
+        for (entry in vault.entries) {
+            val title = entry.displayTitle
+            val avatar = EntryAvatar.of(title)
+            val icon = entry.customIconId?.takeIf { it in vault.customIcons }
+            fun add(tile: CodeTile, fields: List<CustomField>) {
+                tiles += tile
+                searched += Entry(
+                    id = tile.key, title = title, username = entry.username, groupPath = entry.groupPath, tags = entry.tags,
+                    customFields = fields, attachments = entry.attachments,
+                )
+            }
+            val mark = marks[entry.id]
+            entry.totp?.let { add(CodeTile(entry.id, entry.id, title, entry.username, null, it, avatar, icon, entry.groupPath, mark), emptyList()) }
+            for (field in entry.customFields) {
+                val config = OneTimeCodes.config(field) ?: continue
+                val name = codeName(field.name)
+                val tile = CodeTile("${entry.id}\n${field.name}", entry.id, title, name, field.name, config, avatar, icon, entry.groupPath, mark)
+                add(tile, listOf(CustomField.plain(name, "")))
+            }
+        }
+        tiles to searched
+    }
+
+    private val codeIndex by lazy {
+        val labelOf = labels?.let { list -> vault.entries.indices.associate { vault.entries[it].id to list[it] } }
+        val (tiles, searched) = codeEntries
+        EntrySearch.index(searched, collator, labelOf?.let { map -> tiles.map { map.getValue(it.entryId) } }, allLabels)
+    }
+
+    /**
+     * The Codes view's tiles (keething-spec app.codes-view AC1, AC3): nothing typed, all by title, an entry's own code
+     * before its further ones; typed, the tiles matching, best first; bare signs alone nothing.
+     */
+    fun codes(query: String): List<CodeTile> {
+        if (query.isNotBlank() && EntrySearch.isEmpty(query)) return emptyList()
+        return EntrySearch.filter(codeIndex, query).map { codeTiles.getValue(it.id) }
+    }
+
     /** The bins' entries with the bin's own group left out of their paths (as their rows show them), for the suggestions. */
     private val binFacetIndex by lazy { EntrySearch.index(vault.recycleBin.map { it.copy(groupPath = it.groupPath.drop(1)) }, collator, binLabels, allLabels) }
     private val byId: Map<String, Entry> = vault.entries.associateBy { it.id }
@@ -194,18 +270,11 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
     /**
      * Nothing typed: the recently used entries (at most [RecentEntries.LIMIT], of the databases listed), then all by
      * title. Typed: the matches, best first; bare signs alone (`@`, `!`) nothing. A query starting with `-` lists the
-     * recycle bins (each database's latest deleted first) or searches them. [codesOnly]: only the entries with a
-     * one-time code; nothing typed lists them all by title.
+     * recycle bins (each database's latest deleted first) or searches them. The Codes view lists [codes] instead.
      */
-    fun sections(query: String, recentIds: List<String>, codesOnly: Boolean = false): List<ListSection> {
+    fun sections(query: String, recentIds: List<String>): List<ListSection> {
         // Bare signs filter nothing: nothing to list, never the whole vault (keething-spec search.database-filter AC2).
         val bareSigns = query.isNotBlank() && EntrySearch.isEmpty(query)
-        if (codesOnly) {
-            if (bareSigns) return emptyList()
-            val entries = EntrySearch.filter(index, query)
-            val kind = if (query.isBlank()) ListSection.Kind.CODES else ListSection.Kind.RESULTS
-            return listOfNotNull(section(kind, entries.filter { it.totp != null }))
-        }
         EntrySearch.recycleBinQuery(query)?.let { binQuery ->
             val entries = if (binQuery.isBlank()) latestDeleted else EntrySearch.filter(binIndex, binQuery)
             return listOfNotNull(section(ListSection.Kind.RECYCLE_BIN, entries))
@@ -223,6 +292,10 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
 
     /** Whether [id] is in a recycle bin. */
     fun inRecycleBin(id: String): Boolean = id in binById
+
+    /** A further code's field name as the card shows it; an empty or generated one is "One-time code". */
+    private fun codeName(name: String): String =
+        if (name.isBlank() || ImportedFieldName.isGeneratedId(name)) "One-time code" else ImportedFieldName.displayName(name)
 
     fun section(kind: ListSection.Kind, entries: List<Entry>): ListSection? =
         if (entries.isEmpty()) null else ListSection(kind, entries.map(::row))

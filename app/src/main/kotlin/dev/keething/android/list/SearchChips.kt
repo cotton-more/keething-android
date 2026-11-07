@@ -35,8 +35,8 @@ internal data class ChipLine(val chips: List<SearchChip>, val narrowing: Boolean
  * search.suggestions, search.database-filter AC5, search.narrowing). Typing a filter at the end of the query: the
  * groups (their paths, in tree order), tags, file names (a bare `+` first "Any file") or open databases it can be,
  * counted over the query's other filters; nothing when none matches. Otherwise, when the last word names a database,
- * group or tag well: those to narrow to (not in the bin's search nor the Codes list). Otherwise the filters, `!` only
- * while two or more databases are open; the bin's toggles the recycle bin search (not in the Codes list, which has no
+ * group or tag well: those to narrow to (not in the bin's search nor the Codes view). Otherwise the filters, `!` only
+ * while two or more databases are open; the bin's toggles the recycle bin search (not in the Codes view, which has no
  * bin).
  */
 internal fun searchChips(query: String, listing: VaultListing, codesOnly: Boolean): ChipLine {

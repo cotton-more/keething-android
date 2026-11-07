@@ -5,7 +5,8 @@ apps keep them in (keething-spec kdbx.otp-storage), for checking on a phone that
     tools/make-otp-database.py <output.kdbx>
 
 KeePass 2.x's own TimeOtp-* fields in each of its four secret encodings (one broken: no code), KeePassXC's otp link
-and the legacy TOTP Seed / TOTP Settings. Most of its codes are KeePass's, so a code written into it takes that format.
+and the legacy TOTP Seed / TOTP Settings; further codes (custom fields holding an otpauth link, keething-spec
+app.codes-view), beside an entry's own code and on their own. Most of its codes are KeePass's, so a code written into it takes that format.
 keepassxc-cli writes KDBX 3.1 on import, which the app refuses, so the import is merged into a copy of a KDBX 4
 fixture (that adds the fixture's two entries).
 """
@@ -33,6 +34,11 @@ ENTRIES = [
     ("KeePass code, broken (fictitious)", [("TimeOtp-Secret-Hex", "zz", True), ("Note", "the only field shown")]),
     ("KeePassXC link (fictitious)", [("otp", "otpauth://totp/Link:me?secret=GEZDGNBVGY3TQOJQ&period=30&digits=7&issuer=Link", True)]),
     ("Legacy seed (fictitious)", [("TOTP Seed", "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", True), ("TOTP Settings", "30;8")]),
+    ("Further codes (fictitious)", [
+        ("otp", "otpauth://totp/Further:me?secret=JBSWY3DPEHPK3PXP&issuer=Further", True),
+        ("One-time code 2", "otpauth://totp/Further:second?secret=GEZDGNBVGY3TQOJQ&issuer=Further", True),
+        ("Work account", "otpauth://totp/Further:work?secret=MFRGGZDFMZTWQ2LK&period=60&issuer=Further")]),
+    ("Further code only (fictitious)", [("Robot", "otpauth://totp/Only:robot?secret=KRSXG5CTMVRXEZLU&issuer=Only", True)]),
     ("No code yet (fictitious)", []),
 ]
 

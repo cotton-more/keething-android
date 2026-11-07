@@ -286,7 +286,7 @@ internal class NavigationState : ViewModel() {
         else -> null
     }
 
-    /** The "Codes" shortcut's list (SPEC §6.2). A lock keeps it: the shortcut opens the lock screen first. */
+    /** The Codes view (keething-spec app.codes-view, SPEC §6.2). A lock keeps it: the shortcut opens the lock screen first. */
     var codesOnly by mutableStateOf(false)
 
     /** The database session the screens were last for ([DatabaseSession.number]): another one starts them afresh. */
@@ -355,11 +355,17 @@ internal class NavigationState : ViewModel() {
         if (gone.isNotEmpty()) backStack.removeAll { it.ref?.database in gone }
     }
 
-    /** The "Codes" launcher shortcut: the list of entries with a code, from the top. */
+    /** The Codes view, from the launcher shortcut or the list's header: from the top, nothing typed. */
     fun showCodes() {
         backStack.retainAll { it == Screen.Entries }
         query.clearText()
         codesOnly = true
+    }
+
+    /** Back or the arrow in the Codes view: the whole list, nothing typed. */
+    fun leaveCodes() {
+        query.clearText()
+        codesOnly = false
     }
 
     fun open(screen: Screen) {
@@ -728,7 +734,8 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 onEdit = edit,
                                 onSettings = { navigation.open(Screen.Settings) },
                                 onGroups = { navigation.open(Screen.Groups) },
-                                onLeaveCodes = { navigation.codesOnly = false },
+                                onCodes = navigation::showCodes,
+                                onLeaveCodes = navigation::leaveCodes,
                                 notOpen = overview?.notOpen.orEmpty(),
                                 openCount = open.size,
                                 canClose = overview?.canClose == true,

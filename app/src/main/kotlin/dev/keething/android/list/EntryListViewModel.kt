@@ -49,6 +49,8 @@ internal data class ListUiState(
     val databaseName: String,
     val entryCount: Int? = null,
     val sections: List<ListSection> = emptyList(),
+    /** The Codes view's tiles, in its place of the sections (keething-spec app.codes-view). */
+    val codes: List<CodeTile> = emptyList(),
     val icons: CustomIconImages? = null,
     /** Syncthing's conflict copies and a failed reload, each open database's. */
     val banners: List<ListBanner> = emptyList(),
@@ -77,6 +79,9 @@ internal data class QuickActions(
 /** What the sections are listed from. */
 private data class Listed(val prepared: Prepared?, val text: String, val codesOnly: Boolean, val recentIds: List<String>)
 
+/** What the list shows: the sections, or the Codes view's tiles. */
+private data class Shown(val sections: List<ListSection> = emptyList(), val codes: List<CodeTile> = emptyList())
+
 /** The open databases prepared and the icons decoded from them, replaced together when one is read again. */
 private class Prepared(val listing: VaultListing, val icons: CustomIconImages)
 
@@ -98,7 +103,7 @@ internal class EntryListViewModel(
     private val recycleBin: RecycleBinMoves,
     private val clipboard: SensitiveClipboard,
     private val query: TextFieldState,
-    /** The "Codes" shortcut's list (SPEC §6.2); read in a snapshot, so a change lists again. */
+    /** The Codes view (keething-spec app.codes-view); read in a snapshot, so a change lists again. */
     private val codesOnly: () -> Boolean,
     /** A card open beside the list (two panes); read in a snapshot. */
     private val besideCard: () -> Boolean = { false },
@@ -130,14 +135,15 @@ internal class EntryListViewModel(
             if (holding && recentShown.isNotEmpty()) recentShown.filter { it in ids } else ids
         }.onEach { recentShown = it }
 
-    private val sections: StateFlow<List<ListSection>> =
+    private val shown: StateFlow<Shown> =
         combine(prepared, snapshotFlow { query.text.toString() to codesOnly() }, recentIds) { prepared, (text, codes), recentIds ->
             Listed(prepared, text, codes, recentIds)
         }
             .mapLatest { (prepared, text, codes, recentIds) ->
-                prepared?.let { withContext(Dispatchers.Default) { it.listing.sections(text, recentIds, codes) } }.orEmpty()
+                val listing = prepared?.listing ?: return@mapLatest Shown()
+                withContext(Dispatchers.Default) { if (codes) Shown(codes = listing.codes(text)) else Shown(listing.sections(text, recentIds)) }
             }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, Shown())
 
     /** The chips over the keyboard for the query (SPEC §6.2): the filters, the names a filter can be, or narrowing. */
     val chips: StateFlow<ChipLine> =
@@ -155,7 +161,7 @@ internal class EntryListViewModel(
         }
     }.distinctUntilChanged()
 
-    val state: StateFlow<ListUiState> = combine(combine(app, open, ::Pair), prepared, sections, recycleBin.leaving, names) { (app, open), prepared, sections, leaving, name ->
+    val state: StateFlow<ListUiState> = combine(combine(app, open, ::Pair), prepared, shown, recycleBin.leaving, names) { (app, open), prepared, shown, leaving, name ->
         // A lock wipes the vaults at once: nothing of them is shown while the screen fades out, nor the rows of one
         // that locked alone while the others are listed again. A vault read again (a save, a sync) is listed while the
         // one before stays on screen, so the list keeps its scroll position.
@@ -166,7 +172,8 @@ internal class EntryListViewModel(
         ListUiState(
             databaseName = name,
             entryCount = prepared.listing.vault.entries.size,
-            sections = sections.without(leaving).onlyOf(openIds),
+            sections = shown.sections.without(leaving).onlyOf(openIds),
+            codes = shown.codes.filter { it.entryId !in leaving && EntryRef.of(it.entryId).database in openIds },
             icons = prepared.icons,
             banners = banners(open),
             preparing = false,
@@ -263,6 +270,14 @@ internal class EntryListViewModel(
     fun copyGenerated(password: String) {
         clipboard.copy(password, sensitive = true)
         notice(Notice.copied("Password"))
+    }
+
+    /** A tile of the Codes view, or Copy code in its sheet (keething-spec app.codes-view AC2): as any code copy. */
+    fun copyCode(tile: CodeTile) {
+        val entry = entry(tile.entryId) ?: return
+        clipboard.copy(TotpGenerator.code(tile.totp, Instant.now()), sensitive = true)
+        used(entry)
+        notice(Notice.copied(if (tile.further) tile.subtitle else "One-time code"))
     }
 
     /** The code button of a row. */

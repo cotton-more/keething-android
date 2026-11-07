@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,6 +73,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -132,6 +134,7 @@ import dev.keething.android.databases.databaseColors
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CodeRing
+import dev.keething.android.ui.CodesIcon
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.EntryMark
 import dev.keething.android.ui.FitText
@@ -168,8 +171,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
  * The list (SPEC §6.2): nothing typed shows the recently used entries, then all by title; the search field
  * is at the bottom, in thumb reach above the keyboard, with the filters as chips over it while it has the focus.
  * A row opens its card; swiped right it copies the password, left the username; a long press offers the quick
- * actions; a row with a one-time code shows it live, as a button that copies it. [codesOnly]: the "Codes"
- * shortcut's list, only the entries with a one-time code; Back or the arrow leaves it for the whole list.
+ * actions; a row with a one-time code shows it live, as a button that copies it. [codesOnly]: the Codes view instead,
+ * a tile per one-time code ([CodeTiles], keething-spec app.codes-view); Back or the arrow leaves it for the whole list.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -182,6 +185,8 @@ internal fun EntryListScreen(
     onEdit: (id: String) -> Unit,
     onSettings: () -> Unit,
     onGroups: () -> Unit,
+    /** The header's Codes button: the Codes view. */
+    onCodes: () -> Unit,
     onLeaveCodes: () -> Unit,
     /** The `+`'s choice: a new entry, a new note, a new note from the clipboard (SPEC §6.2, §6.4). */
     onNew: (NewChoice) -> Unit,
@@ -325,17 +330,30 @@ internal fun EntryListScreen(
         )
     }
 
+    // A tile's ⋯ in the Codes view.
+    var codeSheet by remember { mutableStateOf<CodeTile?>(null) }
+    codeSheet?.let { tile ->
+        CodeSheet(
+            tile, state.icons, now,
+            onCopy = { model.copyCode(tile) },
+            onOpenEntry = { onOpen(tile.entryId, CODES_ORIGIN) },
+            onDismiss = { codeSheet = null },
+        )
+    }
+
     // Landscape on a phone: one row fits, so the header is compact from the start.
     val compactHeader = LocalConfiguration.current.screenHeightDp < 480
     // The large header collapses into a compact bar while the list scrolls, and is opaque once anything is under it.
     val scroll = if (compactHeader) TopAppBarDefaults.pinnedScrollBehavior() else TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var searchFocused by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
     // The keyboard takes half the screen: the large header makes room as the search field takes the focus, and comes
     // back when it lets the focus go with the list at its top.
     LaunchedEffect(searchFocused) {
         if (compactHeader) return@LaunchedEffect
-        val atTop = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+        val atTop = if (codesOnly) gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
+        else listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
         if (!searchFocused && !atTop) return@LaunchedEffect
         val bar = scroll.state
         animate(bar.heightOffset, if (searchFocused) bar.heightOffsetLimit else 0f) { value, _ -> bar.heightOffset = value }
@@ -347,7 +365,7 @@ internal fun EntryListScreen(
             Column {
                 Header(
                     state, scroll, codesOnly, compactHeader, onLock = container.sessions::lock, onGenerator = { generating = true }, onGroups = onGroups,
-                    onSettings = onSettings, onLeaveCodes = onLeaveCodes, onSharing = onSharing, toAnswer = requests?.theirs?.size ?: 0,
+                    onSettings = onSettings, onCodes = onCodes, onLeaveCodes = onLeaveCodes, onSharing = onSharing, toAnswer = requests?.theirs?.size ?: 0,
                     onDatabases = onDatabases, openCount = openCount,
                 )
                 // Pinned under the header: a search never silently misses a locked database (keething-spec databases.not-open).
@@ -357,7 +375,8 @@ internal fun EntryListScreen(
         bottomBar = {
             SearchField(
                 query,
-                placeholder = if (codesOnly) "Search entries with a code" else SEARCH_HINT,
+                placeholder = if (codesOnly) "Search codes" else SEARCH_HINT,
+                label = if (codesOnly) "Search codes" else "Search entries",
                 onFocusChange = { searchFocused = it },
                 above = { if (searchFocused) SearchChipRow(chips) { query.setTextAndPlaceCursorAtEnd(it) } },
             ) {
@@ -367,6 +386,15 @@ internal fun EntryListScreen(
         snackbarHost = { NoticeHost(snackbar) },
     ) { padding ->
         BoxWithConstraints(Modifier.fillMaxSize()) {
+            if (codesOnly) {
+                val text = query.text.toString()
+                CodeTiles(
+                    state, maxWidth, padding, gridState, now, text, searched = !EntrySearch.isEmpty(text),
+                    onCopy = model::copyCode,
+                    onMore = { codeSheet = it },
+                )
+                return@BoxWithConstraints
+            }
             val codeUnder = codeGoesUnder(maxWidth)
             LazyColumn(
                 state = listState,
@@ -411,16 +439,6 @@ internal fun EntryListScreen(
                     }
                     item(key = "gap/${section.kind}", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
                 }
-                if (!state.preparing && state.sections.isEmpty() && codesOnly && query.text.isBlank()) {
-                    item(key = "no codes") {
-                        Text(
-                            "No entry has a one-time code.",
-                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
                 // Bare signs alone (`@`, `!`) list nothing and say nothing: the chips offer what they can be.
                 val searched = !EntrySearch.isEmpty(query.text.toString())
                 if (!state.preparing && state.sections.isEmpty() && searched) {
@@ -429,7 +447,6 @@ internal fun EntryListScreen(
                         Text(
                             when {
                                 emptyBin -> "The recycle bin is empty."
-                                codesOnly -> "No entry with a one-time code matches “${query.text}”."
                                 else -> "Nothing matches “${query.text}”."
                             },
                             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
@@ -449,8 +466,10 @@ internal fun ListSection.title(): String = when (kind) {
     ListSection.Kind.ALL -> "All entries"
     ListSection.Kind.RESULTS -> if (rows.size == 1) "1 entry" else "${NumberFormat.getIntegerInstance().format(rows.size)} entries"
     ListSection.Kind.RECYCLE_BIN -> "Recycle bin"
-    ListSection.Kind.CODES -> "Entries with a one-time code"
 }
+
+/** The card's origin for an entry opened from the Codes view: no row of the list to grow from. */
+private const val CODES_ORIGIN = "codes"
 
 /** The search field's hint; the filters are chips over the keyboard (SPEC §6.2). */
 internal const val SEARCH_HINT = "Search"
@@ -489,6 +508,7 @@ private fun Header(
     onGenerator: () -> Unit,
     onGroups: () -> Unit,
     onSettings: () -> Unit,
+    onCodes: () -> Unit,
     onLeaveCodes: () -> Unit,
     onSharing: () -> Unit,
     /** Requests waiting for an answer (SPEC §10): a dot on Sharing. */
@@ -496,7 +516,11 @@ private fun Header(
     onDatabases: () -> Unit,
     openCount: Int,
 ) {
-    val count = state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
+    val count = if (codesOnly) {
+        if (state.preparing) "" else " · " + state.codes.size.let { if (it == 1) "1 code" else "${NumberFormat.getIntegerInstance().format(it)} codes" }
+    } else {
+        state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
+    }
     val title = @Composable { Text(if (codesOnly) "Codes" else "Keething", maxLines = 1, overflow = TextOverflow.Ellipsis) }
     val subtitle = @Composable { FitText(state.databaseName + count) }
     val navigationIcon = @Composable {
@@ -509,6 +533,8 @@ private fun Header(
         IconButton(onClick = onLock, modifier = Modifier.padding(end = 10.dp)) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
         if (!codesOnly) {
             IconButton(onClick = onGroups) { Icon(Icons.Rounded.FolderOpen, contentDescription = "Groups and tags") }
+            // The Codes view, from the app as from the launcher (keething-spec app.codes-view AC3).
+            FilledTonalIconButton(onClick = onCodes) { Icon(CodesIcon, contentDescription = "Codes") }
             IconButton(onClick = onSharing) {
                 BadgedBox(badge = { if (toAnswer > 0) Badge() }) {
                     Icon(Icons.Rounded.People, contentDescription = if (toAnswer > 0) "Sharing, $toAnswer to answer" else "Sharing")
@@ -588,7 +614,7 @@ private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit, onDatabase
 }
 
 @Composable
-private fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null) {
+internal fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null) {
     val colors = MaterialTheme.extraColors
     Row(
         Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(20.dp)).background(colors.warnContainer).padding(16.dp),
@@ -676,15 +702,7 @@ internal fun EntryRowView(
                 }
             }
             RowSubtitle(row)
-            val mark = row.database
-            if (mark != null) {
-                DatabaseLine(mark, row.group)
-            } else if (row.group.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Rounded.Folder, contentDescription = "Group", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
-                    PathText(row.group, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
-                }
-            }
+            GroupLine(row.database, row.group)
             row.deadline?.let { deadline ->
                 val colour = if (deadline.status == ExpiryHint.Status.EXPIRED) MaterialTheme.colorScheme.error else MaterialTheme.extraColors.warn
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -718,6 +736,22 @@ internal fun RowSubtitle(row: EntryRow) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * Where an entry is, under its row or its code's tile: while two or more databases are open its database and group
+ * ([DatabaseLine]), else its group's path behind a folder, nothing for the root group.
+ */
+@Composable
+internal fun GroupLine(mark: DatabaseMark?, group: List<String>) {
+    if (mark != null) {
+        DatabaseLine(mark, group)
+    } else if (group.isNotEmpty()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Rounded.Folder, contentDescription = "Group", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
+            PathText(group, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+        }
     }
 }
 
@@ -912,6 +946,8 @@ private fun DatabaseDot(mark: DatabaseMark, size: Dp) {
 internal fun SearchField(
     query: TextFieldState,
     placeholder: String = SEARCH_HINT,
+    /** What a screen reader calls the field. */
+    label: String = "Search entries",
     onFocusChange: (Boolean) -> Unit = {},
     above: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
@@ -955,7 +991,7 @@ internal fun SearchField(
                         modifier = Modifier.keepOutOfAutofill()
                             .weight(1f)
                             .onFocusChanged { onFocusChange(it.isFocused) }
-                            .semantics { contentDescription = "Search entries" },
+                            .semantics { contentDescription = label },
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                         lineLimits = TextFieldLineLimits.SingleLine,
                         keyboardOptions = KeyboardOptions(

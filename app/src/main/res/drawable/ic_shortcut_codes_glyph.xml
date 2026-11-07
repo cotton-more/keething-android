@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icon A on the adaptive icon's 108 × 108 layer: the canvas's 48 × 48 drawing twice as large, about the centre, inside
+     the 66 safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- The ring's track, then what is left of the period, then the three dots. -->
+    <path
+        android:pathData="M54,28 A26,26 0 1,1 54,80 A26,26 0 1,1 54,28 Z"
+        android:strokeAlpha="0.3"
+        android:strokeColor="@color/shortcut_glyph"
+        android:strokeWidth="6" />
+    <path
+        android:pathData="M54,28 A26,26 0 1,1 28,54"
+        android:strokeColor="@color/shortcut_glyph"
+        android:strokeLineCap="round"
+        android:strokeWidth="6" />
+    <path
+        android:fillColor="@color/shortcut_glyph"
+        android:pathData="M43,49.6 a4.4,4.4 0 1,0 0.01,0 Z M54,49.6 a4.4,4.4 0 1,0 0.01,0 Z M65,49.6 a4.4,4.4 0 1,0 0.01,0 Z" />
+</vector>

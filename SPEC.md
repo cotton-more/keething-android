@@ -1247,7 +1247,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (`SearchableText`). A note's row: §6.4.
   **Search field**: a magnifier and "Search"; while it has the focus, chips over the keyboard (one line, sideways):
   `@ group`, `# tag`, `! database` (only while two or more databases are open), `+ file`, `− bin` (the bin's toggles
-  the recycle bin search; none in the Codes list). A tap on one adds its sign to the query, and then the chips are
+  the recycle bin search; none in the Codes view). A tap on one adds its sign to the query, and then the chips are
   what the filter being typed can be, as the Mac's suggestions (Mac SPEC §3.6, `FilterCompletion`, `SearchFacets`):
   the groups by path in tree order, the tags, the file names (a bare `+` first "Any file"), the open databases after
   `!` (a dot, the label in its colour; none with one open), each with its entry count. What is offered follows the
@@ -1268,9 +1268,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   that would keep none or all of those is not offered (so no database with one open, none while a `!` filter is
   typed), nor a name with a `"`. A tap replaces the word with the filter and a space (`github fin` → `github
   @Finanzen `); with no ⇥ on a phone keyboard the first chip is not special, and the list stays as typed until a chip
-  is tapped. Not while a filter is being typed (its suggestions show), not in the bin search, not in the Codes list
+  is tapped. Not while a filter is being typed (its suggestions show), not in the bin search, not in the Codes view
   (its counts would count entries without codes). Closing the keyboard ends the focus and the chips. Back closes the
-  keyboard first, then clears the search, then leaves the Codes list.
+  keyboard first, then clears the search, then leaves the Codes view.
   **Gestures**: a row swiped right copies the password, swiped left the username; past 88 dp what is under the row
   turns solid with a tick, and let go the row springs back (a side with nothing to copy says "No password" / "No
   username" and does nothing; both are accessibility actions too). A long press opens the **quick actions**:
@@ -1603,11 +1603,23 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   level) and the phone's maker and model (`ProblemReport`). Nothing from a database, nothing sent by the app (it has no
   network): the person writes and sends the issue. Crashes: the system's dialog for now.
 - **Launcher shortcuts** (long press on the icon; static, `res/xml/shortcuts.xml`): "Codes", then "Note from
-  clipboard" (a quick note, §6.4). Codes: unlock, then
-  the list titled "Codes" with only the entries with a one-time code, by title, each row's live code a
-  button that copies it; the search searches among them. Back (or the arrow) goes to the whole list; a lock
-  keeps the Codes list, so the shortcut opens the lock screen and then it. A group or tag chip on a card
-  leaves it.
+  clipboard" (a quick note, §6.4). Codes: unlock, then the Codes view. Their icons are adaptive: the glyph (the ring;
+  the clipboard) large in the wallpaper's accent on a white plate, the launcher's own for any shortcut, which stays
+  white in the dark theme (seen on the Pixel 6); a transparent plate is drawn black by the Pixel's launcher. A
+  monochrome layer for themed icons.
+- **Codes view** (keething-spec app.codes-view; `CodeTiles`): titled "Codes", "<database> · N codes" under it, a tile
+  per one-time code as an authenticator app lists them: each entry's own code and each further one (a custom field
+  holding an `otpauth://totp/` link), an entry with further codes only too, a code that cannot be read not; by the
+  entry's title, its own code first, its further ones in field order (`VaultListing.codes`). A tile: the entry's icon
+  and title, under it the username (own code) or the field's name with a field icon (further code), under that
+  the entry's group line as its row in the list has it (the path behind a folder, nothing for the root group; with two
+  or more databases open "● <database> › <path>"), then the live code large with its ring, red in its last five seconds. A tap anywhere on it copies the code as any code copy (the
+  notice names a further code by its field); ⋯ opens a sheet with the code, Copy code and Open entry. Two columns from
+  840 dp. "Search codes" searches the tiles: the title, the username and a further code's field name, nothing else of
+  the entry (not its URL, notes or other fields), the filters (`@`, `#`, `+`, `!`) as in the list. Reached from the
+  launcher shortcut and from the Codes button in the list's header (icon A, the ring, before Sharing); Back (after
+  clearing the search) or the arrow goes to the whole list with nothing typed; a lock keeps the view, so the shortcut
+  opens the lock screen and then it. A group or tag chip on a card leaves it.
 
 
 ### 6.3 Field types

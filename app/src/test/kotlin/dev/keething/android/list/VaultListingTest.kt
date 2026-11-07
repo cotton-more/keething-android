@@ -82,19 +82,92 @@ class VaultListingTest {
         assertEquals(listOf("r1"), listing.sections("- router", emptyList()).single().rows.map { it.id })
     }
 
+    private val secret = TotpConfig(Secret.of("12345678901234567890"))
+    private fun link(issuer: String) = "otpauth://totp/$issuer:alex?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=$issuer"
+
+    // spec: app.codes-view/AC1
     @Test
-    fun theCodesListHasOnlyEntriesWithACode() {
-        val bank = Entry(id = "bk", title = "Bank", username = "alex", totp = TotpConfig(Secret.of("12345678901234567890")))
-        val listing = VaultListing(Vault(entries = listOf(github, bahn, bank, amazon)), now, Collator.getInstance(Locale.ENGLISH))
+    fun theCodesViewHasATilePerCodeByTitleOwnCodeFirst() {
+        val microsoft = Entry(
+            id = "ms", title = "Microsoft", username = "alex@outlook.com", totp = secret,
+            customFields = listOf(
+                CustomField.plain("Recovery", "words"),
+                CustomField.plain("One-time code 2", link("Microsoft")),
+                CustomField.protected("Work account", link("Microsoft")),
+            ),
+        )
+        val hetzner = Entry(id = "hz", title = "Hetzner", username = "alex", customFields = listOf(CustomField.plain("Robot", link("Hetzner"))))
+        val broken = Entry(id = "br", title = "Broken", customFields = listOf(CustomField.plain("Code", "otpauth://totp/x?secret=")))
+        val listing = VaultListing(Vault(entries = listOf(microsoft, github, bahn, hetzner, broken)), now, Collator.getInstance(Locale.ENGLISH))
 
-        val all = listing.sections("", recentIds = listOf("db"), codesOnly = true)
-        assertEquals(ListSection.Kind.CODES, all.single().kind, "no recent section")
-        assertEquals(listOf("bk", "gh"), all.single().rows.map { it.id })
+        val tiles = listing.codes("")
+        assertEquals(listOf("GitHub", "Hetzner", "Microsoft", "Microsoft", "Microsoft"), tiles.map { it.title })
+        assertEquals(listOf(null, "Robot", null, "One-time code 2", "Work account"), tiles.map { it.fieldName }, "own code first, then field order")
+        assertEquals(listOf("gh", "hz", "ms", "ms", "ms"), tiles.map { it.entryId })
+        assertEquals(tiles.size, tiles.map { it.key }.toSet().size, "each tile its own key")
+        assertTrue(listing.codes("broken").isEmpty(), "a code that cannot be read is not listed")
+    }
 
-        val found = listing.sections("alex", emptyList(), codesOnly = true)
-        assertEquals(ListSection.Kind.RESULTS, found.single().kind)
-        assertEquals(listOf("bk"), found.single().rows.map { it.id }, "Deutsche Bahn matches but has no code")
-        assertTrue(listing.sections("bahn", emptyList(), codesOnly = true).isEmpty())
+    // spec: app.codes-view/AC2
+    @Test
+    fun aTileSaysTheUsernameForTheOwnCodeTheFieldsNameForAFurtherOne() {
+        val microsoft = Entry(
+            id = "ms", title = "Microsoft", username = "alex@outlook.com", totp = secret,
+            customFields = listOf(CustomField.plain("One-time code 2", link("Microsoft")), CustomField.plain("Backup_Codes", link("Microsoft"))),
+        )
+        val listing = VaultListing(Vault(entries = listOf(microsoft)), now, Collator.getInstance(Locale.ENGLISH))
+
+        val tiles = listing.codes("")
+        assertEquals(listOf("alex@outlook.com", "One-time code 2", "Backup › Codes"), tiles.map { it.subtitle })
+        assertEquals(listOf(false, true, true), tiles.map { it.further })
+        assertEquals(secret, tiles[0].totp)
+        assertEquals(6, tiles[1].totp.digits)
+    }
+
+    // spec: app.codes-view/AC3
+    @Test
+    fun theCodesSearchSearchesTheTitleTheUsernameAndAFurtherCodesName() {
+        val microsoft = Entry(
+            id = "ms", title = "Microsoft", username = "alex@outlook.com", totp = secret, notes = "xbox",
+            url = "https://login.live.com", customFields = listOf(CustomField.plain("Work account", link("Microsoft"))),
+        )
+        val bank = Entry(id = "bk", title = "Bank", username = "alex", totp = secret, groupPath = listOf("Finanzen"), tags = listOf("money"))
+        val listing = VaultListing(Vault(entries = listOf(microsoft, github, bahn, bank, amazon)), now, Collator.getInstance(Locale.ENGLISH))
+
+        assertEquals(listOf("bk", "ms", "ms"), listing.codes("alex").map { it.entryId }, "the username: both of Microsoft's codes")
+        assertEquals(listOf("Work account"), listing.codes("work").map { it.fieldName }, "a further code's name finds that code only")
+        assertEquals(listOf("gh"), listing.codes("git").map { it.entryId })
+        assertTrue(listing.codes("bahn").isEmpty(), "Deutsche Bahn has no code")
+        assertTrue(listing.codes("xbox").isEmpty(), "not the notes")
+        assertTrue(listing.codes("live.com").isEmpty(), "not the URL")
+        assertEquals(listOf("bk"), listing.codes("@Finanzen").map { it.entryId }, "the filters still filter")
+        assertEquals(listOf("bk"), listing.codes("#money").map { it.entryId })
+        for (query in listOf("@", "!", "# ")) assertTrue(listing.codes(query).isEmpty(), "“$query”: never all codes")
+    }
+
+    @Test
+    fun withTwoDatabasesOpenTheCodesAreEachDatabasesAndTheBangFilterKeepsOne() {
+        val p = personal.copy(entries = personal.entries.map { if (it.id == "same") it.copy(totp = secret) else it })
+        val w = work.copy(entries = work.entries.map { if (it.id == "same") it.copy(totp = secret) else it })
+        val listing = both(p, w)
+
+        val tiles = listing.codes("")
+        assertEquals(listOf(p("same"), w("same")), tiles.map { it.entryId })
+        assertEquals(listOf("Personal", "Work"), tiles.map { it.database?.label?.name }, "the group line starts with the database")
+        assertEquals(listOf(listOf("Media"), listOf("Engineering")), tiles.map { it.group })
+        assertEquals(listOf(w("same")), listing.codes("!Work").map { it.entryId })
+    }
+
+    // spec: app.codes-view/AC2
+    @Test
+    fun withOneDatabaseOpenATileHasItsGroupsPathAndNoDatabase() {
+        val nested = Entry(id = "sp", title = "Sparkasse", totp = secret, groupPath = listOf("Finanzen", "Banken"))
+        val atRoot = Entry(id = "rt", title = "Root", totp = secret)
+        val tiles = VaultListing(Vault(entries = listOf(nested, atRoot)), now, Collator.getInstance(Locale.ENGLISH)).codes("")
+
+        assertEquals(listOf("Root", "Sparkasse"), tiles.map { it.title })
+        assertEquals(listOf(emptyList(), listOf("Finanzen", "Banken")), tiles.map { it.group }, "the root group: no line")
+        assertTrue(tiles.all { it.database == null })
     }
 
     @Test
@@ -275,7 +348,7 @@ class VaultListingTest {
 
         for (query in listOf("@", "!", "# ", "@ # !")) {
             assertEquals(emptyList(), listing.sections(query, emptyList()), "“$query”: never the whole vault")
-            assertEquals(emptyList(), listing.sections(query, emptyList(), codesOnly = true), "“$query” in the Codes list")
+            assertEquals(emptyList(), listing.codes(query), "“$query” in the Codes view")
         }
         assertEquals(3, listing.sections("-", emptyList()).single().rows.size)
         assertEquals(3, listing.sections("- @", emptyList()).single().rows.size, "the bins' search: a bare sign keeps them all")
