@@ -87,12 +87,15 @@ internal object XmlTree {
             sink.ascii(">")
             sink.ascii(protect(secret))
         } else {
-            if (element.children.isEmpty()) {
+            val only = element.onlyText
+            val nodes = if (only == null) element.nodes else emptyList()
+            if (only == null && nodes.isEmpty()) {
                 sink.ascii("/>")
                 return
             }
             sink.ascii(">")
-            for (child in element.children) {
+            if (only != null) sink.text(only, attribute = false)
+            for (child in nodes) {
                 when (child) {
                     is XElement -> write(child, sink, protect)
                     is XText -> sink.text(child.text, attribute = false)
@@ -116,6 +119,7 @@ internal object XmlTree {
         /** One instance per name, and per run of whitespace: a large file repeats them a few hundred thousand times. */
         private val names = HashMap<String, String>()
         private val whitespace = HashMap<String, XText>()
+        private val values = HashMap<String, String>()
 
         override fun result(): XElement = root ?: throw KdbxException.Corrupt("empty XML")
 
@@ -126,6 +130,7 @@ internal object XmlTree {
 
         private fun name(name: String) = names.getOrPut(name) { name }
 
+        /** The text before a child element: between elements it is whitespace, the same few runs over and over. */
         private fun flushText() {
             if (pending.isEmpty()) return
             val top = stack.lastOrNull()
@@ -134,6 +139,24 @@ internal object XmlTree {
                 top.children.add(if (text.isBlank()) whitespace.getOrPut(text) { XText(text) } else XText(text))
             }
             pending.setLength(0)
+        }
+
+        /** The text after the last child, or all an element holds: then it is kept as the text itself. */
+        private fun endText(element: XElement) {
+            if (pending.isEmpty()) return
+            if (element.onlyText == null && element.nodes.isEmpty()) {
+                element.text = value(pending)
+                pending.setLength(0)
+            } else {
+                flushText()
+            }
+        }
+
+        /** A short value (True, False, a field's name, a count) is one string however often the file has it. */
+        private fun value(text: CharSequence): String {
+            val value = text.toString()
+            if (value.length > SHORT_VALUE) return value
+            return values[value] ?: value.also { if (values.size < MAX_VALUES) values[it] = it }
         }
 
         override fun startElement(uri: String, localName: String, qName: String, attributes: Attributes) {
@@ -169,8 +192,9 @@ internal object XmlTree {
                     element.secret = Secret.of(pending.toString())
                     pending.setLength(0)
                 }
-                Protection.NONE -> flushText()
+                Protection.NONE -> endText(element)
             }
+            element.trim()
             stack.removeAt(stack.lastIndex)
         }
 
@@ -186,6 +210,10 @@ internal object XmlTree {
             return Secret.adopt(bytes)
         }
     }
+
+    /** The longest value [Builder] keeps one string of, and how many of them at most. */
+    private const val SHORT_VALUE = 12
+    private const val MAX_VALUES = 4096
 
     private enum class Protection { NONE, SEALED, CLEAR }
 

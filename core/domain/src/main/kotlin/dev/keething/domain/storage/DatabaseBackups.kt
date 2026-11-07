@@ -1,5 +1,6 @@
 package dev.keething.domain.storage
 
+import java.io.InputStream
 import java.time.Instant
 
 /**
@@ -11,6 +12,12 @@ import java.time.Instant
 public fun interface DatabaseBackups {
     /** Keeps [database] (the file named [fileName] before a save at [at]), flushed to the storage; none goes yet. */
     public fun keep(database: ByteArray, fileName: String, at: Instant)
+
+    /**
+     * As [keep], the copy written from [database] as it is read, to its end: a large file is never held whole
+     * (keething-spec app.large-database AC2). A failure part of the way leaves the part kept: [notSaved] takes it back.
+     */
+    public fun keep(database: InputStream, fileName: String, at: Instant): Unit = keep(database.readBytes(), fileName, at)
 
     /** The save that kept the last one replaced the file: the oldest beyond the newest few go. */
     public fun saved() {}

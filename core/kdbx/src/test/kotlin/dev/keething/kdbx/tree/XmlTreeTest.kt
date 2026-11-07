@@ -39,6 +39,27 @@ class XmlTreeTest {
     }
 
     @Test
+    fun aValueIsKeptAsItsTextAloneAndTakesChildrenOnlyWhenTheyAreAddedWrittenAsBefore() {
+        val xml = "<A>\n\t<B>True</B>\n\t<C>True</C>\n\t<D>mixed<E/>after</D>\n</A>"
+        val root = read(xml.encodeToByteArray())
+        val (b, c) = root.first("B")!! to root.first("C")!!
+
+        assertEquals("True", b.onlyText)
+        assertTrue(b.onlyText === c.onlyText, "a short value read once is one string")
+        assertNull(root.first("D")!!.onlyText)
+        assertEquals("mixedafter", root.first("D")!!.text)
+        assertEquals(xml, write(root).decodeToString().substringAfter("?>\n").trimEnd())
+
+        b.append(XElement("F", "x"))
+        c.text = ""
+        c.text = "False"
+        assertEquals("True", b.text)
+        assertEquals("<B>True<F>x</F></B>", write(b).decodeToString().substringAfter("?>\n").trimEnd())
+        assertEquals("<C>False</C>", write(c).decodeToString().substringAfter("?>\n").trimEnd())
+        assertEquals(listOf("True"), b.copy().nodes.filterIsInstance<XText>().map { it.text })
+    }
+
+    @Test
     fun aDocumentWithoutChangesIsWrittenAsItWasRead() {
         val xml = """
             |<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

@@ -18,6 +18,7 @@ import android.util.Log
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.storage.FolderItem
 import dev.keething.domain.storage.FolderRead
+import dev.keething.domain.storage.FolderReading
 import dev.keething.domain.storage.FolderWatch
 import dev.keething.domain.storage.GrantedFolder
 import dev.keething.domain.storage.StoragePlace
@@ -27,6 +28,7 @@ import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.nio.file.AccessDeniedException
 import java.nio.file.NoSuchFileException
 import java.time.Instant
@@ -73,6 +75,26 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
             FolderRead(FileInputStream(descriptor.fileDescriptor).readBytes(), version)
         }
     }
+
+    override fun <T> read(path: String, reading: (InputStream) -> T): FolderReading<T>? = try {
+        provider(path) {
+            open(path, "r")?.use { descriptor ->
+                val version = versionOf(fstat(descriptor))
+                val result = try {
+                    reading(FileInputStream(descriptor.fileDescriptor))
+                } catch (failure: Throwable) {
+                    throw ReadingFailed(failure)
+                }
+                FolderReading(result, version)
+            }
+        }
+    } catch (failed: ReadingFailed) {
+        // The reading's own failure as it was, not as the provider's.
+        throw failed.failure
+    }
+
+    /** Carries a reading's failure past [provider], which would make a runtime exception an [IOException]. */
+    private class ReadingFailed(val failure: Throwable) : Exception()
 
     override fun create(folder: String, name: String): String = provider(folder) {
         val parent = documentUri(folder)

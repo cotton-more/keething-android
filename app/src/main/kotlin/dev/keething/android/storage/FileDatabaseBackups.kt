@@ -4,6 +4,7 @@ import dev.keething.domain.storage.DatabaseBackups
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -25,8 +26,16 @@ internal class FileDatabaseBackups(
     /** The copy the running save kept, until it says how it went. */
     private var kept: File? = null
 
-    @Synchronized
     override fun keep(database: ByteArray, fileName: String, at: Instant) {
+        write(fileName, at) { it.write(database) }
+    }
+
+    override fun keep(database: InputStream, fileName: String, at: Instant) {
+        write(fileName, at) { database.copyTo(it, 64 * 1024) }
+    }
+
+    @Synchronized
+    private fun write(fileName: String, at: Instant, writing: (FileOutputStream) -> Unit) {
         if (!folder.isDirectory && !folder.mkdirs()) throw IOException("backup folder")
         val stem = fileName.substringBeforeLast('.')
         val stamp = STAMP.format(at.atZone(zone))
@@ -36,7 +45,7 @@ internal class FileDatabaseBackups(
         val target = names.getOrNull(names.indexOfLast { it.exists() } + 1) ?: throw IOException("backup: too many saves within a second")
         kept = target
         FileOutputStream(target).use { out ->
-            out.write(database)
+            writing(out)
             out.fd.sync()
         }
     }

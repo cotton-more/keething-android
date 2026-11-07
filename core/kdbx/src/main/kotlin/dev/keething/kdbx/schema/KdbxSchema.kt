@@ -368,7 +368,7 @@ internal object KdbxSchema {
             val counts = IntArray(model.particles.size)
             var last = -1
             var text = false
-            for (child in element.children) {
+            for (child in element.nodes) {
                 if (child !is XElement) {
                     if (!text && child is XText && !isBlank(child.text)) {
                         found += SchemaViolation(place, "$here: text not allowed")
@@ -418,7 +418,7 @@ internal object KdbxSchema {
 
         fun value(element: XElement, kind: Kind.Value, place: String, path: Path?) {
             fun name() = named(path, element.name)
-            if (element.children.any { it is XElement }) found += SchemaViolation(place, "${name()}: elements not allowed")
+            if (element.hasElements) found += SchemaViolation(place, "${name()}: elements not allowed")
             if (kind.type != Simple.STRING && !valid(element.text, kind.type)) found += SchemaViolation(place, "${name()}: ${kind.type.problem}")
             for ((attribute, text) in element.attributes) {
                 if (isNamespace(attribute)) continue

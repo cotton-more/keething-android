@@ -17,6 +17,12 @@ import javax.crypto.spec.SecretKeySpec
 internal class PayloadFailure(val failure: KdbxException) : IOException(failure.message)
 
 /**
+ * The file could not be read (the storage's failure, not the file's): carried up through the payload's streams and the
+ * XML parser, then thrown as [failure] itself, never as a damaged file.
+ */
+internal class SourceFailure(val failure: IOException) : IOException(failure.message, failure)
+
+/**
  * A KDBX 4 file's payload (the inner header, then the XML) as it is read, never whole in memory: the HMAC blocks, each
  * checked before any of its bytes is used; decrypted as they come; gunzipped when the file is compressed. [finish]
  * reads what is left to the end, so that every block, the padding and gzip's checksum are checked as before; [close]
@@ -50,8 +56,9 @@ internal class Payload private constructor(
     }
 
     companion object {
-        fun open(file: ByteArray, header: Header, cipherKey: ByteArray, hmacBase: ByteArray): Payload {
-            val blocks = BlockInput(file, header.end, hmacBase)
+        /** [source] past the header. */
+        fun open(source: InputStream, header: Header, cipherKey: ByteArray, hmacBase: ByteArray): Payload {
+            val blocks = BlockInput(source, hmacBase)
             val decrypted = DecryptingInput(blocks, header.format.cipher, cipherKey, header.iv)
             val gunzipped = try {
                 if (header.format.compressed) carrying { GunzipInput(decrypted) } else null
@@ -62,18 +69,24 @@ internal class Payload private constructor(
             return Payload(blocks, decrypted, gunzipped)
         }
 
-        /** [block], its [PayloadFailure] thrown as the [KdbxException] it carries. */
+        /** [block], its [PayloadFailure] thrown as the [KdbxException] it carries, a [SourceFailure] as its [IOException]. */
         inline fun <T> carrying(block: () -> T): T = try {
             block()
         } catch (failure: PayloadFailure) {
+            throw failure.failure
+        } catch (failure: SourceFailure) {
             throw failure.failure
         }
     }
 }
 
-/** The HMAC block stream of [file] from [start], as the bytes of its blocks: no block is given out before its HMAC is checked. */
-internal class BlockInput(private val file: ByteArray, start: Int, private val hmacBase: ByteArray) : InputStream() {
-    private val reader = ByteReader(file, start)
+/**
+ * The HMAC block stream read from [source], as the bytes of its blocks: no block is given out before its HMAC is checked.
+ * A block is held whole for that (KeePass writes them of 1 MiB), in one buffer kept for the next; a size larger than
+ * what follows is not allocated ahead, only read as far as it goes. A failure of [source] is a [SourceFailure].
+ */
+internal class BlockInput(private val source: InputStream, private val hmacBase: ByteArray) : InputStream() {
+    private var block = ByteArray(0)
     private var index = 0L
     private var at = 0
     private var left = 0
@@ -85,14 +98,14 @@ internal class BlockInput(private val file: ByteArray, start: Int, private val h
     override fun read(): Int {
         if (left == 0 && !next()) return -1
         left--
-        return file[at++].toInt() and 0xFF
+        return block[at++].toInt() and 0xFF
     }
 
     override fun read(b: ByteArray, off: Int, len: Int): Int {
         if (len == 0) return 0
         if (left == 0 && !next()) return -1
         val n = minOf(len, left)
-        file.copyInto(b, off, at, at + n)
+        block.copyInto(b, off, at, at + n)
         at += n
         left -= n
         return n
@@ -100,16 +113,24 @@ internal class BlockInput(private val file: ByteArray, start: Int, private val h
 
     private fun next(): Boolean {
         if (ended) return false
-        val mac = reader.bytes(32)
-        val size = reader.size()
-        val from = reader.position
-        if (mac == null || size == null || !reader.skip(size)) throw PayloadFailure(KdbxException.Corrupt("block $index truncated"))
+        val truncated = PayloadFailure(KdbxException.Corrupt("block $index truncated"))
+        val mac = fromSource { source.readNBytes(32) }
+        val sizeField = fromSource { source.readNBytes(4) }
+        if (mac.size < 32 || sizeField.size < 4) throw truncated
+        val size = Bytes.intLe(sizeField, 0)
+        if (size < 0) throw truncated
+        if (size <= block.size) {
+            if (fromSource { source.readNBytes(block, 0, size) } < size) throw truncated
+        } else {
+            block = fromSource { source.readNBytes(size) }
+            if (block.size < size) throw truncated
+        }
         val key = MessageDigest.getInstance("SHA-512").apply { update(Bytes.le64(index)); update(hmacBase) }.digest()
         val expected = Mac.getInstance("HmacSHA256").run {
             init(SecretKeySpec(key, "HmacSHA256"))
             update(Bytes.le64(index))
-            update(Bytes.le32(size))
-            update(file, from, size)
+            update(sizeField)
+            update(block, 0, size)
             doFinal()
         }
         key.fill(0)
@@ -118,10 +139,16 @@ internal class BlockInput(private val file: ByteArray, start: Int, private val h
             ended = true
             return false
         }
-        at = from
+        at = 0
         left = size
         index++
         return true
+    }
+
+    private inline fun <T> fromSource(read: () -> T): T = try {
+        read()
+    } catch (failure: IOException) {
+        throw SourceFailure(failure)
     }
 }
 
@@ -204,6 +231,8 @@ internal class GunzipInput(source: InputStream) : InputStream() {
         WipingGzip(source)
     } catch (failure: PayloadFailure) {
         throw failure
+    } catch (failure: SourceFailure) {
+        throw failure
     } catch (_: IOException) {
         throw PayloadFailure(KdbxException.Corrupt("gzip"))
     }
@@ -219,6 +248,8 @@ internal class GunzipInput(source: InputStream) : InputStream() {
     private inline fun guarded(read: () -> Int): Int = try {
         read()
     } catch (failure: PayloadFailure) {
+        throw failure
+    } catch (failure: SourceFailure) {
         throw failure
     } catch (_: EOFException) {
         throw PayloadFailure(KdbxException.Corrupt("gzip"))

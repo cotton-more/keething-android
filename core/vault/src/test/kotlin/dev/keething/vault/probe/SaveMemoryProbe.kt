@@ -1,7 +1,6 @@
 package dev.keething.vault.probe
 
 import dev.keething.domain.secret.Secret
-import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
@@ -33,7 +32,7 @@ fun main(arguments: Array<String>) {
     val held = beside?.let { open(it, "beside") }
     var opened = open(copy, "copy")
     val store = FileStore(copy)
-    val saver = VaultSaver(store, DatabaseBackups { _, _, _ -> })
+    val saver = VaultSaver(store, DiscardedBackups)
     repeat(saves) { index ->
         val entry = opened.vault.entries[index % opened.vault.entries.size]
         val edit = VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = entry.notes + "\n(save ${index + 1})"))

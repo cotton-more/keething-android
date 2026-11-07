@@ -2,7 +2,9 @@ package dev.keething.vault.probe
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.ConflictCopy
+import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.storage.DatabaseRead
+import dev.keething.domain.storage.DatabaseReading
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.vault.CustomField
@@ -21,6 +23,8 @@ import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.saving.SaveResult
 import dev.keething.vault.saving.VaultSaver
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.lang.management.ManagementFactory
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -262,6 +266,12 @@ internal class FileStore(private val file: File) : DatabaseStore {
 
     override fun read(): DatabaseRead = DatabaseRead.Found(file.readBytes(), version()!!)
 
+    // As the phone's folder: from the file as it is read.
+    override fun <T> read(reading: (InputStream) -> T): DatabaseReading<T> {
+        val version = version()
+        return DatabaseReading.Found(file.inputStream().buffered(64 * 1024).use(reading), version)
+    }
+
     override fun version(): FileVersion = FileVersion(file.length(), Instant.ofEpochMilli(file.lastModified()), null)
 
     override fun replace(bytes: ByteArray, expected: FileVersion?) {
@@ -273,6 +283,15 @@ internal class FileStore(private val file: File) : DatabaseStore {
     override fun conflictCopies(): List<ConflictCopy> = emptyList()
 
     override fun watch(onChange: () -> Unit): AutoCloseable = AutoCloseable {}
+}
+
+/** Backups that keep nothing: a stream read to its end as the phone's write it, never held whole. */
+internal object DiscardedBackups : DatabaseBackups {
+    override fun keep(database: ByteArray, fileName: String, at: Instant) {}
+
+    override fun keep(database: InputStream, fileName: String, at: Instant) {
+        database.copyTo(OutputStream.nullOutputStream())
+    }
 }
 
 private fun peakHeapMiB(): Long =

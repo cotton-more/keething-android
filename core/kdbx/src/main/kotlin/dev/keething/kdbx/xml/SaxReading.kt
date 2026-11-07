@@ -2,6 +2,7 @@ package dev.keething.kdbx.xml
 
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.PayloadFailure
+import dev.keething.kdbx.reader.SourceFailure
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -61,19 +62,26 @@ internal object Sax {
             reader.parse(InputSource(object : FilterInputStream(input) { override fun close() {} }))
         } catch (failure: SAXParseException) {
             readings.forEach(SaxReading<*>::wipe)
+            unreadable(failure)?.let { throw it }
             throw readings.firstNotNullOfOrNull { it.failure } ?: carried(failure) ?: KdbxException.Corrupt("XML error at line ${failure.lineNumber}")
         } catch (failure: SAXException) {
             readings.forEach(SaxReading<*>::wipe)
+            unreadable(failure)?.let { throw it }
             throw readings.firstNotNullOfOrNull { it.failure } ?: carried(failure) ?: KdbxException.Corrupt("XML")
         } catch (failure: IOException) {
             readings.forEach(SaxReading<*>::wipe)
+            if (failure is SourceFailure) throw failure.failure
             throw (failure as? PayloadFailure)?.failure ?: KdbxException.Corrupt("XML")
         }
     }
 
     /** A failure of the payload under the XML, which some parsers hand on wrapped in a [SAXException]. */
-    private fun carried(failure: SAXException): KdbxException? =
-        generateSequence<Throwable>(failure) { it.cause ?: (it as? SAXException)?.exception }.take(8).filterIsInstance<PayloadFailure>().firstOrNull()?.failure
+    private fun carried(failure: SAXException): KdbxException? = causes(failure).filterIsInstance<PayloadFailure>().firstOrNull()?.failure
+
+    /** The storage's failure to read the file, wrapped so: thrown as it is, the file not called damaged. */
+    private fun unreadable(failure: SAXException): IOException? = causes(failure).filterIsInstance<SourceFailure>().firstOrNull()?.failure
+
+    private fun causes(failure: SAXException) = generateSequence<Throwable>(failure) { it.cause ?: (it as? SAXException)?.exception }.take(8)
 
     /** The events to each reading in turn. */
     private class Tee(private val readings: Array<out SaxReading<*>>) : DefaultHandler2() {

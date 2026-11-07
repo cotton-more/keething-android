@@ -1,10 +1,13 @@
 package dev.keething.kdbx.reader
 
 import dev.keething.kdbx.crypto.Argon2
+import dev.keething.kdbx.crypto.Bytes
 import dev.keething.kdbx.key.KdfLimits
 import dev.keething.kdbx.key.KdfParameters
 import dev.keething.kdbx.reader.KdbxFormat.Cipher
 import dev.keething.kdbx.reader.KdbxFormat.Kdf
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 
 /** The outer header of a KDBX 4 file: format, cipher, key derivation, seeds (Mac `Header`). KDBX 3.1's is [Header3]. */
 internal class Header(
@@ -50,6 +53,33 @@ internal class Header(
                 throw KdbxException.NotKdbx()
             }
             return major to minor
+        }
+
+        /**
+         * The header's bytes read from [input] and no further, for [parse]: the version, the fields to the end mark, the
+         * checksum and the HMAC (KDBX 4). A file of another version is refused as [parse] refuses it; a short one is given
+         * as far as it goes, for [parse] to say so.
+         */
+        fun read(input: InputStream): ByteArray {
+            val out = ByteArrayOutputStream(1024)
+            val start = input.readNBytes(12)
+            out.write(start)
+            val (major, minor) = version(start)
+            if (major != 4) throw KdbxException.UnsupportedVersion(major, minor)
+            while (true) {
+                val field = input.readNBytes(5)
+                out.write(field)
+                if (field.size < 5) return out.toByteArray()
+                val size = Bytes.intLe(field, 1)
+                // A size beyond an array is parse's to refuse; what is there is read only as it comes, never allocated ahead.
+                if (size < 0) return out.toByteArray()
+                val value = input.readNBytes(size)
+                out.write(value)
+                if (value.size < size) return out.toByteArray()
+                if (field[0].toInt() == 0) break
+            }
+            out.write(input.readNBytes(64))
+            return out.toByteArray()
         }
 
         /** A KDBX 4 header; a KDBX 3 file is [Header3]'s, any other version is refused. */

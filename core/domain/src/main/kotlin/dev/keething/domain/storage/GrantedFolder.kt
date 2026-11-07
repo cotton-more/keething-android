@@ -1,5 +1,8 @@
 package dev.keething.domain.storage
 
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+
 /**
  * One folder the user granted the app in the system's folder picker (keething-spec databases.saf AC2), reached through
  * the storage's provider, never by a file path. What is in it is named by its path inside it ("KeePass/Personal.kdbx";
@@ -19,6 +22,14 @@ public interface GrantedFolder {
 
     /** The bytes of the file at [path] with the version of the one file they were read from, or null when there is none. */
     public fun read(path: String): FolderRead?
+
+    /**
+     * As [read], the bytes handed to [reading] as they are read from the one file, never held whole (a large database's
+     * save; keething-spec app.large-database AC2): what [reading] returns with the version of that file, or null when
+     * there is none.
+     */
+    public fun <T> read(path: String, reading: (InputStream) -> T): FolderReading<T>? =
+        read(path)?.let { read -> FolderReading(ByteArrayInputStream(read.bytes).use(reading), read.version) }
 
     /**
      * Makes an empty file named [name] in [folder] and returns the name it got: the provider gives another one
@@ -56,6 +67,9 @@ public interface GrantedFolder {
 
 /** A file's bytes and the version they were read at. */
 public class FolderRead(public val bytes: ByteArray, public val version: FileVersion)
+
+/** What a streamed read made of a file's bytes, and the version they were read at. */
+public class FolderReading<out T>(public val result: T, public val version: FileVersion)
 
 /** A file or a folder inside a granted folder. */
 public data class FolderItem(val name: String, val isFolder: Boolean)

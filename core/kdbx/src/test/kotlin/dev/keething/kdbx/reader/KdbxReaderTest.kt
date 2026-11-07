@@ -3,8 +3,13 @@ package dev.keething.kdbx.reader
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.FieldValue
 import dev.keething.kdbx.Fixtures
+import dev.keething.kdbx.crypto.Bytes
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.xml.KdbxEntry
+import java.io.ByteArrayInputStream
+import java.io.FilterInputStream
+import java.io.IOException
+import java.io.InputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -84,6 +89,54 @@ class KdbxReaderTest {
         assertFailsWith<KdbxException.NotKdbx> { KdbxReader.open("<KeePassFile/>".encodeToByteArray(), key()) }
         val truncated = assertFailsWith<KdbxException.Corrupt> { KdbxReader.open(file.copyOf(60), key()) }
         assertEquals("header truncated", truncated.detail)
+    }
+
+    @Test
+    fun aFileOpenedForEditingAsItIsReadIsTheFileReadWholeAndWhatFollowsItIsLeft() {
+        val file = Fixtures.bytes("kdbx4-chacha20-argon2id.kdbx")
+        // A few bytes at a time, as a provider may give them.
+        val input = object : FilterInputStream(ByteArrayInputStream(file + "after".encodeToByteArray())) {
+            override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, minOf(len, 7))
+        }
+
+        val streamed = KdbxReader.openForEditing(input, key())
+        val whole = KdbxReader.openForEditing(file, key())
+
+        assertEquals(whole.document.entries.map { it.uuid to it.title() }, streamed.document.entries.map { it.uuid to it.title() })
+        assertEquals(whole.binaries.map { it.size }, streamed.binaries.map { it.size })
+        assertEquals("after", input.readBytes().decodeToString())
+        streamed.wipe()
+        whole.wipe()
+    }
+
+    @Test
+    fun aBlockLongerThanTheFileIsATruncatedFileNotAnAllocationOfItsSize() {
+        val file = Fixtures.bytes("kdbx4-aes-aeskdf.kdbx")
+        val sizeField = Header.read(ByteArrayInputStream(file)).size + 32
+        val lying = file.copyOf().apply { Bytes.le32(Int.MAX_VALUE - 8).copyInto(this, sizeField) }
+
+        val failure = assertFailsWith<KdbxException.Corrupt> { KdbxReader.openForEditing(ByteArrayInputStream(lying), key()) }
+
+        assertEquals("block 0 truncated", failure.detail)
+    }
+
+    @Test
+    fun aFileThatCannotBeReadToItsEndIsTheStoragesFailureNotADamagedFile() {
+        val file = Fixtures.bytes("kdbx4-aes-aeskdf.kdbx")
+        for (failingAt in listOf(20, 200, file.size / 2, file.size - 10)) {
+            val input = object : InputStream() {
+                private var at = 0
+
+                override fun read(): Int {
+                    if (at == failingAt) throw IOException("I/O error")
+                    return if (at < file.size) file[at++].toInt() and 0xFF else -1
+                }
+            }
+
+            val failure = assertFailsWith<IOException>("failing at $failingAt") { KdbxReader.openForEditing(input, key()) }
+
+            assertEquals("I/O error", failure.message, "failing at $failingAt")
+        }
     }
 
     @Test

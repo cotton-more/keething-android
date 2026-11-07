@@ -472,8 +472,9 @@ asked, kept, or `ProtectNotes`' where there were no Notes; the kind as written.
 
 The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/vault` `VaultSaver`, `core/kdbx`
 `EditableDatabase`):
-1. Read the file again; open it as an XML tree that keeps everything (unknown elements, history, custom
-   data, other apps' data) and writes it back in order. A protected value goes into the tree as a secret,
+1. Read the file again; open it as it is read (never held whole: keething-spec app.large-database AC2) as an XML
+   tree that keeps everything (unknown elements, history, custom data, other apps' data) and writes it back in order;
+   of the file itself only its SHA-256 is kept. A protected value goes into the tree as a secret,
    decrypted straight into it: the tree holds no password in the clear either (§4).
 2. Find the entry by UUID; if its `LastModificationTime` differs from the one loaded → "changed elsewhere",
    nothing is saved, the vault reloads. Other entries changed elsewhere are kept. A group's edit has no such time:
@@ -528,8 +529,8 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    as before for an entry's edit (but the bin a recycled entry makes, in the root group), and a group's edit takes them along when the
    bin is inside the group changed, its entries' paths with them. An entry deleted for good: gone, every other entry
    and every group as before.
-6. If the file on disk changed meanwhile (byte for byte, and by its version once more as the store replaces it),
-   do it all again on the new file (once more, then fail).
+6. If the file on disk changed meanwhile (its SHA-256 read again, and by its version once more as the store replaces
+   it), do it all again on the new file (once more, then fail).
 7. Back up the old file into app-private storage (`filesDir/backups/<database id>/`, `<name> <local date and
    time>.kdbx`, `_2`… for more within a second, numbered after the last one there, flushed to the storage before the
    replace; the newest 10 in the database's folder, newest by when they were written, not by the local time in their
@@ -544,8 +545,9 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
    app's temporary file, only the final one. Through the folder's grant the database is renamed aside first and the
    new file renamed in (§3.1, `FolderDatabaseStore`; keething-spec databases.saf AC4, AC5). The new file is flushed
-   (`FileDescriptor.sync`) before anything is renamed, the backup before the replace (kdbx.hardening AC5). The
-   database is reached by documents, never by a path, so a symbolic link never comes into it: the phone's shared
+   (`FileDescriptor.sync`) before anything is renamed, the backup before the replace (kdbx.hardening AC5). The backup
+   is written from step 6's read as it comes, the file never held whole (app.large-database AC2); a read that turns out
+   not to be the file of step 1 takes its copy back. The database is reached by documents, never by a path, so a symbolic link never comes into it: the phone's shared
    storage refuses to make one (`ln -s` in `/sdcard`: permission denied, Pixel 6, 2026-11-04) and a card's FAT or
    exFAT has none (kdbx.hardening AC9).
    A file's time cannot be set through the Storage Access Framework, and Syncthing on Android takes times less than

@@ -2,6 +2,7 @@ package dev.keething.vault.storage
 
 import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
+import dev.keething.domain.storage.DatabaseReading
 import dev.keething.domain.storage.FakeGrantedFolder
 import dev.keething.domain.storage.FakeGrantedFolder.Call
 import dev.keething.domain.storage.FakeGrantedFolder.Operation
@@ -26,6 +27,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -75,6 +77,19 @@ class FolderDatabaseStoreTest {
         assertEquals(old.size.toLong(), read.version.size)
         assertNull(read.stoppedSave)
         assertEquals("Personal.kdbx", store.fileName)
+    }
+
+    @Test
+    fun aStreamedReadGivesTheReadingTheBytesWithTheVersionOfTheFileTheyWereReadFrom() {
+        folder.put(DATABASE, old, earlier)
+
+        val read = assertIs<DatabaseReading.Found<ByteArray>>(store.read { it.readBytes() })
+
+        assertContentEquals(old, read.result)
+        assertEquals(store.version(), read.version)
+        assertNull(read.stoppedSave)
+        folder.delete(DATABASE)
+        assertEquals(DatabaseReading.Missing, store.read { fail("nothing to read") })
     }
 
     @Test

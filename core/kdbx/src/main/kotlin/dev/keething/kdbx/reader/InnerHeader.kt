@@ -81,6 +81,10 @@ internal class InnerHeader(
                 binaries.forEach(Secret::wipe)
                 key?.fill(0)
                 throw failure.failure
+            } catch (failure: SourceFailure) {
+                binaries.forEach(Secret::wipe)
+                key?.fill(0)
+                throw failure.failure
             } catch (failure: KdbxException) {
                 binaries.forEach(Secret::wipe)
                 key?.fill(0)
@@ -132,6 +136,8 @@ internal class InnerHeader(
         private fun readFully(input: InputStream, into: ByteArray, offset: Int, count: Int): Int = try {
             input.readNBytes(into, offset, count)
         } catch (failure: PayloadFailure) {
+            throw failure
+        } catch (failure: SourceFailure) {
             throw failure
         } catch (_: IOException) {
             throw KdbxException.Corrupt("inner header")

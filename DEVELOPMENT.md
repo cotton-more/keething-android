@@ -117,7 +117,7 @@ database unlocks, searches, opens a card and saves.
 The generator's content is the same each time (a fixed seed), password `pw`. `task large:save` changes the copy; it
 prints the times and fails with `OutOfMemory` when the heap given is too small (the least heap that passes is what a
 save needs on a JVM; the phone needs somewhat more). `memoryBudgetTest` in core:vault, run by `task test`, keeps a
-40 MiB database's unlock and saves within 256 MiB.
+40 MiB database's unlock and saves within 224 MiB (it needs about 200).
 
 On the phone (the Pixel 6): push the files to a folder the app has, say `adb push large-5000.kdbx /sdcard/Documents/Large/`,
 and add it in the app. Then:

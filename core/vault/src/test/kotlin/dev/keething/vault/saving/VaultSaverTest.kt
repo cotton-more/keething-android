@@ -4,6 +4,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
+import dev.keething.domain.storage.DatabaseReading
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.totp.TotpConfig
@@ -29,6 +30,7 @@ import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.fixtureBytes
 import java.io.IOException
+import java.io.InputStream
 import java.time.Instant
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
@@ -47,13 +49,28 @@ class VaultSaverTest {
         val kept = mutableListOf<ByteArray>()
         var fail = false
 
-        /** Runs while a backup is written, the last thing before the replace: another device changing the file then. */
+        /** Runs while a backup is written (the how-manieth), the last thing before the replace: another device changing the file then. */
         var whileKeeping: (Int) -> Unit = {}
+        private var keeps = 0
+
+        /** The last one kept is the running save's until it says how it went. */
+        private var pending = false
 
         override fun keep(database: ByteArray, fileName: String, at: Instant) {
             if (fail) throw IOException("no room")
             kept += database.copyOf()
-            whileKeeping(kept.size)
+            pending = true
+            whileKeeping(++keeps)
+        }
+
+        override fun saved() {
+            pending = false
+        }
+
+        // As the app's: the running save's copy goes.
+        override fun notSaved() {
+            if (pending) kept.removeAt(kept.lastIndex)
+            pending = false
         }
     }
 
@@ -431,6 +448,8 @@ class VaultSaverTest {
     fun aFileThatCannotBeReadIsAFailureNotACrash() {
         val store = object : DatabaseStore by FakeStore(fixtureBytes("kdbx4-aes-aeskdf")) {
             override fun read(): DatabaseRead = throw IOException("I/O error")
+
+            override fun <T> read(reading: (InputStream) -> T): DatabaseReading<T> = throw IOException("I/O error")
         }
 
         assertEquals(

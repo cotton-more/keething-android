@@ -20,6 +20,20 @@ public sealed interface DatabaseRead {
     public data object AccessDenied : DatabaseRead
 }
 
+/** The outcome of a streamed read of the database file ([DatabaseStore.read] with a reading). */
+public sealed interface DatabaseReading<out T> {
+    /** What the reading made of the file's bytes, and the version they were read at; [stoppedSave] as [DatabaseRead.Found]'s. */
+    public class Found<out T>(
+        public val result: T,
+        public val version: FileVersion,
+        public val stoppedSave: StoppedSave? = null,
+    ) : DatabaseReading<T>
+
+    public data object Missing : DatabaseReading<Nothing>
+
+    public data object AccessDenied : DatabaseReading<Nothing>
+}
+
 /** Which way a save stopped in the middle was put right (keething-spec databases.saf AC5). */
 public enum class StoppedSave {
     /** The save's new file is the database now: the save was finished. */

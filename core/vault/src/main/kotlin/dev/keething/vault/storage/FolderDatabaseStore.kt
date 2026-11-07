@@ -3,6 +3,7 @@ package dev.keething.vault.storage
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
+import dev.keething.domain.storage.DatabaseReading
 import dev.keething.domain.storage.DatabaseReplacedException
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
@@ -16,6 +17,7 @@ import dev.keething.domain.storage.pathIn
 import dev.keething.domain.time.Clock
 import dev.keething.vault.storage.SaveNotes.SaveNote
 import java.io.IOException
+import java.io.InputStream
 import java.nio.file.AccessDeniedException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.NoSuchFileException
@@ -72,6 +74,22 @@ public class FolderDatabaseStore(
         }
         // Still changing: the earlier version makes the next check see a change and read again.
         return checkNotNull(lastRead)
+    }
+
+    override fun <T> read(reading: (InputStream) -> T): DatabaseReading<T> {
+        val read: DatabaseReading<T>
+        val missed: List<() -> Unit>
+        lock.withLock {
+            read = try {
+                val stoppedSave = putRight()
+                folder.read(path, reading)?.let { DatabaseReading.Found(it.result, it.version, stoppedSave) } ?: DatabaseReading.Missing
+            } catch (_: AccessDeniedException) {
+                DatabaseReading.AccessDenied
+            }
+            missed = watchAgain()
+        }
+        missed.forEach { it() }
+        return read
     }
 
     override fun version(): FileVersion? {

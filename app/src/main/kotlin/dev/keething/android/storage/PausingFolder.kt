@@ -2,8 +2,10 @@ package dev.keething.android.storage
 
 import android.util.Log
 import dev.keething.domain.storage.FolderRead
+import dev.keething.domain.storage.FolderReading
 import dev.keething.domain.storage.GrantedFolder
 import java.io.File
+import java.io.InputStream
 
 /**
  * Debug builds only: [folder] with a pause before one of its changes, so the process can be killed between a save's
@@ -18,6 +20,11 @@ internal class PausingFolder(private val folder: GrantedFolder, private val mark
     override fun read(path: String): FolderRead? {
         pauseBefore("read", path)
         return folder.read(path)
+    }
+
+    override fun <T> read(path: String, reading: (InputStream) -> T): FolderReading<T>? {
+        pauseBefore("read", path)
+        return folder.read(path, reading)
     }
 
     override fun create(folder: String, name: String): String {

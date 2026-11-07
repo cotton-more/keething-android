@@ -1,6 +1,8 @@
 package dev.keething.domain.storage
 
+import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.io.InputStream
 
 /**
  * How the app reaches the database file (SPEC §3.1), so the way of reaching it can change without
@@ -11,6 +13,17 @@ public interface DatabaseStore {
     public val fileName: String
 
     public fun read(): DatabaseRead
+
+    /**
+     * As [read], the file's bytes handed to [reading] as they are read, never held whole (a large database's save;
+     * keething-spec app.large-database AC2). [reading] is called at most once: a read that saw the file change under it
+     * is not made again, its version being the one it started at (a [replace] at it is refused).
+     */
+    public fun <T> read(reading: (InputStream) -> T): DatabaseReading<T> = when (val read = read()) {
+        is DatabaseRead.Found -> DatabaseReading.Found(ByteArrayInputStream(read.bytes).use(reading), read.version, read.stoppedSave)
+        DatabaseRead.Missing -> DatabaseReading.Missing
+        DatabaseRead.AccessDenied -> DatabaseReading.AccessDenied
+    }
 
     /** The file's current version, or null when there is no file. */
     public fun version(): FileVersion?

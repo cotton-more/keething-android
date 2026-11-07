@@ -15,6 +15,7 @@ import dev.keething.kdbx.xml.KdbxXmlReader
 import dev.keething.kdbx.xml.Sax
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.io.InputStream
 import java.security.GeneralSecurityException
 import java.security.MessageDigest
 import java.util.zip.GZIPInputStream
@@ -105,10 +106,16 @@ public object KdbxReader {
      * tree that keeps everything. The derived key that has just opened the file, its header's HMAC checked, goes with
      * it: the save writes the new file with that key and reads it back with it (keething-spec kdbx.hardening AC1).
      */
-    public fun openForEditing(file: ByteArray, key: DatabaseKey): EditableDatabase {
+    public fun openForEditing(file: ByteArray, key: DatabaseKey): EditableDatabase = openForEditing(ByteArrayInputStream(file), key)
+
+    /**
+     * As the file is read from [input], never held whole (keething-spec app.large-database AC2): read to the end of
+     * its payload, what follows left there. A failure to read [input] is its [IOException], not a damaged file.
+     */
+    public fun openForEditing(input: InputStream, key: DatabaseKey): EditableDatabase {
         var proven: DerivedKey? = null
         try {
-            return decryptPayload(file, { header ->
+            return decryptPayload(input, { header ->
                 key.transformed(header.kdf).also { (transformed, _) -> proven = DerivedKey(header.kdf.identity, transformed) }
             }) { header, payload, _ ->
                 val inner = InnerHeader.read(payload.input)
@@ -307,7 +314,15 @@ public object KdbxReader {
         file: ByteArray,
         transform: (Header) -> Pair<ByteArray, Boolean>,
         read: (header: Header, payload: Payload, keyDerivation: Duration?) -> T,
+    ): T = decryptPayload(ByteArrayInputStream(file), transform, read)
+
+    /** As the file is read from [input]: what follows the payload is left there. */
+    private fun <T> decryptPayload(
+        input: InputStream,
+        transform: (Header) -> Pair<ByteArray, Boolean>,
+        read: (header: Header, payload: Payload, keyDerivation: Duration?) -> T,
     ): T {
+        val file = Header.read(input)
         val header = Header.parse(file)
         if (header.format.cipher == KdbxFormat.Cipher.TWOFISH) throw KdbxException.UnsupportedCipher("Twofish")
 
@@ -328,7 +343,7 @@ public object KdbxReader {
         try {
             val headerMac = hmac(blockKey(-1L, hmacBase)) { update(file, 0, header.checksumStart) }
             if (!MessageDigest.isEqual(headerMac, header.hmac)) throw KdbxException.WrongPassword()
-            return Payload.open(file, header, cipherKey, hmacBase).use { payload -> read(header, payload, kdfTime.takeIf { fresh }) }
+            return Payload.open(input, header, cipherKey, hmacBase).use { payload -> read(header, payload, kdfTime.takeIf { fresh }) }
         } finally {
             cipherKey.fill(0)
             hmacBase.fill(0)

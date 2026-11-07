@@ -1,6 +1,7 @@
 package dev.keething.android.storage
 
 import dev.keething.vault.databases.DatabaseId
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.file.Files
 import java.time.Instant
@@ -37,6 +38,17 @@ class FileDatabaseBackupsTest {
 
         assertEquals(listOf("1Password 2026-10-20T19-30-05.kdbx"), names())
         assertContentEquals(byteArrayOf(1, 2), File(folder, "backups/1Password 2026-10-20T19-30-05.kdbx").readBytes())
+    }
+
+    @Test
+    fun aCopyFromAStreamIsTheWholeStreamAndASaveThatDidNotReplaceTheFileTakesItBack() {
+        val database = ByteArray(200_000) { it.toByte() }
+
+        backups.keep(ByteArrayInputStream(database), "Personal.kdbx", at)
+
+        assertContentEquals(database, File(folder, "backups/Personal 2026-10-20T19-30-05.kdbx").readBytes())
+        backups.notSaved()
+        assertEquals(emptyList(), names())
     }
 
     @Test
