@@ -235,8 +235,13 @@ the others staying open.
 
 **The databases of the window not open** (keething-spec databases.not-open; the Mac's D6b) are one line of chips
 pinned under the list's header while some are open: "Not open", "Not searched" while a search is typed, the count past
-two, scrolling sideways. Each chip says its database (dot, label) and its state, the first that applies
-(`NotOpenDatabases.state`, the Mac's order): Opening… while it opens; Not found, No access, Needs its folder (an old
+two, scrolling sideways. Each chip is its state's icon in the database's dot colour, in place of its dot, and its
+label, with no word for the state (keething-spec databases.not-open AC8; `NotOpenState.glyph`, one icon per state:
+Locked a lock, Opening… a spinner, Fingerprint paused a pause mark, Fingerprint to set up the fingerprint, Not found a
+folder with a question mark, No access a folder crossed out, Needs its folder a folder with a plus, Needs its key file
+a key crossed out, Cannot be read a warning triangle, Wrong password a lock with an exclamation mark, Password changed
+a lock with a turning arrow, Skipped a skip-forward mark; the state's word is read aloud, its whole say in its sheet).
+The state is the first that applies (`NotOpenDatabases.state`, the Mac's order): Opening… while it opens; Not found, No access, Needs its folder (an old
 record, §3.1), Needs its key file (by the files as they
 are now, so an old failure goes once the file is back); what typing cannot fix (its key file cannot be used, Cannot be
 read); the fingerprint's verdict (Fingerprint to set up again: the fingerprints changed, or its stored password was not
@@ -1180,7 +1185,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   open (AD9: rows saying their database, the card's database chip, the header's names, opening another closing
   nothing, §3.1); `!` and narrowing in the search (AD10, below); a new entry's Save into (AD11, §3.1, the editor
   below); the line of the databases not open with its sheet, and ⋮ › Databases (AD12, §3.1): Open (a tap: Show only
-  this, which types `!Label `, Lock it, Close), Not open (its state and whole say; a tap: its lock screen), Recent (the
+  this, which types `!Label `, Lock it, Close), Not open (its state's icon in place of its dot and its whole say; a tap: its lock screen), Recent (the
   databases out of the window, the last opened first; a tap puts it back and shows its lock screen), New database…,
   Open database…; a row of the first two swiped left closes it with "Closed “Crypto”: still under ⋮ › Databases" and
   Undo; ⋮ says how many are open; the chooser and its run (AD13, §3.1, below). The welcome's large icon is the app's

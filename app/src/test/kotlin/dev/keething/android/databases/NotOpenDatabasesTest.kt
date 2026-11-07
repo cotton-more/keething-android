@@ -79,8 +79,22 @@ class NotOpenDatabasesTest {
             ),
             notOpen.map { it.say },
         )
-        assertEquals(listOf(NotOpenState.Tone.PLAIN, NotOpenState.Tone.WARNING, NotOpenState.Tone.PROBLEM, NotOpenState.Tone.PROBLEM), notOpen.map { it.state.tone })
         assertEquals(listOf(1, 2, 3, 4), notOpen.map { it.line.colorIndex }, "its colour in the list's order")
+    }
+
+    // spec: databases.not-open/AC8
+    @Test
+    fun eachStateHasAnIconNoOtherStateHasAndItsWordToBeReadAloud() {
+        val states = listOf(
+            NotOpenState.Locked, NotOpenState.Opening, NotOpenState.FingerprintPaused(14), NotOpenState.FingerprintToSetUp(null),
+            NotOpenState.NotFound(Reach.NOT_FOUND), NotOpenState.NotFound(Reach.NO_ACCESS), NotOpenState.NotFound(Reach.NEEDS_FOLDER),
+            NotOpenState.NeedsKeyFile("work.keyx", null), NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash")),
+            NotOpenState.WrongPassword, NotOpenState.PasswordChanged, NotOpenState.Skipped,
+        )
+        assertEquals(states.size, states.map { it.glyph }.toSet().size, "one icon per state")
+        assertEquals(NotOpenState.Glyph.entries.toSet(), states.map { it.glyph }.toSet(), "no icon left over")
+        assertEquals(states.size, states.map { it.word }.toSet().size, "one word per state, for what is read aloud")
+        assertEquals(NotOpenState.FingerprintToSetUp(null).glyph, NotOpenState.FingerprintToSetUp(SetUpAgain.FINGERPRINTS_CHANGED).glyph, "set up again is the same state")
     }
 
     // spec: databases.not-open/AC6
@@ -131,9 +145,6 @@ class NotOpenDatabasesTest {
         assertEquals("Wrong password · tap to type it again", say(NotOpenState.WrongPassword))
         assertEquals("Its password was changed elsewhere · tap to type the new one", say(NotOpenState.PasswordChanged))
         assertEquals("Skipped · tap to type its password", say(NotOpenState.Skipped))
-        assertEquals(NotOpenState.Tone.ACTIVE, NotOpenState.Opening.tone)
-        assertEquals(NotOpenState.Tone.WARNING, NotOpenState.PasswordChanged.tone)
-        assertEquals(NotOpenState.Tone.PROBLEM, NotOpenState.WrongPassword.tone)
     }
 
     // spec: databases.not-open/AC2

@@ -10,36 +10,39 @@ import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 
 /**
- * What a database of the window that is not open says (keething-spec databases.not-open AC1; the Mac's `NotOpenState`):
- * its word on the chip, its whole say, and its tone (the agreed mock-up's colours).
+ * What a database of the window that is not open says (keething-spec databases.not-open AC1, AC8; the Mac's
+ * `NotOpenState`): its glyph, drawn in the database's colour in place of its dot, and its word, read aloud.
  */
 internal sealed interface NotOpenState {
-    /** The chip's colour: the secondary text, the primary, the warning, the error colour. */
-    enum class Tone { PLAIN, ACTIVE, WARNING, PROBLEM }
+    /** The state's icon (the owner, 2026-11-01): one per state, no other state has it. */
+    enum class Glyph {
+        LOCK, SPINNER, PAUSE, FINGERPRINT, FOLDER_QUESTION, FOLDER_OFF, FOLDER_NEW, KEY_OFF, WARNING, LOCK_WARNING,
+        LOCK_RESET, SKIP,
+    }
 
     val word: String
-    val tone: Tone
+    val glyph: Glyph
 
     data object Locked : NotOpenState {
         override val word = "Locked"
-        override val tone = Tone.PLAIN
+        override val glyph = Glyph.LOCK
     }
 
     data object Opening : NotOpenState {
         override val word = "Opening…"
-        override val tone = Tone.ACTIVE
+        override val glyph = Glyph.SPINNER
     }
 
     /** Its password is due: the fingerprint waits until it is typed. */
     data class FingerprintPaused(val days: Int) : NotOpenState {
         override val word = "Fingerprint paused"
-        override val tone = Tone.WARNING
+        override val glyph = Glyph.PAUSE
     }
 
     /** [why] its stored password went; null: nothing was stored yet. */
     data class FingerprintToSetUp(val why: SetUpAgain?) : NotOpenState {
         override val word = "Fingerprint to set up"
-        override val tone = Tone.WARNING
+        override val glyph = Glyph.FINGERPRINT
     }
 
     /** Its file cannot be reached: not found, no access any more, or its folder not chosen yet ([reach]). */
@@ -49,34 +52,38 @@ internal sealed interface NotOpenState {
             Reach.NEEDS_FOLDER -> "Needs its folder"
             else -> "Not found"
         }
-        override val tone = Tone.PROBLEM
+        override val glyph = when (reach) {
+            Reach.NO_ACCESS -> Glyph.FOLDER_OFF
+            Reach.NEEDS_FOLDER -> Glyph.FOLDER_NEW
+            else -> Glyph.FOLDER_QUESTION
+        }
     }
 
     /** Its key file [name] is not there, or cannot be used ([unusable]: why). */
     data class NeedsKeyFile(val name: String, val unusable: String?) : NotOpenState {
         override val word = "Needs its key file"
-        override val tone = Tone.PROBLEM
+        override val glyph = Glyph.KEY_OFF
     }
 
     data class CannotBeRead(val failure: OpenFailure) : NotOpenState {
         override val word = "Cannot be read"
-        override val tone = Tone.PROBLEM
+        override val glyph = Glyph.WARNING
     }
 
     data object WrongPassword : NotOpenState {
         override val word = "Wrong password"
-        override val tone = Tone.PROBLEM
+        override val glyph = Glyph.LOCK_WARNING
     }
 
     data object PasswordChanged : NotOpenState {
         override val word = "Password changed"
-        override val tone = Tone.WARNING
+        override val glyph = Glyph.LOCK_RESET
     }
 
     /** Skipped in the chooser's run (plan AD13). */
     data object Skipped : NotOpenState {
         override val word = "Skipped"
-        override val tone = Tone.PLAIN
+        override val glyph = Glyph.SKIP
     }
 }
 

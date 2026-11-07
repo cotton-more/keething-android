@@ -26,24 +26,29 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.CreateNewFolder
+import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.FilterAlt
 import androidx.compose.material.icons.rounded.Fingerprint
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.FolderOff
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.KeyOff
 import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.LockReset
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PauseCircle
+import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -72,10 +77,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.keething.android.theme.extraColors
@@ -88,40 +95,46 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
 
-/** A state's colour on a chip or row (the agreed mock-up: the secondary text, the primary, the warning, the error). */
+/**
+ * A database not open, its mark in place of its dot (keething-spec databases.not-open AC8): its state's icon in the
+ * database's [color]; a spinner while it opens. The two drawn of two symbols cut them out of [behind], what lies under.
+ */
 @Composable
-private fun NotOpenState.color(): Color = when (tone) {
-    NotOpenState.Tone.PLAIN -> MaterialTheme.colorScheme.onSurfaceVariant
-    NotOpenState.Tone.ACTIVE -> MaterialTheme.colorScheme.primary
-    NotOpenState.Tone.WARNING -> MaterialTheme.extraColors.warn
-    NotOpenState.Tone.PROBLEM -> MaterialTheme.colorScheme.error
-}
-
-private val NotOpenState.icon: ImageVector
-    get() = when (this) {
-        NotOpenState.Locked -> Icons.Rounded.Lock
-        NotOpenState.Opening -> Icons.Rounded.Sync
-        is NotOpenState.FingerprintPaused -> Icons.Rounded.PauseCircle
-        is NotOpenState.FingerprintToSetUp -> Icons.Rounded.Fingerprint
-        is NotOpenState.NotFound -> Icons.Rounded.SearchOff
-        is NotOpenState.NeedsKeyFile -> Icons.Rounded.Key
-        is NotOpenState.CannotBeRead -> Icons.Rounded.ErrorOutline
-        NotOpenState.WrongPassword -> Icons.Rounded.WarningAmber
-        NotOpenState.PasswordChanged -> Icons.Rounded.Sync
-        NotOpenState.Skipped -> Icons.Rounded.SkipNext
-    }
-
-/** The state's icon and word, in its colour; a spinner while it opens. */
-@Composable
-private fun StateWord(state: NotOpenState, modifier: Modifier = Modifier) {
-    val color = state.color()
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        if (state == NotOpenState.Opening) {
-            CircularProgressIndicator(Modifier.size(13.dp), color = color, strokeWidth = 2.dp)
-        } else {
-            Icon(state.icon, contentDescription = null, Modifier.size(15.dp), tint = color)
+internal fun NotOpenMark(state: NotOpenState, color: Color, size: Dp, behind: Color = MaterialTheme.extraColors.row) {
+    val description = state.word
+    when (state.glyph) {
+        NotOpenState.Glyph.SPINNER -> Box(Modifier.size(size).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(Modifier.size(size * 0.8f), color = color, strokeWidth = 2.dp)
         }
-        Text(state.word, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1)
+        NotOpenState.Glyph.FOLDER_QUESTION -> Box(Modifier.size(size).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.Folder, contentDescription = null, Modifier.size(size), tint = color)
+            Icon(Icons.Rounded.QuestionMark, contentDescription = null, Modifier.padding(top = size * 0.12f).size(size * 0.5f), tint = behind)
+        }
+        NotOpenState.Glyph.LOCK_WARNING -> Box(Modifier.size(size).semantics { contentDescription = description }) {
+            Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(size), tint = color)
+            Box(
+                Modifier.align(Alignment.BottomEnd).offset(x = size * 0.2f, y = size * 0.14f).size(size * 0.68f).clip(CircleShape).background(behind),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.Error, contentDescription = null, Modifier.size(size * 0.58f), tint = color)
+            }
+        }
+        else -> Icon(
+            when (state.glyph) {
+                NotOpenState.Glyph.LOCK -> Icons.Rounded.Lock
+                NotOpenState.Glyph.PAUSE -> Icons.Rounded.PauseCircle
+                NotOpenState.Glyph.FINGERPRINT -> Icons.Rounded.Fingerprint
+                NotOpenState.Glyph.FOLDER_OFF -> Icons.Rounded.FolderOff
+                NotOpenState.Glyph.FOLDER_NEW -> Icons.Rounded.CreateNewFolder
+                NotOpenState.Glyph.KEY_OFF -> Icons.Rounded.KeyOff
+                NotOpenState.Glyph.WARNING -> Icons.Rounded.WarningAmber
+                NotOpenState.Glyph.LOCK_RESET -> Icons.Rounded.LockReset
+                else -> Icons.Rounded.SkipNext
+            },
+            contentDescription = description,
+            Modifier.size(size),
+            tint = color,
+        )
     }
 }
 
@@ -164,9 +177,8 @@ internal fun NotOpenLine(notOpen: List<NotOpenDatabase>, typing: Boolean, onTap:
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
-                        Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(colors.dot))
+                        NotOpenMark(database.state, colors.dot, 16.dp)
                         DatabaseLabelText(database.line.label, MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        StateWord(database.state)
                     }
                 }
             }
@@ -207,7 +219,7 @@ internal fun NotOpenSheet(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.extraColors.row).padding(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(state.icon, contentDescription = null, Modifier.size(20.dp), tint = state.color())
+                NotOpenMark(state, databaseColors(line.colorIndex).dot, 20.dp)
                 Text(database.say, style = MaterialTheme.typography.bodyMedium)
             }
             val unreadable = state is NotOpenState.NotFound || state is NotOpenState.CannotBeRead
@@ -382,12 +394,13 @@ private fun DatabaseRow(line: DatabaseLine, detail: String, state: NotOpenState?
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        DatabaseDot(line.colorIndex)
+        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+            if (state != null) NotOpenMark(state, databaseColors(line.colorIndex).dot, 20.dp) else DatabaseDot(line.colorIndex)
+        }
         Column(Modifier.weight(1f)) {
             DatabaseLabelText(line.label, MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        state?.let { StateWord(it) }
         if (chevron) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
