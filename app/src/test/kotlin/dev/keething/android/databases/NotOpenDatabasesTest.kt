@@ -147,12 +147,33 @@ class NotOpenDatabasesTest {
         assertEquals("Skipped · tap to type its password", say(NotOpenState.Skipped))
     }
 
+    @Test
+    fun theLineHoldsOnlyThoseTriedOrSkippedSinceTheLastLockAndNotLockedByTheUserSince() {
+        val ids = listOf("Never", "Failed", "Skipped", "LockedByUser", "PasswordChanged", "Opening")
+        val lines = ids.map { line(it) }
+        val window = listOf(
+            WindowDatabase(DatabaseId("Never"), locked, off),
+            WindowDatabase(DatabaseId("Failed"), failed(OpenFailure.WrongPassword), off),
+            WindowDatabase(DatabaseId("Skipped"), locked, off),
+            WindowDatabase(DatabaseId("LockedByUser"), SessionState.Locked(LockReason.Manual), off),
+            WindowDatabase(DatabaseId("PasswordChanged"), SessionState.Locked(LockReason.PasswordChanged), off),
+            WindowDatabase(DatabaseId("Opening"), SessionState.Unlocking, off),
+        )
+        val notOpen = NotOpenDatabases.of(window, lines, skipped = setOf(DatabaseId("Skipped")))
+        val tried = setOf("Failed", "LockedByUser", "PasswordChanged", "Opening").map(::DatabaseId).toSet()
+        assertEquals(
+            listOf("Failed", "Skipped", "PasswordChanged", "Opening"),
+            NotOpenDatabases.needingAttention(notOpen, window, tried, skipped = setOf(DatabaseId("Skipped"))).map { it.id.value },
+            "never tried and locked by the user are under ⋮ › Databases only",
+        )
+        assertEquals(emptyList(), NotOpenDatabases.needingAttention(notOpen, window, tried = emptySet(), skipped = emptySet()), "after a Lock")
+    }
+
     // spec: databases.not-open/AC2
     @Test
-    fun theLineSaysNotOpenOrNotSearchedWithItsCountPastTwo() {
-        assertEquals("Not open", NotOpenDatabases.title(count = 2, typing = false))
-        assertEquals("Not searched", NotOpenDatabases.title(count = 1, typing = true))
-        assertEquals("Not searched 3", NotOpenDatabases.title(count = 3, typing = true))
+    fun whileASearchIsTypedEachDatabaseNotOpenIsReadAloudAsNotSearched() {
+        assertEquals("Not searched", NotOpenDatabases.readAloud(typing = true))
+        assertNull(NotOpenDatabases.readAloud(typing = false), "its state's word alone")
     }
 
     // spec: databases.several-open/AC4

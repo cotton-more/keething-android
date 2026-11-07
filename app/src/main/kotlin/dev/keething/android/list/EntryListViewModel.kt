@@ -218,13 +218,27 @@ internal class EntryListViewModel(
                     title = if (named) "${database.mark.label.name}: read only, too large for this phone" else "Read only: too large for this phone",
                     text = SizeTexts.tooLarge(file.name, unlocked.size, room.alone),
                 )
-                SaveRoom.Near -> ListBanner(
+                SaveRoom.Near -> if (unlocked.changeableAgain) null else ListBanner(
                     key = "near-limit/${database.database.id}",
                     title = if (named) "${database.mark.label.name}: near this phone's limit" else "Near this phone's limit",
                     text = SizeTexts.nearLimit(file.name, unlocked.size),
                     onDismiss = database.database.session::nearLimitSaid,
                 )
                 SaveRoom.Enough -> null
+            },
+            // keething-spec app.large-database AC3: one read-only beside others became changeable once they locked.
+            if (unlocked.changeableAgain) {
+                ListBanner(
+                    key = "changeable-again/${database.database.id}",
+                    title = if (named) "${database.mark.label.name}: can be changed again" else "Can be changed again",
+                    text = SizeTexts.changeableAgain(file.name, near = unlocked.room == SaveRoom.Near),
+                    onDismiss = {
+                        database.database.session.changeableAgainSaid()
+                        database.database.session.nearLimitSaid()
+                    },
+                )
+            } else {
+                null
             },
             database.unlocked.conflictCopies.firstOrNull()?.let { newest ->
                 ListBanner(

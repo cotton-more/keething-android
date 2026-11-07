@@ -86,6 +86,9 @@ public class VaultSession(
     /** Told on the main thread how long each save took in the file, and whether it was saved (keething-spec app.large-database). */
     public var onSaveTimed: ((took: Duration, saved: Boolean) -> Unit)? = null
 
+    /** Told on the main thread as each unlock starts, however it ends (keething-spec databases.not-open AC1: tried). */
+    public var onUnlockStarted: (() -> Unit)? = null
+
     /** Told at once of every state set, before anyone collecting [state] (the coordinator follows it so). */
     internal var onStateChange: ((SessionState) -> Unit)? = null
 
@@ -94,6 +97,12 @@ public class VaultSession(
      * app.large-database AC3; the coordinator's, which knows the other open databases); none: [SaveRoom.Enough].
      */
     internal var judgeRoom: ((DatabaseSize) -> SaveRoom)? = null
+
+    /** Told on the main thread when its last save running ended (a lock may have overtaken it): its memory is free. */
+    internal var onSavesEnded: (() -> Unit)? = null
+
+    /** A save is running or waiting its turn, also one a lock overtook: it still holds its memory. */
+    internal val saving: Boolean get() = saves.isNotEmpty()
 
     private val saver = VaultSaver(store, backups)
 
@@ -157,6 +166,7 @@ public class VaultSession(
         val typed = password.copy()
         val source = keyFile()
         set(SessionState.Unlocking)
+        onUnlockStarted?.invoke()
         val outcome = CompletableDeferred<UnlockOutcome>()
         scope.launch {
             val waiting = ArrayDeque<Attempt>()
@@ -191,6 +201,7 @@ public class VaultSession(
         }
         val token = generation
         set(SessionState.Unlocking)
+        onUnlockStarted?.invoke()
         val outcome = CompletableDeferred<UnlockOutcome>()
         scope.launch {
             val waiting = ArrayDeque(listOf(Attempt(key, OpenFailure.WrongPassword)))
@@ -376,6 +387,22 @@ public class VaultSession(
         if (unlocked.room == SaveRoom.Near) set(unlocked.copy(room = SaveRoom.Enough))
     }
 
+    /**
+     * Read-only beside other databases, it was judged again once they locked and a save fits now ([room]): it becomes
+     * changeable, said once ([SessionState.Unlocked.changeableAgain]). Never the other way.
+     */
+    internal fun thaw(room: SaveRoom) {
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return
+        if (unlocked.room != SaveRoom.TooLarge(alone = false) || room is SaveRoom.TooLarge) return
+        set(unlocked.copy(room = room, changeableAgain = !unlocked.viewOnly))
+    }
+
+    /** The app said that it became changeable again ([SessionState.Unlocked.changeableAgain]). */
+    public fun changeableAgainSaid() {
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return
+        if (unlocked.changeableAgain) set(unlocked.copy(changeableAgain = false))
+    }
+
     /** The folder watcher saw a change: read the file again once the folder is quiet. */
     public fun fileChanged() {
         if (mutableState.value !is SessionState.Unlocked) return
@@ -553,6 +580,7 @@ public class VaultSession(
                 }
             } finally {
                 saves -= running
+                if (saves.isEmpty()) onSavesEnded?.invoke()
                 running.deadline?.cancel()
                 if (!running.keyTaken) attempt.wipe()
                 // Overtaken by a lock, and the file does not have it: the next unlock says so (this one, if it came first).
@@ -616,7 +644,7 @@ public class VaultSession(
         val room = before?.room ?: judgeRoom?.invoke(opened.size) ?: SaveRoom.Enough
         val unlocked = SessionState.Unlocked(
             opened.vault, copies, keyDerivation = opened.keyDerivation, stoppedSave = stoppedSave, unsaved = unsaved, viewOnly = opened.viewOnly,
-            size = opened.size, room = room,
+            size = opened.size, room = room, changeableAgain = before?.changeableAgain == true,
         )
         set(unlocked)
         // The same contents read again: the state keeps the equal one before, so this copy is nobody's.

@@ -317,6 +317,7 @@ public class VaultSessions(
         val database = factory.start(record, ++made, { list.record(id)?.keyFile }, watching)
         database.session.onStateChange = { changed(id, it) }
         database.session.judgeRoom = { size -> room(id, size) }
+        database.session.onSavesEnded = ::thaw
         return Started(database, watching)
     }
 
@@ -326,12 +327,29 @@ public class VaultSessions(
         return judgeRoom(size, open.map { OpenSize(it.size, saves = !it.readOnly) })
     }
 
+    /**
+     * The databases read-only because of the others open beside them (AC3), judged again in the order they were
+     * unlocked, each beside the open ones as they are then (one that became changeable here saves): those whose save
+     * fits now become changeable. Only once no save is running, a lock's overtaken one included: it still holds its
+     * memory, and this runs again when it ends.
+     */
+    private fun thaw() {
+        if (batching || sessions.values.any { it.database.session.saving }) return
+        for (id in opened.toList()) {
+            val session = sessions[id]?.database?.session ?: continue
+            val unlocked = session.state.value as? SessionState.Unlocked ?: continue
+            if (unlocked.room != SaveRoom.TooLarge(alone = false)) continue
+            session.thaw(room(id, unlocked.size))
+        }
+    }
+
     /** Locked if it was not (the app says so), then closed: a fingerprint prompt still up, or a screen of before, cannot open it. */
     private fun drop(id: DatabaseId, started: Started) {
         val session = started.database.session
         if (session.state.value !is SessionState.Locked) session.lock(LockReason.Manual)
         session.onStateChange = null
         session.judgeRoom = null
+        session.onSavesEnded = null
         session.close()
         started.scope.cancel()
         sessions.remove(id)
@@ -343,6 +361,7 @@ public class VaultSessions(
             is SessionState.Locked -> {
                 lastReason = new.reason
                 opened.remove(id)
+                thaw()
             }
             is SessionState.Unlocked -> recordOpened(id, new)
             SessionState.Unlocking -> Unit

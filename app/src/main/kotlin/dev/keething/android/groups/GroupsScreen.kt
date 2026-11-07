@@ -59,6 +59,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.stateDescription
 import dev.keething.android.databases.DatabaseLabelText
 import dev.keething.android.databases.NotOpenDatabase
+import dev.keething.android.databases.ReadOnlyMark
 import dev.keething.android.databases.databaseColors
 import dev.keething.android.session.OpenDatabase
 import dev.keething.vault.databases.DatabaseId
@@ -154,6 +155,11 @@ internal class GroupsViewModel(
         .distinctUntilChanged { a, b -> a.size == b.size && a.indices.all { a[it].first == b[it].first && a[it].second === b[it].second } }
         .mapLatest { databases -> withContext(Dispatchers.Default) { built.of(databases) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** The open databases that are read-only: their headings show it (keething-spec databases.read-only-mark AC1). */
+    val readOnlyIds: StateFlow<Set<DatabaseId>> = open
+        .map { databases -> databases.filter { it.unlocked.readOnly }.map { it.database.id }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
     /** A group of an open database. */
     data class GroupRef(val database: DatabaseId, val groupId: String)
@@ -376,6 +382,7 @@ internal fun GroupsScreen(
 ) {
     val model = viewModel { GroupsViewModel(open, onReadOnly) }
     val blocks by model.blocks.collectAsStateWithLifecycle()
+    val readOnlyIds by model.readOnlyIds.collectAsStateWithLifecycle()
     val foldedIds by folded.collectAsStateWithLifecycle()
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
     val snackbar = remember { SnackbarHostState() }
@@ -420,7 +427,7 @@ internal fun GroupsScreen(
                 for (block in current) {
                     val isOpen = !foldable || block.id !in foldedIds
                     stickyHeader(key = "head/${block.id.value}", contentType = "block header") {
-                        BlockHeader(block, foldable, isOpen, onFold = { folded.update { if (isOpen) it + block.id else it - block.id } })
+                        BlockHeader(block, foldable, isOpen, readOnly = block.id in readOnlyIds, onFold = { folded.update { if (isOpen) it + block.id else it - block.id } })
                     }
                     if (isOpen) content(block, model.saving, onSearch, onHold = { model.openSheet(GroupsViewModel.GroupRef(block.id, it)) })
                     item(key = "end/${block.id.value}", contentType = "gap") { Spacer(Modifier.height(20.dp)) }
@@ -599,7 +606,7 @@ private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, m
 
 /** A block's header: its database's dot and label, how many entries it has; with two or more open, a tap folds it. */
 @Composable
-private fun BlockHeader(block: GroupsBlock, foldable: Boolean, isOpen: Boolean, onFold: () -> Unit) {
+private fun BlockHeader(block: GroupsBlock, foldable: Boolean, isOpen: Boolean, readOnly: Boolean, onFold: () -> Unit) {
     val entries = NumberFormat.getIntegerInstance().format(block.entries) + if (block.entries == 1) " entry" else " entries"
     Row(
         Modifier
@@ -619,8 +626,13 @@ private fun BlockHeader(block: GroupsBlock, foldable: Boolean, isOpen: Boolean, 
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(12.dp).clip(CircleShape).background(databaseColors(block.mark.colorIndex).dot))
-        Spacer(Modifier.width(12.dp))
+        if (readOnly) {
+            ReadOnlyMark(databaseColors(block.mark.colorIndex).dot, 18.dp)
+            Spacer(Modifier.width(6.dp))
+        } else {
+            Box(Modifier.size(12.dp).clip(CircleShape).background(databaseColors(block.mark.colorIndex).dot))
+            Spacer(Modifier.width(12.dp))
+        }
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             DatabaseLabelText(block.mark.label, MaterialTheme.typography.titleMedium, Modifier.weight(1f, fill = false), fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(8.dp))

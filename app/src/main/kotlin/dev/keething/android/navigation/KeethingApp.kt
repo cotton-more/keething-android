@@ -560,7 +560,7 @@ internal fun KeethingApp(container: AppContainer) {
 private fun Chooser(container: AppContainer, navigation: NavigationState) {
     val sessions = container.sessions
     val chooser = container.chooser
-    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, chooser.skipped, container.databaseFiles) }
+    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, chooser.skipped, sessions.tried, container.databaseFiles) }
     val rows by windowModel.chooser.collectAsStateWithLifecycle()
     val note by chooser.note.collectAsStateWithLifecycle()
     val busy by chooser.busy.collectAsStateWithLifecycle()
@@ -644,7 +644,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
     val sessions = container.sessions
     val open by sessions.open.collectAsStateWithLifecycle()
     // The window's databases not open and ⋮ › Databases (plan AD12).
-    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, container.chooser.skipped, container.databaseFiles) }
+    val windowModel = viewModel(key = "window") { WindowDatabasesModel(sessions.list, sessions.window, container.chooser.skipped, sessions.tried, container.databaseFiles) }
     val overview by windowModel.overview.collectAsStateWithLifecycle()
     val refreshes = rememberCoroutineScope()
     LifecycleResumeEffect(Unit) {
@@ -741,7 +741,8 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 onGroups = { navigation.open(Screen.Groups) },
                                 onCodes = navigation::showCodes,
                                 onLeaveCodes = navigation::leaveCodes,
-                                notOpen = overview?.notOpen.orEmpty(),
+                                notOpen = overview?.attention.orEmpty(),
+                                readOnly = overview?.readOnly.orEmpty(),
                                 openCount = open.size,
                                 canClose = overview?.canClose == true,
                                 onLockScreen = { showLockScreen(it) },

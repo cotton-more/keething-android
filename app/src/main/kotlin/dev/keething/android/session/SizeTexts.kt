@@ -18,8 +18,16 @@ internal object SizeTexts {
     } else {
         "With the other open databases beside it, this phone does not give Keething enough memory to save $fileName " +
             "safely, so it is open to read only: you can read and copy from it, not change it. ${size(size)} Lock the " +
-            "others and unlock this one again to change it."
+            "others to change it: it becomes changeable once a save fits."
     }
+
+    /**
+     * The list's banner once it became changeable, the others beside it locked (keething-spec app.large-database AC3):
+     * said until OK. [near]: its save is near the limit all the same.
+     */
+    fun changeableAgain(fileName: String, near: Boolean): String =
+        "With the other databases locked, this phone has the memory to save $fileName: you can change it again." +
+            if (near) " A save takes most of that memory, so keep the others locked while you change it." else ""
 
     /** The list's banner once at an unlock near the limit; it still saves. */
     fun nearLimit(fileName: String, size: DatabaseSize): String =
@@ -29,12 +37,12 @@ internal object SizeTexts {
     /** A change tried on it before anything is typed (Edit, New). */
     fun refused(name: String, room: SaveRoom.TooLarge): String =
         "“$name” is open to read only: " + if (room.alone) "too large for this phone to save safely." else
-            "with the other databases open, too large for this phone to save safely. Lock them and unlock it again to change it."
+            "with the other databases open, too large for this phone to save safely. Lock them to change it."
 
     /** A save refused because it is read-only ([dev.keething.vault.saving.SaveFailure.TooLarge]). */
     fun saveRefused(alone: Boolean): String =
         "This database is open to read only: too large for this phone to save safely. Nothing was saved." +
-            if (alone) "" else " Lock the other databases and unlock this one again to change it."
+            if (alone) "" else " Lock the other databases to change it."
 
     /** A save that ran out of memory all the same. */
     const val OUT_OF_MEMORY: String =

@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** One stay of the app in the foreground: [number] counts them; [beganLocked]: its lock screen showed when it began. */
@@ -131,6 +132,14 @@ internal class Sessions(
                 mutableReadOnlySaid.value = SizeTexts.refused(name, room)
             }
         }
+    }
+
+    /**
+     * Locks every open database but [id], read-only because of them (keething-spec databases.read-only-mark AC4): nothing
+     * asked; [id] becomes changeable once a save fits (app.large-database AC3).
+     */
+    fun lockOthers(id: DatabaseId) {
+        vaults.openIds.filter { it != id }.forEach(databases::lock)
     }
 
     /** OK on [readOnlySaid]. */
@@ -253,10 +262,19 @@ internal class Sessions(
         return databases.window.mapNotNull { marks[it.id] }
     }
 
+    private val mutableTried = MutableStateFlow<Set<DatabaseId>>(emptySet())
+
+    /**
+     * The databases an unlock was tried on since the last Lock or timeout, however it ended (keething-spec
+     * databases.not-open AC1): those of them not open are the ones that need attention.
+     */
+    val tried: StateFlow<Set<DatabaseId>> = mutableTried.asStateFlow()
+
     init {
         // Lock and the timeout, by any way it came: counted once each.
         vaults.observeLocks { reason ->
             Log.i(TAG, "lock all, ${SessionState.Locked(reason).describe()}")
+            mutableTried.value = emptySet()
             locks.locked()
         }
         // In the background with a database open or opening (also one that opens there: a Create, a late fingerprint).
@@ -372,6 +390,7 @@ internal class Sessions(
             io = Dispatchers.IO,
             keyFile = { keyFile()?.let(keyFiles::at) },
         )
+        session.onUnlockStarted = { mutableTried.update { it + record.id } }
         // Which states the session went through (names only, never data): how a lock came about.
         watching.launch { session.state.collect { Log.i(TAG, "${record.id.fileName.take(8)} ${it.describe()}") } }
         session.onSaveTimed = { took, saved -> Log.i(TAG, "${record.id.fileName.take(8)} save ${if (saved) "done" else "failed"} in ${took.inWholeMilliseconds} ms") }

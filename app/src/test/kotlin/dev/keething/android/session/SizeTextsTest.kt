@@ -26,19 +26,32 @@ class SizeTextsTest {
     }
 
     @Test
-    fun besideOthersItSaysToLockThemAndUnlockItAgain() {
+    fun besideOthersItSaysToLockThem() {
         assertEquals(
             "With the other open databases beside it, this phone does not give Keething enough memory to save large.kdbx " +
                 "safely, so it is open to read only: you can read and copy from it, not change it. It is 87\u00A0MiB; its " +
-                "attachments are 80\u00A0MiB. Lock the others and unlock this one again to change it.",
+                "attachments are 80\u00A0MiB. Lock the others to change it: it becomes changeable once a save fits.",
             SizeTexts.tooLarge("large.kdbx", attachments, alone = false),
         )
         assertEquals(
             "“Work” is open to read only: with the other databases open, too large for this phone to save safely. Lock " +
-                "them and unlock it again to change it.",
+                "them to change it.",
             SizeTexts.refused("Work", SaveRoom.TooLarge(alone = false)),
         )
         assertEquals("“Work” is open to read only: too large for this phone to save safely.", SizeTexts.refused("Work", SaveRoom.TooLarge(alone = true)))
+    }
+
+    @Test
+    fun changeableAgainOnceTheOthersLockedAndNearTheLimitToKeepThemLocked() {
+        assertEquals(
+            "With the other databases locked, this phone has the memory to save large.kdbx: you can change it again.",
+            SizeTexts.changeableAgain("large.kdbx", near = false),
+        )
+        assertEquals(
+            "With the other databases locked, this phone has the memory to save large.kdbx: you can change it again. A " +
+                "save takes most of that memory, so keep the others locked while you change it.",
+            SizeTexts.changeableAgain("large.kdbx", near = true),
+        )
     }
 
     @Test
@@ -60,7 +73,7 @@ class SizeTextsTest {
         )
         assertEquals(
             "This database is open to read only: too large for this phone to save safely. Nothing was saved. Lock the " +
-                "other databases and unlock this one again to change it.",
+                "other databases to change it.",
             SaveFailure.TooLarge(alone = false).describe(file),
         )
         assertEquals(

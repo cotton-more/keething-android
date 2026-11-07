@@ -105,6 +105,8 @@ import dev.keething.android.navigation.inTwoPanes
 import dev.keething.android.navigation.sharedIcon
 import dev.keething.android.navigation.sharedTitle
 import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.databases.ReadOnlyMark
+import dev.keething.android.databases.ReadOnlyReason
 import dev.keething.android.databases.databaseColors
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.EntryRef
@@ -170,6 +172,7 @@ internal fun EntryCardScreen(
         )
     }
     val state by model.state.collectAsStateWithLifecycle()
+    val session by database.session.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
     NoticeEffect(container.savedNotices, snackbar)
@@ -387,7 +390,7 @@ internal fun EntryCardScreen(
         ) {
             // On a wide screen the rows keep a width the eye follows; a face is narrower still (FACE_MAX_WIDTH).
             Column(Modifier.readableWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Header(content, mark, sharedKey = "$origin/${ref.text}", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
+                Header(content, mark, readOnly = ReadOnlyReason.of(session) != null, sharedKey = "$origin/${ref.text}", onSearch = onSearch, onTitlePlaced = { titleBottom = it })
                 Banners(content)
                 content.suggestion?.takeIf { !model.suggestionDismissed }?.let { suggestion ->
                     SuggestionBanner(suggestion, saving = model.suggesting, onAccept = model::acceptSuggestion, onDismiss = model::dismissSuggestion)
@@ -448,7 +451,7 @@ private fun CardMenu(
 }
 
 @Composable
-private fun Header(content: CardContent, mark: DatabaseMark?, sharedKey: String, onSearch: (String) -> Unit, onTitlePlaced: (bottom: Float) -> Unit) {
+private fun Header(content: CardContent, mark: DatabaseMark?, readOnly: Boolean, sharedKey: String, onSearch: (String) -> Unit, onTitlePlaced: (bottom: Float) -> Unit) {
     val card = content.card
     // Compact: the icon beside the title leaves the face and the fields in sight (SPEC §6.2).
     Row(
@@ -470,7 +473,7 @@ private fun Header(content: CardContent, mark: DatabaseMark?, sharedKey: String,
                             mark?.let { FilterCompletion.token(FilterKind.DATABASE, it.label.full) },
                             card.groupName.takeIf { it.isNotEmpty() }?.let { FilterCompletion.token(FilterKind.GROUP, it) },
                         ).joinToString(" ") + " "
-                        PlaceChip(mark, card.groupPath, onClick = { onSearch(search) })
+                        PlaceChip(mark, card.groupPath, readOnly, onClick = { onSearch(search) })
                     }
                     // The tags always on a line of their own (the owner, 2026-10-31).
                     if (card.tags.isNotEmpty()) {
@@ -493,7 +496,7 @@ private fun Header(content: CardContent, mark: DatabaseMark?, sharedKey: String,
  * folder and the path. A tap searches there: `!Work @Mail `, `@Mail `, `!Work ` (search.database-filter).
  */
 @Composable
-private fun PlaceChip(mark: DatabaseMark?, path: List<String>, onClick: () -> Unit) {
+private fun PlaceChip(mark: DatabaseMark?, path: List<String>, readOnly: Boolean, onClick: () -> Unit) {
     val colors = mark?.let { databaseColors(it.colorIndex) }
     Row(
         Modifier.height(32.dp).clip(RoundedCornerShape(10.dp)).background(colors?.soft ?: MaterialTheme.colorScheme.secondaryContainer)
@@ -502,7 +505,8 @@ private fun PlaceChip(mark: DatabaseMark?, path: List<String>, onClick: () -> Un
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         if (colors != null) {
-            Box(Modifier.size(9.dp).clip(CircleShape).background(colors.dot))
+            // A read-only database's mark in place of its dot (keething-spec databases.read-only-mark AC1).
+            if (readOnly) ReadOnlyMark(colors.dot, 16.dp) else Box(Modifier.size(9.dp).clip(CircleShape).background(colors.dot))
         } else {
             Icon(Icons.Rounded.Folder, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
         }

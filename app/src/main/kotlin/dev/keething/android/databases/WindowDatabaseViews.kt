@@ -49,6 +49,7 @@ import androidx.compose.material.icons.rounded.PauseCircle
 import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.Upgrade
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -80,6 +81,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -139,56 +141,116 @@ internal fun NotOpenMark(state: NotOpenState, color: Color, size: Dp, behind: Co
 }
 
 /**
- * The databases of the window not open, on one line under the list's header (keething-spec databases.not-open AC1, AC2;
- * the agreed mock-up): "Not open", "Not searched" while a search is typed, the count past two; the chips scroll sideways
- * and fade at the end. A tap shows that database's lock screen; a long press its sheet.
+ * The databases that need attention, on one line under the list's header with no title (keething-spec
+ * databases.not-open AC1, AC2, databases.read-only-mark AC4; the owner, 2026-11-07): those not open, then the open ones
+ * that are read-only; the chips scroll sideways and fade at the end. A database not open: a tap shows its lock screen, a
+ * long press its sheet, and while a search is typed it is read aloud as not searched. A read-only one: a tap or a long
+ * press its sheet.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun NotOpenLine(notOpen: List<NotOpenDatabase>, typing: Boolean, onTap: (DatabaseId) -> Unit, onLongPress: (DatabaseId) -> Unit) {
-    if (notOpen.isEmpty()) return
+internal fun NotOpenLine(
+    notOpen: List<NotOpenDatabase>,
+    readOnly: List<ReadOnlyDatabase>,
+    typing: Boolean,
+    onTap: (DatabaseId) -> Unit,
+    onLongPress: (DatabaseId) -> Unit,
+    onReadOnly: (DatabaseId) -> Unit,
+) {
+    if (notOpen.isEmpty() && readOnly.isEmpty()) return
     val surface = MaterialTheme.colorScheme.surface
-    Row(Modifier.fillMaxWidth().background(surface).padding(start = 24.dp, bottom = 10.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            NotOpenDatabases.title(notOpen.size, typing),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = if (typing) MaterialTheme.extraColors.warn else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.weight(1f)) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 32.dp)) {
-                items(notOpen, key = { it.id.value }) { database ->
-                    val colors = databaseColors(database.line.colorIndex)
-                    Row(
-                        Modifier
-                            .height(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.extraColors.row)
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                            .combinedClickable(
-                                onClickLabel = "Unlock",
-                                onLongClickLabel = "More",
-                                onLongClick = { onLongPress(database.id) },
-                                onClick = { onTap(database.id) },
-                            )
-                            .semantics { customActions = listOf(CustomAccessibilityAction(database.say) { true }) }
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        NotOpenMark(database.state, colors.dot, 16.dp)
-                        DatabaseLabelText(database.line.label, MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    }
-                }
+    Box(Modifier.fillMaxWidth().background(surface).padding(bottom = 10.dp, top = 2.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(start = 24.dp, end = 32.dp)) {
+            items(notOpen, key = { it.id.value }) { database ->
+                AttentionChip(
+                    database.line,
+                    Modifier
+                        .combinedClickable(
+                            onClickLabel = "Unlock",
+                            onLongClickLabel = "More",
+                            onLongClick = { onLongPress(database.id) },
+                            onClick = { onTap(database.id) },
+                        )
+                        .semantics {
+                            NotOpenDatabases.readAloud(typing)?.let { stateDescription = it }
+                            customActions = listOf(CustomAccessibilityAction(database.say) { true })
+                        },
+                ) { NotOpenMark(database.state, databaseColors(database.line.colorIndex).dot, 16.dp) }
             }
-            Box(
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(40.dp)
-                    .height(36.dp)
-                    .background(Brush.horizontalGradient(listOf(surface.copy(alpha = 0f), surface))),
-            )
+            items(readOnly, key = { "r/${it.id.value}" }) { database ->
+                AttentionChip(
+                    database.line,
+                    Modifier
+                        .combinedClickable(
+                            onClickLabel = "More",
+                            onLongClickLabel = "More",
+                            onLongClick = { onReadOnly(database.id) },
+                            onClick = { onReadOnly(database.id) },
+                        )
+                        .semantics { customActions = listOf(CustomAccessibilityAction(database.say) { true }) },
+                ) { ReadOnlyMark(databaseColors(database.line.colorIndex).dot, 16.dp) }
+            }
+        }
+        Box(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .width(40.dp)
+                .height(36.dp)
+                .background(Brush.horizontalGradient(listOf(surface.copy(alpha = 0f), surface))),
+        )
+    }
+}
+
+/** A chip of [NotOpenLine]: its [mark] and the database's name. */
+@Composable
+private fun AttentionChip(line: DatabaseLine, modifier: Modifier, mark: @Composable () -> Unit) {
+    Row(
+        Modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.extraColors.row)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+            .then(modifier)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        mark()
+        DatabaseLabelText(line.label, MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
+}
+
+/**
+ * An open database that is read-only, its sheet (keething-spec databases.read-only-mark AC4): its tile, name and folder,
+ * why, then Lock the others (when they are what makes it so: at once, nothing asked; it becomes changeable once they
+ * lock), Update to KDBX 4… (KDBX 3.1: the question Edit asks), Show only this, Lock it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ReadOnlySheet(
+    database: ReadOnlyDatabase,
+    showOnly: String,
+    onLockOthers: () -> Unit,
+    onUpdate: () -> Unit,
+    onShowOnly: () -> Unit,
+    onLock: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val line = database.line
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            DatabaseSheetHeader(line)
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.extraColors.row).padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ReadOnlyMark(databaseColors(line.colorIndex).dot, 20.dp)
+                Text(database.say, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (database.besideOthers) SheetRow(Icons.Rounded.Lock, "Lock the others", detail = "It can be changed once they are locked", onClick = onLockOthers)
+            if (database.reason == ReadOnlyReason.KDBX3) SheetRow(Icons.Rounded.Upgrade, "Update to KDBX 4…", onClick = onUpdate)
+            SheetRow(Icons.Rounded.FilterAlt, "Show only this", detail = "Types $showOnly in the search", onClick = onShowOnly)
+            SheetRow(Icons.Rounded.Lock, "Lock ${line.label.full}", onClick = onLock)
         }
     }
 }
@@ -335,7 +397,8 @@ internal fun DatabasesScreen(
                 item(key = "h/open") { SectionTitle("Open") }
                 itemsIndexed(sections.open, key = { _, it -> "o/${it.id.value}" }) { index, line ->
                     SwipeToClose(sections.canClose, onClose = { onClose(line.id) }, shape = segmentShape(index, sections.open.size, outer = 22.dp)) {
-                        DatabaseRow(line, detail = line.folder, chevron = true, onClick = { onOpenSheet(line.id) })
+                        val readOnly = sections.readOnly(line.id)
+                        DatabaseRow(line, detail = readOnly?.say ?: line.folder, readOnly = readOnly != null, chevron = true, onClick = { onOpenSheet(line.id) })
                     }
                 }
             }
@@ -383,7 +446,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun DatabaseRow(line: DatabaseLine, detail: String, state: NotOpenState? = null, chevron: Boolean = false, onClick: () -> Unit) {
+private fun DatabaseRow(line: DatabaseLine, detail: String, state: NotOpenState? = null, readOnly: Boolean = false, chevron: Boolean = false, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -395,7 +458,11 @@ private fun DatabaseRow(line: DatabaseLine, detail: String, state: NotOpenState?
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-            if (state != null) NotOpenMark(state, databaseColors(line.colorIndex).dot, 20.dp) else DatabaseDot(line.colorIndex)
+            when {
+                state != null -> NotOpenMark(state, databaseColors(line.colorIndex).dot, 20.dp)
+                readOnly -> ReadOnlyMark(databaseColors(line.colorIndex).dot, 20.dp)
+                else -> DatabaseDot(line.colorIndex)
+            }
         }
         Column(Modifier.weight(1f)) {
             DatabaseLabelText(line.label, MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)

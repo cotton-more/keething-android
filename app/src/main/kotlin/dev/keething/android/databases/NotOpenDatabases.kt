@@ -170,27 +170,56 @@ internal object NotOpenDatabases {
         return NotOpenState.Locked
     }
 
-    /** The line's title: "Not open", "Not searched" while a search is typed; its count past two. */
-    fun title(count: Int, typing: Boolean): String = (if (typing) "Not searched" else "Not open") + if (count > 2) " $count" else ""
+    /**
+     * Those of [notOpen] on the line under the list's header (AC1; the owner, 2026-11-07): the ones an unlock was
+     * [tried] on since the last Lock or timeout, or [skipped] in the run, and not locked by the user since (Lock it, Lock
+     * the others). A database nobody tried to open is under ⋮ › Databases only.
+     */
+    fun needingAttention(notOpen: List<NotOpenDatabase>, window: List<WindowDatabase>, tried: Set<DatabaseId>, skipped: Set<DatabaseId>): List<NotOpenDatabase> {
+        val states = window.associate { it.id to it.session }
+        return notOpen.filter { it.id in skipped || it.id in tried && states[it.id] != SessionState.Locked(LockReason.Manual) }
+    }
+
+    /**
+     * What a database not open is read aloud as besides its state (AC2): "Not searched" while a search is typed. The
+     * line has no title (the owner, 2026-11-07): it holds the read-only ones too, which are searched.
+     */
+    fun readAloud(typing: Boolean): String? = if (typing) "Not searched" else null
 }
 
 /** ⋮ › Databases (the agreed mock-up; the Mac's Databases ▸): the open ones, those not open, and Recent. */
 internal class DatabasesOverview(
     val open: List<DatabaseLine>,
     val notOpen: List<NotOpenDatabase>,
+    /** Those of [notOpen] that need attention: the line under the list's header ([NotOpenDatabases.needingAttention]). */
+    val attention: List<NotOpenDatabase> = notOpen,
     /** The list's databases out of the window, the last opened first. */
     val recent: List<DatabaseLine>,
     /** The window keeps one: its last cannot be closed. */
     val canClose: Boolean,
+    /** The open ones that are read-only, in the window's order, and why (keething-spec databases.read-only-mark). */
+    val readOnly: List<ReadOnlyDatabase> = emptyList(),
 ) {
+    /** Why [id] is read-only; null while it can be changed. */
+    fun readOnly(id: DatabaseId): ReadOnlyReason? = readOnly.firstOrNull { it.id == id }?.reason
+
     companion object {
-        fun of(lines: List<DatabaseLine>, window: List<DatabaseId>, open: List<DatabaseId>, notOpen: List<NotOpenDatabase>): DatabasesOverview {
+        fun of(
+            lines: List<DatabaseLine>,
+            window: List<DatabaseId>,
+            open: List<DatabaseId>,
+            notOpen: List<NotOpenDatabase>,
+            readOnly: List<ReadOnlyDatabase> = emptyList(),
+            attention: List<NotOpenDatabase> = notOpen,
+        ): DatabasesOverview {
             val byId = lines.associateBy { it.id }
             return DatabasesOverview(
                 open = open.mapNotNull { byId[it] },
                 notOpen = notOpen,
+                attention = attention,
                 recent = lines.filter { it.id !in window }.sortedByDescending { it.lastOpened ?: java.time.Instant.MIN },
                 canClose = window.size > 1,
+                readOnly = open.mapNotNull { id -> readOnly.firstOrNull { it.id == id } },
             )
         }
     }

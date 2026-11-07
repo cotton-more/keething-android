@@ -86,8 +86,16 @@ public sealed interface SessionState {
         val viewOnly: Boolean = false,
         /** How large the file last read is, and its attachments (keething-spec app.large-database AC3). */
         val size: DatabaseSize = DatabaseSize(0, 0),
-        /** Whether a save has the memory it needs, judged at the unlock and kept until the lock (AC3). */
+        /**
+         * Whether a save has the memory it needs, judged at the unlock and kept until the lock (AC3); read-only beside
+         * others ([SaveRoom.TooLarge.alone] false), it is judged again when they lock, only ever to changeable.
+         */
         val room: SaveRoom = SaveRoom.Enough,
+        /**
+         * It was read-only beside other databases and became changeable once they locked (keething-spec
+         * app.large-database AC3, databases.read-only-mark AC3): said until [VaultSession.changeableAgainSaid].
+         */
+        val changeableAgain: Boolean = false,
     ) : SessionState {
         /** Every change refused: KDBX 3.1 ([viewOnly]), or too large for the memory the app is given ([room]). */
         val readOnly: Boolean get() = viewOnly || room is SaveRoom.TooLarge

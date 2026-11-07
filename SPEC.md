@@ -234,9 +234,16 @@ window's first open one becomes current, so the vault stays; Undo puts it back, 
 the chooser shows, or the window's last one's lock screen, and there is no Undo: it is under Recent). **Lock** one locks it alone,
 the others staying open.
 
-**The databases of the window not open** (keething-spec databases.not-open; the Mac's D6b) are one line of chips
-pinned under the list's header while some are open: "Not open", "Not searched" while a search is typed, the count past
-two, scrolling sideways. Each chip is its state's icon in the database's dot colour, in place of its dot, and its
+**The databases that need attention** (keething-spec databases.not-open; the Mac's D6b) are one line of chips
+pinned under the list's header, with no title (the owner, 2026-11-07), scrolling sideways: the window's databases not
+open that were tried to open since the last Lock or timeout (an unlock tried, `Sessions.tried`, or skipped in the run)
+and not locked by the user since (a Password changed one stays: it locked by itself); one nobody tried is under
+⋮ › Databases only. Each is read aloud as "Not searched" too while a search is typed; then the open ones that are
+read-only (keething-spec databases.read-only-mark AC4), a pencil crossed out in the database's colour, a tap or a long
+press showing their sheet: why ("Read only: with the other databases open, too large for this phone to save safely.
+Lock them to change it."), **Lock the others** when they are what makes it so (at once, nothing asked:
+`Sessions.lockOthers`; it becomes changeable once a save fits, §3.3), **Update to KDBX 4…** for a KDBX 3.1 one (the
+question Edit asks, §3.2), Show only this, Lock it. A database not open: each chip is its state's icon in the database's dot colour, in place of its dot, and its
 label, with no word for the state (keething-spec databases.not-open AC8; `NotOpenState.glyph`, one icon per state:
 Locked a lock, Opening… a spinner, Fingerprint paused a pause mark, Fingerprint to set up the fingerprint, Not found a
 folder with a question mark, No access a folder crossed out, Needs its folder a folder with a plus, Needs its key file
@@ -650,7 +657,12 @@ changes (its sheet, New group) and a code's Edit stopped before anything is type
 whichever screen tried (`Sessions.readOnlyRefusal`; a KDBX 3.1 one asks its question there); a one-tap change refused
 at once with nothing read (`SaveFailure.TooLarge`); Save into leaving it out (as a KDBX 3.1 one). The judgement is kept until the lock: a reload or a save does not change it, nor does
 another database opening. The one opened later is judged with the open ones' saves in mind, so when two would not
-both fit it is the later one that opens read-only, and it says to lock the others and unlock it again. Its advice:
+both fit it is the later one that opens read-only, and it says to lock the others. When another database locks or
+closes, one read-only because of those beside it is judged again (`VaultSessions.thaw`, in the order they were
+unlocked, once no save of any database is running: a save a lock overtook still holds its memory): when a save fits
+now it becomes changeable, never the other way, and the list says so until OK ("Can be changed again", near the
+limit with it: keep the others locked). A read-only database shows a pencil crossed out in its colour in place of its
+dot (keething-spec databases.read-only-mark; §6.2, Databases). Its advice:
 alone, keep large files outside the database (its attachments the most of it) or split it in two; beside others, lock
 them. A save that runs out of memory all the same writes nothing and says to lock the other databases, then to keep
 large files outside or split it. On the Pixel 6 (2026-11-07, `task large:database`'s files): 41.4 MiB alone saves
@@ -1209,7 +1221,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   open (AD9: rows saying their database, the card's database chip, the header's names, opening another closing
   nothing, §3.1); `!` and narrowing in the search (AD10, below); a new entry's Save into (AD11, §3.1, the editor
   below); the line of the databases not open with its sheet, and ⋮ › Databases (AD12, §3.1): Open (a tap: Show only
-  this, which types `!Label `, Lock it, Close), Not open (its state's icon in place of its dot and its whole say; a tap: its lock screen), Recent (the
+  this, which types `!Label `, Lock it, Close; a read-only one, too large or KDBX 3.1, a pencil crossed out in its
+  colour in place of its dot and why in place of its folder, "Read only: too large for this phone", as on the card's
+  place chip and its heading in Groups & tags: keething-spec databases.read-only-mark), Not open (its state's icon in place of its dot and its whole say; a tap: its lock screen), Recent (the
   databases out of the window, the last opened first; a tap puts it back and shows its lock screen), New database…,
   Open database…; a row of the first two swiped left closes it with "Closed “Crypto”: still under ⋮ › Databases" and
   Undo; ⋮ says how many are open; the chooser and its run (AD13, §3.1, below). The welcome's large icon is the app's

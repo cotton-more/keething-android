@@ -66,6 +66,11 @@ class VaultSessionsTest {
             waiting.forEach { (context, block) -> inner.dispatch(context, block) }
             waiting.clear()
         }
+
+        /** Holds what comes next again. */
+        fun hold() {
+            held = true
+        }
     }
 
     private class Fixture(private val scope: TestScope, val settings: MapSettings = MapSettings()) {
@@ -312,6 +317,79 @@ class VaultSessionsTest {
         f.room = { SaveRoom.Enough }
         unlock(f, x)
         assertEquals(listOf(true, false), f.judged.last().second.map { it.saves })
+    }
+
+    @Test
+    fun oneReadOnlyBesideOthersBecomesChangeableOnceTheyLockWhenASaveFitsAndSaysSoNeverTheOtherWay() = runTest {
+        val f = Fixture(this)
+        val p = f.add("/a/p.kdbx")
+        val w = f.add("/a/w.kdbx")
+        val x = f.add("/a/x.kdbx")
+        val big = f.add("/a/big.kdbx")
+        unlock(f, p)
+        f.room = { SaveRoom.TooLarge(alone = false) }
+        unlock(f, w)
+        f.room = { SaveRoom.TooLarge(alone = true) }
+        unlock(f, big)
+        f.room = { SaveRoom.Enough }
+        unlock(f, x)
+
+        // x locks, and w still does not fit beside p: it stays read-only, nothing said.
+        f.room = { SaveRoom.TooLarge(alone = false) }
+        f.sessions.lock(x.id)
+        val still = assertIs<SessionState.Unlocked>(f.state(w))
+        assertEquals(SaveRoom.TooLarge(alone = false), still.room)
+        assertFalse(still.changeableAgain)
+
+        // p locks: w is judged beside what is open now (big, which does not save) and fits.
+        val judged = f.judged.size
+        f.room = { SaveRoom.Near }
+        f.sessions.lock(p.id)
+        val thawed = assertIs<SessionState.Unlocked>(f.state(w))
+        assertEquals(SaveRoom.Near, thawed.room)
+        assertTrue(thawed.changeableAgain, "said once")
+        assertFalse(thawed.readOnly)
+        assertEquals(listOf(listOf(false)), f.judged.drop(judged).map { list -> list.second.map { it.saves } }, "w alone judged again, beside big")
+        assertEquals(SaveRoom.TooLarge(alone = true), assertIs<SessionState.Unlocked>(f.state(big)).room, "too large alone is never judged again")
+
+        f.session(w).changeableAgainSaid()
+        assertFalse(assertIs<SessionState.Unlocked>(f.state(w)).changeableAgain)
+
+        // Never the other way: another opening or locking does not make it read-only again.
+        f.room = { SaveRoom.TooLarge(alone = false) }
+        unlock(f, p)
+        f.sessions.lock(big.id)
+        assertEquals(SaveRoom.Near, assertIs<SessionState.Unlocked>(f.state(w)).room)
+        assertEquals(SaveRoom.TooLarge(alone = false), assertIs<SessionState.Unlocked>(f.state(p)).room, "p, opened later, gives way")
+    }
+
+    @Test
+    fun aSaveTheLockOvertookStillHoldsItsMemorySoTheOtherIsJudgedAgainOnlyOnceItEnded() = runTest {
+        val f = Fixture(this)
+        val held = Held(StandardTestDispatcher(testScheduler))
+        held.release()
+        f.ios["/a/p.kdbx"] = held
+        val p = f.add("/a/p.kdbx")
+        val w = f.add("/a/w.kdbx")
+        unlock(f, p)
+        f.room = { SaveRoom.TooLarge(alone = false) }
+        unlock(f, w)
+
+        held.hold()
+        val entry = f.vault(p).entries.first()
+        val saving = assertNotNull(f.session(p).save(VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified)))
+        runCurrent()
+        assertTrue(held.isWaiting, "saving")
+        f.room = { SaveRoom.Enough }
+        f.sessions.lock(p.id)
+        assertEquals(SaveRoom.TooLarge(alone = false), assertIs<SessionState.Unlocked>(f.state(w)).room, "not while p's save runs")
+
+        held.release()
+        runCurrent()
+        assertEquals(SaveOutcome.Interrupted, saving.await())
+        val thawed = assertIs<SessionState.Unlocked>(f.state(w))
+        assertEquals(SaveRoom.Enough, thawed.room)
+        assertTrue(thawed.changeableAgain)
     }
 
     @Test

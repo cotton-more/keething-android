@@ -147,6 +147,8 @@ import dev.keething.android.ui.Notice
 import dev.keething.android.databases.NotOpenDatabase
 import dev.keething.android.databases.NotOpenLine
 import dev.keething.android.databases.NotOpenSheet
+import dev.keething.android.databases.ReadOnlyDatabase
+import dev.keething.android.databases.ReadOnlySheet
 import dev.keething.android.databases.rememberFileActions
 import dev.keething.android.databases.Reach
 import dev.keething.android.ui.keepOutOfAutofill
@@ -165,6 +167,8 @@ import dev.keething.card.ExpiryHint
 import dev.keething.card.TotpDisplay
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.search.EntrySearch
+import dev.keething.search.FilterCompletion
+import dev.keething.search.FilterKind
 import java.text.NumberFormat
 import java.time.Instant
 import kotlinx.coroutines.channels.Channel
@@ -196,6 +200,8 @@ internal fun EntryListScreen(
     onSharing: () -> Unit,
     /** The window's databases not open (keething-spec databases.not-open), and how many are open. */
     notOpen: List<NotOpenDatabase> = emptyList(),
+    /** The open ones that are read-only, on the same line after them (keething-spec databases.read-only-mark AC4). */
+    readOnly: List<ReadOnlyDatabase> = emptyList(),
     openCount: Int = 1,
     canClose: Boolean = false,
     /** A database's lock screen, with Back (a chip's tap, Unlock… in its sheet). */
@@ -250,6 +256,33 @@ internal fun EntryListScreen(
                 onCloseDatabase(database.id)
             },
             onDismiss = { sheetOf = null },
+        )
+    }
+    // A read-only database's chip: its sheet (keething-spec databases.read-only-mark AC4).
+    var readOnlySheetOf by rememberSaveable { mutableStateOf<String?>(null) }
+    readOnly.firstOrNull { it.id.value == readOnlySheetOf }?.let { database ->
+        val showOnly = FilterCompletion.token(FilterKind.DATABASE, database.line.label.full)
+        val sessions = container.sessions
+        ReadOnlySheet(
+            database,
+            showOnly = showOnly,
+            onLockOthers = {
+                readOnlySheetOf = null
+                sessions.lockOthers(database.id)
+            },
+            onUpdate = {
+                readOnlySheetOf = null
+                sessions.session(database.id)?.let(sessions.kdbx3::ask)
+            },
+            onShowOnly = {
+                readOnlySheetOf = null
+                query.setTextAndPlaceCursorAtEnd("$showOnly ")
+            },
+            onLock = {
+                readOnlySheetOf = null
+                sessions.databases.lock(database.id)
+            },
+            onDismiss = { readOnlySheetOf = null },
         )
     }
     // While the keyboard is open, Back closes it first, as everywhere on Android; then it clears the search.
@@ -401,7 +434,10 @@ internal fun EntryListScreen(
                     onDatabases = onDatabases, openCount = openCount,
                 )
                 // Pinned under the header: a search never silently misses a locked database (keething-spec databases.not-open).
-                NotOpenLine(notOpen, typing = query.text.isNotEmpty(), onTap = onLockScreen, onLongPress = { sheetOf = it.value })
+                NotOpenLine(
+                    notOpen, readOnly, typing = query.text.isNotEmpty(), onTap = onLockScreen, onLongPress = { sheetOf = it.value },
+                    onReadOnly = { readOnlySheetOf = it.value },
+                )
             }
         },
         bottomBar = {

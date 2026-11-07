@@ -30,6 +30,8 @@ internal class WindowDatabasesModel(
     list: DatabaseList,
     window: StateFlow<List<WindowDatabase>>,
     skipped: StateFlow<Set<DatabaseId>>,
+    /** The databases an unlock was tried on since the last Lock ([dev.keething.android.session.Sessions.tried]). */
+    tried: StateFlow<Set<DatabaseId>>,
     private val files: DatabaseFiles,
 ) : ViewModel() {
     private val refreshes = MutableStateFlow(0)
@@ -38,8 +40,10 @@ internal class WindowDatabasesModel(
     /** What was looked at last: ⋮ › Databases' sections and the chooser's rows. */
     private class Looked(val overview: DatabasesOverview, val chooser: List<ChooserRow>)
 
-    private val looked: StateFlow<Looked?> = combine(list.state, window, skipped, refreshes) { databases, states, skippedIds, _ -> Triple(databases, states, skippedIds) }
-        .mapLatest { (databases, states, skippedIds) ->
+    private data class Looking(val databases: dev.keething.vault.databases.Databases, val states: List<WindowDatabase>, val skipped: Set<DatabaseId>, val tried: Set<DatabaseId>)
+
+    private val looked: StateFlow<Looked?> = combine(list.state, window, skipped, tried, refreshes) { databases, states, skippedIds, triedIds, _ -> Looking(databases, states, skippedIds, triedIds) }
+        .mapLatest { (databases, states, skippedIds, triedIds) ->
             withContext(Dispatchers.IO) {
                 val lines = databases.lines(files.lookedAt(databases), root, Instant.now(), ZoneId.systemDefault())
                 val notOpen = NotOpenDatabases.of(states, lines, skippedIds)
@@ -48,6 +52,8 @@ internal class WindowDatabasesModel(
                     window = databases.window.map { it.id },
                     open = states.filter { it.session is SessionState.Unlocked }.map { it.id },
                     notOpen = notOpen,
+                    attention = NotOpenDatabases.needingAttention(notOpen, states, triedIds, skippedIds),
+                    readOnly = states.mapNotNull { database -> lines.firstOrNull { it.id == database.id }?.let { ReadOnlyDatabase.of(it, database.session) } },
                 )
                 Looked(overview, ChooserRows.of(states, lines) { id -> databases.record(id)?.checkedInChooser ?: true })
             }
