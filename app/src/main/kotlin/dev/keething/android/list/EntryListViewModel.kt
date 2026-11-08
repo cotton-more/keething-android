@@ -26,6 +26,7 @@ import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.SessionsState
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SaveRoom
+import dev.keething.vault.session.VaultSummary
 import dev.keething.vault.session.SessionState
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.Notice
@@ -45,6 +46,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapLatest
@@ -69,11 +71,18 @@ internal data class ListUiState(
     val preparing: Boolean = true,
 )
 
-/** A warning over the list about one open database. */
-internal data class ListBanner(val key: String, val title: String, val text: String, val onDismiss: (() -> Unit)? = null) {
-    override fun equals(other: Any?): Boolean = other is ListBanner && other.key == key && other.title == title && other.text == text
+/** A warning over the list about one open database; [action]: a button that does something about it, by its label. */
+internal data class ListBanner(
+    val key: String,
+    val title: String,
+    val text: String,
+    val onDismiss: (() -> Unit)? = null,
+    val action: Pair<String, () -> Unit>? = null,
+) {
+    override fun equals(other: Any?): Boolean =
+        other is ListBanner && other.key == key && other.title == title && other.text == text && other.action?.first == action?.first
 
-    override fun hashCode(): Int = listOf(key, title, text).hashCode()
+    override fun hashCode(): Int = listOf(key, title, text, action?.first).hashCode()
 }
 
 /** What a long press on a row offers (SPEC §6.2), read from the entry when the sheet opens. */
@@ -125,6 +134,11 @@ internal class EntryListViewModel(
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
+
+    private val mutableConflict = MutableStateFlow<ConflictCopyModel?>(null)
+
+    /** The conflict copy being resolved, its sheet's (keething-spec kdbx.conflict-copies AC6); null when none. */
+    val conflict: StateFlow<ConflictCopyModel?> = mutableConflict.asStateFlow()
 
     private val prepared: StateFlow<Prepared?> = open
         .distinctUntilChanged(::sameListing)
@@ -240,12 +254,14 @@ internal class EntryListViewModel(
             } else {
                 null
             },
+            // keething-spec kdbx.conflict-copies AC2, AC6: the newest copy, resolved here without a merge.
             database.unlocked.conflictCopies.firstOrNull()?.let { newest ->
                 ListBanner(
                     key = "conflict/${database.database.id}",
-                    title = "Syncthing found two versions",
+                    title = if (named) "${database.mark.label.name}: Syncthing found two versions" else "Syncthing found two versions",
                     text = "Open: ${file.name}. The other one is from ${newest.createdAt.format(CONFLICT_TIME)} " +
-                        "(device ${newest.deviceId}) — merge it in KeePassXC (Database › Merge), then delete it.",
+                        "(device ${newest.deviceId}). Keep one of them here, or merge them in KeePassXC (Database › Merge).",
+                    action = "Resolve…" to { resolveConflict(database.database.id) },
                 )
             },
             // keething-spec databases.saf AC5: which way, said until OK.
@@ -286,6 +302,12 @@ internal class EntryListViewModel(
         viewModelScope.launch {
             var listed: List<OpenDatabase> = emptyList()
             open.collect { list ->
+                // The copy resolved elsewhere, synced away, or its database locked: its sheet goes.
+                mutableConflict.value?.let { sheet ->
+                    if (list.none { database -> database.unlocked.conflictCopies.any { it.fileName == sheet.copy.fileName && database.database.file == sheet.file } }) {
+                        closeConflict()
+                    }
+                }
                 for (gone in listed) {
                     if (list.isEmpty() || list.any { it.database === gone.database }) continue
                     val locked = gone.database.session.state.value as? SessionState.Locked ?: continue
@@ -301,6 +323,37 @@ internal class EntryListViewModel(
                 }
             }
         }
+    }
+
+    /** Resolve… on [id]'s conflict banner: the sheet for its newest copy (keething-spec kdbx.conflict-copies AC6). */
+    fun resolveConflict(id: DatabaseId) {
+        val database = open.value.firstOrNull { it.database.id == id } ?: return
+        val copy = database.unlocked.conflictCopies.firstOrNull() ?: return
+        val session = database.database.session
+        val unlocked = database.unlocked
+        mutableConflict.value = ConflictCopyModel(
+            file = database.database.file,
+            copy = copy,
+            open = VaultSummary.of(unlocked.vault),
+            replaceRefused = when {
+                unlocked.viewOnly -> "This database is KDBX 3.1, viewed only: the other version can only be deleted here."
+                unlocked.room is SaveRoom.TooLarge -> "This database is read only on this phone: the other version can only be deleted here."
+                else -> null
+            },
+            contents = { session.copyContents(copy) },
+            take = { session.takeConflictCopy(copy) },
+            remove = { session.removeConflictCopy(copy) },
+            scope = viewModelScope,
+            onDone = { said ->
+                closeConflict()
+                notice(said)
+            },
+        )
+    }
+
+    /** The conflict sheet closed (not while a choice is carried out: it goes on, and says how it went). */
+    fun closeConflict() {
+        mutableConflict.value = null
     }
 
     /** A row swiped right, or its quick actions (SPEC §6.2). */

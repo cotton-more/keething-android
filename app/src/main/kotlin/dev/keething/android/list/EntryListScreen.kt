@@ -369,6 +369,10 @@ internal fun EntryListScreen(
         )
     }
 
+    // Resolve… on a conflict copy's banner (keething-spec kdbx.conflict-copies AC6).
+    val conflict by model.conflict.collectAsStateWithLifecycle()
+    conflict?.let { ConflictCopySheet(it, onDismiss = model::closeConflict) }
+
     // A tile's ⋯ in the Codes view, and what it opens (keething-spec app.codes-view).
     var codeSheet by remember { mutableStateOf<CodeTile?>(null) }
     var editing by remember { mutableStateOf<CodeTile?>(null) }
@@ -471,7 +475,7 @@ internal fun EntryListScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
             ) {
                 for (banner in state.banners) {
-                    item(key = banner.key) { Banner(title = banner.title, text = banner.text, onDismiss = banner.onDismiss) }
+                    item(key = banner.key) { Banner(title = banner.title, text = banner.text, onDismiss = banner.onDismiss, action = banner.action) }
                 }
                 if (state.preparing) {
                     item(key = "preparing") {
@@ -684,7 +688,7 @@ private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit, onDatabase
 }
 
 @Composable
-internal fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null) {
+internal fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null, action: Pair<String, () -> Unit>? = null) {
     val colors = MaterialTheme.extraColors
     Row(
         Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(20.dp)).background(colors.warnContainer).padding(16.dp),
@@ -700,6 +704,7 @@ internal fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null
             Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onWarnContainer)
             // Said once read: OK, and it is not said again (keething-spec databases.saf AC5).
             onDismiss?.let { TextButton(onClick = it, modifier = Modifier.align(Alignment.End)) { Text("OK", color = colors.onWarnContainer) } }
+            action?.let { (label, act) -> TextButton(onClick = act, modifier = Modifier.align(Alignment.End)) { Text(label, color = colors.onWarnContainer) } }
         }
     }
 }

@@ -49,6 +49,19 @@ public interface DatabaseStore {
     public fun conflictCopies(): List<ConflictCopy>
 
     /**
+     * The bytes of the conflict copy named [name] beside the database (keething-spec kdbx.conflict-copies AC6), or null when
+     * it is not there; an [IOException] when it could not be read, or [name] names no conflict copy of the database.
+     */
+    public fun readConflictCopy(name: String): ByteArray? = throw IOException("no folder to read $name from")
+
+    /**
+     * Deletes the conflict copy named [name] beside the database (keething-spec kdbx.conflict-copies AC6): nothing else is
+     * ever deleted so. One not there is no failure; an [IOException] when it is still there, or [name] names no conflict
+     * copy of the database.
+     */
+    public fun deleteConflictCopy(name: String): Unit = throw IOException("no folder to delete $name from")
+
+    /**
      * Calls [onChange] on a background thread when the database file (its [version]) or the set of its
      * conflict copies changed, until the returned handle is closed. Unrelated files in the folder cause
      * no calls; one change may cause more than one.

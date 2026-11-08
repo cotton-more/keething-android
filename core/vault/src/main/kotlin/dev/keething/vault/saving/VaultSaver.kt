@@ -81,6 +81,54 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     fun changeKey(newKey: DatabaseKey, key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult =
         refusing { saveOrRefuse(stopped, make = { original -> rekeyed(original, key, newKey, now) }, now = now) }
 
+    /**
+     * Takes the conflict copy named [copyName] in the database's place (keething-spec kdbx.conflict-copies AC6): its bytes
+     * as they are, once they open with [key], the database's; saved like any change (the database backed up, replaced only
+     * while it is what was read). The copy is deleted afterwards, the database holding it now; one that stays is
+     * [SaveResult.Saved.copyLeft]. A copy gone is [SaveFailure.CopyGone]; one that does not open,
+     * [SaveFailure.CopyNotOpened], nothing replaced.
+     */
+    fun takeCopy(copyName: String, key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult {
+        val result = refusing { saveOrRefuse(stopped, make = { original -> copied(original, copyName, key) }, now = now) }
+        if (result !is SaveResult.Saved) return result
+        val deleted = try {
+            store.deleteConflictCopy(copyName)
+            true
+        } catch (_: Exception) {
+            false
+        }
+        return if (deleted) result else SaveResult.Saved(result.opened, copyLeft = copyName)
+    }
+
+    /**
+     * Deletes the conflict copy named [copyName], the database kept as it is (keething-spec kdbx.conflict-copies AC6): the
+     * copy is kept among the database's backups first, under its own name. Null when it is gone (also when it was not
+     * there), else why it stays.
+     */
+    fun removeCopy(copyName: String, now: Instant): SaveFailure? {
+        val bytes = try {
+            store.readConflictCopy(copyName) ?: return null
+        } catch (failure: IOException) {
+            return SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName)
+        } catch (_: OutOfMemoryError) {
+            return SaveFailure.OutOfMemory
+        }
+        try {
+            backups.keep(bytes, copyName, now)
+        } catch (failure: Exception) {
+            backups.notSaved()
+            return SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName)
+        }
+        try {
+            store.deleteConflictCopy(copyName)
+        } catch (failure: Exception) {
+            backups.notSaved()
+            return SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName)
+        }
+        backups.saved()
+        return null
+    }
+
     private fun refusing(save: () -> SaveResult): SaveResult = try {
         save()
     } catch (refused: Refused) {
@@ -412,6 +460,31 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             before?.wipe()
             editable.wipe()
         }
+    }
+
+    /**
+     * The conflict copy named [copyName] as the new file, opened with [key]: written as it is, so its read is its check.
+     * [original] is read only for its digest, what the database must still be when the copy replaces it.
+     */
+    private fun copied(original: Original, copyName: String, key: DatabaseKey): Made {
+        original.open({}, {})
+        val bytes = try {
+            store.readConflictCopy(copyName)
+        } catch (failure: IOException) {
+            throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
+        } ?: throw Refused(SaveFailure.CopyGone)
+        val reread = try {
+            KdbxReader.open(bytes, key)
+        } catch (failure: KdbxException) {
+            throw Refused(SaveFailure.CopyNotOpened(failure.toOpenFailure()))
+        }
+        val vault = try {
+            VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
+        } catch (failure: RuntimeException) {
+            reread.binaries.forEach(Secret::wipe)
+            throw failure
+        }
+        return Made(bytes, reread, vault, emptyList())
     }
 
     /** Every group of the file in file order, the recycle bin's own too. */

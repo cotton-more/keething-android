@@ -84,7 +84,7 @@ Planned beyond the first releases (decided by the owner on 2026-10-27; keething-
 databases side by side (in: the list, one list over several open, the chooser and one fingerprint for several,
 §3.1, §5), key files (in, §4), creating a database (in,
 §3.5, §6.2), KDBX
-3.1 (read, viewed only or upgraded to KDBX 4 when the user agrees, §3.2), merging conflicting copies (detected and shown only until then, §3.4). Groups (decided by
+3.1 (read, viewed only or upgraded to KDBX 4 when the user agrees, §3.2), merging conflicting copies (detected, shown and resolved by keeping one until then, §3.4). Groups (decided by
 the owner on 2026-10-31; keething-spec `plans/done/android-groups.md`): an entry's group changed in the editor (in, §6.2)
 and from its card (a move: in), new groups made from the editor's group picker (in), groups renamed, made, moved and
 deleted when empty from Groups & tags (in; over every open database, a block each: in, §6.2); renaming tags and the recycle bin's groups stay with
@@ -698,9 +698,25 @@ file made before keep opening with the old key: the app's own backups (§3.3 ste
 ### 3.4 Conflicts
 
 - A `*.sync-conflict-*` copy of a database next to it is shown as a banner of that database (named while two or
-  more are open; "Syncthing found two versions:
-  …") with its date. v1 does not merge: it says which one is open and that the other should be merged in
-  KeePassXC (Database → Merge). Later: merge in the app.
+  more are open; "Syncthing found two versions: …") with its date and device; the newest copy when there are several.
+  The app does not merge: the banner says which one is open, and that both can be merged in KeePassXC (Database →
+  Merge).
+- **Resolve…** on the banner (keething-spec kdbx.conflict-copies AC6; agreed on the canvas "Conflict copies",
+  https://claude.ai/artifact/2N41uYnE2ERe5rX4Rt95Ra, 2026-11-08) resolves that copy without a merge, one copy at a
+  time. Its sheet shows both versions in brief (entries, the newest change of one; the copy opened with a copy of the
+  session's key, its secrets wiped at once, `VaultSession.copyContents`) and two choices, each saying what it does and
+  asked once more in a dialog before it is done:
+  - *Keep the open one*: the copy is kept among the database's backups under its own name (§3.3 step 7), then deleted
+    (`VaultSession.removeConflictCopy`, `VaultSaver.removeCopy`); a copy that cannot be deleted stays, its backup taken
+    back.
+  - *Use the other one*: offered only when the copy opens with the database's key and the database can be changed
+    (not KDBX 3.1, not too large, §3.3). Saved like any change, in its turn among the saves: the database read for its
+    digest, backed up, replaced with the copy's bytes as they are (nothing rewritten) while it is still what was read;
+    the copy is then deleted, and the vault becomes the copy read back (`VaultSession.takeConflictCopy`,
+    `VaultSaver.takeCopy`). A copy that does not open with the key is refused and never locks the database
+    ("Password changed" is only the database's own). A copy taken but not deleted is said, and stays on the banner.
+  The store reads and deletes only a name that is a conflict copy of its database (`DatabaseStore.readConflictCopy`,
+  `deleteConflictCopy`). Later: merge in the app.
 
 ### 3.5 New database files
 
@@ -1161,6 +1177,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   AG4: the picker shows one level at a time instead of its drawn tree, the new levels one NEW (the editor, §6.2), a
   path on one line cut as fish shell cuts a directory (the list, §6.2), the card's one place chip instead of its
   database and group chips (the card, §6.2); at AG5 the "Not open:" row lost its lock icon.
+- Conflict copies (keething-spec kdbx.conflict-copies AC6, agreed 2026-11-08) have a canvas of their own:
+  https://claude.ai/artifact/2N41uYnE2ERe5rX4Rt95Ra (the banner's Resolve…, the sheet with both versions, the two
+  choices each asked once more, a copy with another key, a read-only database, a failure, dark).
 
 ### 6.1 Look and feel
 
@@ -1383,9 +1402,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   03/2029`, `alex@db.example.com:2222`, `Bitcoin · bc1qar…5mdq`, `Crypto wallet · recovery phrase`; a protected
   number gives no digits); the card's
   header shows it too (`EntryFace`). A
-  group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy,
-  a reload that failed (the vault read before is shown) and a database too large to save or near that (§3.3) are
-  banners above the list.
+  group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy (with
+  Resolve…: a sheet keeping the open version or using the other one, §3.4), a reload that failed (the vault read
+  before is shown) and a database too large to save or near that (§3.3) are banners above the list.
 - **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
   open the browser, attachments open in another app / save to a folder, §4). An app's address (`androidapp://<package>`
   in the URL, a `KP2A_URL…` field or a field typed `url` or untyped; keething-spec card.app-address, canvas

@@ -990,6 +990,26 @@ class FolderDatabaseStoreTest {
         assertEquals(listOf("BBBBBBB", "AAAAAAA"), store.conflictCopies().map { it.deviceId })
     }
 
+    @Test
+    fun aConflictCopyIsReadAndDeletedByItsNameAndNoOtherFileIs() {
+        val copy = "Personal.sync-conflict-20261001-120000-AAAAAAA.kdbx"
+        folder.put(DATABASE, old, earlier)
+        folder.put("Sync/$copy", theirs)
+        folder.put("Sync/Work.sync-conflict-20261003-120000-CCCCCCC.kdbx", theirs)
+
+        assertContentEquals(theirs, store.readConflictCopy(copy))
+        for (other in listOf("Personal.kdbx", "Work.sync-conflict-20261003-120000-CCCCCCC.kdbx", "../$copy")) {
+            assertFailsWith<IOException>(other) { store.readConflictCopy(other) }
+            assertFailsWith<IOException>(other) { store.deleteConflictCopy(other) }
+        }
+        store.deleteConflictCopy(copy)
+        store.deleteConflictCopy(copy) // gone already: no failure
+
+        assertNull(store.readConflictCopy(copy))
+        assertEquals(listOf("Personal.kdbx", "Work.sync-conflict-20261003-120000-CCCCCCC.kdbx"), folder.names("Sync").sorted())
+        assertContentEquals(old, folder.bytesOf(DATABASE))
+    }
+
     // Noticing changes (AC7's logic)
 
     @Test

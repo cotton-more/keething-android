@@ -8,6 +8,7 @@ import dev.keething.domain.vault.VaultGroup
 import dev.keething.vault.opening.DatabaseSize
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.saving.SaveFailure
+import java.time.Instant
 import kotlin.time.Duration
 
 /** Why the vault is locked (the lock screen shows it as a chip, SPEC §6). */
@@ -53,14 +54,34 @@ public sealed interface KeyConfirmation {
     public data object Locked : KeyConfirmation
 }
 
+/**
+ * A database's contents in brief, to choose between it and a conflict copy (keething-spec kdbx.conflict-copies AC6):
+ * how many entries (the recycle bin's apart) and the newest change of one, the bin's too; null when none has a time.
+ */
+public data class VaultSummary(val entries: Int, val lastChanged: Instant?) {
+    public companion object {
+        public fun of(vault: Vault): VaultSummary =
+            VaultSummary(vault.entries.size, (vault.entries + vault.recycleBin).mapNotNull { it.lastModified }.maxOrNull())
+    }
+}
+
+/** What a conflict copy holds, read with the database's key (keething-spec kdbx.conflict-copies AC6). */
+public sealed interface CopyContents {
+    public data class Read(val summary: VaultSummary) : CopyContents
+
+    /** It does not open with the database's key, or at all ([failure]); gone is [OpenFailure.Missing]. */
+    public data class NotOpened(val failure: OpenFailure) : CopyContents
+}
+
 /** How one save ended. */
 public sealed interface SaveOutcome {
     /**
      * The file was replaced and the vault is the file read back. [deletedGroups]: the groups the save deleted for good,
      * as they were (the empty ones a move left, innermost first, or the empty group deleted; keething-spec
      * groups.entry-group AC7). [keptCopy]: an upgrade's, the name its KDBX 3.1 file was kept under beside it.
+     * [copyLeft]: a conflict copy taken in the database's place, still there: it could not be deleted afterwards.
      */
-    public data class Saved(val deletedGroups: List<VaultGroup> = emptyList(), val keptCopy: String? = null) : SaveOutcome
+    public data class Saved(val deletedGroups: List<VaultGroup> = emptyList(), val keptCopy: String? = null, val copyLeft: String? = null) : SaveOutcome
 
     public data class Failed(val failure: SaveFailure) : SaveOutcome
 

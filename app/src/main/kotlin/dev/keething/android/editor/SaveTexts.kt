@@ -26,6 +26,11 @@ internal fun SaveFailure.describe(file: File): String = when (this) {
         "The change would leave the file in a form KeePass does not accept ($what), so the database was not replaced."
     SaveFailure.ViewOnly -> "This database is KDBX 3.1, viewed only until it is upgraded to KDBX 4. Nothing was saved."
     is SaveFailure.CopyNotKept -> "The KDBX 3.1 file could not be kept beside the database ($detail), so nothing was changed."
+    SaveFailure.CopyGone -> "The other version is not there any more (deleted or synced away). Nothing was changed."
+    is SaveFailure.CopyNotOpened -> when {
+        failure.isWrongKey -> "The other version does not open with this database's password or key file (changed on another device?). Nothing was changed."
+        else -> "The other version could not be opened, so nothing was changed: " + failure.describe(file.path).replaceFirstChar(Char::lowercase)
+    }
     SaveFailure.FileKeepsChanging -> "The database file keeps changing (a sync?). Nothing was saved; try again in a moment."
     is SaveFailure.WriteFailed -> "Could not write the database: $detail."
     SaveFailure.OutOfMemory -> SizeTexts.OUT_OF_MEMORY

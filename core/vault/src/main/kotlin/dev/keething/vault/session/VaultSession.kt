@@ -35,6 +35,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -588,6 +589,56 @@ public class VaultSession(
             ?: null.also { newKey.wipe() }
     }
 
+    /**
+     * What [copy], a conflict copy of the database, holds (keething-spec kdbx.conflict-copies AC6): opened with a copy of
+     * the key, which a lock gives up. Null when not unlocked, or locked before it was read.
+     */
+    public suspend fun copyContents(copy: ConflictCopy): CopyContents? {
+        if (mutableState.value !is SessionState.Unlocked) return null
+        val token = generation
+        val attempt = key?.copy() ?: return null
+        reading += attempt
+        val contents = try {
+            withContext(io) { opener.copyContents(store, copy.fileName, attempt) }
+        } finally {
+            reading -= attempt
+            attempt.wipe()
+        }
+        return contents.takeIf { token == generation }
+    }
+
+    /**
+     * Takes [copy], a conflict copy, in the database's place (keething-spec kdbx.conflict-copies AC6): in its turn among
+     * the saves, only once it opens with the database's key; the database backed up first, the copy deleted afterwards.
+     * The vault then becomes the copy. Null when not unlocked; refused at once when read-only.
+     */
+    public fun takeConflictCopy(copy: ConflictCopy): Deferred<SaveOutcome>? {
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return null
+        if (unlocked.viewOnly) return CompletableDeferred(SaveOutcome.Failed(SaveFailure.ViewOnly))
+        tooLarge(unlocked)?.let { return it }
+        return saving(null) { attempt, running -> saver.takeCopy(copy.fileName, attempt, clock.now(), running::stopped) }
+    }
+
+    /**
+     * Deletes [copy], a conflict copy, the database kept as it is (keething-spec kdbx.conflict-copies AC6): the copy kept
+     * among the database's backups first, in its turn with the saves. Null when it is gone, else why it stays; the
+     * conflict copies shown are read again either way. Null too when not unlocked.
+     */
+    public fun removeConflictCopy(copy: ConflictCopy): Deferred<SaveFailure?>? {
+        if (mutableState.value !is SessionState.Unlocked) return null
+        val token = generation
+        return scope.async {
+            fileWork.withLock {
+                if (token != generation) return@withLock SaveFailure.Locked
+                val failure = withContext(io) { saver.removeCopy(copy.fileName, clock.now()) }
+                val copies = conflictCopies()
+                val unlocked = mutableState.value as? SessionState.Unlocked
+                if (token == generation && unlocked != null && copies != unlocked.conflictCopies) set(unlocked.copy(conflictCopies = copies))
+                failure
+            }
+        }
+    }
+
     /** A save of a database too large for it refused at once, nothing read (keething-spec app.large-database AC3). */
     private fun tooLarge(unlocked: SessionState.Unlocked): Deferred<SaveOutcome>? {
         val room = unlocked.room as? SaveRoom.TooLarge ?: return null
@@ -626,7 +677,7 @@ public class VaultSession(
                             key = adopting ?: attempt
                             running.keyTaken = true
                             adopt(OpenResult.Opened(result.opened), copies)
-                            outcome.complete(SaveOutcome.Saved(result.deletedGroups, result.keptCopy))
+                            outcome.complete(SaveOutcome.Saved(result.deletedGroups, result.keptCopy, result.copyLeft))
                         }
                         is SaveResult.Failed -> {
                             outcome.complete(SaveOutcome.Failed(result.failure))

@@ -13,6 +13,9 @@ import dev.keething.kdbx.key.WipedKeyException
 import dev.keething.kdbx.reader.KdbxDatabase
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
+import dev.keething.vault.session.CopyContents
+import dev.keething.vault.session.VaultSummary
+import java.io.IOException
 import kotlin.time.Duration
 
 /** Why the database could not be opened, in terms the screens can show. Never carries entry data. */
@@ -105,6 +108,41 @@ public open class VaultOpener {
             return OpenResult.Failed(OpenFailure.OutOfMemory)
         }
         return OpenResult.Opened(database.toOpenedVault(found.version, found.bytes.size.toLong(), stoppedSave = found.stoppedSave))
+    }
+
+    /**
+     * What the conflict copy named [copyName] beside the database holds (keething-spec kdbx.conflict-copies AC6), opened
+     * with [key], the database's: only its summary is kept, every secret read wiped at once.
+     */
+    internal open fun copyContents(store: DatabaseStore, copyName: String, key: DatabaseKey): CopyContents {
+        val bytes = try {
+            store.readConflictCopy(copyName) ?: return CopyContents.NotOpened(OpenFailure.Missing)
+        } catch (_: IOException) {
+            return CopyContents.NotOpened(OpenFailure.AccessDenied)
+        } catch (_: OutOfMemoryError) {
+            return CopyContents.NotOpened(OpenFailure.OutOfMemory)
+        }
+        val database = try {
+            KdbxReader.open(bytes, key)
+        } catch (failure: KdbxException) {
+            return CopyContents.NotOpened(failure.toOpenFailure())
+        } catch (_: WipedKeyException) {
+            return CopyContents.NotOpened(OpenFailure.Locked)
+        } catch (_: OutOfMemoryError) {
+            return CopyContents.NotOpened(OpenFailure.OutOfMemory)
+        }
+        val sizes = database.binaries.map(Secret::size)
+        database.binaries.forEach(Secret::wipe)
+        var vault: Vault? = null
+        try {
+            vault = VaultAssembler.assemble(database.document, sizes)
+            return CopyContents.Read(VaultSummary.of(vault))
+        } finally {
+            vault?.wipe()
+            (database.document.entries + database.document.history).forEach { entry ->
+                entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
+            }
+        }
     }
 
     /**

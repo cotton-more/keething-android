@@ -82,6 +82,24 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
 
     override fun conflictCopies(): List<ConflictCopy> = copies
 
+    /** The conflict copies' bytes by name ([copies] lists them); [failCopyDelete]: a delete leaves the copy and throws. */
+    val copyFiles = LinkedHashMap<String, ByteArray>()
+    var failCopyDelete = false
+
+    /** A conflict copy with [bytes], listed in [copies] and read by its name. */
+    fun addCopy(copy: ConflictCopy, bytes: ByteArray) {
+        copyFiles[copy.fileName] = bytes.copyOf()
+        copies = (copies + copy).sortedByDescending { it.createdAt }
+    }
+
+    override fun readConflictCopy(name: String): ByteArray? = copyFiles[name]?.copyOf()
+
+    override fun deleteConflictCopy(name: String) {
+        if (failCopyDelete) throw IOException("not allowed")
+        copyFiles -= name
+        copies = copies.filterNot { it.fileName == name }
+    }
+
     override fun watch(onChange: () -> Unit): AutoCloseable {
         watchers += onChange
         return AutoCloseable { watchers -= onChange }

@@ -57,6 +57,15 @@ public sealed interface SaveFailure {
      */
     public data class CopyNotKept(val detail: String) : SaveFailure
 
+    /** The conflict copy to take in the database's place is not there any more (keething-spec kdbx.conflict-copies AC6). */
+    public data object CopyGone : SaveFailure
+
+    /**
+     * The conflict copy to take in the database's place does not open with the database's key, or at all ([failure]):
+     * nothing was replaced (keething-spec kdbx.conflict-copies AC6).
+     */
+    public data class CopyNotOpened(val failure: OpenFailure) : SaveFailure
+
     /** The file changed on disk while saving, twice in a row. */
     public data object FileKeepsChanging : SaveFailure
 
@@ -83,9 +92,15 @@ internal sealed interface SaveResult {
     /**
      * The file was replaced; [opened] is it read back, ready to be the vault. [deletedGroups]: the groups deleted for
      * good, as they were (the empty ones a move left, innermost first, or the empty group deleted). [keptCopy]: the
-     * name an upgrade's KDBX 3.1 file was kept under beside the database.
+     * name an upgrade's KDBX 3.1 file was kept under beside the database. [copyLeft]: the conflict copy taken in the
+     * database's place that could not be deleted afterwards.
      */
-    class Saved(val opened: OpenedVault, val deletedGroups: List<VaultGroup> = emptyList(), val keptCopy: String? = null) : SaveResult
+    class Saved(
+        val opened: OpenedVault,
+        val deletedGroups: List<VaultGroup> = emptyList(),
+        val keptCopy: String? = null,
+        val copyLeft: String? = null,
+    ) : SaveResult
 
     class Failed(val failure: SaveFailure) : SaveResult
 }

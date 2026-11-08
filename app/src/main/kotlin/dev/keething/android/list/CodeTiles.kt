@@ -90,7 +90,7 @@ internal fun CodeTiles(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         for (banner in state.banners) {
-            item(key = banner.key, span = { GridItemSpan(maxLineSpan) }) { Banner(title = banner.title, text = banner.text, onDismiss = banner.onDismiss) }
+            item(key = banner.key, span = { GridItemSpan(maxLineSpan) }) { Banner(title = banner.title, text = banner.text, onDismiss = banner.onDismiss, action = banner.action) }
         }
         if (state.preparing) {
             item(key = "preparing", span = { GridItemSpan(maxLineSpan) }) {

@@ -369,6 +369,20 @@ public class FolderDatabaseStore(
             .mapNotNull { ConflictCopy.of(fileName, it.name) }
             .sortedByDescending { it.createdAt }
 
+    override fun readConflictCopy(name: String): ByteArray? = folder.read(conflictCopyPath(name))?.bytes
+
+    override fun deleteConflictCopy(name: String) {
+        val copy = conflictCopyPath(name)
+        if (folder.delete(copy)) return
+        if (folder.version(copy) != null) throw IOException("$name could not be deleted")
+    }
+
+    /** [name]'s path beside the database, when it is one of its conflict copies: nothing else is read or deleted so. */
+    private fun conflictCopyPath(name: String): String {
+        if (ConflictCopy.of(fileName, name) == null || '/' in name) throw IOException("$name is no conflict copy of $fileName")
+        return inFolder(name)
+    }
+
     override fun watch(onChange: () -> Unit): AutoCloseable {
         val watch = Watch(onChange)
         synchronized(watches) { watches += watch }
