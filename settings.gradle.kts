@@ -27,5 +27,6 @@ include(
     ":core:autofill",
     ":core:generator",
     ":core:sharing",
+    ":core:argon2",
     ":app",
 )

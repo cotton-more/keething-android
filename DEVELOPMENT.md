@@ -7,6 +7,10 @@ How to build, test and install the app on this Mac. What the app does is in SPEC
 - JDK 21 (`java -version`), the Android command-line tools in `/opt/homebrew/share/android-commandlinetools`
   (`ANDROID_HOME`), KeePassXC in `/Applications` for the checks that use `keepassxc-cli`. Android Studio is
   optional; everything runs from the command line with the Gradle wrapper.
+- The NDK and CMake that build the native Argon2 (`core/argon2`), at the versions pinned in
+  `gradle/libs.versions.toml` (`ndk`, `cmake`); once:
+
+      sdkmanager "ndk;30.0.16248370" "cmake;4.1.2"
 - Gradle needs `ANDROID_HOME`; the scripts in `tools/` set it themselves:
 
       export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
@@ -18,6 +22,15 @@ runs one, arguments after `--` (`task test:module -- kdbx`).
 
     ./gradlew test                  # every module's JVM tests (core/* and app)
     ./gradlew :core:kdbx:test       # one module
+
+The native Argon2's tests run on a phone (`core/argon2/src/androidTest`, keething-spec unlock.faster-argon2): `task
+test:device` (`ANDROID_SERIAL=<serial>` for one device) installs their APK, runs it with `am instrument` and removes
+it. Not Gradle's `connectedDebugAndroidTest`: AGP 9.4.1 fails it with every test passed. `task spec:verify` does not
+run them. One of them leaves a file created with the native Argon2 for KeePassXC; to check it, run that test alone
+with the APK kept (`./gradlew :core:argon2:installDebugAndroidTest`, then `adb shell am instrument -w -e class
+dev.keething.argon2.NativeArgon2Test#aFileCreatedWithItOpensWithTheKotlinOne
+dev.keething.argon2.test/androidx.test.runner.AndroidJUnitRunner`), `adb pull` the path its log line names, `keepassxc-cli
+db-info` it (password `pw`), then `adb uninstall dev.keething.argon2.test`.
 
 ## Building the APK
 

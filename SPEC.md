@@ -115,9 +115,11 @@ core/generator the password generator: kinds, options, exact entropy, the EFF wo
               resource)                                                  → nothing
 core/sharing  sharing entries (§10): HPKE, the request and answer formats, the pictures, the requests
               both ways and their sealed file                      → domain, kdbx (Argon2), totp
+core/argon2   an Android library: the reference Argon2 in C (vendored, built by the NDK and CMake
+              pinned in libs.versions.toml) and its JNI bridge, a kdbx Argon2Engine (§4)  → kdbx
 app           Android: the adapters behind the ports (storage, biometrics, clipboard, clock), Compose UI,
               AutofillService (§7), the composition root
-                                 → vault, search, totp, card, autofill, generator, sharing (not kdbx)
+                  → vault, search, totp, card, autofill, generator, sharing, argon2 (kdbx only for its engine)
 ```
 
 A new module is added when a feature has its own rules and its own tests, not for every package.
@@ -419,8 +421,10 @@ keeps the new time. The way out is in §3.3 step 7.
   1 to 2³²−1 iterations, 1 to 2²⁴−1 lanes, memory in whole KiB, at least 8 KiB a lane, under 2 GiB; AES-KDF at least
   one round. A file outside them is refused as unsupported, the parameter named ("This database's key derivation is
   one Keething does not run: Argon2 memory of 4 TiB (KeePass reads less than 2 GiB)."), never as a wrong password or damaged;
-  so is Argon2 memory within them but more than the app's heap allows (512 MiB with `largeHeap`, less 48 MiB for the
-  rest), refused before it is allocated. A derivation that runs stops within milliseconds when its unlock or reload
+  so is Argon2 memory within them but more than the phone can give, refused before it is allocated: with the native
+  Argon2 (§4) more than half of the memory the phone has free when the derivation starts ("Argon2 memory of 2 GiB,
+  more than the 1.4 GiB this phone can spare now, half of its free memory"), with the Kotlin one more than the app's
+  heap allows (512 MiB with `largeHeap`, less 48 MiB for the rest). An allocation that fails is the same refusal. A derivation that runs stops within milliseconds when its unlock or reload
   is given up: a lock gives up the key it runs with (`DatabaseKey.abandon`, checked between about a millisecond's
   steps); a key wiped or given up is never used again (`WipedKeyException`). A protected value is decrypted into its
   secret as it is read, so any character in it, a control character too, opens and is written back as it was; text
@@ -722,7 +726,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   files that open in 0.50–1.04 s, the measuring itself 0.84–0.98 s; 0.5 s gave 5 iterations (0.22–0.29 s). The Mac's
   1 s default (`created-aes-argon2d.kdbx`, 115 iterations) takes 4.8–5.0 s here, about five times, not the two to
   three the Mac's page says (the owner's database has 2 lanes); a phone-made 1 s file (24 iterations) opens in
-  keepassxc-cli on the Mac in 0.22 s.
+  keepassxc-cli on the Mac in 0.22 s. These are the Kotlin Argon2's numbers: the measurement runs the key derivation
+  the phone opens with, so with the native one (§4) 1 s gives about twice the iterations (not measured again).
 - **Create** (`app` `NewDatabaseModel`, the Mac's `NewDatabaseModel`; keething-spec `databases.new-database`,
   `databases.new-database-create`): measured on this phone unless the Encryption page measured these choices already,
   then a new key file (made first, removed again when the database is not made; one the user has is only read), then
@@ -813,6 +818,22 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   Kotlin Argon2 already fills the two lanes in parallel; a native Argon2 (e.g. argon2kt) is the remaining
   lever, not taken yet. Memory after the unlock: about 160 MB PSS, of it 78 MB Java heap
   (`android:largeHeap` is on).
+- **The native Argon2** (keething-spec unlock.faster-argon2, 2026-11-07): a database's key derivation runs on the
+  reference implementation in C (`core/argon2`: P-H-C phc-winner-argon2's `ref.c`, vendored with one marked change,
+  `KEETHING.md` there), loaded at the app's start (`KeethingApplication`, `NativeArgon2.load`, which checks one
+  reference value first) and plugged into the file format as `Argon2Engine.native`. Its memory is the device's, not
+  the Java heap's: the limit is half of `ActivityManager.MemoryInfo.availMem` when the derivation starts (§3). The
+  lanes are filled by threads that live as long as the derivation and meet after each slice (the reference code's
+  threads, started anew for every slice, landed on slow cores: two lanes took longer than one). A derivation runs on a
+  thread of its own; the caller waits a millisecond at a time and calls the key's checkpoint between waits, so a lock
+  gives it up within a few milliseconds (the lanes check a flag every 1,024 blocks); its memory, the password's copy
+  and the hashes are then wiped and freed (about 0.15 s a GiB). Where the library does not load, or gives a wrong
+  value, the Kotlin Argon2 runs as before, within the Java heap. The same bytes as the Kotlin one: its vectors, random
+  parameters and every fixture, checked on the phone (`task test:device`). Measured on the Pixel 6 (release build,
+  2 lanes, Argon2id): 64 MiB × 42 in 0.95–1.06 s (Kotlin 2.0 s), 256 MiB × 10 in 1.04–1.14 s (Kotlin 2.25 s), 1 GiB × 4
+  in 1.88–1.96 s at a peak of 1.29 GB resident (Kotlin refused it); with the screen off a background app gets the slow
+  cores (1 GiB × 4 took 8.0 s). The APK grew by 100 KiB (6,788,338 → 6,891,067 bytes; three libraries of 21–26 KB,
+  stored for arm64-v8a, armeabi-v7a and x86_64). New files measured at 1 s (§3.5) get about twice the iterations.
 - Secrets are wipeable byte arrays (`Secret`): passwords, protected fields, one-time code keys, attachments.
   Protected values are decrypted from the file straight into them, so the XML in memory never holds a
   password in the clear. Not wipeable, and accepted: a `String` while a value is shown, copied or filled;

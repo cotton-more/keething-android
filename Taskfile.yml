@@ -35,6 +35,17 @@ tasks:
     cmds:
       - set -- {{.CLI_ARGS}}; if [ "$1" = app ]; then t=:app:testDebugUnitTest; else t=:core:$1:test; fi; ./gradlew $t --tests "$2"
 
+  test:device:
+    desc: "The tests that run on a phone: the native Argon2 against the Kotlin one (core/argon2); ANDROID_SERIAL=<serial> for one"
+    # Not connectedDebugAndroidTest: AGP 9.4.1 fails it with every test passed. The runner's own verdict instead.
+    cmds:
+      - ./gradlew :core:argon2:installDebugAndroidTest
+      - defer: adb uninstall dev.keething.argon2.test > /dev/null
+      - |
+        out=$(adb shell am instrument -w {{.CLI_ARGS}} dev.keething.argon2.test/androidx.test.runner.AndroidJUnitRunner)
+        echo "$out"
+        echo "$out" | grep -q '^OK ('
+
   build:
     desc: The debug APK (app/build/outputs/apk/debug)
     cmds:

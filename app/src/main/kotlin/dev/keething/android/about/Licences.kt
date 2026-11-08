@@ -57,6 +57,12 @@ internal val THIRD_PARTY = listOf(
     ThirdParty("ZXing", "Reading the QR codes of sharing and of one-time codes, by the ZXing authors", "Apache 2.0", "zxing-Apache-2.0.txt"),
     ThirdParty("AndroidSVG", "Drawing an SVG image to read its QR code, by Paul LeBeau, Cave Rock Software Ltd.", "Apache 2.0", "androidsvg-Apache-2.0.txt"),
     ThirdParty(
+        "Argon2",
+        "The key derivation that opens a database, by Daniel Dinu, Dmitry Khovratovich, Jean-Philippe Aumasson and Samuel Neves",
+        "CC0 1.0 or Apache 2.0",
+        "argon2-CC0-Apache-2.0.txt",
+    ),
+    ThirdParty(
         "AndroidX, Kotlin, kotlinx.coroutines",
         "Compose, CameraX and the other Jetpack libraries, by The Android Open Source Project and JetBrains",
         "Apache 2.0",

@@ -1,6 +1,7 @@
 package dev.keething.kdbx.key
 
 import dev.keething.kdbx.crypto.Argon2 as Argon2Hash
+import dev.keething.kdbx.crypto.Argon2Engine
 import dev.keething.kdbx.reader.KdbxException
 import java.security.MessageDigest
 import javax.crypto.Cipher
@@ -44,30 +45,46 @@ internal sealed class KdfParameters(val identity: ByteArray) {
     /**
      * Refused as unsupported when the memory it asks for is more than the app can have (keething-spec kdbx.hardening
      * AC6): the phone gives an app a few hundred MiB, KeePass allows up to 2 GiB; the allocation is never left to
-     * run the app out of memory.
+     * run the app out of memory. On the native engine, where it loads, the memory is the device's, not the Java
+     * heap's (keething-spec unlock.faster-argon2 AC3).
      */
     class Argon2(identity: ByteArray, private val parameters: Argon2Hash.Parameters, private val salt: ByteArray) :
         KdfParameters(identity) {
         override fun transform(composite: ByteArray, checkpoint: () -> Unit): ByteArray {
             val memory = parameters.memoryKiB.toLong() * 1024
-            val most = AppMemory.most()
-            if (memory > most - HEADROOM) throw tooMuch(memory, most)
-            return try {
-                Argon2Hash.hash(composite, salt, parameters, checkpoint = checkpoint)
-            } catch (_: IllegalArgumentException) {
-                throw KdbxException.Corrupt("Argon2 parameters")
-            } catch (_: OutOfMemoryError) {
-                throw tooMuch(memory, most)
+            val engine = Argon2Engine.native
+            if (engine != null) {
+                val most = engine.most()
+                if (memory > most) throw tooMuch(memory, most, engine.mostSaid)
+                return derive(memory, most, engine.mostSaid) {
+                    engine.hash(composite, salt, parameters, LENGTH, checkpoint)
+                }
             }
+            val most = AppMemory.most()
+            if (memory > most - HEADROOM) throw tooMuch(memory, most, HEAP)
+            return derive(memory, most, HEAP) { Argon2Hash.hash(composite, salt, parameters, LENGTH, checkpoint) }
         }
 
-        private fun tooMuch(memory: Long, most: Long) = KdbxException.NotEnoughMemory(
-            "Argon2 memory of ${KdfLimits.size(memory.toULong())}, more than the ${KdfLimits.size(most.toULong())} this phone gives Keething",
+        private inline fun derive(memory: Long, most: Long, mostSaid: String, hash: () -> ByteArray): ByteArray = try {
+            hash()
+        } catch (_: IllegalArgumentException) {
+            throw KdbxException.Corrupt("Argon2 parameters")
+        } catch (_: OutOfMemoryError) {
+            throw tooMuch(memory, most, mostSaid)
+        }
+
+        private fun tooMuch(memory: Long, most: Long, mostSaid: String) = KdbxException.NotEnoughMemory(
+            "Argon2 memory of ${KdfLimits.size(memory.toULong())}, more than the ${KdfLimits.size(most.toULong())} $mostSaid",
         )
 
         private companion object {
             /** What the rest of the app needs beside Argon2's memory while a database opens. */
             const val HEADROOM = 48L shl 20
+
+            const val HEAP = "this phone gives Keething"
+
+            /** KDBX 4's derived key. */
+            const val LENGTH = 32
         }
     }
 }

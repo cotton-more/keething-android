@@ -56,6 +56,8 @@ abstract class BuildInfo : DefaultTask() {
 android {
     namespace = "dev.keething.android"
     compileSdk = 37
+    // The NDK core/argon2 is built with, which also strips its library here.
+    ndkVersion = libs.versions.ndk.get()
 
     defaultConfig {
         applicationId = "dev.keething.android"
@@ -146,6 +148,8 @@ dependencies {
     implementation(project(":core:autofill"))
     implementation(project(":core:generator"))
     implementation(project(":core:sharing"))
+    // The native Argon2 (keething-spec unlock.faster-argon2): the reference C, CC0 / Apache 2.0, `assets/licenses`.
+    implementation(project(":core:argon2"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
