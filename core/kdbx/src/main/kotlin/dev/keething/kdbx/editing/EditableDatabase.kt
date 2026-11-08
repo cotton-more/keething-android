@@ -32,15 +32,24 @@ public class EditableDatabase internal constructor(
      */
     public val document: KdbxDocument,
     root: XElement,
-    /** The inner header's attachments in file order; the entries' `Ref`s point into it. */
-    public val binaries: List<Secret>,
-    internal val binaryFlags: List<Byte>,
+    binaries: List<Secret>,
+    binaryFlags: List<Byte>,
     template: KdbxTemplate,
     /** The derived key that opened the file (keething-spec kdbx.hardening AC1): [write] seals with it, [readBack] opens with it. */
     private var derived: DerivedKey,
 ) {
     /** The format it is written in: as read, until [changeKey] gives its key derivation a new salt. */
     internal var template: KdbxTemplate = template
+        private set
+
+    /**
+     * The inner header's attachments in file order, the entries' `Ref`s point into it: those read, then the new ones an
+     * edit added (keething-spec edit.attachments AC6), this database's own copies.
+     */
+    public var binaries: List<Secret> = binaries
+        private set
+
+    internal var binaryFlags: List<Byte> = binaryFlags
         private set
 
     /** The tree, until [writeLast] lets it go. */
@@ -59,7 +68,7 @@ public class EditableDatabase internal constructor(
     public fun apply(edit: VaultEdit, now: Instant): AppliedEdit = when (edit) {
         is VaultEdit.Update -> {
             val location = EntryLifecycle.locate(edit.entryId, root) ?: throw EditException.EntryNotFound()
-            EntryEditing.apply(edit.changes, location.entry, root, now)
+            adding { pool -> EntryEditing.apply(edit.changes, location.entry, root, now, pool) }
             val wanted = edit.changes.group
             if (wanted == null) AppliedEdit(expectedGroupId = null) else move(edit.entryId, EntryLifecycle.uuidText(location.group), wanted, now)
         }
@@ -67,7 +76,7 @@ public class EditableDatabase internal constructor(
             if (EntryLifecycle.locate(edit.entryId, root) != null) throw EditException.EntryExists()
             val destination = GroupLifecycle.resolving(edit.group, root)
             GroupLifecycle.create(destination.newGroups, destination.groupId, root, now)
-            val entry = EntryLifecycle.create(edit.entryId, destination.finalGroupId, edit.fields, root, now)
+            val entry = adding { pool -> EntryLifecycle.create(edit.entryId, destination.finalGroupId, edit.fields, root, now, pool) }
             AppliedEdit(
                 expectedGroupId = destination.finalGroupId,
                 createdGroupIds = destination.newGroups.map(NewGroup::id),
@@ -102,6 +111,17 @@ public class EditableDatabase internal constructor(
         is VaultEdit.NameAndColor -> {
             MetaEditing.nameAndColor(edit, root, now)
             AppliedEdit(expectedGroupId = null)
+        }
+    }
+
+    /** Runs [edit] with the file's attachments, which then hold the new ones it added. */
+    private fun <T> adding(edit: (AttachmentPool) -> T): T {
+        val pool = AttachmentPool(binaries, binaryFlags)
+        try {
+            return edit(pool)
+        } finally {
+            binaries = pool.binaries
+            binaryFlags = pool.flags
         }
     }
 

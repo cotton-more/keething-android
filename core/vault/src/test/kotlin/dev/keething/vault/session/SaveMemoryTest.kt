@@ -82,4 +82,20 @@ class SaveMemoryTest {
         assertEquals(SaveRoom.Near, SaveMemory.judge(file(81), small, pixel6))
         assertEquals(SaveRoom.TooLarge(alone = false), SaveMemory.judge(file(82), small, pixel6))
     }
+
+    // spec: app.large-database/AC4
+    @Test
+    fun anAttachmentOverTenMiBOrOneThatMakesTheRoomWorseAsksFirst() {
+        val enough = SaveRoom.Enough
+        assertEquals(null, SaveMemory.question(mib(10), enough, enough), "10 MiB itself does not")
+        assertEquals(AttachmentQuestion(mib(10) + 1, large = true, room = null), SaveMemory.question(mib(10) + 1, enough, enough))
+        assertEquals(AttachmentQuestion(1000, large = false, room = SaveRoom.Near), SaveMemory.question(1000, enough, SaveRoom.Near))
+        assertEquals(
+            AttachmentQuestion(mib(20), large = true, room = SaveRoom.TooLarge(alone = false)),
+            SaveMemory.question(mib(20), SaveRoom.Near, SaveRoom.TooLarge(alone = false)),
+        )
+        assertEquals(null, SaveMemory.question(1000, SaveRoom.Near, SaveRoom.Near), "near already: a small file is not asked about again")
+        // On the Pixel 6 the 41.4 MiB file with 40 MiB more comes near the limit.
+        assertEquals(SaveRoom.Near, SaveMemory.judge(DatabaseSize(large5000.fileBytes + mib(40), large5000.attachmentBytes + mib(40)), emptyList(), pixel6))
+    }
 }

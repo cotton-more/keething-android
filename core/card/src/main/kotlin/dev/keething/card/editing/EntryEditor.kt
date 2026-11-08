@@ -14,6 +14,7 @@ import dev.keething.card.OneTimeCodes
 import dev.keething.card.SeedPhrase
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.vault.AttachmentChange
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
@@ -206,6 +207,34 @@ public class EntryEditor private constructor(
 
     public fun hasFieldProblems(draft: EntryDraft): Boolean = draft.fields.any { fieldProblem(draft, it) != null }
 
+    // Attachments (keething-spec edit.attachments AC3)
+
+    /** A new attachment in the place of one the entry has (the same name): "replaced", not "new" (the Mac's `replaces`). */
+    public fun replaces(attachment: AttachmentDraft): Boolean = attachment.isNew && original.attachments.any { it.name == attachment.name }
+
+    /**
+     * What is wrong with an attachment's name, shown at its row; null when nothing. The phone names attachments after
+     * their files, so only an entry another app gave two of one name, or none, has a problem here, and only once its
+     * attachments are changed (a list left as it is is not written): Save stays off until one is removed.
+     */
+    public fun attachmentProblem(draft: EntryDraft, attachment: AttachmentDraft): String? {
+        if (shape(draft).attachments == null) return null
+        val name = attachment.name.trim()
+        if (name.isEmpty()) return "Give the attachment a name."
+        return if (draft.attachments.count { it.name.trim() == name } > 1) "Another attachment has this name." else null
+    }
+
+    /** What the attachments' names keep from being saved, for the list under the form: none when nothing. */
+    public fun attachmentProblems(draft: EntryDraft): List<String> {
+        if (shape(draft).attachments == null) return emptyList()
+        val names = draft.attachments.map { it.name.trim() }
+        val same = names.filter { name -> name.isNotEmpty() && names.count { it == name } > 1 }.distinct()
+        return listOfNotNull(
+            "Every attachment needs a name.".takeIf { names.any(String::isEmpty) },
+            "Attachment names must differ: ${same.joinToString(", ")}.".takeIf { same.isNotEmpty() },
+        )
+    }
+
     /** The group the entry is in as loaded (a new entry's: where it started). */
     public val originalGroupId: String get() = if (isNew) start.groupId else original.groupId
 
@@ -237,7 +266,7 @@ public class EntryEditor private constructor(
     public fun canSave(draft: EntryDraft): Boolean {
         // An existing note keeps a text or a title.
         val named = layout == EditorLayout.ENTRY || hasName(draft) || draft.title.isNotBlank()
-        return (if (isNew) hasName(draft) else isDirty(draft) && named) && !hasFieldProblems(draft)
+        return (if (isNew) hasName(draft) else isDirty(draft) && named) && !hasFieldProblems(draft) && attachmentProblems(draft).isEmpty()
     }
 
     // Saving
@@ -262,6 +291,13 @@ public class EntryEditor private constructor(
             expiry = shape.expiry,
             group = if (isNew) null else destination(draft),
             totp = if (!shape.codeChanged) null else draft.code?.config()?.let { TotpChange.Set(it, TotpSetup.otpauthUri(it, savedTitle(draft), draft.username)) } ?: TotpChange.Remove,
+            // A new one's content is copied: the change is wiped once saved, the draft keeps its own for another try.
+            attachments = shape.attachments?.let {
+                draft.attachments.map { attachment ->
+                    val name = attachment.name.trim()
+                    attachment.content?.let { AttachmentChange.Add(name, it.copy()) } ?: AttachmentChange.Keep(attachment.original ?: name, name)
+                }
+            },
         )
     }
 
@@ -306,9 +342,16 @@ public class EntryEditor private constructor(
         val tags: List<String>?,
         val expiry: EntryChanges.Expiry?,
         val codeChanged: Boolean,
+        val attachments: List<AttachmentText>?,
     )
 
     private data class FieldText(val name: String, val value: String, val isProtected: Boolean)
+
+    /** An attachment as saved: its name in the file (null: new) and its name afterwards; a new one is itself ([id]). */
+    private data class AttachmentText(val original: String?, val name: String, val id: Int? = null)
+
+    /** The attachments as loaded: each kept under its own name. */
+    private val loadedAttachments = original.attachments.map { AttachmentText(it.name, it.name.trim()) }
 
     private fun shape(draft: EntryDraft): Shape {
         val fields = draft.fields.filterNot { it.isBlank }.map { FieldText(it.name.trim(), it.value, it.isProtected) }
@@ -331,6 +374,9 @@ public class EntryEditor private constructor(
             tags = tags.takeIf { it != original.tags },
             expiry = if (draft.expires != original.expires || moved) EntryChanges.Expiry(draft.expires, draft.expiryTime.takeIf { draft.expires }) else null,
             codeChanged = codeChanged(draft),
+            // Only a list that differs from the entry's (AC4).
+            attachments = draft.attachments.map { AttachmentText(it.original, it.name.trim(), if (it.isNew) it.id else null) }
+                .takeIf { it != loadedAttachments },
         )
     }
 
@@ -427,6 +473,9 @@ public class EntryEditor private constructor(
             is TotpSetupException.Unsupported -> "This code cannot be used here: ${problem.reason}."
         }
 
+        /** The largest file attached (keething-spec edit.attachments AC2; the Mac's): 64 MiB. */
+        public const val MAXIMUM_ATTACHMENT_SIZE: Long = 64L shl 20
+
         /** The most codes added at once (a page of backup codes has 8–16). */
         public const val MAXIMUM_PASTED_CODES: Int = 50
 
@@ -444,6 +493,7 @@ public class EntryEditor private constructor(
                 notes = entry.notes, notesProtected = entry.notesProtected, tags = entry.tags, fields = fields,
                 expires = entry.expires, expiryTime = entry.expiryTime ?: aYearAfter(now), groupId = entry.groupId,
                 code = entry.totp?.let(CodeDraft::of),
+                attachments = entry.attachments.mapIndexed { i, attachment -> AttachmentDraft(i + 1, attachment.name, attachment.name, attachment.size) },
             )
             val layout = if (entry.isNote) EditorLayout.NOTE else EditorLayout.ENTRY
             return EntryEditor(entry, isNew = false, start = draft, groups = emptyList(), layout = layout, openedAt = now, dates = dates)

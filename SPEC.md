@@ -47,7 +47,7 @@ Goals (v1)
   ("Templates · another app's forms, not listed", its count), nothing to tap; no group is made, moved or renamed in or
   into it, nor is it changed or deleted (`EntryLifecycle.isInTemplates`), and a save writes it back as it was.
 - Copy any field; the clipboard is marked sensitive and cleared after 30 s.
-- Attachments: open and save a copy. One-time codes: show and copy, and set them up in the editor (keething-spec edit.one-time-code).
+- Attachments: open and save a copy; add, rename and remove them in the editor (keething-spec edit.attachments). One-time codes: show and copy, and set them up in the editor (keething-spec edit.one-time-code).
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
   warning.
 - Share entries encrypted for one phone (§10): the other side asks with a request, the answer opens only there;
@@ -459,8 +459,8 @@ their types, tags, expiry), a new entry at the end of a group's entries, an entr
 an entry deleted for good (`VaultEdit.DeleteForGood`: from the bin, or any entry when the bin is turned off; with its
 history, a `DeletedObjects` record, and its attachments nothing else uses dropped as every write drops them; keething-spec
 edit.delete-for-good), an entry's one-time code set, changed or removed (`EntryChanges.totp`; the editor's, §6.2, and
-an entry received, §10). History, attachments, renaming tags and the
-recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
+an entry received, §10), an entry's attachments added, renamed and removed (`EntryChanges.attachments`, below; the
+editor's, §6.2). History, renaming tags and the recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
 `VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
 made, moved, deleted when empty; keething-spec `plans/done/android-groups.md` AG1, AG2). The editor makes an entry's move
 and its new groups (the group picker, §6.2; AG4), the received entries' screen new groups (§10), the card's Move to
@@ -475,6 +475,18 @@ code takes the entry's own format; for an entry without one, the format most of 
 unpadded), `TimeOtp-Length`, `TimeOtp-Period` and `TimeOtp-Algorithm`, all four. A code its format cannot hold
 (KeePass: more than 8 digits; `TOTP Settings`: SHA-256 or SHA-512) is written as `otp`. The fields go where the
 entry's first code field was, else after its other fields; the save's check reads the code back from whichever.
+
+Attachments (keething-spec edit.attachments; the Mac's `EntryEditing.setAttachments`, Mac SPEC §3.18): the entry's
+`Binary` items become the list asked for (`AttachmentChange.Keep` an attachment of the entry, under its own name or another
+(the Mac renames; the phone does not), `AttachmentChange.Add` a new content, also in a replaced one's place), in that order, after its fields; a kept one keeps its element, its `Ref`
+untouched. The old version in the history keeps its own items, so it still refers to the old attachments, and a content
+only it holds stays in the file: removing an attachment makes the file smaller only once the history is trimmed past it
+(`HistoryMaxItems`), as in KeePassXC; the advice of a database too large says so. A new content goes into the inner header with the protected flag (0x01), as KeePassXC
+writes every attachment, unless the same bytes are there already, which it then shares (`AttachmentPool.add`); the file
+takes a copy, the change's own is wiped after the save. An attachment to keep that is not on the entry refuses the save
+before anything changes (`EditException.AttachmentNotFound`; the entry as loaded had it, so this is a fault, said as the
+check's). The check expects the names and sizes asked, and reads each of the edited entry's attachments back: a kept one
+must hold the bytes it held, a new one its content (`SaveCheck.verifyAttachmentContents`).
 
 Title, UserName, Password and URL are written protected when their value was, or when `Meta/MemoryProtection` says
 so (keething-spec kdbx.round-trip AC6, edit.save-entry AC4): an edit never writes a protected value in the clear (the
@@ -674,7 +686,11 @@ limit with it: keep the others locked). A read-only database shows a pencil cros
 dot (keething-spec databases.read-only-mark; §6.2, Databases). Its advice:
 alone, keep large files outside the database (its attachments the most of it) or split it in two; beside others, lock
 them. A save that runs out of memory all the same writes nothing and says to lock the other databases, then to keep
-large files outside or split it. On the Pixel 6 (2026-11-07, `task large:database`'s files): 41.4 MiB alone saves
+large files outside or split it. Attaching a file asks first (keething-spec app.large-database AC4, with edit.attachments;
+`SaveMemory.question`, `VaultSession.roomWith`): one over 10 MiB, or one that makes the database's room worse, near the
+limit or past the safe line, judged as an unlock judges it with the file and those added in that editor already, beside
+the databases open ("Attach a large file?": how large it is, what it does to the database, the same advice; Attach or
+Don't attach). On the Pixel 6 (2026-11-07, `task large:database`'s files): 41.4 MiB alone saves
 with nothing said; 82.7 MiB alone is near the limit (its save peaked at 366 of 512 MiB, in 7.8 s); the two together,
 whichever opened second is read-only; 100 MiB is read-only alone. Measured besides (2026-11-07): 89.8 MiB alone
 saved at a peak of 386 MiB (8.2 s), 79.5 MiB beside the 41.4 MiB one at 396 MiB (7.1 s), the 41.4 MiB one beside it
@@ -1574,7 +1590,19 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   is removed with the save." with Undo). Saved as KeePassXC writes it, in the entry's own format (§3.3). A further code
   becomes a protected field "One-time code 2" (3, …) holding its link (the title as issuer, the username as account);
   a field holding a code's link shows its live code instead of its value, without a type chip, and is renamed or
-  removed but not edited by hand. The Mac editor's rules (`card/editing`): only what differs
+  removed but not edited by hand. **Attachments** (keething-spec edit.attachments; the Mac's §3.18), after the fields
+  (a note's after its expiry): each attachment a row, its name over its size, NEW for one added or REPLACED for one put
+  in another's place, remove at its end; not renamed (the owner, 2026-11-08: a name comes from its file). **Add files**
+  opens the system's picker for one file or several (any app's documents, a cloud drive's too), each read off the main
+  thread ("Reading the files…", Save waits) and added at the end under its own name; when the entry has that name, a
+  dialog asks: **Replace** (the new file in the old one's place, the old one kept by the entry's history) or **Keep
+  both** (the new one with a number before the extension, "scan 2.pdf"; Back attaches nothing); a folder ("… is a folder; only
+  files can be attached."), a file over 64 MiB (refused before reading when its app says its size, else as soon as more
+  has been read: "… is too big (70 MB); attachments of up to 67 MB can be added.", the system's units) and one that
+  cannot be read are said under the button, the others added; a large one is asked about first (§3.3, the large
+  databases). An attachment without a name or two with one name (only another app's) keep Save off once the
+  attachments are changed, said at the row and in the "Save is off" box. A new file's bytes stay with the editor, wiped when it goes
+  (Back, a save, a lock); the save writes a copy. The Mac editor's rules (`card/editing`): only what differs
   from the entry as loaded is saved; a field left blank is not saved; a field with a value needs a name, not
   one KeePass uses itself and not one another field has, said at the field and in a "Save is off" box; a new
   entry needs a title or a website. **Group** (keething-spec groups.entry-group, groups.new-groups;
@@ -1846,7 +1874,7 @@ list, the search and the history (AN2); a note sent whole (§10); the editor, Ne
 (AN3); where a quick note goes, its editor, its run and the setting (AQ1); Keething note in the share sheet and the
 selection menu (AQ2); where a quick note came from (AQ3); the Quick note tile and the launcher's Note from clipboard
 (AQ4); an independent review, KeePassXC and the Mac on one file by hand (AN4). Not yet: a quick note's Database row
-(app.quick-note AC2, databases.one-list AC5, AC7) and attachments in a note's editor (edit.attachments).
+(app.quick-note AC2, databases.one-list AC5, AC7). A note's editor has attachments since edit.attachments (F18).
 
 **What a note is** (`core/domain` `Entry.isNote`, `EntryType`; the Mac's, SPEC §3.27 there). An entry's kind is one
 item of its `CustomData`, `Keething.EntryType`, beside the field types' (§6.3): after `AutoType`, before `History`,

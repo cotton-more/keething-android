@@ -49,6 +49,32 @@ public data class CodeDraft(
 }
 
 /**
+ * An attachment in the editor (keething-spec edit.attachments; the Mac `AttachmentDraft`): one of the entry's ([original]:
+ * its name in the file), or a new one with its [content]. [id] tells the rows apart. The phone does not rename an
+ * attachment (the owner, 2026-11-08): a name comes from its file. Equal by what it is, a new one's content by identity: the draft is compared on every keystroke, a large file's
+ * bytes are not.
+ */
+public class AttachmentDraft(
+    public val id: Int,
+    public val name: String,
+    /** Its name in the file; null for a new one. */
+    public val original: String?,
+    /** In bytes; null when the file does not say (a reference to no content). */
+    public val size: Int?,
+    /** A new one's bytes: the editor's, wiped when it goes. */
+    public val content: Secret? = null,
+) {
+    public val isNew: Boolean get() = original == null
+
+    override fun equals(other: Any?): Boolean =
+        other is AttachmentDraft && id == other.id && name == other.name && original == other.original && size == other.size && content === other.content
+
+    override fun hashCode(): Int = (id * 31 + name.hashCode()) * 31 + (original?.hashCode() ?: 0)
+
+    override fun toString(): String = "AttachmentDraft($id, $name, ${original ?: "new"}, $size)"
+}
+
+/**
  * The editor's fields as typed (SPEC §6.2; Mac `EntryEditorModel`). Plain strings, as the text fields hold them;
  * [EntryEditor] says what is wrong with a draft and what saving it changes.
  */
@@ -76,6 +102,8 @@ public data class EntryDraft(
     val newGroups: List<String> = emptyList(),
     /** The entry's own one-time code; null: none. Further codes are custom fields holding their links. */
     val code: CodeDraft? = null,
+    /** The attachments in order: the entry's (perhaps renamed) and new ones (keething-spec edit.attachments). */
+    val attachments: List<AttachmentDraft> = emptyList(),
 ) {
     /** Where the entry goes, as the group picker says it. */
     val group: GroupChoice get() = GroupChoice(groupId, newGroups)
@@ -122,6 +150,46 @@ public data class EntryDraft(
         val time = expiryTime.atZone(zone).toLocalTime()
         return copy(expires = true, expiryTime = day.atTime(time).atZone(zone).toInstant())
     }
+
+    // Attachments (keething-spec edit.attachments; Mac SPEC §3.18)
+
+    /**
+     * A file's [content] added at the end (AC1), named [wanted] or, when an attachment has that name, with a number
+     * before the extension (`scan 2.pdf`); a file without a name is an "Attachment". The draft holds [content] from now on.
+     */
+    public fun addAttachment(wanted: String, content: Secret): EntryDraft =
+        copy(attachments = attachments + AttachmentDraft(nextAttachmentId(), freeAttachmentName(wanted), original = null, size = content.size, content = content))
+
+    /**
+     * The attachment [id] replaced by a file's [content] under its name, in its place (keething-spec edit.attachments; the
+     * phone asks Replace or Keep both when a file's name is taken): a new one, the entry's old one removed with the save
+     * (its old version in the history keeps it).
+     */
+    public fun replaceAttachment(id: Int, content: Secret): EntryDraft {
+        val next = nextAttachmentId()
+        return copy(attachments = attachments.map { if (it.id == id) AttachmentDraft(next, it.name.trim(), original = null, size = content.size, content = content) else it })
+    }
+
+    public fun removeAttachment(id: Int): EntryDraft = copy(attachments = attachments.filter { it.id != id })
+
+    /** The attachment that already has the name a file named [wanted] would get; null when that name is free. */
+    public fun attachmentNamed(wanted: String): AttachmentDraft? = attachments.firstOrNull { it.name.trim() == attachmentName(wanted) }
+
+    /** The name a file named [wanted] is added under ([addAttachment]): its own, or numbered when taken. */
+    public fun freeAttachmentName(wanted: String): String {
+        val name = attachmentName(wanted)
+        val taken = attachments.map { it.name.trim() }.toSet()
+        if (name !in taken) return name
+        // A leading dot (".env") is the name, not an extension.
+        val dot = name.lastIndexOf('.').takeIf { it > 0 } ?: name.length
+        val stem = name.substring(0, dot)
+        val extension = name.substring(dot)
+        return generateSequence(2) { it + 1 }.map { "$stem $it$extension" }.first { it !in taken }
+    }
+
+    private fun attachmentName(wanted: String): String = wanted.trim().ifEmpty { "Attachment" }
+
+    private fun nextAttachmentId(): Int = (attachments.maxOfOrNull { it.id } ?: 0) + 1
 
     // Tags (Mac SPEC §3.24)
 

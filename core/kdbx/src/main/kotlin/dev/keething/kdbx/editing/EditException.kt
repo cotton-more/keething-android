@@ -41,6 +41,9 @@ public sealed class EditException(message: String) : Exception(message) {
      */
     public class BreaksFormat(public val what: String) : EditException("breaks the format: $what")
 
+    /** An attachment the edit keeps is not on the entry (keething-spec edit.attachments). */
+    public class AttachmentNotFound : EditException("an attachment to keep is gone")
+
     /** The document lacks what every KeePass file has (`Meta`, the root group). */
     public class Malformed(detail: String) : EditException("malformed: $detail")
 }

@@ -22,6 +22,13 @@ public sealed interface SaveRoom {
     public data class TooLarge(val alone: Boolean) : SaveRoom
 }
 
+/**
+ * Why adding an attachment asks first (keething-spec app.large-database AC4): it is [large] (over
+ * [SaveMemory.LARGE_ATTACHMENT]), and/or it takes the database to [room], worse than before (near the limit, or past
+ * the line where a save is safe); null when it does not.
+ */
+public data class AttachmentQuestion(val bytes: Long, val large: Boolean, val room: SaveRoom?)
+
 /** An open database as [SaveMemory.judge] counts it: its [size], and whether it may still be saved ([saves]). */
 public data class OpenSize(val size: DatabaseSize, val saves: Boolean)
 
@@ -44,6 +51,24 @@ public object SaveMemory {
 
     /** From this share a save is not safe: read-only (the owner, 2026-11-07: "calmer so"). */
     public const val SAFE: Double = 0.90
+
+    /** An attachment over this asks before it is added (keething-spec app.large-database AC4): 10 MiB. */
+    public const val LARGE_ATTACHMENT: Long = 10L shl 20
+
+    /**
+     * Whether adding [bytes] asks first (AC4): over [LARGE_ATTACHMENT], or when the database's room with it ([after]) is
+     * worse than without it ([before]). A database near the limit already is not asked again for each small file.
+     */
+    public fun question(bytes: Long, before: SaveRoom, after: SaveRoom): AttachmentQuestion? {
+        val worse = after.takeIf { rank(it) > rank(before) }
+        return if (bytes > LARGE_ATTACHMENT || worse != null) AttachmentQuestion(bytes, bytes > LARGE_ATTACHMENT, worse) else null
+    }
+
+    private fun rank(room: SaveRoom): Int = when (room) {
+        SaveRoom.Enough -> 0
+        SaveRoom.Near -> 1
+        is SaveRoom.TooLarge -> 2
+    }
 
     /** What the app holds with [open] databases open, and what a save of [saving] needs over it, in bytes. */
     public fun need(saving: DatabaseSize, open: List<DatabaseSize>): Long =

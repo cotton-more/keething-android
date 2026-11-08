@@ -24,6 +24,21 @@ internal class AttachmentPool(binaries: List<Secret>, flags: List<Byte>) {
     private val digests = IdentityHashMap<Secret, String>()
 
     /**
+     * The index of [content] in the pool (keething-spec edit.attachments AC6): an attachment with the same bytes when
+     * there is one, else a copy of it at the end with the protected flag, as KeePassXC writes every attachment.
+     * [content] stays the caller's.
+     */
+    fun add(content: Secret): Int {
+        val digest = sha256(content)
+        binaries.indices.firstOrNull { digest(binaries[it]) == digest && binaries[it].hasSameBytes(content) }?.let { return it }
+        val copy = content.copy()
+        digests[copy] = digest
+        binaries = binaries + copy
+        flags = flags + PROTECTED_FLAG
+        return binaries.lastIndex
+    }
+
+    /**
      * Drops the attachments nothing refers to, stores identical contents once, and renumbers the references; the
      * rest keep their order. Leaves everything as it is when a reference is not a valid index (nothing to
      * renumber safely). Dropped attachments are not wiped here: they are the caller's.
@@ -56,6 +71,9 @@ internal class AttachmentPool(binaries: List<Secret>, flags: List<Byte>) {
     }
 
     companion object {
+        /** The inner header's flag of a protected attachment (bit 0). */
+        const val PROTECTED_FLAG: Byte = 0x01
+
         /** Every `Value` element that refers to an attachment, in document order. */
         fun references(root: XElement): List<XElement> {
             val found = mutableListOf<XElement>()

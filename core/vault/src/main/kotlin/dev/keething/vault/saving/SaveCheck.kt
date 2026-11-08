@@ -1,8 +1,11 @@
 package dev.keething.vault.saving
 
+import dev.keething.domain.secret.Secret
 import dev.keething.domain.text.TextFolding
 import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.text.XmlText
+import dev.keething.domain.vault.Attachment
+import dev.keething.domain.vault.AttachmentChange
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
@@ -14,6 +17,7 @@ import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.creating.NewDatabase
 import dev.keething.kdbx.editing.AppliedEdit
+import dev.keething.kdbx.xml.KdbxDocument
 import dev.keething.totp.TotpResolver
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -57,6 +61,32 @@ internal object SaveCheck {
         // What the save says it deleted (groups.entry-group AC7) is what went.
         val gone = before.groups.map { it.id }.toSet() - after.groups.map { it.id }.toSet()
         if (applied.deletedGroupIds.toSet() != gone || applied.deletedGroupIds.size != gone.size) fail("the groups deleted are not those reported")
+    }
+
+    /**
+     * The edited entry's attachments hold exactly the bytes asked for (keething-spec edit.attachments AC5, AC6; the Mac
+     * `verifyAttachmentContents`): a kept one what it held in [before], whose `Ref`s point into [file]; a new one its
+     * content. [after]'s `Ref`s point into [written]. The names and sizes are [verify]'s.
+     */
+    fun verifyAttachmentContents(edit: VaultEdit, before: KdbxDocument, file: List<Secret>, after: KdbxDocument, written: List<Secret>) {
+        val (id, changes) = when (edit) {
+            is VaultEdit.Update -> edit.entryId to edit.changes.attachments
+            is VaultEdit.Create -> edit.entryId to edit.fields.attachments
+            else -> return
+        }
+        if (changes == null) return
+        fun refs(document: KdbxDocument): Map<String, Int?> =
+            document.entries.firstOrNull { it.uuid == id }?.attachments.orEmpty().reversed().associate { it.name to it.ref }
+        val old = refs(before)
+        val new = refs(after)
+        for (change in changes) {
+            val content = new[XmlText.writable(change.name)]?.let(written::getOrNull) ?: fail("an attachment is missing")
+            val expected = when (change) {
+                is AttachmentChange.Keep -> old[change.from]?.let(file::getOrNull) ?: fail("an attachment to keep is gone")
+                is AttachmentChange.Add -> change.content
+            }
+            if (!content.hasSameBytes(expected)) fail("an attachment's content differs")
+        }
     }
 
     /**
@@ -367,6 +397,17 @@ internal object SaveCheck {
             expected = expected.copy(expires = expiry.expires)
             expiry.time?.let { expected = expected.copy(expiryTime = seconds(it)) }
         }
+        changes.attachments?.let { attachments ->
+            val sizes = expected.attachments.reversed().associate { it.name to it.size }
+            expected = expected.copy(
+                attachments = attachments.map { change ->
+                    when (change) {
+                        is AttachmentChange.Keep -> Attachment(change.name, sizes[change.from])
+                        is AttachmentChange.Add -> Attachment(change.name, change.content.size)
+                    }
+                },
+            )
+        }
         when (val totp = changes.totp) {
             // The format the code is written in is the writer's choice: its fields are taken as written, the code compared.
             is TotpChange.Set -> expected = expected.copy(totp = totp.config, hasCodeFields = true, codeFields = written?.codeFields.orEmpty())
@@ -400,6 +441,7 @@ internal object SaveCheck {
             CustomField(XmlText.writable(field.name), value)
         },
         tags = tags.map(XmlText::writable).filter { it.isNotEmpty() },
+        attachments = attachments.map { it.copy(name = XmlText.writable(it.name)) },
     )
 
     /** Every entry by id: those outside the bin, the settings entry, those in the bin and the templates. */

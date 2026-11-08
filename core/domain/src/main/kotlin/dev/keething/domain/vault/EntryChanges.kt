@@ -33,6 +33,11 @@ public data class EntryChanges(
     val tags: List<String>? = null,
     val expiry: Expiry? = null,
     /**
+     * The attachments as they should be afterwards, in order (keething-spec edit.attachments; Mac SPEC §3.18): kept ones,
+     * perhaps renamed, and new ones; those missing from it are removed.
+     */
+    val attachments: List<AttachmentChange>? = null,
+    /**
      * The one-time code (Mac SPEC §3.23): set (every code field removed, then written in the entry's format or the
      * database's, [TotpFormat.forNewCode]), removed, or its fields put back as they were ([TotpChange.Fields]).
      */
@@ -56,6 +61,7 @@ public data class EntryChanges(
         customFields?.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
         (totp as? TotpChange.Set)?.config?.secret?.wipe()
         (totp as? TotpChange.Fields)?.fields?.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
+        attachments?.forEach { (it as? AttachmentChange.Add)?.content?.wipe() }
     }
 
     public companion object {
@@ -67,6 +73,23 @@ public data class EntryChanges(
 
         /** Keys that are not custom fields: the standard ones and the one-time code's. */
         public val RESERVED_FIELD_NAMES: Set<String> = STANDARD_KEYS.toSet() + TOTP_FIELD_NAMES
+    }
+}
+
+/** One attachment of an entry after an edit (Mac `AttachmentChange`; keething-spec edit.attachments). */
+public sealed interface AttachmentChange {
+    /** The name it has afterwards. */
+    public val name: String
+
+    /** The attachment called [from] stays, called [name] (the same: unchanged). */
+    public data class Keep(val from: String, override val name: String) : AttachmentChange
+
+    /**
+     * A new attachment. [content] is wiped with the change ([EntryChanges.wipe]); the file takes a copy of its own. It is a
+     * secret although the file it came from lies unencrypted on the phone: once in the database it is one of its attachments.
+     */
+    public data class Add(override val name: String, val content: Secret) : AttachmentChange {
+        override fun toString(): String = "Add($name, ${content.size} bytes)"
     }
 }
 

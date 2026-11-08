@@ -383,6 +383,17 @@ public class VaultSession(
         scope.launch(io) { runCatching { store.stoppedSaveSaid() } }
     }
 
+    /**
+     * The room a save would have with [added] bytes of new attachments in the database, beside the databases open now
+     * (keething-spec app.large-database AC4): its file and attachments grown by them, judged as an unlock judges it
+     * ([SaveRoom]). [SaveRoom.Enough] when no one judges (a single session); null when not unlocked.
+     */
+    public fun roomWith(added: Long): SaveRoom? {
+        val unlocked = mutableState.value as? SessionState.Unlocked ?: return null
+        val judge = judgeRoom ?: return SaveRoom.Enough
+        return judge(DatabaseSize(unlocked.size.fileBytes + added, unlocked.size.attachmentBytes + added))
+    }
+
     /** The app said that a save is near the memory's limit ([SaveRoom.Near]): said again at the next unlock. */
     public fun nearLimitSaid() {
         val unlocked = mutableState.value as? SessionState.Unlocked ?: return

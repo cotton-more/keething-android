@@ -1,6 +1,7 @@
 package dev.keething.android.session
 
 import dev.keething.vault.opening.DatabaseSize
+import dev.keething.vault.session.AttachmentQuestion
 import dev.keething.vault.session.SaveRoom
 
 /**
@@ -44,6 +45,26 @@ internal object SizeTexts {
         "This database is open to read only: too large for this phone to save safely. Nothing was saved." +
             if (alone) "" else " Lock the other databases to change it."
 
+    /**
+     * Asked before [name] is attached (keething-spec app.large-database AC4): how large it is ([size], in the system's
+     * units as the editor's rows show it), what it does to the database [fileName] (its room with it,
+     * [AttachmentQuestion.room], when worse), and the same advice. The user may attach it.
+     */
+    fun largeAttachment(name: String, size: String, question: AttachmentQuestion, fileName: String): String {
+        val what = when (val room = question.room) {
+            SaveRoom.Near -> "With it, a save of $fileName takes most of the memory this phone gives Keething: it still saves, but not much larger."
+            is SaveRoom.TooLarge -> if (room.alone) {
+                "With it, this phone does not give Keething enough memory to save $fileName safely: the save may fail, and " +
+                    "from the next unlock it opens to read only."
+            } else {
+                "With it, this phone does not give Keething enough memory to save $fileName safely beside the other open " +
+                    "databases: lock them before you save."
+            }
+            SaveRoom.Enough, null -> "Every unlock and every save of $fileName reads and writes all of it: large files make it slower and take memory."
+        }
+        return "$name is $size. $what Keep large files outside the database, or split it into two databases."
+    }
+
     /** A save that ran out of memory all the same. */
     const val OUT_OF_MEMORY: String =
         "Not enough memory to write the database. Nothing was saved. Lock the other open databases and try again; " +
@@ -56,8 +77,8 @@ internal object SizeTexts {
 
     private fun advice(size: DatabaseSize): String =
         if (size.attachmentBytes * 2 >= size.fileBytes) {
-            "To make it smaller, keep large files outside the database (remove the attachments in KeePassXC on a computer) " +
-                "or split it into two databases."
+            "To make it smaller, keep large files outside the database or split it into two databases. An attachment " +
+                "removed stays in its entry's history until KeePassXC on a computer clears that."
         } else {
             "To make it smaller, split it into two databases, or remove old history in KeePassXC on a computer."
         }

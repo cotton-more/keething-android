@@ -3,6 +3,7 @@ package dev.keething.android.session
 import dev.keething.android.editor.describe
 import dev.keething.vault.opening.DatabaseSize
 import dev.keething.vault.saving.SaveFailure
+import dev.keething.vault.session.AttachmentQuestion
 import dev.keething.vault.session.SaveRoom
 import java.io.File
 import kotlin.test.Test
@@ -19,8 +20,8 @@ class SizeTextsTest {
         assertEquals(
             "This phone does not give Keething enough memory to save large.kdbx safely, so it is open to read only: you " +
                 "can read and copy from it, not change it. It is 87\u00A0MiB; its attachments are 80\u00A0MiB. To make it " +
-                "smaller, keep large files outside the database (remove the attachments in KeePassXC on a computer) or " +
-                "split it into two databases.",
+                "smaller, keep large files outside the database or split it into two databases. An attachment removed " +
+                "stays in its entry's history until KeePassXC on a computer clears that.",
             SizeTexts.tooLarge("large.kdbx", attachments, alone = true),
         )
     }
@@ -80,6 +81,27 @@ class SizeTextsTest {
             "Not enough memory to write the database. Nothing was saved. Lock the other open databases and try again; if " +
                 "it still fails, keep large files outside the database or split it into two.",
             SaveFailure.OutOfMemory.describe(file),
+        )
+    }
+
+    // spec: app.large-database/AC4
+    @Test
+    fun aLargeAttachmentIsAskedAboutWithWhatItDoesAndTheSameAdvice() {
+        val advice = " Keep large files outside the database, or split it into two databases."
+        assertEquals(
+            "scan.mov is 42 MB. Every unlock and every save of Family.kdbx reads and writes all of it: large files make it " +
+                "slower and take memory." + advice,
+            SizeTexts.largeAttachment("scan.mov", "42 MB", AttachmentQuestion(40 * mib, large = true, room = null), "Family.kdbx"),
+        )
+        assertEquals(
+            "a.pdf is 2.1 MB. With it, a save of Family.kdbx takes most of the memory this phone gives Keething: it still " +
+                "saves, but not much larger." + advice,
+            SizeTexts.largeAttachment("a.pdf", "2.1 MB", AttachmentQuestion(2 * mib, large = false, room = SaveRoom.Near), "Family.kdbx"),
+        )
+        assertEquals(
+            "a.pdf is 2.1 MB. With it, this phone does not give Keething enough memory to save Family.kdbx safely beside " +
+                "the other open databases: lock them before you save." + advice,
+            SizeTexts.largeAttachment("a.pdf", "2.1 MB", AttachmentQuestion(2 * mib, large = false, room = SaveRoom.TooLarge(alone = false)), "Family.kdbx"),
         )
     }
 }

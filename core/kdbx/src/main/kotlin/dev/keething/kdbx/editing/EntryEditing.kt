@@ -3,6 +3,7 @@ package dev.keething.kdbx.editing
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.text.XmlText
 import dev.keething.domain.totp.TotpFormat
+import dev.keething.domain.vault.AttachmentChange
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.EntryFieldTypes
@@ -34,12 +35,20 @@ internal object EntryEditing {
         return root.first("Root")?.let(::search)
     }
 
-    /** A move ([EntryChanges.group]) is not an edit of the entry: [EntryLifecycle.moveEntry] does it. */
-    fun apply(changes: EntryChanges, entry: XElement, root: XElement, now: Instant) {
+    /**
+     * A move ([EntryChanges.group]) is not an edit of the entry: [EntryLifecycle.moveEntry] does it. New attachments go
+     * into [pool] (keething-spec edit.attachments AC6): changes without them need none.
+     */
+    fun apply(changes: EntryChanges, entry: XElement, root: XElement, now: Instant, pool: AttachmentPool? = null) {
         val fields = changes.fieldChanges
         if (fields.isEmpty) return
+        if (pool == null && fields.attachments.orEmpty().any { it is AttachmentChange.Add }) {
+            throw EditException.Malformed("new attachments need the file's attachments")
+        }
+        // An attachment to keep that is not there fails before anything changes.
+        fields.attachments?.let { checkKept(it, entry) }
         snapshotIntoHistory(entry, historyMaxItems(root))
-        write(fields, entry, root, now)
+        write(fields, entry, root, now, pool)
     }
 
     /**
@@ -49,7 +58,7 @@ internal object EntryEditing {
      * UserName and URL are one line each: what XML 1.0 cannot hold is left out of them whether protected or not
      * (kdbx.hardening AC7), so the save's check knows what the file holds.
      */
-    fun write(changes: EntryChanges, entry: XElement, root: XElement, now: Instant) {
+    fun write(changes: EntryChanges, entry: XElement, root: XElement, now: Instant, pool: AttachmentPool? = null) {
         val protection = memoryProtection(root)
         fun protects(key: String): Boolean =
             protection.getValue(key) || strings(entry).firstOrNull { it.second == key }?.first?.first("Value")?.secret != null
@@ -77,6 +86,7 @@ internal object EntryEditing {
             null -> {}
         }
         changes.tags?.let { setTags(it, entry) }
+        changes.attachments?.let { setAttachments(it, entry, pool) }
         changes.totp?.let { setTotp(it, entry, root) }
 
         val times = child("Times", entry)
@@ -187,6 +197,48 @@ internal object EntryEditing {
             }
             val value = element.first("Value") ?: XElement("Value").also(element::append)
             setValue(value, copyOf(field.value))
+            entry.insertAfter(element, previous)
+            previous = element
+        }
+    }
+
+    /** Throws [EditException.AttachmentNotFound] when an attachment to keep is not on the entry. */
+    private fun checkKept(attachments: List<AttachmentChange>, entry: XElement) {
+        val names = entry.all("Binary").map { it.first("Key")?.text ?: "" }.toSet()
+        attachments.filterIsInstance<AttachmentChange.Keep>().firstOrNull { it.from !in names }?.let { throw EditException.AttachmentNotFound() }
+    }
+
+    /**
+     * The entry's `Binary` items become exactly [attachments], in that order, after its fields, KeePassXC's place
+     * (keething-spec edit.attachments AC5; the Mac `setAttachments`): a kept one keeps its element (renamed if asked), a
+     * new one refers to its content in [pool]. The history keeps its own elements, so the old version still refers to
+     * the old attachments.
+     */
+    private fun setAttachments(attachments: List<AttachmentChange>, entry: XElement, pool: AttachmentPool?) {
+        checkKept(attachments, entry)
+        val existing = entry.all("Binary")
+        val byName = LinkedHashMap<String, XElement>()
+        existing.forEach { byName.putIfAbsent(it.first("Key")?.text ?: "", it) }
+        val elements = attachments.map { attachment ->
+            when (attachment) {
+                is AttachmentChange.Keep -> byName.getValue(attachment.from).also { element ->
+                    if (attachment.name != attachment.from) {
+                        val key = element.first("Key") ?: XElement("Key").also { element.insertBefore(it, element.elements.firstOrNull()) }
+                        key.text = attachment.name
+                    }
+                }
+                is AttachmentChange.Add -> {
+                    val index = checkNotNull(pool) { "new attachments need the file's attachments" }.add(attachment.content)
+                    XElement("Binary").apply {
+                        append(XElement("Key", attachment.name))
+                        append(XElement("Value").apply { setAttribute("Ref", index.toString()) })
+                    }
+                }
+            }
+        }
+        existing.forEach(entry::remove)
+        var previous = strings(entry).lastOrNull()?.first ?: entry.first("Times")
+        for (element in elements) {
             entry.insertAfter(element, previous)
             previous = element
         }

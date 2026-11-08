@@ -345,6 +345,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 after = VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
                 try {
                     SaveCheck.verify(before, after, edit, applied, now, groups(editable.document), groups(reread.document), notes)
+                    SaveCheck.verifyAttachmentContents(edit, editable.document, editable.binaries, reread.document, reread.binaries)
                 } catch (failure: SaveCheck.Failed) {
                     throw Refused(SaveFailure.VerificationFailed(failure.detail))
                 }
@@ -524,6 +525,8 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         is EditException.GroupNameTaken -> SaveFailure.GroupNameTaken
         is EditException.GroupNotChangeable -> SaveFailure.GroupNotChangeable
         is EditException.GroupNotEmpty -> SaveFailure.GroupNotEmpty
+        // The entry as loaded had it, or the save would have been refused as changed elsewhere.
+        is EditException.AttachmentNotFound -> SaveFailure.VerificationFailed("an attachment to keep is gone")
     }
 
     /** A save that wrote nothing, and why. */

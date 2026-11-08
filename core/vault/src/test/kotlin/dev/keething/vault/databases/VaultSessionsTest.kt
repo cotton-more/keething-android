@@ -297,6 +297,25 @@ class VaultSessionsTest {
         assertEquals(0, store.replaced, "nothing written")
     }
 
+    // spec: app.large-database/AC4
+    @Test
+    fun theRoomWithNewAttachmentsIsJudgedWithTheFileGrownByThemBesideTheOthersOpen() = runTest {
+        val f = Fixture(this)
+        val p = f.add("/a/p.kdbx")
+        val w = f.add("/a/w.kdbx")
+        assertNull(f.session(p).roomWith(10), "not unlocked")
+        unlock(f, p)
+        unlock(f, w)
+        val pSize = assertIs<SessionState.Unlocked>(f.state(p)).size
+        val wSize = assertIs<SessionState.Unlocked>(f.state(w)).size
+        f.room = { size -> if (size.fileBytes > wSize.fileBytes + 1000) SaveRoom.Near else SaveRoom.Enough }
+
+        assertEquals(SaveRoom.Enough, f.session(w).roomWith(1000))
+        assertEquals(SaveRoom.Near, f.session(w).roomWith(1001))
+        assertEquals(DatabaseSize(wSize.fileBytes + 1001, wSize.attachmentBytes + 1001), f.judged.last().first)
+        assertEquals(listOf(OpenSize(pSize, saves = true)), f.judged.last().second, "beside the other one open, not itself")
+    }
+
     @Test
     fun theOneOpenedLaterIsJudgedBesideTheOpenOnesWhichKeepWhatTheyWereJudged() = runTest {
         val f = Fixture(this)

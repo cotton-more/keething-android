@@ -1,7 +1,14 @@
 package dev.keething.android.editor
 
 import dev.keething.android.session.file
+import android.net.Uri
 import android.util.Log
+import dev.keething.android.attachment.NewAttachments
+import dev.keething.android.attachment.PickedFile
+import dev.keething.domain.secret.Secret
+import dev.keething.android.session.SizeTexts
+import dev.keething.vault.session.SaveMemory
+import kotlinx.coroutines.CompletableDeferred
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -47,6 +54,17 @@ internal sealed interface SavePhase {
 
     data class Failed(val problem: String) : SavePhase
 }
+
+/** What a file picked asks before it is attached. */
+internal sealed interface AttachQuestion {
+    /** Large, or it makes a save's room worse (keething-spec app.large-database AC4): [text] says how and what to do. */
+    data class Large(val text: String) : AttachQuestion
+
+    /** The entry has an attachment [name] already: Replace it, or Keep both, the new one as [other]. [inHistory]: the entry's own, kept by its history. */
+    data class SameName(val name: String, val other: String, val inHistory: Boolean) : AttachQuestion
+}
+
+internal enum class AttachAnswer { ATTACH, REPLACE, KEEP_BOTH, SKIP }
 
 /**
  * What a new entry's editor needs of the open databases (keething-spec databases.one-list AC4–AC6): them as they
@@ -134,6 +152,23 @@ internal class EntryEditorViewModel(
     var phase: SavePhase by mutableStateOf(SavePhase.Editing)
         private set
 
+    /** Files being read to be attached: Save waits for them. */
+    var readingFiles: Boolean by mutableStateOf(false)
+        private set
+
+    /** Why the files last picked were not all attached (keething-spec edit.attachments AC2); null when they were. */
+    var attachmentProblem: String? by mutableStateOf(null)
+        private set
+
+    /** Every file's content read for this editor, removed again or not: wiped when it goes. */
+    private val readContents = mutableListOf<Secret>()
+
+    /** What a file read asks before it is attached; null when nothing. */
+    var attachQuestion: AttachQuestion? by mutableStateOf(null)
+        private set
+
+    private var attachAnswer: CompletableDeferred<AttachAnswer>? = null
+
     /** Whether the draft stays as the open databases change: its own database locking takes it, a save in flight not. */
     private val follower = DraftFollower()
 
@@ -178,10 +213,90 @@ internal class EntryEditorViewModel(
         }
     }
 
+    /**
+     * The files picked attached in their order (keething-spec edit.attachments AC1, AC2), each read by [files] off the main
+     * thread; a folder, one too big or one that cannot be read is said instead.
+     */
+    fun addFiles(uris: List<Uri>, files: NewAttachments) {
+        if (uris.isEmpty() || readingFiles || phase != SavePhase.Editing) return
+        readingFiles = true
+        attachmentProblem = null
+        viewModelScope.launch {
+            val problems = mutableListOf<String>()
+            try {
+                for (uri in uris) {
+                    when (val picked = withContext(Dispatchers.IO) { files.read(uri) }) {
+                        is PickedFile.Read -> {
+                            readContents += picked.content
+                            attach(picked, files)
+                        }
+                        is PickedFile.Refused -> problems += picked.problem
+                    }
+                }
+            } finally {
+                attachmentProblem = problems.joinToString(" ").ifEmpty { null }
+                readingFiles = false
+            }
+        }
+    }
+
+    /**
+     * [picked] attached, asked first when it is over 10 MiB or makes the database's room for a save worse, the files
+     * already added in this editor counted (keething-spec app.large-database AC4); then, when the entry has an attachment
+     * of its name, whether it replaces that one or is kept beside it, numbered (keething-spec edit.attachments AC1; the
+     * owner, 2026-11-08). Not attached, its content is wiped.
+     */
+    private suspend fun attach(picked: PickedFile.Read, files: NewAttachments) {
+        val content = picked.content
+        val session = database.session
+        val added = draft.attachments.sumOf { it.content?.size?.toLong() ?: 0L }
+        val bytes = content.size.toLong()
+        val before = session.roomWith(added)
+        val after = session.roomWith(added + bytes)
+        val large = if (before != null && after != null) SaveMemory.question(bytes, before, after) else null
+        if (large != null) {
+            val text = SizeTexts.largeAttachment(picked.name.ifBlank { "The file" }, files.sizeText(bytes), large, database.file.name)
+            if (ask(AttachQuestion.Large(text)) != AttachAnswer.ATTACH) return content.wipe()
+        }
+        val same = draft.attachmentNamed(picked.name)
+        if (same == null) {
+            draft = draft.addAttachment(picked.name, content)
+            return
+        }
+        val question = AttachQuestion.SameName(same.name.trim(), draft.freeAttachmentName(picked.name), inHistory = same.original != null)
+        draft = when (ask(question)) {
+            AttachAnswer.REPLACE -> draft.replaceAttachment(same.id, content)
+            AttachAnswer.KEEP_BOTH -> draft.addAttachment(picked.name, content)
+            AttachAnswer.ATTACH, AttachAnswer.SKIP -> return content.wipe()
+        }
+    }
+
+    private suspend fun ask(question: AttachQuestion): AttachAnswer {
+        val answer = CompletableDeferred<AttachAnswer>()
+        attachAnswer = answer
+        attachQuestion = question
+        try {
+            return answer.await()
+        } finally {
+            attachQuestion = null
+            attachAnswer = null
+        }
+    }
+
+    /** The answer to [attachQuestion]. */
+    fun answer(answer: AttachAnswer) {
+        attachAnswer?.complete(answer)
+    }
+
+    override fun onCleared() {
+        readContents.forEach(Secret::wipe)
+        readContents.clear()
+    }
+
     fun save() {
         val editor = editor ?: return
         val database = database
-        if (!editor.canSave(draft) || phase == SavePhase.Saving) return
+        if (!editor.canSave(draft) || phase == SavePhase.Saving || readingFiles) return
         val edit = editor.edit(draft)
         val pending = database.session.save(edit)
         if (pending == null) {

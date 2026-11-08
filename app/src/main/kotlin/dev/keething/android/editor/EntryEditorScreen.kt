@@ -13,6 +13,15 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.material.icons.rounded.AttachFile
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
+import android.text.format.Formatter
+import dev.keething.android.attachment.NewAttachments
 import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.FitText
 import dev.keething.android.ui.keepOutOfAutofill
@@ -229,6 +238,8 @@ internal fun EntryEditorScreen(
     // A new entry's editor is its own whichever database it started in: it may have moved to another (Save into).
     val model = viewModel(key = if (entryId == null) "editor/new/$showing" else "editor/${database.number}/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill, places, note) }
     val editor = model.editor
+    val context = LocalContext.current
+    val newAttachments = remember { NewAttachments(context) }
     LaunchedEffect(editor == null) { if (editor == null) onClose() }
     if (editor == null) return
     val draft = model.draft
@@ -243,6 +254,29 @@ internal fun EntryEditorScreen(
             is SavePhase.Saved -> {}
             is SavePhase.Failed -> model.keepEditing()
         }
+    }
+    when (val question = model.attachQuestion) {
+        is AttachQuestion.Large -> AlertDialog(
+            onDismissRequest = { model.answer(AttachAnswer.SKIP) },
+            title = { Text("Attach a large file?") },
+            text = { Text(question.text) },
+            confirmButton = { TextButton(onClick = { model.answer(AttachAnswer.ATTACH) }) { Text("Attach") } },
+            dismissButton = { TextButton(onClick = { model.answer(AttachAnswer.SKIP) }) { Text("Don't attach") } },
+        )
+        // Back or a tap outside attaches nothing.
+        is AttachQuestion.SameName -> AlertDialog(
+            onDismissRequest = { model.answer(AttachAnswer.SKIP) },
+            title = { Text("“${question.name}” is attached already") },
+            text = {
+                Text(
+                    "Replace it with the new file, or keep both, the new one as “${question.other}”?" +
+                        if (question.inHistory) " A replaced attachment stays in the entry's history." else "",
+                )
+            },
+            confirmButton = { TextButton(onClick = { model.answer(AttachAnswer.REPLACE) }) { Text("Replace") } },
+            dismissButton = { TextButton(onClick = { model.answer(AttachAnswer.KEEP_BOTH) }) { Text("Keep both") } },
+        )
+        null -> {}
     }
     if (confirmingDiscard) {
         AlertDialog(
@@ -276,7 +310,7 @@ internal fun EntryEditorScreen(
                         }
                     },
                     actions = {
-                        Button(onClick = save, enabled = editor.canSave(draft) && phase == SavePhase.Editing, modifier = Modifier.padding(end = 8.dp)) {
+                        Button(onClick = save, enabled = editor.canSave(draft) && phase == SavePhase.Editing && !model.readingFiles, modifier = Modifier.padding(end = 8.dp)) {
                             Text("Save")
                         }
                     },
@@ -305,7 +339,9 @@ internal fun EntryEditorScreen(
                         { SaveInto(it, model.offered, model.notOpen, enabled = phase == SavePhase.Editing, onChoose = model::saveInto) }
                     }
                     CompositionLocalProvider(LocalSecretCopy provides copySecret) {
-                        EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto, model.groups, model::choose)
+                        EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto, model.groups, model::choose) {
+                            AttachmentsSection(editor, draft, model::update, model.readingFiles, model.attachmentProblem) { uris -> model.addFiles(uris, newAttachments) }
+                        }
                     }
                 }
             }
@@ -326,6 +362,8 @@ private fun EditorForm(
     saveInto: (@Composable () -> Unit)?,
     groups: GroupTree?,
     onGroup: (GroupChoice) -> Unit,
+    /** The Attachments section, after the fields. */
+    attachments: @Composable () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         saveInto?.invoke()
@@ -378,14 +416,51 @@ private fun EditorForm(
         }
     }
     ExpiryRow(draft, update)
-    if (!editor.showsCustomFields) return
+    if (editor.showsCustomFields) CustomFieldsSection(editor, draft, update, addCodes, generator)
+    attachments()
 
+    val problems = draft.fields.mapNotNull { editor.fieldProblem(draft, it) }.distinct() + editor.attachmentProblems(draft)
+    AnimatedVisibility(problems.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.errorContainer)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+            Text(
+                "Save is off. " + problems.joinToString(" "),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+        }
+    }
+}
+
+/** A section's title: Fields, Attachments. */
+@Composable
+private fun SectionTitle(text: String) {
     Text(
-        "Fields",
-        Modifier.padding(start = 8.dp, top = 16.dp),
+        text,
+        Modifier.padding(start = 8.dp, top = 16.dp).semantics { heading() },
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
     )
+}
+
+/** The custom fields, Add field and its dialogs. */
+@Composable
+private fun CustomFieldsSection(
+    editor: EntryEditor,
+    draft: EntryDraft,
+    update: (EntryDraft) -> Unit,
+    addCodes: (text: String, prefix: String) -> String?,
+    generator: () -> PasswordGeneratorState,
+) {
+    SectionTitle("Fields")
     // A field just added: its value takes the focus and the form scrolls to it.
     var focusing by remember { mutableStateOf<Int?>(null) }
     CustomFields(editor, draft, update, generator, focusing, onFocused = { focusing = null })
@@ -422,24 +497,66 @@ private fun EditorForm(
             onDone = { addingCode = false },
         )
     }
+}
 
-    val problems = draft.fields.mapNotNull { editor.fieldProblem(draft, it) }.distinct()
-    AnimatedVisibility(problems.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
-        Row(
+/**
+ * The entry's attachments (keething-spec edit.attachments; Mac SPEC §3.18): each with its size as the card shows it,
+ * NEW or REPLACED, and remove; not renamed (the owner, 2026-11-08: a name comes from its file). Add files opens the
+ * system's picker for one file or several (AC1); why a file was not attached is said under the button (AC2).
+ */
+@Composable
+private fun AttachmentsSection(
+    editor: EntryEditor,
+    draft: EntryDraft,
+    update: (EntryDraft) -> Unit,
+    reading: Boolean,
+    problem: String?,
+    onFiles: (List<Uri>) -> Unit,
+) {
+    SectionTitle("Attachments")
+    val context = LocalContext.current
+    for (attachment in draft.attachments) {
+        val wrong = editor.attachmentProblem(draft, attachment)
+        Column(
             Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(MaterialTheme.colorScheme.errorContainer)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                .background(MaterialTheme.extraColors.row)
+                .then(if (wrong != null) Modifier.border(2.dp, MaterialTheme.colorScheme.error, RoundedCornerShape(18.dp)) else Modifier)
+                .padding(4.dp),
         ) {
-            Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-            Text(
-                "Save is off. " + problems.joinToString(" "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-            )
+            Row(Modifier.heightIn(min = 56.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                    Text(attachment.name, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            attachment.size?.let { Formatter.formatShortFileSize(context, it.toLong()) } ?: "No content",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (attachment.isNew) NewBadge(if (editor.replaces(attachment)) "REPLACED" else "NEW")
+                    }
+                }
+                IconButton(onClick = { update(draft.removeAttachment(attachment.id)) }) {
+                    Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove attachment ${attachment.name}".trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (wrong != null) {
+                Row(Modifier.padding(start = 12.dp, bottom = 8.dp, end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Rounded.ErrorOutline, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                    Text(wrong, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments(), onFiles)
+    FilledTonalButton(onClick = { pick.launch(arrayOf("*/*")) }, enabled = !reading) {
+        ButtonLabel(if (reading) "Reading the files…" else "Add files", Icons.Rounded.AttachFile, iconSize = 18.dp, gap = 8.dp)
+    }
+    if (problem != null) {
+        Row(Modifier.padding(start = 8.dp, end = 8.dp).semantics { liveRegion = LiveRegionMode.Polite }, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.extraColors.warn)
+            Text(problem, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.extraColors.warn)
         }
     }
 }
@@ -852,11 +969,11 @@ private fun GroupRow(tree: GroupTree, editor: EntryEditor, draft: EntryDraft, jo
     }
 }
 
-/** A level made with the save. */
+/** A level made with the save; an attachment added ([text] NEW) or put in another's place (REPLACED). */
 @Composable
-private fun NewBadge() {
+private fun NewBadge(text: String = "NEW") {
     Text(
-        "NEW",
+        text,
         Modifier
             .padding(start = 6.dp)
             .clip(RoundedCornerShape(10.dp))

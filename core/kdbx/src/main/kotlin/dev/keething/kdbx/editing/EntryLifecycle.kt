@@ -69,8 +69,8 @@ internal object EntryLifecycle {
 
     // Changes
 
-    /** Adds a new entry with [fields] at the end of the group's entries. */
-    fun create(entryId: String, groupId: String, fields: EntryChanges, root: XElement, now: Instant): XElement {
+    /** Adds a new entry with [fields] at the end of the group's entries; its new attachments go into [pool]. */
+    fun create(entryId: String, groupId: String, fields: EntryChanges, root: XElement, now: Instant, pool: AttachmentPool? = null): XElement {
         if (locate(entryId, root) != null) throw EditException.EntryExists()
         val group = groupId.takeIf { it.isNotEmpty() }?.let { group(it, root)?.last() } ?: throw EditException.GroupNotFound()
         val iso = usesIsoTimes(root)
@@ -100,7 +100,7 @@ internal object EntryLifecycle {
         entry.append(autoType)
         entry.append(XElement("History"))
 
-        EntryEditing.write(fields, entry, root, now)
+        EntryEditing.write(fields, entry, root, now, pool)
         insertEntry(entry, group)
         touch(group, now, iso)
         return entry
