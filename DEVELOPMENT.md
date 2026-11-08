@@ -124,7 +124,7 @@ keething-spec app.large-database (plans/android-large-database.md there): how fa
 database unlocks, searches, opens a card and saves.
 
     task large:database -- large-5000.kdbx                     # 5,000 entries, 40 MiB of attachments, Argon2 64 MiB × 2
-    task large:database -- large-10000.kdbx 10000 80           # the 87 MiB one
+    task large:database -- large-10000.kdbx 10000 80           # 82.7 MiB
     task large:save -- 512m <copy.kdbx> [beside.kdbx or -] [saves]   # on the Mac: unlock and saves within a JVM heap
 
 The generator's content is the same each time (a fixed seed), password `pw`. `task large:save` changes the copy; it
@@ -132,18 +132,44 @@ prints the times and fails with `OutOfMemory` when the heap given is too small (
 save needs on a JVM; the phone needs somewhat more). `memoryBudgetTest` in core:vault, run by `task test`, keeps a
 40 MiB database's unlock and saves within 224 MiB (it needs about 200).
 
-On the phone (the Pixel 6): push the files to a folder the app has, say `adb push large-5000.kdbx /sdcard/Documents/Large/`,
-and add it in the app. Then:
+### Before each release (app.large-database AC6)
 
-    task apk:timings                                  # a release build that keeps Log.i's timing lines, installed
-    adb logcat -c; adb logcat -s Session List Card    # unlock, search, open a card, save a change
-    adb shell dumpsys meminfo dev.keething.android | grep -E "Java Heap|TOTAL PSS"   # sampled while it runs
+AC1–AC3 measured on the Pixel 6 with the release build's code; the numbers go into the release's checks
+(keething-spec plans/android-release-1.0.md T11 for 1.0). A budget missed blocks the release, or is written there with
+the owner's word. About half an hour.
 
-`Session` says "unlocked: N entries, key derived in … ms" and "save done/failed in … ms", `List` "listing prepared in …"
-and "search of N characters in … ms", `Card` "built in … ms". The screens are captured black (`FLAG_SECURE`): drive them
-through `adb shell uiautomator dump` and taps. A measurement build (`-Pkeething.timings`) is never shipped:
-`tools/build-apk.sh` builds without it unless `--timings`, which only installs. Put the release build back afterwards
-(`task apk:install`). The numbers go into the plan's §1 and the release's checks.
+    task large:files                 # the four files made into build/large (a fixed seed) and pushed to Documents/Large
+    task apk:timings                 # the release build keeping Log.i's timing lines, installed
+    task large:measure               # the timing run: drive the scenarios below, Lock all between them, Ctrl-C
+    task large:measure -- --heap     # the heap run: scenarios 1-3 again, with the Java heap sampled
+    task apk:install                 # the release build back
+
+`large:files` makes only the files not in build/large yet (`-- --fresh` makes them again) and replaces the phone's
+copies, so lock the app first; add each file once in the app (Open other… › Documents/Large), password `pw`. The
+scenarios, each from the lock screen (check only the databases named, in this order):
+
+1. large-5000 alone: type a search of eight characters and back, open a few cards, save three changes (a card's
+   ⋮ › Move to the recycle bin is one). AC1's budgets: listed within 3 s of Unlock, a keystroke within 100 ms, a card
+   within 300 ms, a save within 4 s.
+2. large-90 (89.8 MiB) alone: near the limit, OK; save two changes (AC2).
+3. large-5000 then large-80 (79.5 MiB): both changeable, large-80 near the limit; save a change in each (AC2).
+4. large-100 (100.1 MiB) alone: read-only, said; a change tried is stopped (AC3).
+5. large-5000 then large-90: large-90 read-only because of large-5000 (AC3).
+
+Ctrl-C ends a run, keeps its log in build/large (`task large:summary -- <log>` prints it again) and prints each
+scenario: its databases (the log names them by an id; the summary by their size, the build/large file of that size),
+how AC3 judged each (`room`: Enough, Near, TooLarge(alone=true/false); an OK on the near-the-limit banner logs
+Enough), unlock, listing, searches, cards, saves, and the heap at each save's peak in the heap run. It judges AC1's
+budgets where large-5000 is alone and fails a save that failed anywhere; its exit status is 1 then. The heap is
+`dumpsys meminfo`'s Dalvik Heap *Heap Alloc* of the 512 MiB, sampled about every 0.3 s: each sample makes the app
+collect its garbage, so the heap run's times are not judged. AC2 holds when every save in 2 and 3 is done; the
+peaks against the earlier ones (plan §1) say whether the room is shrinking.
+
+The screens are captured black (`FLAG_SECURE`): drive them by hand, or through `adb shell uiautomator dump` and taps.
+The timing lines, all removed from a release build with every `Log.i`: `Session` "<id> unlocking", "<id> unlocked: N
+entries, key derived in … ms, … MiB, room …" and "<id> save done/failed in … ms", `List` "listing prepared in …" and
+"search of N characters in … ms", `Card` "built in … ms". A measurement build (`-Pkeething.timings`) is never shipped:
+`tools/build-apk.sh` builds without it unless `--timings`, which only installs.
 
 ## Stopping a save in the middle on the phone
 

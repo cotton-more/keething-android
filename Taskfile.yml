@@ -143,6 +143,22 @@ tasks:
         [[ "$out" == /* ]] || out="{{.USER_WORKING_DIR}}/$out"
         ./gradlew -q --console=plain :core:kdbx:makeLargeDatabase -Parguments="$out $*"
 
+  large:files:
+    desc: "The release measurement's databases (AC1's 5,000, 90, 80 and 100 MiB) made into build/large and pushed to the phone's Documents/Large: task large:files -- [--fresh] (lock the app first)"
+    cmds:
+      - tools/large-measure.py files {{.CLI_ARGS}}
+
+  large:measure:
+    desc: "The release measurement with the measurement build (task apk:timings): follows the timing lines while the screens are driven, Ctrl-C prints each scenario against AC1's budgets: task large:measure -- [--heap] (DEVELOPMENT.md)"
+    interactive: true
+    cmds:
+      - tools/large-measure.py measure {{.CLI_ARGS}}
+
+  large:summary:
+    desc: "A kept measurement log printed again: task large:summary -- build/large/measure-<when>.log"
+    cmds:
+      - tools/large-measure.py summary {{.CLI_ARGS}}
+
   large:save:
     desc: "A large database's unlock and saves within a JVM heap: task large:save -- <heap, e.g. 400m> <copy.kdbx> [beside.kdbx or -] [saves] (password pw; the copy is changed)"
     silent: true
