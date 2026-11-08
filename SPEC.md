@@ -67,13 +67,18 @@ Writing comes after them (ROADMAP step 7) and must be done before a Google Play 
   (a password without an entry, copied).
 
 Non-goals (v1): SSH agent, e-mail aliases,
-reports (but Groups & tags), restoring a version from the history, YubiKey, Twofish, emptying the recycle bin at once (an entry is deleted for good one at a time, §6.2), adding / removing / renaming
-attachments, reordering custom fields, a Quick Settings tile for codes (Quick note's is §6.4), a one-time code pinned to the notification
+reports (but Groups & tags), YubiKey, Twofish, emptying the recycle bin at once (an entry is deleted for good one at a time, §6.2),
+reordering custom fields, a Quick Settings tile for codes (Quick note's is §6.4), a one-time code pinned to the notification
 shade (dropped: the list's code button and the code copied after autofill do that job, and it would need a
 foreground service for little gain), an entry pinned to the notification shade with Copy username / password /
 code (dropped 2026-10-22: doable without a service, but it saves only a switch back to the app, whose card
 stays open until the lock, autofill covers most logins, and it needs the notification permission; worth it
 only for frequent copying into apps autofill does not reach), Google Play (§8.1).
+
+The app stands on its own (the owner, 2026-11-08; keething-spec plans/android-release-1.0.md D5): nothing in 1.0 sends
+the user to a computer for what the phone lacks. So changing the master key, the database's name and colour, resolving a
+conflict copy, adding, renaming and removing attachments, restoring a version and the backups seen and restored are
+planned for 1.0, no longer non-goals.
 
 Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
 databases side by side (in: the list, one list over several open, the chooser and one fingerprint for several,
