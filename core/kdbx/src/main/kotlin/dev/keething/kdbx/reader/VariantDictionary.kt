@@ -24,6 +24,14 @@ internal class VariantDictionary private constructor(private val values: LinkedH
     /** The keys in the order they were read. */
     fun keys(): List<String> = values.keys.toList()
 
+    /** Written again in the order read, its other items as they were, [key]'s bytes now [value] (an item of its own). */
+    fun replacingBytes(key: String, value: ByteArray): ByteArray {
+        require(values[key]?.type == BYTES) { "no bytes under $key" }
+        val writer = Writer()
+        for ((name, item) in values) writer.item(item.type, name, if (name == key) value else item.data)
+        return writer.finish()
+    }
+
     /** Writes one in the order of the calls, as KeePass's `VariantDictionary.Serialize` does (version 1.0). */
     class Writer {
         private val out = ByteArrayOutputStream().apply { write(0x00); write(0x01) }
@@ -36,7 +44,7 @@ internal class VariantDictionary private constructor(private val values: LinkedH
 
         fun finish(): ByteArray = out.apply { write(0) }.toByteArray()
 
-        private fun item(type: Int, key: String, value: ByteArray): Writer = apply {
+        internal fun item(type: Int, key: String, value: ByteArray): Writer = apply {
             val name = key.encodeToByteArray()
             out.write(type)
             out.write(Bytes.le32(name.size))

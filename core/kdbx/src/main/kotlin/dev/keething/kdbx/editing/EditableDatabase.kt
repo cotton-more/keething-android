@@ -18,6 +18,7 @@ import dev.keething.kdbx.tree.XmlTree
 import dev.keething.kdbx.writer.KdbxWriter
 import dev.keething.kdbx.writer.PlainPayload
 import dev.keething.kdbx.xml.KdbxDocument
+import java.security.SecureRandom
 import java.time.Instant
 
 /**
@@ -34,10 +35,14 @@ public class EditableDatabase internal constructor(
     /** The inner header's attachments in file order; the entries' `Ref`s point into it. */
     public val binaries: List<Secret>,
     internal val binaryFlags: List<Byte>,
-    internal val template: KdbxTemplate,
+    template: KdbxTemplate,
     /** The derived key that opened the file (keething-spec kdbx.hardening AC1): [write] seals with it, [readBack] opens with it. */
-    private val derived: DerivedKey,
+    private var derived: DerivedKey,
 ) {
+    /** The format it is written in: as read, until [changeKey] gives its key derivation a new salt. */
+    internal var template: KdbxTemplate = template
+        private set
+
     /** The tree, until [writeLast] lets it go. */
     private var tree: XElement? = root
 
@@ -94,6 +99,10 @@ public class EditableDatabase internal constructor(
             GroupLifecycle.deleteEmpty(edit.groupId, root, now)
             AppliedEdit(expectedGroupId = null, deletedGroupIds = listOf(edit.groupId))
         }
+        is VaultEdit.NameAndColor -> {
+            MetaEditing.nameAndColor(edit, root, now)
+            AppliedEdit(expectedGroupId = null)
+        }
     }
 
     /**
@@ -111,6 +120,26 @@ public class EditableDatabase internal constructor(
             destination = destination,
             deletedGroupIds = emptied,
         )
+    }
+
+    /**
+     * Makes [key] the database's master key (keething-spec databases.change-master-key AC4): its key derivation gets a
+     * new salt, the costs as they were, and the key is derived for it now, so [write] seals with the new key and
+     * [readBack] opens with it alone; `Meta/MasterKeyChanged` is [now], and `MasterKeyChangeForceOnce` (KeePass's "change
+     * it at the next unlock") is done with. [key] stays the caller's; it keeps what was derived for the new file.
+     */
+    public fun changeKey(key: DatabaseKey, now: Instant, random: SecureRandom = SecureRandom()) {
+        val renewed = template.withNewSalt(random)
+        val (transformed, _) = key.transformed(renewed.kdf)
+        val next = try {
+            DerivedKey(renewed.kdf.identity, transformed)
+        } finally {
+            transformed.fill(0)
+        }
+        MetaEditing.masterKeyChanged(root, now)
+        derived.wipe()
+        derived = next
+        template = renewed
     }
 
     /** `Meta/MemoryProtection`'s `ProtectNotes`: the protection Notes take where an entry had none (SPEC §6.4). */

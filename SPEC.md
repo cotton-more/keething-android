@@ -680,6 +680,21 @@ whichever opened second is read-only; 100 MiB is read-only alone. Measured besid
 saved at a peak of 386 MiB (8.2 s), 79.5 MiB beside the 41.4 MiB one at 396 MiB (7.1 s), the 41.4 MiB one beside it
 at 324 MiB.
 
+**A new master key** (keething-spec databases.change-master-key; core/vault `VaultSaver.changeKey`,
+`VaultSession.changeKey`, `CurrentDatabase.changeKey`; §6.2 Change master key): a save like any other (in its turn
+among the saves, backed up, made onto the file as it is then, replaced only while the file is what was read), whose
+change is the key. The file is opened with the key it has, written with the new one and a new 32-byte salt for its
+key derivation (AES-KDF: its seed; the costs and the cipher as they were: `KdbxTemplate.withNewSalt`), `MasterKeyChanged`
+set and a `MasterKeyChangeForceOnce` that asked for it set back (`EditableDatabase.changeKey`); read back with what the
+new key derived for it, nothing else in it changed (`SaveCheck.verifyUnchanged`). A key file alone is KeePass's key of
+the key file only, not an empty password with it. Once saved the session goes on with the new key (a lock gives it up
+as the save's own); the record has the new key file (or none) and whether it opens with the key file alone; the new
+password replaces the stored one for the fingerprint (sealed with the Keystore's public key, no prompt), none with a
+key file alone; it counts as a typed unlock. A save that fails, or a lock before the replace, leaves the file opening
+with the old key, and a key file made for it is removed. Where the database is open with the old key (another phone,
+the Mac) the next reload locks it "Password changed" and a stored password it rejects is deleted (§5). Copies of the
+file made before keep opening with the old key: the app's own backups (§3.3 step 7) too.
+
 ### 3.4 Conflicts
 
 - A `*.sync-conflict-*` copy of a database next to it is shown as a banner of that database (named while two or
@@ -1654,16 +1669,45 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   one with a key file, a fingerprint for one the fingerprint opens); a tap opens **its page**: tile, label, path from
   the shared storage's root, "Changed 2 hours ago" (of a file not found "Not found at …", or without access or kept by
   its path the lock screen's words, with Locate… or Choose its folder…, and "Last opened
-  2 weeks ago" when it was), **Key file** (its name and folder, or "None · It opens with its password alone"; Choose… /
+  2 weeks ago" when it was), **Name and colour** and **Master key** (below; agreed on the canvas "Database name, colour
+  and master key", 2026-11-08), **Key file** (its name and folder, or "None · It opens with its password alone"; Choose… /
   Change…, Forget; "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It
   must be there at every unlock, the fingerprint too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
   **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
+  **Name and colour** (keething-spec databases.rename-recolour): while the database is open and can be changed, the name
+  in a field (the file's `Meta/DatabaseName` as written; under it "Its file stays Work.kdbx.", "Empty: it is called by
+  its file name, Work." or "“Passwords” counts as no name: …"), the palette's nine colours and None (a dashed ring) in two
+  rows of five, the file's colour chosen as its nearest ("Its file's own colour, shown as the nearest of these; it stays
+  as it is until another is chosen."), and Save: only what changed is written, as a change of the file (§3.3: backed up,
+  checked): a name with `DatabaseNameChanged`, a colour as its light dot `#RRGGBB` (none: emptied) with
+  `SettingsChanged`; the root group keeps its name. "Saved into Work.kdbx", or why not; the labels and colours follow at
+  once (§3.1). Locked: "Unlock it to change its name, colour or master key: they are written into its file."; read only,
+  why. **Master key**: "Password", "Password and key file" or "Key file alone", "Changed 14 months ago" (the file's
+  `MasterKeyChanged`, while open), **Change master key…** while it is open and can be changed, and "What opens it on
+  every device. After a leak, change it here: the others then ask for the new one."
   Under the list **Open a database…** (it becomes current; one open stays open, §3.1) and **New database…** (§6.2). Then **Quick notes**: "Quick notes go to", Current database or a database of the
   list with its dot, in a menu, and Add the Quick note tile (§6.4). Then the app's fingerprint switch (§5) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build (the fingerprint spike, and what the storage provider does with names in a folder granted there).
   Last **About**: "Keething for Android 0.0.1 · build 1.", the font's licence, About Keething and Report a problem.
+- **Change master key** (keething-spec databases.change-master-key; agreed on the canvas "Database name, colour and
+  master key", 2026-11-08), from a database's page, over whatever was shown, kept by the app as New database is (a
+  change goes on when the screen is gone; a lock takes the form, with what was typed, unless the change is being
+  written, which the lock stops, §3.3). First the key it is open with: "Current master password" (the eye; nothing
+  typed with a key file: the key file alone), "With its key file, Work.keyx in Keys", Continue; it is compared with
+  the session's key, the key file read again, nothing derived. Not that key: "That is not its master password with
+  Work.keyx. Nothing changed." and nothing more. Then "Its current key, confirmed", **Password**: Keep it / New / None
+  (None only while a key file stays; New: New master password and Again, the strength line and Suggest a passphrase
+  as New database's), **Key file**: Keep Work.keyx / Make a new one… (a folder picker, Documents first; `<Name>.keyx`,
+  `<Name> 2.keyx` when that is taken, never over a file; warned beside the database and in a folder that syncs, "Lose
+  the key file and the database never opens again. Keep a copy apart from it.") / Use one I have… / Remove it (None for
+  a database without). "Every device that opens Work.kdbx will need the new key. The file is backed up first; if
+  anything fails, it stays as it is." **Change master key** writes the file with the new key as one change (§3.3,
+  "A new master key"); then "Master key changed", what it opens with now, that other devices ask for the new key and a
+  fingerprint stored there stops working, and "Copies of the file made before still open with the old key: the backups
+  on this phone and elsewhere, other devices' copies, a sync's old versions (Syncthing's .stversions). After a leak,
+  delete those you can.", Done. Not changed: why, the form as it was; a key file made for it is removed again.
 - **About** (keething-spec app.about; the owner, 2026-11-02): the logo, "Keething", "for Android", then Version "0.0.1 ·
   build 1" (the version code said as a build, the owner), Built "2 November 2026, 20:06" (the phone's time zone) and Commit "becc85f", or "becc85f with uncommitted
   changes", selectable for a bug report; Back returns to what was shown. Reached with every database locked: an ⓘ in

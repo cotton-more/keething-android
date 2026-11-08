@@ -8,6 +8,8 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.NewFile
 import dev.keething.domain.storage.NewFilePlace
 import dev.keething.kdbx.key.DatabaseKey
+import dev.keething.kdbx.key.KeyFile
+import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.biometric.FakePasswordStores
@@ -21,6 +23,7 @@ import dev.keething.vault.session.FakeClock
 import dev.keething.vault.session.FakeKeyFile
 import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.SaveOutcome
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
 import dev.keething.vault.session.VaultSession
@@ -1060,5 +1063,77 @@ class CurrentDatabaseTest {
         assertNull(f.stored(gone.id), "the gone one's stored password went")
         notesFolder.deleteRecursively()
     }
-}
 
+    // Change master key… (keething-spec databases.change-master-key)
+
+    // spec: databases.change-master-key/AC6
+    @Test
+    fun aNewPasswordIsStoredForTheFingerprintAndItCountsAsATypedUnlock() = runTest {
+        val f = Fixture(this)
+        val personal = f.add("/storage/emulated/0/Sync/Personal.kdbx")
+        f.storedPassword("pw")
+        assertTrue(typed(f, "pw"))
+        f.settings.setString(BiometricSetup.lastTypedKey(personal.id), "1")
+
+        val password = Secret.of("a new password")
+        val changed = assertNotNull(f.databases.changeKey(personal.id, password, keyFile = null, keyFileKey = null))
+        password.wipe()
+        runCurrent()
+
+        val result = changed.await()
+        assertIs<SaveOutcome.Saved>(result.outcome)
+        assertNull(result.fingerprintProblem)
+        assertEquals("a new password", f.stored(personal.id), "the new password in place of the old")
+        assertTrue(f.settings.string(BiometricSetup.lastTypedKey(personal.id)) != "1", "its days start again")
+        assertIs<SessionState.Unlocked>(f.shown.state())
+        assertNull(f.list.record(personal.id)!!.keyFile)
+        KdbxReader.open(f.files.getValue("/storage/emulated/0/Sync/Personal.kdbx").content!!, DatabaseKey.of(Secret.of("a new password")))
+    }
+
+    // spec: databases.change-master-key/AC6
+    @Test
+    fun aKeyFileAloneBecomesItsKeyFileAndNothingIsStored() = runTest {
+        val f = Fixture(this)
+        val personal = f.add("/storage/emulated/0/Sync/Personal.kdbx")
+        f.storedPassword("pw")
+        assertTrue(typed(f, "pw"))
+        val keyx = keyFileBytes("keyx.keyx")
+        f.keyFiles["/storage/emulated/0/Documents/Personal.keyx"] = FakeKeyFile(keyx, "Personal.keyx")
+
+        val fileKey = KeyFile.key(keyx)
+        val changed = assertNotNull(
+            f.databases.changeKey(personal.id, password = null, FileLocation.ByPath("/storage/emulated/0/Documents/Personal.keyx"), fileKey),
+        )
+        fileKey.wipe()
+        runCurrent()
+
+        assertIs<SaveOutcome.Saved>(changed.await().outcome)
+        val record = f.list.record(personal.id)!!
+        assertEquals(FileLocation.ByPath("/storage/emulated/0/Documents/Personal.keyx"), record.keyFile)
+        assertTrue(record.isPasswordless, "it opens with its key file alone")
+        assertNull(f.stored(personal.id), "no password to store: the old one went")
+        // Locked and opened again as its lock screen would: nothing typed, the key file read.
+        f.sessions.lockAll(LockReason.Manual)
+        runCurrent()
+        assertTrue(typed(f, ""))
+        assertIs<SessionState.Unlocked>(f.shown.state())
+    }
+
+    // spec: databases.change-master-key/AC5
+    @Test
+    fun aChangeThatFailsLeavesTheRecordAndTheStoredPasswordAsTheyWere() = runTest {
+        val f = Fixture(this)
+        val personal = f.add("/storage/emulated/0/Sync/Personal.kdbx")
+        f.storedPassword("pw")
+        assertTrue(typed(f, "pw"))
+        f.files.getValue("/storage/emulated/0/Sync/Personal.kdbx").change(null, notify = false)
+
+        val password = Secret.of("new")
+        val changed = assertNotNull(f.databases.changeKey(personal.id, password, keyFile = null, keyFileKey = null))
+        runCurrent()
+
+        assertIs<SaveOutcome.Failed>(changed.await().outcome)
+        assertEquals("pw", f.stored(personal.id))
+        assertNull(f.list.record(personal.id)!!.keyFile)
+    }
+}

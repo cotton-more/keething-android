@@ -38,6 +38,7 @@ internal object VaultAssembler {
             customIcons = document.meta.customIcons,
             name = document.meta.databaseName,
             color = document.meta.color.ifEmpty { null },
+            masterKeyChanged = document.meta.masterKeyChanged,
         )
     }
 }

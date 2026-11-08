@@ -12,6 +12,7 @@ import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
+import dev.keething.kdbx.creating.NewDatabase
 import dev.keething.kdbx.editing.AppliedEdit
 import dev.keething.totp.TotpResolver
 import java.time.Instant
@@ -51,6 +52,7 @@ internal object SaveCheck {
         when (edit) {
             is VaultEdit.EntryEdit -> verifyEntry(before, after, edit, applied, now, fileBefore, fileAfter, notes)
             is VaultEdit.GroupEdit -> verifyGroups(before, after, edit, fileBefore, fileAfter)
+            is VaultEdit.NameAndColor -> verifyNameAndColor(before, after, edit, fileBefore, fileAfter)
         }
         // What the save says it deleted (groups.entry-group AC7) is what went.
         val gone = before.groups.map { it.id }.toSet() - after.groups.map { it.id }.toSet()
@@ -222,6 +224,19 @@ internal object SaveCheck {
             }
             is VaultEdit.DeleteForGood -> if (id !in old || id in new) fail("the entry is still there")
         }
+    }
+
+    /**
+     * The database's name and colour (databases.rename-recolour AC1): those as asked, everything else as before.
+     */
+    private fun verifyNameAndColor(before: Vault, after: Vault, edit: VaultEdit.NameAndColor, fileBefore: List<VaultGroup>, fileAfter: List<VaultGroup>) {
+        if (all(before) != all(after)) fail("entries differ")
+        if (fileBefore != fileAfter) fail("the groups changed")
+        val expected = before.copy(
+            name = edit.name?.let(NewDatabase::databaseName) ?: before.name,
+            color = edit.color?.let { it.ifEmpty { null } } ?: before.color,
+        )
+        if (expected != after) fail("the database's name or colour did not come out as asked")
     }
 
     /**

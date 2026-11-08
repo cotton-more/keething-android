@@ -1,5 +1,7 @@
 package dev.keething.domain.vault
 
+import java.time.Instant
+
 /** The unlocked database's content. */
 public data class Vault(
     /** All entries except those in the recycle bin, history items and the settings entry. */
@@ -30,6 +32,8 @@ public data class Vault(
     val name: String = "",
     /** `Meta/Color` as written (KeePass 2.x writes `#RRGGBB`); null when the file has none. */
     val color: String? = null,
+    /** `Meta/MasterKeyChanged`: when its master key was last changed; null when the file does not say. */
+    val masterKeyChanged: Instant? = null,
 ) {
     /** Overwrites every secret the vault holds (the lock). */
     public fun wipe() {

@@ -4,12 +4,15 @@ import dev.keething.domain.secret.Secret
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.creating.DerivedKey
+import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.SaveOutcome
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
 import dev.keething.domain.storage.StoragePlace
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -123,6 +126,36 @@ public class CurrentDatabase(
         if (sessions.session(id)?.session?.state?.value is SessionState.Locked) sessions.lock(id, LockReason.Initial)
         adoptOldRecords()
     }
+
+    /**
+     * Change master key… (keething-spec databases.change-master-key AC4-AC6): [id]'s open database written with the key
+     * of [password] (null: none) and [keyFileKey], the 32-byte key of the key file at [keyFile] (both null: none; the
+     * one it has, to keep it). Once saved, its record has that key file (reached as [setKeyFile] reaches one) and whether
+     * it opens with the key file alone, and it counts as a typed unlock ([BiometricUnlock.keyChanged]). The caller may
+     * wipe [password] and [keyFileKey] as soon as this returns. How it ended; null when the database is not open.
+     */
+    public fun changeKey(id: DatabaseId, password: Secret?, keyFile: FileLocation?, keyFileKey: Secret?): Deferred<KeyChanged>? {
+        require((keyFile == null) == (keyFileKey == null)) { "a key file comes with its key" }
+        val database = sessions.session(id)?.takeIf { it.session.state.value is SessionState.Unlocked } ?: return null
+        val outcome = database.session.changeKey(DatabaseKey.of(password, keyFileKey)) ?: return null
+        keyFile?.grant?.let(offered)
+        val stored = password?.copy()
+        return scope.async {
+            try {
+                val saved = outcome.await()
+                if (saved !is SaveOutcome.Saved || list.record(id) == null) return@async KeyChanged(saved, null)
+                val reached = (keyFile as? FileLocation.Granted)?.let { list.inGrantedFolder(it.at, prefer = list.record(id)?.file) } ?: keyFile
+                list.update(id) { it.copy(keyFile = reached, opensWithoutPassword = password == null) }
+                adoptOldRecords()
+                KeyChanged(saved, database.biometric.keyChanged(stored))
+            } finally {
+                stored?.wipe()
+            }
+        }
+    }
+
+    /** How [changeKey] ended: the save's [outcome], and why the new password could not be stored for the fingerprint. */
+    public class KeyChanged(public val outcome: SaveOutcome, public val fingerprintProblem: String?)
 
     /**
      * An old record's one question (keething-spec databases.saf AC13): the folder chosen for a database the list kept by

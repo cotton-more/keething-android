@@ -1,8 +1,6 @@
 package dev.keething.android.databases
 
 import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.foundation.text.input.clearText
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -10,10 +8,7 @@ import androidx.compose.runtime.setValue
 import dev.keething.domain.encryption.DatabaseEncryption
 import dev.keething.domain.encryption.MeasuredEncryption
 import dev.keething.domain.secret.Secret
-import dev.keething.generator.PasswordGenerator
-import dev.keething.generator.PasswordStrength
 import dev.keething.generator.RandomSource
-import dev.keething.generator.Strength
 import dev.keething.generator.SystemRandom
 import dev.keething.vault.creating.CreateFailure
 import dev.keething.vault.creating.DerivedKey
@@ -156,11 +151,6 @@ internal class NewDatabaseModel(
     /** A folder of Save in, granted; [note]: "this database’s" for the current one's. */
     data class Folder(val path: String, val title: String, val note: String? = null)
 
-    enum class Match { MATCHES, DIFFERS }
-
-    /** The strength line: 0–4 segments lit, the words, and the verdict. */
-    data class StrengthLine(val level: Int, val text: String, val verdict: Strength)
-
     /** After Create: the app opens it (the list, its session) and the screen closes. */
     var onCreated: suspend (CreatedDatabase) -> Unit = {}
 
@@ -186,18 +176,19 @@ internal class NewDatabaseModel(
     var folders: List<Folder> by mutableStateOf(emptyList())
         private set
 
-    val password = TextFieldState()
-    val again = TextFieldState()
+    /** The master password twice, its strength and a suggested passphrase. */
+    val fields = MasterPasswordFields(random) { listOf(databaseName) }
+
+    val password: TextFieldState get() = fields.password
+    val again: TextFieldState get() = fields.again
 
     /** The eye: both fields in clear. */
-    var reveals: Boolean by mutableStateOf(false)
+    var reveals: Boolean by fields::reveals
 
     /** A passphrase offered, shown once in clear: Another, Use this. */
-    var suggestion: String? by mutableStateOf(null)
-        private set
+    val suggestion: String? get() = fields.suggestion
 
-    var passphraseWords: Int by mutableStateOf(4)
-        private set
+    val passphraseWords: Int get() = fields.passphraseWords
 
     var requiresKeyFile: Boolean by mutableStateOf(false)
         private set
@@ -244,10 +235,6 @@ internal class NewDatabaseModel(
     private fun there(path: String): Boolean = looked.let { files.exists(path) }
 
     private fun folderThere(path: String): Boolean = looked.let { files.isFolder(path) }
-
-    /** A passphrase put in both fields, and its words (its bits are the generator's, not a guess from its letters). */
-    private var used: String? by mutableStateOf(null)
-    private var usedWords = 0
 
     /** A real measurement, which a change of the time alone scales. */
     private var baseline: MeasuredEncryption? = null
@@ -300,61 +287,18 @@ internal class NewDatabaseModel(
     // The key
 
     /** Null while the second field is empty. */
-    val match: Match?
-        get() {
-            val again = again.text
-            if (again.isEmpty()) return null
-            return if (again.toString() == password.text.toString()) Match.MATCHES else Match.DIFFERS
-        }
+    val match: MasterPasswordFields.Match? get() = fields.match
 
     /** Null while nothing is typed. A weak one is allowed, and said (the Mac's D9). */
-    val strength: StrengthLine?
-        get() {
-            val typed = password.text.toString()
-            if (typed.isEmpty()) return null
-            if (used != null && used == typed) {
-                val bits = PasswordGenerator.masterPassphraseEntropy(usedWords)
-                return StrengthLine(if (bits >= 80) 4 else 3, "Strong · $usedWords words, about ${bits.toInt()} bits", Strength.STRONG)
-            }
-            val estimate = PasswordStrength.estimate(typed, listOf(databaseName))
-            return when (estimate.verdict) {
-                Strength.WEAK -> StrengthLine(
-                    1,
-                    "Weak: ${estimate.reasons.firstOrNull() ?: "easy to guess"}. Anyone with the file can try passwords against it.",
-                    Strength.WEAK,
-                )
-                Strength.FAIR -> StrengthLine(2, "Fair: ${estimate.reasons.firstOrNull() ?: "could be longer"}", Strength.FAIR)
-                Strength.STRONG -> StrengthLine(if (estimate.bits >= 80) 4 else 3, "Strong", Strength.STRONG)
-            }
-        }
+    val strength: MasterPasswordFields.StrengthLine? get() = fields.strength
 
-    /** Suggest a passphrase, and Another: [passphraseWords] EFF words, one raised, a digit and a symbol, shown once. */
-    fun suggest() {
-        suggestion = PasswordGenerator.masterPassphrase(passphraseWords, random)
-    }
+    fun suggest() = fields.suggest()
 
-    /** Fewer or more words (3–10): another suggestion of that many. */
-    fun changeWords(count: Int) {
-        val clamped = count.coerceIn(PasswordGenerator.MASTER_PASSPHRASE_WORDS)
-        if (clamped == passphraseWords) return
-        passphraseWords = clamped
-        if (suggestion != null) suggest()
-    }
+    fun changeWords(count: Int) = fields.changeWords(count)
 
-    /** Use this: the passphrase in both fields, the eye open; it goes from the screen, the fields show it. */
-    fun useSuggestion() {
-        val chosen = suggestion ?: return
-        password.setTextAndPlaceCursorAtEnd(chosen)
-        again.setTextAndPlaceCursorAtEnd(chosen)
-        used = chosen
-        usedWords = passphraseWords
-        reveals = true
-        suggestion = null
-    }
+    fun useSuggestion() = fields.useSuggestion()
 
-    fun closeSuggestion() {
-        suggestion = null
-    }
+    fun closeSuggestion() = fields.closeSuggestion()
 
     fun requireKeyFile(on: Boolean) {
         requiresKeyFile = on
@@ -486,11 +430,7 @@ internal class NewDatabaseModel(
             if (fileName != null && fileName.encodeToByteArray().size > 255) why += "The name is too long for a file name: shorten it."
             if (nameIsTaken && fileName != null) why += takenText(fileName)
             if (folder != null && !folderThere(folder)) why += "That folder is not there any more. Choose another."
-            if (password.text.isEmpty()) {
-                why += "Type a master password."
-            } else if (match != Match.MATCHES) {
-                why += if (again.text.isEmpty()) "Type the password again." else "The two passwords differ."
-            }
+            fields.blocker?.let { why += it }
             if (requiresKeyFile && keyFile == null) why += "Make a key file, or choose one you have."
             keyFileProblem?.let { why += it }
             return why
@@ -570,9 +510,7 @@ internal class NewDatabaseModel(
         if (isWriting) return
         measuring?.cancel()
         cancelCreating()
-        suggestion = null
-        password.clearText()
-        again.clearText()
+        fields.clear()
         onClosed()
     }
 
@@ -644,9 +582,7 @@ internal class NewDatabaseModel(
             } finally {
                 fileKey?.wipe()
             }
-            this.password.clearText()
-            again.clearText()
-            used = null
+            fields.clear()
             phase = Phase.Created
             // Made: from here the file is the user's, whatever the app makes of it (it is never removed once made).
             runCatching { onCreated(CreatedDatabase(path, keyFilePath, key, password, useFingerprint, offersFingerprint, locks)) }

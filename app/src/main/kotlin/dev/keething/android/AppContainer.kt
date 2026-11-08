@@ -21,14 +21,19 @@ import dev.keething.android.biometric.KeystorePasswordStores
 import dev.keething.android.clipboard.AndroidSystemClipboard
 import dev.keething.android.clipboard.ClipboardClearAlarm
 import dev.keething.android.clipboard.SensitiveClipboard
+import dev.keething.android.databases.ChangeMasterKeyModel
 import dev.keething.android.databases.CreatingService
 import dev.keething.android.databases.DatabaseText
 import dev.keething.android.databases.FileDatabaseMaking
+import dev.keething.android.databases.GrantedKeyChangeFiles
 import dev.keething.android.databases.GrantedNewDatabaseFiles
 import dev.keething.android.databases.NewDatabasePlaces
 import dev.keething.android.databases.grantedFolders
 import dev.keething.android.databases.NewDatabaseModel
+import dev.keething.android.databases.MasterKeyChanges
 import dev.keething.android.databases.NewDatabases
+import dev.keething.android.databases.marks
+import dev.keething.vault.session.SessionState
 import dev.keething.android.databases.WindowChooser
 import dev.keething.android.generator.PasswordGeneratorState
 import dev.keething.android.list.RecentEntries
@@ -229,6 +234,45 @@ internal class AppContainer(context: Context) {
         return model
     }
 
+    /** Change master key… (SPEC §6.2), over whatever was shown, kept by the app: a change outlives the screen. */
+    val masterKeys: MasterKeyChanges = MasterKeyChanges(::masterKeyForm)
+
+    /**
+     * A form for Change master key… of [id], open: its key file kept, made new or chosen through the folders the list is
+     * reached through and those granted in the form (keething-spec databases.saf AC9); what the form granted and the list
+     * does not take is given back (AC14). Null when it is not open.
+     */
+    private fun masterKeyForm(id: DatabaseId): ChangeMasterKeyModel? {
+        val database = sessions.session(id)?.takeIf { it.session.state.value is SessionState.Unlocked } ?: return null
+        val record = sessions.list.record(id) ?: return null
+        val root = Environment.getExternalStorageDirectory().path
+        val list = sessions.list
+        val places = NewDatabasePlaces(root, list.state.value.grantedFolders().distinctBy { it.grant })
+        val filePath = DatabaseText.pathOf(record.file, root)
+        val label = list.state.value.marks(root)[id]?.label?.full ?: record.displayName
+        val model = ChangeMasterKeyModel(
+            id = id,
+            label = label,
+            fileText = DatabaseText.abbreviated(filePath, root),
+            fileName = record.file.fileName,
+            databaseFolder = File(filePath).parent,
+            currentKeyFile = record.keyFile?.let { keyFile ->
+                ChangeMasterKeyModel.CurrentKeyFile(keyFile.fileName, DatabaseText.folder(DatabaseText.pathOf(keyFile, root), root), keyFile)
+            },
+            confirm = database.session::confirmKey,
+            change = { password, keyFile, keyFileKey -> sessions.databases.changeKey(id, password, keyFile, keyFileKey) },
+            files = GrantedKeyChangeFiles(places, folderOf, keyFiles),
+            look = GrantedNewDatabaseFiles(places, folderOf, appScope, Dispatchers.IO) { file -> fileOf(file.grant)?.isThere() == true },
+            root = root,
+            scope = appScope,
+            io = Dispatchers.IO,
+        )
+        model.folderGranted = { folder -> grantKeeper.taken(folder.grant); places.folderGranted(folder) }
+        model.keyFileGranted = { file -> grantKeeper.taken(file.grant); places.keyFileGranted(file) }
+        model.onClosed = { places.taken.forEach(grantKeeper::offered) }
+        return model
+    }
+
     /** Delete and Restore: saves whose outcome the list shows after the card closed (SPEC §6.2). */
     val recycleBin = RecycleBinMoves(appScope)
 
@@ -330,7 +374,10 @@ internal class AppContainer(context: Context) {
         sessions.databases.adoptOldRecords()
         dealWithLeftovers()
         // A lock takes New database's form, with what was typed, unless it is being created.
-        sessions.locks.onLock = newDatabases::locked
+        sessions.locks.onLock = {
+            newDatabases.locked()
+            masterKeys.locked()
+        }
         clearOnLock()
         followTheLockWithTheRequests()
         keepStoredEntries()

@@ -71,6 +71,7 @@ internal fun unsavedText(changes: List<UnsavedChange>, vault: Vault): String? {
             UnsavedChange.Kind.GROUP_CREATED -> "a new group in ${group(change.id)}"
             UnsavedChange.Kind.GROUP_MOVED -> "moving the group ${group(change.id)}"
             UnsavedChange.Kind.GROUP_DELETED -> "deleting the group ${group(change.id)}"
+            UnsavedChange.Kind.NAME_AND_COLOR -> "the database's new name and colour"
         }
     }.distinct()
     val list = if (what.size == 1) what[0] else what.dropLast(1).joinToString(", ") + " and " + what.last()

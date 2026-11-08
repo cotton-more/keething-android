@@ -58,4 +58,19 @@ public sealed interface VaultEdit {
 
     /** A group with nothing in it, outside the recycle bin, for good. */
     public data class DeleteEmptyGroup(val groupId: String) : GroupEdit
+
+    /**
+     * The database's name and colour (keething-spec databases.rename-recolour): each null when it stays as the file has
+     * it. A [name] is written without its outer spaces, a blank one as none; a [color] is `#RRGGBB`, or "" for none.
+     */
+    public data class NameAndColor(val name: String? = null, val color: String? = null) : VaultEdit {
+        init {
+            require(name != null || color != null) { "nothing to change" }
+            require(color == null || color.isEmpty() || COLOR.matches(color)) { "a colour is #RRGGBB" }
+        }
+
+        private companion object {
+            val COLOR = Regex("#[0-9A-F]{6}")
+        }
+    }
 }

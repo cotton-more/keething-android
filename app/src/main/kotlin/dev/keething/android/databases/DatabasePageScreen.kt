@@ -3,6 +3,29 @@ package dev.keething.android.databases
 import android.os.Environment
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextField
+import androidx.compose.runtime.key
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import dev.keething.android.editor.problem
+import dev.keething.android.session.file
+import dev.keething.android.ui.keepOutOfAutofill
+import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.session.SessionState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -135,8 +158,8 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
 
 /**
  * A database's page (SPEC §6.2): its path and when it changed (or was last opened, when it is not found, with
- * Locate…), its key file (Choose…, Change…, Forget), its Use fingerprint (SPEC §5), and Remove from list…. Each acts at
- * once.
+ * Locate…), its name and colour and its master key while it is open, its key file (Choose…, Change…, Forget), its Use
+ * fingerprint (SPEC §5), and Remove from list…. Each acts at once.
  */
 @Composable
 internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack: () -> Unit) {
@@ -200,6 +223,7 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                 }
             }
         }
+        DatabaseChanges(container, id, line)
         Section("Key file") {
             val key = line.keyFile
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -325,5 +349,172 @@ private fun Section(title: String, content: @Composable () -> Unit) {
     ) {
         Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         content()
+    }
+}
+
+/**
+ * Name and colour, and Master key (keething-spec databases.rename-recolour, databases.change-master-key; agreed on the
+ * canvas "Database name, colour and master key"): both are written into the file, so only while it is open and can be
+ * changed; locked or read only, why.
+ */
+@Composable
+private fun DatabaseChanges(container: AppContainer, id: DatabaseId, line: DatabaseLine) {
+    // A session comes and goes with the window: the page follows the app's state.
+    container.sessions.state.collectAsStateWithLifecycle().value
+    val database = container.sessions.session(id)
+    val state = database?.session?.state?.let { flow -> key(flow) { flow.collectAsStateWithLifecycle().value } }
+    val unlocked = state as? SessionState.Unlocked
+    val readOnly = ReadOnlyReason.of(state)
+    val record = container.sessions.list.record(id)
+    Section("Name and colour") {
+        when {
+            unlocked == null || database == null -> LockedNote("Unlock it to change its name, colour or master key: they are written into its file.")
+            readOnly != null -> LockedNote("${readOnly.say}. Its name, colour and master key can't be changed here.")
+            else -> NameAndColor(database, unlocked, record?.file?.fileName ?: line.name)
+        }
+    }
+    Section("Master key") {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    when {
+                        record?.isPasswordless == true -> "Key file alone"
+                        line.keyFile != null -> "Password and key file"
+                        else -> "Password"
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                unlocked?.vault?.masterKeyChanged?.let {
+                    Text(
+                        "Changed " + DatabaseText.ago(it, Instant.now(), ZoneId.systemDefault()),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        if (unlocked != null && readOnly == null) {
+            FilledTonalButton(onClick = { container.masterKeys.open(id) }) { Text("Change master key…") }
+        }
+        Text(
+            "What opens it on every device. After a leak, change it here: the others then ask for the new one.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun LockedNote(text: String) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** The name in a field, the nine colours and None, Save (keething-spec databases.rename-recolour AC1–AC5). */
+@Composable
+private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unlocked, databaseFile: String) {
+    val vault = unlocked.vault
+    // What the file has; read again once a save (or a reload) brings it.
+    val form = remember(vault.name, vault.color, databaseFile) { NameAndColorForm(vault.name, vault.color, databaseFile) }
+    var name by remember(form) { mutableStateOf(form.fileName) }
+    var color by remember(form) { mutableStateOf(form.fileColorIndex) }
+    var saving by remember { mutableStateOf(false) }
+    var said by remember { mutableStateOf<String?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val edit = form.edit(name, color)
+
+    TextField(
+        value = name,
+        onValueChange = {
+            name = it
+            said = null
+        },
+        modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
+        label = { Text("Name") },
+        placeholder = { Text(databaseFile.substringBeforeLast('.')) },
+        singleLine = true,
+        enabled = !saving,
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+        shape = RoundedCornerShape(20.dp),
+        colors = fieldColors(),
+    )
+    Text(form.nameNote(name), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val choices = DatabasePalette.shades.indices.map<Int, Int?> { it } + null
+    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        choices.chunked(5).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                row.forEach { choice -> ColorChoice(choice, selected = color == choice, enabled = !saving) { color = choice; said = null } }
+            }
+        }
+    }
+    Text(form.colorNote(color), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Button(
+            onClick = {
+                val asked = edit ?: return@Button
+                val pending = database.session.save(asked)
+                if (pending == null) {
+                    said = "The database locked; nothing was saved."
+                    failed = true
+                    return@Button
+                }
+                saving = true
+                scope.launch {
+                    val problem = pending.await().problem(database.file)
+                    saving = false
+                    failed = problem != null
+                    said = problem ?: "Saved into ${database.file.name}"
+                }
+            },
+            enabled = edit != null && !saving,
+        ) { Text(if (saving) "Saving…" else "Save") }
+        said?.let {
+            Text(
+                it,
+                Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    Text(
+        "Written into the file, so KeePassXC, the Mac and your other devices show the same.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** One of the nine colours (its dot), or None (a dashed ring): a ring around the chosen one, a check in it. */
+@Composable
+private fun ColorChoice(index: Int?, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val ring = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .border(2.dp, ring, CircleShape)
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .semantics { contentDescription = index?.let { NameAndColorForm.NAMES[it] } ?: "None: a colour by its place in the list" },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (index != null) {
+            val dot = databaseColors(index).dot
+            Box(Modifier.size(34.dp).clip(CircleShape).background(dot), contentAlignment = Alignment.Center) {
+                if (selected) Icon(Icons.Rounded.Check, contentDescription = null, Modifier.size(18.dp), tint = Color.White)
+            }
+        } else {
+            Box(
+                Modifier.size(34.dp).clip(CircleShape).border(2.dp, MaterialTheme.colorScheme.outline, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (selected) Icons.Rounded.Check else Icons.Rounded.Block,
+                    contentDescription = null,
+                    Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }

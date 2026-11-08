@@ -14,6 +14,7 @@ import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.key.KeyFile
 import dev.keething.kdbx.key.KeyFileException
+import dev.keething.kdbx.key.WipedKeyException
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.opening.AttachmentContents
@@ -536,17 +537,72 @@ public class VaultSession(
         return saving(null) { attempt, running -> saver.upgrade(attempt, clock.now(), running::stopped) }
     }
 
+    /**
+     * Whether [typed], with the database's key file read now, is the key it is open with (keething-spec
+     * databases.change-master-key AC1): as its lock screen would try it (nothing typed with a key file: the key file
+     * alone, then the empty password with it), compared with the session's key, nothing derived. The caller may wipe
+     * [typed] as soon as this returns.
+     */
+    public suspend fun confirmKey(typed: Secret): KeyConfirmation {
+        val current = key?.takeIf { mutableState.value is SessionState.Unlocked }?.copy() ?: return KeyConfirmation.Locked
+        val copy = typed.copy()
+        val source = keyFile()
+        val waiting = ArrayDeque<Attempt>()
+        try {
+            return withContext(io) {
+                attempts(copy, source, waiting)?.let { return@withContext KeyConfirmation.Failed(it) }
+                val matched = waiting.firstOrNull { it.key.sameAs(current) } ?: return@withContext KeyConfirmation.Wrong
+                // The key file alone is tried first with nothing typed: the second is the empty password with it.
+                KeyConfirmation.Confirmed(withPassword = source == null || !copy.isEmpty() || matched !== waiting.first())
+            }
+        } catch (_: WipedKeyException) {
+            return KeyConfirmation.Locked
+        } finally {
+            copy.wipe()
+            current.wipe()
+            waiting.forEach { it.key.wipe() }
+        }
+    }
+
+    /**
+     * Makes [newKey] the database's master key (keething-spec databases.change-master-key AC4-AC6): written into the
+     * file in its turn among the saves, which then go on with it; the session takes [newKey] over (wiped when the change
+     * does not happen, or at the lock). A lock gives it up at once, as the save's own key. Null when not unlocked
+     * ([newKey] wiped); refused at once when viewed only or too large to save.
+     */
+    public fun changeKey(newKey: DatabaseKey): Deferred<SaveOutcome>? {
+        val unlocked = mutableState.value as? SessionState.Unlocked
+        if (unlocked == null) {
+            newKey.wipe()
+            return null
+        }
+        val refused = when {
+            unlocked.viewOnly -> CompletableDeferred<SaveOutcome>(SaveOutcome.Failed(SaveFailure.ViewOnly))
+            else -> tooLarge(unlocked)
+        }
+        if (refused != null) {
+            newKey.wipe()
+            return refused
+        }
+        return saving(null, adopting = newKey) { attempt, running -> saver.changeKey(newKey, attempt, clock.now(), running::stopped) }
+            ?: null.also { newKey.wipe() }
+    }
+
     /** A save of a database too large for it refused at once, nothing read (keething-spec app.large-database AC3). */
     private fun tooLarge(unlocked: SessionState.Unlocked): Deferred<SaveOutcome>? {
         val room = unlocked.room as? SaveRoom.TooLarge ?: return null
         return CompletableDeferred(SaveOutcome.Failed(SaveFailure.TooLarge(room.alone)))
     }
 
-    /** Runs [save] in its turn with a copy of the key ([edit]: what a lock that overtook it kept out of the file). */
-    private fun saving(edit: VaultEdit?, save: (DatabaseKey, RunningSave) -> SaveResult): Deferred<SaveOutcome>? {
+    /**
+     * Runs [save] in its turn with a copy of the key ([edit]: what a lock that overtook it kept out of the file). Saved,
+     * the session's key becomes [adopting] when given (a new master key, the session's from now on; wiped otherwise),
+     * else that copy.
+     */
+    private fun saving(edit: VaultEdit?, adopting: DatabaseKey? = null, save: (DatabaseKey, RunningSave) -> SaveResult): Deferred<SaveOutcome>? {
         val attempt = key?.copy() ?: return null
         val token = generation
-        val running = RunningSave(attempt)
+        val running = RunningSave(attempt, adopting)
         saves += running
         val outcome = CompletableDeferred<SaveOutcome>()
         scope.launch {
@@ -567,7 +623,7 @@ public class VaultSession(
                     when (result) {
                         is SaveResult.Saved -> {
                             key?.wipe()
-                            key = attempt
+                            key = adopting ?: attempt
                             running.keyTaken = true
                             adopt(OpenResult.Opened(result.opened), copies)
                             outcome.complete(SaveOutcome.Saved(result.deletedGroups, result.keptCopy))
@@ -582,7 +638,8 @@ public class VaultSession(
                 saves -= running
                 if (saves.isEmpty()) onSavesEnded?.invoke()
                 running.deadline?.cancel()
-                if (!running.keyTaken) attempt.wipe()
+                if (!running.keyTaken || adopting != null) attempt.wipe()
+                if (!running.keyTaken) adopting?.wipe()
                 // Overtaken by a lock, and the file does not have it: the next unlock says so (this one, if it came first).
                 if (token != generation && !inFile && edit != null) {
                     unsaved = unsaved + UnsavedChange.of(edit)
@@ -595,7 +652,7 @@ public class VaultSession(
     }
 
     /** A save running or waiting its turn; [stop] is the lock's grace running out. */
-    private inner class RunningSave(val key: DatabaseKey) {
+    private inner class RunningSave(val key: DatabaseKey, private val newKey: DatabaseKey? = null) {
         /** Asked by the saver right before the backup and the replace. */
         @Volatile
         var stopped = false
@@ -609,7 +666,11 @@ public class VaultSession(
         fun stop() {
             stopped = true
             key.abandon()
-            scope.launch(io) { key.wipe() }
+            newKey?.abandon()
+            scope.launch(io) {
+                key.wipe()
+                newKey?.wipe()
+            }
         }
     }
 

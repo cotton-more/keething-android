@@ -52,7 +52,7 @@ internal object KdbxSchema {
     // Placing
 
     /**
-     * Puts [child] into [parent] (a `Group`, an `Entry` or `Root`) where the schema's sequence has it: before the
+     * Puts [child] into [parent] (a `Group`, an `Entry`, `Root` or `Meta`) where the schema's sequence has it: before the
      * first element that comes after it. Elements the schema does not know are passed over.
      */
     fun insert(child: XElement, parent: XElement) {
@@ -106,6 +106,7 @@ internal object KdbxSchema {
         "Group" -> model(Complex.GROUP)
         "Entry" -> model(Complex.ENTRY)
         "Root" -> model(Complex.ROOT)
+        "Meta" -> model(Complex.META)
         else -> null
     }
 

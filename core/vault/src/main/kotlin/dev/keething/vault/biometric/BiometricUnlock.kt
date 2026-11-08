@@ -408,6 +408,24 @@ public class BiometricUnlock(
         }
     }
 
+    /**
+     * Its master key was changed on this phone (keething-spec databases.change-master-key AC6), as a typed unlock of
+     * [password]: its days start, and while the fingerprint is on for it the new password is stored in place of the old;
+     * with its key file alone (null) a stored password goes, as there is none. Why that failed, or null. The caller may
+     * wipe [password] once this returns.
+     */
+    internal suspend fun keyChanged(password: Secret?): String? {
+        setup.opened(id)
+        setup.typedNow(id)
+        val failure = when {
+            !current().enabled -> null
+            password == null -> setup.delete(id)
+            else -> storeTyped(password)
+        }
+        publish()
+        return failure
+    }
+
     /** Stores [password] while the fingerprint is on for it; why that failed, or null. */
     private suspend fun storeTyped(password: Secret): String? {
         val availability = setup.availability()

@@ -54,6 +54,25 @@ public class DatabaseKey private constructor(private val composite: ByteArray) {
         }
     }
 
+    /**
+     * Whether [other] is the same master key, its parts the same (keething-spec databases.change-master-key AC1): the
+     * composite keys compared in constant time, nothing derived.
+     */
+    public fun sameAs(other: DatabaseKey): Boolean {
+        val theirs = synchronized(other) {
+            other.usable()
+            other.composite.copyOf()
+        }
+        try {
+            return synchronized(this) {
+                usable()
+                MessageDigest.isEqual(composite, theirs)
+            }
+        } finally {
+            theirs.fill(0)
+        }
+    }
+
     public fun wipe(): Unit = synchronized(this) {
         abandoned = true
         composite.fill(0)

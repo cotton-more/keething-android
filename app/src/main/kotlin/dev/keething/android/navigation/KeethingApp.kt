@@ -59,6 +59,7 @@ import dev.keething.android.groups.GroupsScreen
 import dev.keething.android.list.EntryListScreen
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.settings.SettingsScreen
+import dev.keething.android.databases.ChangeMasterKeyScreen
 import dev.keething.android.databases.DatabasePageScreen
 import dev.keething.android.databases.NewDatabaseScreen
 import dev.keething.android.databases.WelcomeScreen
@@ -436,6 +437,11 @@ internal fun KeethingApp(container: AppContainer) {
         // New database, over whatever was shown (the welcome, a lock screen, Settings): its Create outlives the screen.
         container.newDatabases.form?.let { form ->
             NewDatabaseScreen(form, onClose = container.newDatabases::close)
+            return@Surface
+        }
+        // Change master key…, over its database's page: its change outlives the screen.
+        container.masterKeys.form?.let { form ->
+            ChangeMasterKeyScreen(form, onClose = container.masterKeys::close)
             return@Surface
         }
         // About over whatever was shown (Settings, a lock screen, the welcome), back to it.

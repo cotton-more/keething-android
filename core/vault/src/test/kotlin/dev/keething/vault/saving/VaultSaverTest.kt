@@ -699,4 +699,40 @@ class VaultSaverTest {
         assertEquals(listOf(theirs.id), vault.groups.filter { it.path == listOf("Web & Mail", "Servers") }.map { it.id }, "theirs, not made twice")
         assertEquals(emptyList(), deletedBy(result), "Web & Mail still holds the other entry")
     }
+
+    // spec: databases.rename-recolour/AC1
+    @Test
+    fun aNameAndColourLandInTheFileBackedUpWithEverythingElseAsItWas() {
+        val original = fixtureBytes("kdbx4-aes-argon2d")
+        val store = FakeStore(original)
+        val key = key()
+        val before = unlock(store, key)
+
+        val vault = saved(VaultSaver(store, backups).save(VaultEdit.NameAndColor(name = " Family ", color = "#2E9E4F"), key, now))
+
+        assertEquals("Family", vault.name)
+        assertEquals("#2E9E4F", vault.color)
+        assertEquals(before.copy(name = "Family", color = "#2E9E4F"), vault, "nothing else changed")
+        assertEquals(unlock(store), vault, "the saved vault is the file read back")
+        assertContentEquals(original, backups.kept.single())
+    }
+
+    // spec: databases.rename-recolour/AC4
+    @Test
+    fun aNameAndColourGoOntoTheFileAsItIsKeepingWhatChangedElsewhere() {
+        val key = key()
+        val elsewhere = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val other = unlock(elsewhere, key).titled("Entry <one> ü")
+        saved(VaultSaver(elsewhere, FakeBackups()).save(VaultEdit.Update(other.id, other.lastModified, EntryChanges(notes = "from the Mac")), key, now))
+        saved(VaultSaver(elsewhere, FakeBackups()).save(VaultEdit.NameAndColor(name = "Theirs"), key, now))
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        unlock(store, key)
+        store.change(elsewhere.content)
+
+        val vault = saved(VaultSaver(store, backups).save(VaultEdit.NameAndColor(color = "#D93A3A"), key, now))
+
+        assertEquals("from the Mac", vault.titled("Entry <one> ü").notes, "the entry changed elsewhere is kept")
+        assertEquals("Theirs", vault.name, "the name changed elsewhere is kept: only the colour was asked")
+        assertEquals("#D93A3A", vault.color)
+    }
 }

@@ -10,6 +10,7 @@ import dev.keething.kdbx.tree.XmlTree
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.security.MessageDigest
+import java.time.Instant
 import java.util.Base64
 import org.xml.sax.Attributes
 
@@ -100,6 +101,7 @@ internal object KdbxXmlReader {
         private var defaultUserName = ""
         private var databaseName = ""
         private var color = ""
+        private var masterKeyChanged: Instant? = null
         private val customIcons = LinkedHashMap<String, CustomIcon>()
         private var iconUuid = ""
         private var iconData = ""
@@ -129,7 +131,7 @@ internal object KdbxXmlReader {
         private val protectedText = StringBuilder()
 
         override fun result(): KdbxDocument = KdbxDocument(
-            KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons, databaseName, color, templatesGroupUuid),
+            KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons, databaseName, color, templatesGroupUuid, masterKeyChanged),
             groups.filterNotNull(),
             entries,
             history,
@@ -183,7 +185,7 @@ internal object KdbxXmlReader {
             val grand = grand()
             val inEntry = entry != null
             when (name) {
-                "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName", "DatabaseName", "Color", "EntryTemplatesGroup" -> if (parent == "Meta") beginCapture()
+                "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName", "DatabaseName", "Color", "EntryTemplatesGroup", "MasterKeyChanged" -> if (parent == "Meta") beginCapture()
                 "HeaderHash" -> if (parent == "Meta" && headerSha256 != null) beginCapture()
                 "Icon" -> if (parent == "CustomIcons" && grand == "Meta") {
                     iconUuid = ""
@@ -275,6 +277,7 @@ internal object KdbxXmlReader {
                     "DefaultUserName" -> if (parent == "Meta") defaultUserName = captured
                     "DatabaseName" -> if (parent == "Meta") databaseName = trimmed
                     "Color" -> if (parent == "Meta") color = trimmed
+                    "MasterKeyChanged" -> if (parent == "Meta") masterKeyChanged = KdbxTime.parse(trimmed)
                     "HeaderHash" -> if (parent == "Meta" && headerSha256 != null) checkHeaderHash(trimmed)
                     "Data" -> if (parent == "Icon" && grand == "CustomIcons") iconData = trimmed
                     "Icon" -> if (parent == "CustomIcons" && grand == "Meta") addIcon()

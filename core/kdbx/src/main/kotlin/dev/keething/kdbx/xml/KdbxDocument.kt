@@ -31,6 +31,8 @@ public data class KdbxMeta(
     val color: String = "",
     /** `EntryTemplatesGroup` as written, its outer spaces aside: "" when the file names none (keething-spec groups.templates). */
     val templatesGroupUuid: String = "",
+    /** `MasterKeyChanged`: when its master key was last changed; null when the file does not say. */
+    val masterKeyChanged: Instant? = null,
 )
 
 public data class KdbxGroup(

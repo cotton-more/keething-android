@@ -161,13 +161,13 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
         )
 
         Spacer(Modifier.height(4.dp))
-        PasswordFields(model)
+        PasswordFields(model.fields)
         model.strength?.let { StrengthBar(it) }
         val suggestion = model.suggestion
         if (suggestion == null) {
             TextButton(onClick = model::suggest) { ButtonLabel("Suggest a passphrase", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp) }
         } else {
-            SuggestionCard(model, suggestion)
+            SuggestionCard(model.fields, suggestion)
         }
         Text(
             "Nobody can recover a forgotten master password, not even Keething.",
@@ -234,7 +234,7 @@ private fun FieldTextField(value: String, onValueChange: (String) -> Unit, label
 }
 
 @Composable
-private fun fieldColors() = TextFieldDefaults.colors(
+internal fun fieldColors() = TextFieldDefaults.colors(
     focusedIndicatorColor = Color.Transparent,
     unfocusedIndicatorColor = Color.Transparent,
     disabledIndicatorColor = Color.Transparent,
@@ -298,7 +298,7 @@ private fun SaveIn(model: NewDatabaseModel, onOther: () -> Unit) {
 
 /** The master password twice, one eye for both (else a typo goes unseen and the database is lost). */
 @Composable
-private fun PasswordFields(model: NewDatabaseModel) {
+internal fun PasswordFields(model: MasterPasswordFields, label: String = "Master password") {
     val keyboard = KeyboardOptions(
         capitalization = KeyboardCapitalization.None,
         autoCorrectEnabled = false,
@@ -311,7 +311,7 @@ private fun PasswordFields(model: NewDatabaseModel) {
         SecureTextField(
             state = model.password,
             modifier = Modifier.keepOutOfAutofill().secretToAccessibility(model.password.text.length, shown = model.reveals).fillMaxWidth(),
-            label = { Text("Master password") },
+            label = { Text(label) },
             textStyle = style,
             textObfuscationMode = mode,
             trailingIcon = {
@@ -336,8 +336,8 @@ private fun PasswordFields(model: NewDatabaseModel) {
             textObfuscationMode = mode,
             trailingIcon = {
                 when (model.match) {
-                    NewDatabaseModel.Match.MATCHES -> Icon(Icons.Rounded.CheckCircle, contentDescription = "The passwords match", tint = MaterialTheme.colorScheme.primary)
-                    NewDatabaseModel.Match.DIFFERS -> Icon(Icons.Rounded.Cancel, contentDescription = "The passwords differ", tint = MaterialTheme.colorScheme.error)
+                    MasterPasswordFields.Match.MATCHES -> Icon(Icons.Rounded.CheckCircle, contentDescription = "The passwords match", tint = MaterialTheme.colorScheme.primary)
+                    MasterPasswordFields.Match.DIFFERS -> Icon(Icons.Rounded.Cancel, contentDescription = "The passwords differ", tint = MaterialTheme.colorScheme.error)
                     null -> Unit
                 }
             },
@@ -350,7 +350,7 @@ private fun PasswordFields(model: NewDatabaseModel) {
 
 /** Four segments and the words: weak and fair in the warning colour, strong in the good one. */
 @Composable
-private fun StrengthBar(strength: NewDatabaseModel.StrengthLine) {
+internal fun StrengthBar(strength: MasterPasswordFields.StrengthLine) {
     val lit = if (strength.verdict == Strength.STRONG) MaterialTheme.colorScheme.primary else MaterialTheme.extraColors.warn
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -368,7 +368,7 @@ private fun StrengthBar(strength: NewDatabaseModel.StrengthLine) {
 
 /** The passphrase shown once in clear, its words and bits; fewer, more, Another, Use this. */
 @Composable
-private fun SuggestionCard(model: NewDatabaseModel, suggestion: String) {
+internal fun SuggestionCard(model: MasterPasswordFields, suggestion: String) {
     val bits = dev.keething.generator.PasswordGenerator.masterPassphraseEntropy(model.passphraseWords).toInt()
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(16.dp),
@@ -558,4 +558,4 @@ private fun CreatingDialog(model: NewDatabaseModel) {
 }
 
 /** Where the key file pickers start: the phone's Documents folder. */
-private val DOCUMENTS = StoragePlace(StoragePlace.PRIMARY, "Documents")
+internal val DOCUMENTS = StoragePlace(StoragePlace.PRIMARY, "Documents")

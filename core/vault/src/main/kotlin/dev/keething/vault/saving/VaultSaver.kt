@@ -29,6 +29,7 @@ import java.security.DigestInputStream
 import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 /**
  * Saves one change into the database file (SPEC §3.3; port of the Mac `KDBXFileSaver`): an entry's or the groups'.
@@ -69,6 +70,16 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             if (result is SaveResult.Saved) SaveResult.Saved(result.opened, keptCopy = keptAs) else result
         }
     }
+
+    /**
+     * Makes [newKey] the database's master key (keething-spec databases.change-master-key AC4, AC5): the file opened
+     * with [key], the key it has, written with [newKey] and a new salt for its key derivation, the costs as they were,
+     * `Meta/MasterKeyChanged` set; read back with what [newKey] derived for it and checked to hold everything as before.
+     * Saved like any change (backed up, replaced only while the file is what was read); anything else leaves the file
+     * as it was. [newKey] stays the caller's, with the key derived for the new file in it.
+     */
+    fun changeKey(newKey: DatabaseKey, key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult =
+        refusing { saveOrRefuse(stopped, make = { original -> rekeyed(original, key, newKey, now) }, now = now) }
 
     private fun refusing(save: () -> SaveResult): SaveResult = try {
         save()
@@ -336,6 +347,58 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 after = VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
                 try {
                     SaveCheck.verifyUnchanged(before, after, groups(editable.document), groups(reread.document))
+                } catch (failure: SaveCheck.Failed) {
+                    throw Refused(SaveFailure.VerificationFailed(failure.detail))
+                }
+                return Made(written.file, reread, after, emptyList())
+            } catch (refused: Refused) {
+                after?.wipe()
+                reread.binaries.forEach(Secret::wipe)
+                throw refused
+            }
+        } finally {
+            before?.wipe()
+            editable.wipe()
+        }
+    }
+
+    /** [original] written with [newKey] (its own salt); then that read back with it alone and checked: nothing in it changed. */
+    private fun rekeyed(original: Original, key: DatabaseKey, newKey: DatabaseKey, now: Instant): Made {
+        val editable = try {
+            original.open({ KdbxReader.openForEditing(it, key) }, EditableDatabase::wipe)
+        } catch (failure: KdbxException) {
+            if (failure is KdbxException.UnsupportedVersion && failure.major == 3) throw Refused(SaveFailure.ViewOnly)
+            throw Refused(SaveFailure.CannotOpen(failure.toOpenFailure()))
+        }
+        var before: Vault? = null
+        try {
+            before = VaultAssembler.assemble(editable.document, editable.binaries.map(Secret::size))
+            try {
+                editable.changeKey(newKey, now)
+            } catch (failure: KdbxException) {
+                throw Refused(SaveFailure.VerificationFailed(failure.message ?: "the new key derivation"))
+            }
+            val written = try {
+                editable.writeLast()
+            } catch (failure: EditException.BreaksFormat) {
+                throw Refused(SaveFailure.BreaksFormat(failure.what))
+            } catch (failure: EditException) {
+                throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
+            }
+            val reread = try {
+                editable.readBack(written)
+            } catch (_: KdbxException) {
+                throw Refused(SaveFailure.VerificationFailed("the new file does not open with the new key"))
+            } catch (failure: EditException) {
+                throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
+            }
+            var after: Vault? = null
+            try {
+                after = VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
+                try {
+                    // Its master key's time is the change's, to the second as the file keeps it.
+                    val changed = before.copy(masterKeyChanged = now.truncatedTo(ChronoUnit.SECONDS))
+                    SaveCheck.verifyUnchanged(changed, after, groups(editable.document), groups(reread.document))
                 } catch (failure: SaveCheck.Failed) {
                     throw Refused(SaveFailure.VerificationFailed(failure.detail))
                 }

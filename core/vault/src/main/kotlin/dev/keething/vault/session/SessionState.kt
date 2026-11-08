@@ -38,6 +38,21 @@ public sealed interface UnlockOutcome {
     public data object Interrupted : UnlockOutcome
 }
 
+/** Whether a key typed is the one the database is open with (keething-spec databases.change-master-key AC1). */
+public sealed interface KeyConfirmation {
+    /** It is; [withPassword]: it has a password, empty or not, rather than its key file alone. */
+    public data class Confirmed(val withPassword: Boolean) : KeyConfirmation
+
+    /** It is not. */
+    public data object Wrong : KeyConfirmation
+
+    /** Its key file could not be read: nothing was compared. */
+    public data class Failed(val failure: OpenFailure) : KeyConfirmation
+
+    /** Not open (any more). */
+    public data object Locked : KeyConfirmation
+}
+
 /** How one save ended. */
 public sealed interface SaveOutcome {
     /**
@@ -108,7 +123,7 @@ public sealed interface SessionState {
  * change and the [id] of its entry or group only: never a value, kept through the lock until the next unlock said it.
  */
 public data class UnsavedChange(val kind: Kind, val id: String) {
-    public enum class Kind { ENTRY_CHANGED, ENTRY_CREATED, ENTRY_TO_RECYCLE_BIN, ENTRY_RESTORED, ENTRY_DELETED, GROUP_RENAMED, GROUP_CREATED, GROUP_MOVED, GROUP_DELETED }
+    public enum class Kind { ENTRY_CHANGED, ENTRY_CREATED, ENTRY_TO_RECYCLE_BIN, ENTRY_RESTORED, ENTRY_DELETED, GROUP_RENAMED, GROUP_CREATED, GROUP_MOVED, GROUP_DELETED, NAME_AND_COLOR }
 
     internal companion object {
         fun of(edit: VaultEdit): UnsavedChange = when (edit) {
@@ -121,6 +136,7 @@ public data class UnsavedChange(val kind: Kind, val id: String) {
             is VaultEdit.CreateGroup -> UnsavedChange(Kind.GROUP_CREATED, edit.parentId)
             is VaultEdit.MoveGroup -> UnsavedChange(Kind.GROUP_MOVED, edit.groupId)
             is VaultEdit.DeleteEmptyGroup -> UnsavedChange(Kind.GROUP_DELETED, edit.groupId)
+            is VaultEdit.NameAndColor -> UnsavedChange(Kind.NAME_AND_COLOR, "")
         }
     }
 }
