@@ -144,7 +144,7 @@ public sealed interface SessionState {
  * change and the [id] of its entry or group only: never a value, kept through the lock until the next unlock said it.
  */
 public data class UnsavedChange(val kind: Kind, val id: String) {
-    public enum class Kind { ENTRY_CHANGED, ENTRY_CREATED, ENTRY_TO_RECYCLE_BIN, ENTRY_RESTORED, ENTRY_DELETED, GROUP_RENAMED, GROUP_CREATED, GROUP_MOVED, GROUP_DELETED, NAME_AND_COLOR }
+    public enum class Kind { ENTRY_CHANGED, ENTRY_CREATED, ENTRY_TO_RECYCLE_BIN, ENTRY_RESTORED, ENTRY_DELETED, VERSION_RESTORED, GROUP_RENAMED, GROUP_CREATED, GROUP_MOVED, GROUP_DELETED, NAME_AND_COLOR }
 
     internal companion object {
         fun of(edit: VaultEdit): UnsavedChange = when (edit) {
@@ -153,6 +153,7 @@ public data class UnsavedChange(val kind: Kind, val id: String) {
             is VaultEdit.MoveToRecycleBin -> UnsavedChange(Kind.ENTRY_TO_RECYCLE_BIN, edit.entryId)
             is VaultEdit.Restore -> UnsavedChange(Kind.ENTRY_RESTORED, edit.entryId)
             is VaultEdit.DeleteForGood -> UnsavedChange(Kind.ENTRY_DELETED, edit.entryId)
+            is VaultEdit.RestoreVersion -> UnsavedChange(Kind.VERSION_RESTORED, edit.entryId)
             is VaultEdit.RenameGroup -> UnsavedChange(Kind.GROUP_RENAMED, edit.groupId)
             is VaultEdit.CreateGroup -> UnsavedChange(Kind.GROUP_CREATED, edit.parentId)
             is VaultEdit.MoveGroup -> UnsavedChange(Kind.GROUP_MOVED, edit.groupId)

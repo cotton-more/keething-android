@@ -39,6 +39,9 @@ public sealed interface SaveFailure {
     /** The entry is not where the change expects it (in the recycle bin, or out of it). */
     public data object WrongPlace : SaveFailure
 
+    /** The version to restore is not in the entry's history any more (keething-spec edit.history-restore). */
+    public data object VersionGone : SaveFailure
+
     /** The written file did not read back as expected; nothing was replaced. */
     public data class VerificationFailed(val detail: String) : SaveFailure
 

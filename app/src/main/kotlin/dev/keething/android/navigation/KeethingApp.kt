@@ -812,7 +812,16 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                     }
                     entry<Screen.History> { key ->
                         val database = databaseOf(key.ref) ?: return@entry
-                        EntryHistoryScreen(database, key.ref.entry, onBack = { navigation.close(key) })
+                        EntryHistoryScreen(
+                            database,
+                            key.ref.entry,
+                            onBack = { navigation.close(key) },
+                            // Back on the card, which shows the version now, saying so (edit.history-restore; the canvas).
+                            onRestored = { text ->
+                                container.versionRestored(text)
+                                navigation.close(key)
+                            },
+                        )
                     }
                     entry<Screen.Editor> { key ->
                         val database = key.ref?.let { databaseOf(it) ?: return@entry }

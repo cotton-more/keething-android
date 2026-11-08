@@ -47,7 +47,7 @@ Goals (v1)
   ("Templates · another app's forms, not listed", its count), nothing to tap; no group is made, moved or renamed in or
   into it, nor is it changed or deleted (`EntryLifecycle.isInTemplates`), and a save writes it back as it was.
 - Copy any field; the clipboard is marked sensitive and cleared after 30 s.
-- Attachments: open and save a copy; add, rename and remove them in the editor (keething-spec edit.attachments). One-time codes: show and copy, and set them up in the editor (keething-spec edit.one-time-code).
+- Attachments: open and save a copy; add and remove them in the editor (keething-spec edit.attachments). One-time codes: show and copy, and set them up in the editor (keething-spec edit.one-time-code).
 - Share a password (§6.2): as a QR code on the screen, in large type, or through the share sheet after a
   warning.
 - Share entries encrypted for one phone (§10): the other side asks with a request, the answer opens only there;
@@ -60,7 +60,8 @@ Goals (v1)
 The first releases only read the database, so they cannot damage it; the owner rarely edits on the phone.
 Writing comes after them (ROADMAP step 7) and must be done before a Google Play release:
 - Edit, create, recycle and restore entries (delete is undoable from a snackbar), delete one for good from the bin
-  (emptying the recycle bin is not offered: one at a time, the owner); custom fields.
+  (emptying the recycle bin is not offered: one at a time, the owner); custom fields; go back to an earlier version
+  from History (keething-spec edit.history-restore).
 - Autofill's offer to save a new login or update a changed password, with the password generator for
   sign-ups.
 - The password generator (Mac SPEC §3.20): in the editor's password field, and on its own from the list
@@ -450,7 +451,8 @@ keeps the new time. The way out is in §3.3 step 7.
   its History screen opens (§6.2): the file once more with the in-memory key (no key derivation), keeping
   that entry's `History` items only (`KdbxReader.open(…, historyOf)`), every other secret of that read
   wiped at once and the attachments' bytes too; as the Mac does it (Mac SPEC §3.22), but streamed, so it
-  costs the memory of a reload, not that of the save's XML tree.
+  costs the memory of a reload, not that of the save's XML tree. It also reads `Meta/HistoryMaxItems`
+  (`EntryVersions.maxItems`), for what a restore would drop (§6.2).
 
 ### 3.3 Writing
 
@@ -460,12 +462,25 @@ an entry deleted for good (`VaultEdit.DeleteForGood`: from the bin, or any entry
 history, a `DeletedObjects` record, and its attachments nothing else uses dropped as every write drops them; keething-spec
 edit.delete-for-good), an entry's one-time code set, changed or removed (`EntryChanges.totp`; the editor's, §6.2, and
 an entry received, §10), an entry's attachments added, renamed and removed (`EntryChanges.attachments`, below; the
-editor's, §6.2). History, renaming tags and the recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
+editor's, §6.2), an earlier version restored (`VaultEdit.RestoreVersion`, below; History's, §6.2). Renaming tags and the
+recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
 `VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
 made, moved, deleted when empty; keething-spec `plans/done/android-groups.md` AG1, AG2). The editor makes an entry's move
 and its new groups (the group picker, §6.2; AG4), the received entries' screen new groups (§10), the card's Move to
 group… a move alone, its new groups too, and Groups & tags the groups' own changes (§6.2; AG6), each through the
 checked save.
+
+An earlier version restored (keething-spec edit.history-restore; the Mac's `EntryEditing.restoreVersion`, Mac SPEC §3.22):
+an entry outside the recycle bin (`EditException.AlreadyInRecycleBin`, said as `SaveFailure.WrongPlace`), version N of its
+history counted from the oldest. The version is copied first, then the current one goes into the history as for any
+edit (trimmed to `HistoryMaxItems`, so even the oldest of a full history comes back), and the entry takes every element
+of the copy (fields, attachments, tags, icon, colours, auto-type, custom data and so the field types and the kind) and
+its `Expires` / `ExpiryTime`; it keeps its UUID, its other times and its history, `LastModificationTime` and
+`LastAccessTime` now; what it had instead goes with its secrets. The attachments the version refers to are in the file
+already (its history item holds them). The save reads the file with that entry's history (`KdbxReader.openForEditing(…,
+historyOf)`) and refuses a version that is not there by now or whose `LastModificationTime` is not the one shown
+(`SaveFailure.VersionGone`: never another version in its place), an entry changed since as any edit; the check expects
+the entry to be the version as the file had it, with the entry's place and creation time, and everything else as before.
 
 A one-time code written (`EntryEditing`, the Mac's alike) first removes every code field of the entry (the ten of
 §3.2), so one entry never holds two formats; a save that does not change the code leaves its fields as they are. The
@@ -1196,6 +1211,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - Conflict copies (keething-spec kdbx.conflict-copies AC6, agreed 2026-11-08) have a canvas of their own:
   https://claude.ai/artifact/2N41uYnE2ERe5rX4Rt95Ra (the banner's Resolve…, the sheet with both versions, the two
   choices each asked once more, a copy with another key, a read-only database, a failure, dark).
+- Restoring a version (keething-spec edit.history-restore, agreed 2026-11-08) has a canvas of its own:
+  https://claude.ai/artifact/5cZ3wiPf5Q3qen5zArKtcV (History's Go back to this version…, the question with what changes,
+  a full history, going back, the card after it, the recycle bin, a read-only database, a failure, dark).
 
 ### 6.1 Look and feel
 
@@ -1699,7 +1717,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   and **Copy next unused · 4** copies it (its notice offers Mark as used, as any code's does). The editor shows
   the value as it is stored. The Mac app's side:
   `~/Projects/keepass-bar/HANDOVER-used-recovery-codes.md`.
-- **History** (the card's ⋮, for an entry in the bin too; Mac SPEC §3.22 without restoring):
+- **History** (the card's ⋮, for an entry in the bin too; Mac SPEC §3.22):
   "Reading the file…", then the versions newest first, each dated by its modification time, the current one
   marked, each with what it changed from the one before (`card/history`, the Mac's `EntryVersionDiff`):
   title, username, password, URL, notes (masked when either version protects them; a change of their protection
@@ -1708,7 +1726,18 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (added / removed / size). Old values struck through above the new; protected ones masked, an eye each.
   The oldest version kept has nothing to compare with; "No earlier versions are kept" when there are none.
   The versions are wiped when the screen goes (a lock closes it); the values compared are plain strings
-  while it is open, as in the editor.
+  while it is open, as in the editor. **Go back to this version…** (keething-spec edit.history-restore; the canvas
+  "Restoring a version", agreed 2026-11-08: going back to a whole version, as KeePass does; one field's value taken back
+  is the idea edit.history-field-restore) is a tonal button at the end of every version's card but the current one;
+  an entry in the recycle bin ("In the recycle bin: restore the entry first to go back to one of its versions.") or a
+  read-only database ("… its versions are shown, not restored.") has none, said on top. It asks once: "Go back to this
+  version?", "<title> becomes as it was on <date>, with everything changed since undone. The current version goes into
+  the history, so you can come back to it the same way.", then **What changes**: the current entry compared with that
+  version as the cards compare (protected values masked, an eye each), and when the history is full what it then drops
+  ("This database keeps 3 earlier versions, so the oldest, from <date>, goes."; the version restored itself among them
+  "leaves the history as it becomes the current one"). Go back saves it (§3.3), the button "Going back…" and the
+  others off meanwhile; done, the card again with "Back to the version of <date>"; a failure is said on top ("Not
+  restored: …") and the versions read again.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit, and Delete for good… under ⋮
   ("Restored to Web & Mail"); a bin row's long press offers both too.
 - **Settings**: **Databases**: every database (tile, label, its folder or "Not found · Download", "No access · Sync/Work",

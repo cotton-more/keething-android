@@ -92,6 +92,12 @@ public class EditableDatabase internal constructor(
             EntryLifecycle.deleteForGood(edit.entryId, root, now)
             AppliedEdit(expectedGroupId = null)
         }
+        is VaultEdit.RestoreVersion -> {
+            val location = EntryLifecycle.locate(edit.entryId, root) ?: throw EditException.EntryNotFound()
+            if (EntryLifecycle.isInRecycleBin(location.groups, root)) throw EditException.AlreadyInRecycleBin()
+            EntryEditing.restoreVersion(edit.version, location.entry, root, now)
+            AppliedEdit(expectedGroupId = null)
+        }
         is VaultEdit.RenameGroup -> {
             GroupLifecycle.rename(edit.groupId, edit.name, root, now)
             AppliedEdit(expectedGroupId = null)
@@ -241,7 +247,7 @@ public class EditableDatabase internal constructor(
     public fun wipe() {
         derived.wipe()
         tree?.wipeSecrets()
-        document.entries.forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
+        (document.entries + document.history).forEach { entry -> entry.fields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() } }
         binaries.filter { binary -> handedOver.none { it === binary } }.forEach(Secret::wipe)
     }
 }

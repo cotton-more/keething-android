@@ -13,6 +13,7 @@ import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.TotpChange
 import dev.keething.kdbx.schema.KdbxSchema
 import dev.keething.kdbx.tree.XElement
+import dev.keething.kdbx.tree.XNode
 import dev.keething.kdbx.xml.KdbxTime
 import java.time.Instant
 
@@ -100,6 +101,52 @@ internal object EntryEditing {
     }
 
     // History
+
+    /**
+     * Restores version [index] of the entry's history (0 = the oldest), as KeePassXC does (keething-spec
+     * edit.history-restore; the Mac's `EntryEditing.restoreVersion`): the version is copied, then the current one goes
+     * into the history (trimmed to `Meta/HistoryMaxItems`, so even the oldest of a full history can come back), and the
+     * entry takes all of the copy's data — fields, attachments, tags, icon, colours, auto-type, custom data — and its
+     * expiry; it keeps its UUID, its other times and its history, and `LastModificationTime` / `LastAccessTime` become
+     * now. What the entry had in place of the version's data goes with its secrets.
+     */
+    fun restoreVersion(index: Int, entry: XElement, root: XElement, now: Instant) {
+        val versions = entry.first("History")?.all("Entry").orEmpty()
+        val version = versions.getOrNull(index)?.copy() ?: throw EditException.VersionNotFound()
+        version.first("History")?.let { inner ->
+            inner.wipeSecrets()
+            version.remove(inner)
+        }
+        snapshotIntoHistory(entry, historyMaxItems(root))
+
+        val times = child("Times", entry)
+        version.first("Times")?.let { old ->
+            for (name in listOf("Expires", "ExpiryTime")) old.first(name)?.let { setText(name, it.text, times) }
+        }
+        val uuid = entry.first("UUID")
+        val history = entry.first("History")
+        val nodes = ArrayList<XNode>()
+        for (node in version.nodes) {
+            when {
+                node !is XElement -> nodes += node
+                node.name == "UUID" -> uuid?.let { nodes += it }
+                node.name == "Times" -> nodes += times
+                else -> nodes += node
+            }
+        }
+        if (nodes.none { it === times }) nodes.add(nodes.indexOfFirst { it === uuid } + 1, times)
+        if (uuid != null && nodes.none { it === uuid }) nodes.add(0, uuid)
+        history?.let { nodes += it }
+        entry.elements.filter { kept -> kept !== uuid && kept !== times && kept !== history }.forEach(XElement::wipeSecrets)
+        entry.children.apply {
+            clear()
+            addAll(nodes)
+        }
+
+        val iso = times.elements.any { KdbxTime.isIso(it.text) }
+        setTime("LastModificationTime", now, times, iso)
+        setTime("LastAccessTime", now, times, iso)
+    }
 
     private fun snapshotIntoHistory(entry: XElement, maxItems: Int) {
         val snapshot = entry.copy()

@@ -102,6 +102,7 @@ internal object KdbxXmlReader {
         private var databaseName = ""
         private var color = ""
         private var masterKeyChanged: Instant? = null
+        private var historyMaxItems = 10
         private val customIcons = LinkedHashMap<String, CustomIcon>()
         private var iconUuid = ""
         private var iconData = ""
@@ -131,7 +132,7 @@ internal object KdbxXmlReader {
         private val protectedText = StringBuilder()
 
         override fun result(): KdbxDocument = KdbxDocument(
-            KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons, databaseName, color, templatesGroupUuid, masterKeyChanged),
+            KdbxMeta(recycleBinUuid, !recycleBinEnabled.equals("false", ignoreCase = true), defaultUserName, customIcons, databaseName, color, templatesGroupUuid, masterKeyChanged, historyMaxItems),
             groups.filterNotNull(),
             entries,
             history,
@@ -185,7 +186,7 @@ internal object KdbxXmlReader {
             val grand = grand()
             val inEntry = entry != null
             when (name) {
-                "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName", "DatabaseName", "Color", "EntryTemplatesGroup", "MasterKeyChanged" -> if (parent == "Meta") beginCapture()
+                "RecycleBinUUID", "RecycleBinEnabled", "DefaultUserName", "DatabaseName", "Color", "EntryTemplatesGroup", "MasterKeyChanged", "HistoryMaxItems" -> if (parent == "Meta") beginCapture()
                 "HeaderHash" -> if (parent == "Meta" && headerSha256 != null) beginCapture()
                 "Icon" -> if (parent == "CustomIcons" && grand == "Meta") {
                     iconUuid = ""
@@ -278,6 +279,7 @@ internal object KdbxXmlReader {
                     "DatabaseName" -> if (parent == "Meta") databaseName = trimmed
                     "Color" -> if (parent == "Meta") color = trimmed
                     "MasterKeyChanged" -> if (parent == "Meta") masterKeyChanged = KdbxTime.parse(trimmed)
+                    "HistoryMaxItems" -> if (parent == "Meta") trimmed.toIntOrNull()?.let { historyMaxItems = it }
                     "HeaderHash" -> if (parent == "Meta" && headerSha256 != null) checkHeaderHash(trimmed)
                     "Data" -> if (parent == "Icon" && grand == "CustomIcons") iconData = trimmed
                     "Icon" -> if (parent == "CustomIcons" && grand == "Meta") addIcon()

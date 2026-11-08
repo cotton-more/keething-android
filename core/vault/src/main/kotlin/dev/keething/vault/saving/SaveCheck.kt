@@ -52,9 +52,10 @@ internal object SaveCheck {
         fileBefore: List<VaultGroup> = before.groups,
         fileAfter: List<VaultGroup> = after.groups,
         notes: NewNotes = NewNotes(),
+        restored: Entry? = null,
     ) {
         when (edit) {
-            is VaultEdit.EntryEdit -> verifyEntry(before, after, edit, applied, now, fileBefore, fileAfter, notes)
+            is VaultEdit.EntryEdit -> verifyEntry(before, after, edit, applied, now, fileBefore, fileAfter, notes, restored)
             is VaultEdit.GroupEdit -> verifyGroups(before, after, edit, fileBefore, fileAfter)
             is VaultEdit.NameAndColor -> verifyNameAndColor(before, after, edit, fileBefore, fileAfter)
         }
@@ -118,6 +119,7 @@ internal object SaveCheck {
         fileBefore: List<VaultGroup>,
         fileAfter: List<VaultGroup>,
         notes: NewNotes,
+        restored: Entry?,
     ) {
         val old = all(before)
         val new = all(after)
@@ -253,6 +255,12 @@ internal object SaveCheck {
                 if (actual != expected) fail("the moved entry changed")
             }
             is VaultEdit.DeleteForGood -> if (id !in old || id in new) fail("the entry is still there")
+            // The version as the file had it, in the entry's place, with its UUID and creation time (edit.history-restore AC3).
+            is VaultEdit.RestoreVersion -> {
+                val actual = new[id]
+                if (id !in old || actual == null || restored == null || after.recycleBin.any { it.id == id }) fail("the entry is missing")
+                if (actual != restored.copy(lastModified = actual.lastModified)) fail("the version did not come back as it was")
+            }
         }
     }
 

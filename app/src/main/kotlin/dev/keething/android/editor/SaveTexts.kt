@@ -21,6 +21,7 @@ internal fun SaveFailure.describe(file: File): String = when (this) {
     SaveFailure.RecycleBinDisabled ->
         "This database has the recycle bin turned off. Nothing was deleted; delete the entry for good from its card."
     SaveFailure.WrongPlace -> "This entry was moved elsewhere (into or out of the recycle bin). Nothing was saved."
+    SaveFailure.VersionGone -> "That version is not in the entry's history any more (changed elsewhere?). Nothing was changed."
     is SaveFailure.VerificationFailed -> "The new file did not check out ($detail), so the database was not replaced."
     is SaveFailure.BreaksFormat ->
         "The change would leave the file in a form KeePass does not accept ($what), so the database was not replaced."
@@ -72,6 +73,7 @@ internal fun unsavedText(changes: List<UnsavedChange>, vault: Vault): String? {
             UnsavedChange.Kind.ENTRY_TO_RECYCLE_BIN -> "moving ${entry(change.id)} to the recycle bin"
             UnsavedChange.Kind.ENTRY_RESTORED -> "restoring ${entry(change.id)}"
             UnsavedChange.Kind.ENTRY_DELETED -> "deleting ${entry(change.id)} for good"
+            UnsavedChange.Kind.VERSION_RESTORED -> "going back to an earlier version of ${entry(change.id)}"
             UnsavedChange.Kind.GROUP_RENAMED -> "renaming the group ${group(change.id)}"
             UnsavedChange.Kind.GROUP_CREATED -> "a new group in ${group(change.id)}"
             UnsavedChange.Kind.GROUP_MOVED -> "moving the group ${group(change.id)}"

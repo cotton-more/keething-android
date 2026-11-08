@@ -353,7 +353,7 @@ internal class EntryEditorViewModel(
         when (this) {
             is VaultEdit.Update -> changes.wipe()
             is VaultEdit.Create -> fields.wipe()
-            is VaultEdit.MoveToRecycleBin, is VaultEdit.Restore, is VaultEdit.DeleteForGood -> {}
+            is VaultEdit.MoveToRecycleBin, is VaultEdit.Restore, is VaultEdit.DeleteForGood, is VaultEdit.RestoreVersion -> {}
         }
     }
 

@@ -33,6 +33,8 @@ public data class KdbxMeta(
     val templatesGroupUuid: String = "",
     /** `MasterKeyChanged`: when its master key was last changed; null when the file does not say. */
     val masterKeyChanged: Instant? = null,
+    /** `HistoryMaxItems`: how many earlier versions an entry keeps, -1 for any number; KeePass's default 10 when not said. */
+    val historyMaxItems: Int = 10,
 )
 
 public data class KdbxGroup(

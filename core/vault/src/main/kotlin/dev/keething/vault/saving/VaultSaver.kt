@@ -8,6 +8,8 @@ import dev.keething.domain.storage.DatabaseReading
 import dev.keething.domain.storage.DatabaseReplacedException
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
+import dev.keething.domain.vault.Entry
+import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
@@ -19,6 +21,7 @@ import dev.keething.kdbx.reader.KdbxDatabase
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.kdbx.xml.KdbxDocument
+import dev.keething.vault.opening.EntryMapper
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultAssembler
 import dev.keething.vault.opening.toOpenFailure
@@ -299,16 +302,19 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     /** Opens [original], applies the change and writes the new file; then reads that back and checks it. */
     private fun makeFile(original: Original, edit: VaultEdit, key: DatabaseKey, now: Instant): Made {
         val editable = try {
-            original.open({ KdbxReader.openForEditing(it, key) }, EditableDatabase::wipe)
+            // A version restored is checked against the entry's history as the file has it.
+            original.open({ KdbxReader.openForEditing(it, key, historyOf = (edit as? VaultEdit.RestoreVersion)?.entryId) }, EditableDatabase::wipe)
         } catch (failure: KdbxException) {
             // A KDBX 3.1 file (turned into one elsewhere since it was read, or never read here) is never changed.
             if (failure is KdbxException.UnsupportedVersion && failure.major == 3) throw Refused(SaveFailure.ViewOnly)
             throw Refused(SaveFailure.CannotOpen(failure.toOpenFailure()))
         }
         var before: Vault? = null
+        var restored: Entry? = null
         try {
             checkAsLoaded(editable.document, edit)
             before = VaultAssembler.assemble(editable.document, editable.binaries.map(Secret::size))
+            if (edit is VaultEdit.RestoreVersion) restored = restoredVersion(editable.document, editable.binaries, edit)
             // The protection Notes written where an entry had none take (SPEC §6.4): the database's, read before the edit.
             val notes = SaveCheck.NewNotes(
                 editable.protectsNotes,
@@ -344,7 +350,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             try {
                 after = VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
                 try {
-                    SaveCheck.verify(before, after, edit, applied, now, groups(editable.document), groups(reread.document), notes)
+                    SaveCheck.verify(before, after, edit, applied, now, groups(editable.document), groups(reread.document), notes, restored)
                     SaveCheck.verifyAttachmentContents(edit, editable.document, editable.binaries, reread.document, reread.binaries)
                 } catch (failure: SaveCheck.Failed) {
                     throw Refused(SaveFailure.VerificationFailed(failure.detail))
@@ -359,8 +365,22 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             }
         } finally {
             before?.wipe()
+            restored?.wipe()
             editable.wipe()
         }
+    }
+
+    /**
+     * The version [edit] restores as the file has it now, to check the restored entry against: the entry's own place
+     * and creation time, which a restore keeps. Its secrets are copies, the caller's to wipe.
+     */
+    private fun restoredVersion(document: KdbxDocument, binaries: List<Secret>, edit: VaultEdit.RestoreVersion): Entry {
+        val current = document.entries.first { it.uuid == edit.entryId }
+        val raw = document.history.getOrNull(edit.version) ?: throw Refused(SaveFailure.VersionGone)
+        // A version read is its document's: the mapper takes a copy of each secret, the document wiping its own.
+        val copy = raw.copy(fields = raw.fields.map { field -> field.copy(value = (field.value as? FieldValue.Protected)?.let { FieldValue.Protected(it.secret.copy()) } ?: field.value) })
+        val version = EntryMapper(binaries.map(Secret::size), document.meta.customIcons.keys).map(copy)
+        return version.copy(groupPath = current.groupPath, groupId = current.ancestorGroupUuids.lastOrNull() ?: "", created = current.created)
     }
 
     /** [original], a KDBX 3.1 file, written as KDBX 4.0; then that read back and checked: nothing in it changed. */
@@ -504,13 +524,20 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             is VaultEdit.MoveToRecycleBin -> edit.loadedModified
             is VaultEdit.Restore -> edit.loadedModified
             is VaultEdit.DeleteForGood -> edit.loadedModified
+            is VaultEdit.RestoreVersion -> edit.loadedModified
         }
         if (existing == null) throw Refused(SaveFailure.EntryNotFound)
-        val inFile = existing.lastModified
-        if (loaded != null && inFile != null && Duration.between(loaded, inFile).abs() >= Duration.ofSeconds(1)) {
-            throw Refused(SaveFailure.ChangedElsewhere)
+        if (!sameTime(loaded, existing.lastModified)) throw Refused(SaveFailure.ChangedElsewhere)
+        // The version as it was read, not another one in its place.
+        if (edit is VaultEdit.RestoreVersion) {
+            val version = document.history.getOrNull(edit.version)
+            if (version == null || !sameTime(edit.versionModified, version.lastModified)) throw Refused(SaveFailure.VersionGone)
         }
     }
+
+    /** Within a second, as KeePass's times are kept; a time not known matches any. */
+    private fun sameTime(loaded: Instant?, inFile: Instant?): Boolean =
+        loaded == null || inFile == null || Duration.between(loaded, inFile).abs() < Duration.ofSeconds(1)
 
     private fun EditException.toSaveFailure(): SaveFailure = when (this) {
         is EditException.EntryNotFound -> SaveFailure.EntryNotFound
@@ -527,6 +554,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         is EditException.GroupNotEmpty -> SaveFailure.GroupNotEmpty
         // The entry as loaded had it, or the save would have been refused as changed elsewhere.
         is EditException.AttachmentNotFound -> SaveFailure.VerificationFailed("an attachment to keep is gone")
+        is EditException.VersionNotFound -> SaveFailure.VersionGone
     }
 
     /** A save that wrote nothing, and why. */

@@ -111,8 +111,9 @@ public object KdbxReader {
     /**
      * As the file is read from [input], never held whole (keething-spec app.large-database AC2): read to the end of
      * its payload, what follows left there. A failure to read [input] is its [IOException], not a damaged file.
+     * [historyOf]: the UUID of an entry whose history items the document keeps too (a version restored).
      */
-    public fun openForEditing(input: InputStream, key: DatabaseKey): EditableDatabase {
+    public fun openForEditing(input: InputStream, key: DatabaseKey, historyOf: String? = null): EditableDatabase {
         var proven: DerivedKey? = null
         try {
             return decryptPayload(input, { header ->
@@ -122,7 +123,7 @@ public object KdbxReader {
                 val documentStream = streamOf(inner)
                 val treeStream = streamOf(inner)
                 inner.wipeKey()
-                val documentReading = KdbxXmlReader.reading(documentStream)
+                val documentReading = KdbxXmlReader.reading(documentStream, historyOf)
                 val treeReading = XmlTree.reading(treeStream)
                 var document: KdbxDocument? = null
                 var root: XElement? = null

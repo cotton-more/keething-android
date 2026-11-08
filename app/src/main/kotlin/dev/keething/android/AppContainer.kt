@@ -278,7 +278,10 @@ internal class AppContainer(context: Context) {
 
     private val saves = Channel<Notice>(Channel.CONFLATED)
 
-    /** "Saved and checked" from the editor, said by the card it goes back to (SPEC §6.2), with the empty groups a move deleted. */
+    /**
+     * "Saved and checked" from the editor, said by the card it goes back to (SPEC §6.2), with the empty groups a move
+     * deleted; a version restored from History said so too (keething-spec edit.history-restore).
+     */
     val savedNotices: Flow<Notice> = saves.receiveAsFlow()
 
     /** What a new entry's editor needs of the open databases: Save into, and where the last new entry went. */
@@ -293,6 +296,11 @@ internal class AppContainer(context: Context) {
 
     fun entrySaved(deletedGroups: List<VaultGroup>) {
         saves.trySend(Notice(savedText(deletedGroups)))
+    }
+
+    /** A version restored from History, said by the card it goes back to. */
+    fun versionRestored(text: String) {
+        saves.trySend(Notice(text))
     }
 
     /** A new generator: its options are remembered, its passwords are not. */

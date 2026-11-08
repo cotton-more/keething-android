@@ -44,6 +44,9 @@ public sealed class EditException(message: String) : Exception(message) {
     /** An attachment the edit keeps is not on the entry (keething-spec edit.attachments). */
     public class AttachmentNotFound : EditException("an attachment to keep is gone")
 
+    /** The entry's history has no such version (any more; keething-spec edit.history-restore). */
+    public class VersionNotFound : EditException("no such version in the history")
+
     /** The document lacks what every KeePass file has (`Meta`, the root group). */
     public class Malformed(detail: String) : EditException("malformed: $detail")
 }

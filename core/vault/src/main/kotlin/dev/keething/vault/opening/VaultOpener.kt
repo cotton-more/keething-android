@@ -177,7 +177,7 @@ public open class VaultOpener {
             return HistoryResult.Failed(null)
         }
         val mapper = EntryMapper(sizes, document.meta.customIcons.keys)
-        return HistoryResult.Read(EntryVersions(mapper.map(current), document.history.map(mapper::map)))
+        return HistoryResult.Read(EntryVersions(mapper.map(current), document.history.map(mapper::map), document.meta.historyMaxItems))
     }
 }
 
@@ -185,7 +185,12 @@ public open class VaultOpener {
  * An entry as the file has it now ([current]) and its earlier versions, oldest first. Holds secrets: [wipe] it
  * when it is not shown any more.
  */
-public class EntryVersions(public val current: Entry, public val history: List<Entry>) {
+public class EntryVersions(
+    public val current: Entry,
+    public val history: List<Entry>,
+    /** How many earlier versions the database keeps (`HistoryMaxItems`), -1 for any number. */
+    public val maxItems: Int = 10,
+) {
     public fun wipe() {
         current.wipe()
         history.forEach(Entry::wipe)

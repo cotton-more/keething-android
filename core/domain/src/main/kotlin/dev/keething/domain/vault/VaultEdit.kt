@@ -47,6 +47,18 @@ public sealed interface VaultEdit {
      */
     public data class DeleteForGood(override val entryId: String, val loadedModified: Instant?) : EntryEdit
 
+    /**
+     * An entry outside the recycle bin takes back version [version] of its history (0 = the oldest; keething-spec
+     * edit.history-restore), the current one going into the history. [versionModified] is that version's
+     * `LastModificationTime` as read: a history that says otherwise by now is refused, never another version taken.
+     */
+    public data class RestoreVersion(
+        override val entryId: String,
+        val loadedModified: Instant?,
+        val version: Int,
+        val versionModified: Instant?,
+    ) : EntryEdit
+
     /** A new name (trimmed) for a group outside the recycle bin. */
     public data class RenameGroup(val groupId: String, val name: String) : GroupEdit
 
