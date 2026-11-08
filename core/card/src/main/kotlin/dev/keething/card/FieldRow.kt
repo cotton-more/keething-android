@@ -144,5 +144,20 @@ public data class RevealState(val revealed: Set<String> = emptySet()) {
     public companion object {
         /** Fixed length on purpose: the mask must not tell how long the secret is. */
         public const val MASK: String = "••••••••"
+
+        /**
+         * A text with a masked part as a screen reader says it, never the dots (keething-spec app.accessibility AC2):
+         * the mask is "hidden", the part shown in clear stays, the end said as the end. "••••••••" is "Hidden",
+         * "•••• •••• •••• 1111" "Hidden, ending 1111", "Visa •• 1111" "Visa, hidden, ending 1111". A text without a
+         * dot is itself.
+         */
+        public fun spoken(text: String): String {
+            val first = text.indexOf('•')
+            if (first < 0) return text
+            val before = text.substring(0, first).trim()
+            val after = text.substring(text.lastIndexOf('•') + 1).trim()
+            val parts = listOfNotNull(before.ifEmpty { null }, "hidden", after.ifEmpty { null }?.let { "ending $it" })
+            return parts.joinToString(", ").replaceFirstChar(Char::uppercase)
+        }
     }
 }

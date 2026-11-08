@@ -1,5 +1,9 @@
 package dev.keething.android.list
 
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import dev.keething.android.session.isReadOnly
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -74,7 +78,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -108,7 +111,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -602,7 +604,7 @@ private fun Header(
         if (!codesOnly) {
             IconButton(onClick = onGroups) { Icon(Icons.Rounded.FolderOpen, contentDescription = "Groups and tags") }
             // The Codes view, from the app as from the launcher (keething-spec app.codes-view AC3).
-            FilledTonalIconButton(onClick = onCodes) { Icon(CodesIcon, contentDescription = "Codes") }
+            IconButton(onClick = onCodes) { Icon(CodesIcon, contentDescription = "Codes") }
             IconButton(onClick = onSharing) {
                 BadgedBox(badge = { if (toAnswer > 0) Badge() }) {
                     Icon(Icons.Rounded.People, contentDescription = if (toAnswer > 0) "Sharing, $toAnswer to answer" else "Sharing")
@@ -689,7 +691,11 @@ internal fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = colors.onWarnContainer)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Announced when it appears, its title and text as one (keething-spec app.accessibility AC6).
+        Column(
+            Modifier.weight(1f).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = colors.onWarnContainer)
             Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onWarnContainer)
             // Said once read: OK, and it is not said again (keething-spec databases.saf AC5).
@@ -702,7 +708,7 @@ internal fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null
 internal fun SectionTitle(title: String) {
     Text(
         title,
-        Modifier.padding(start = 8.dp, bottom = 8.dp),
+        Modifier.padding(start = 8.dp, bottom = 8.dp).semantics { heading() },
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
     )

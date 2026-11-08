@@ -7,7 +7,9 @@ import android.view.WindowManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentDataType
 import androidx.compose.ui.semantics.contentDataType
+import androidx.compose.ui.semantics.editableText
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import java.io.File
 
 /**
@@ -29,3 +31,12 @@ internal fun Activity.secureWindow() {
  * out only a field whose data type is None.
  */
 internal fun Modifier.keepOutOfAutofill(): Modifier = semantics { contentDataType = ContentDataType.None }
+
+/**
+ * A secure text field holding [length] characters that gives accessibility services only that length while hidden, as
+ * a View's password field does: Compose's `SecureTextField` gives them the typed text itself (keething-spec
+ * app.accessibility AC2). The caller reads the length in composition, so the dots follow the typing. Shown, the text is
+ * on the screen and read as it is.
+ */
+internal fun Modifier.secretToAccessibility(length: Int, shown: Boolean): Modifier =
+    if (shown) this else semantics { editableText = AnnotatedString("\u2022".repeat(length)) }

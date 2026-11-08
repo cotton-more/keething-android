@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -30,6 +31,9 @@ import dev.keething.domain.vault.CustomIcon
  */
 @Composable
 internal fun EntryIcon(avatar: EntryAvatar, image: ImageBitmap?, size: Dp, modifier: Modifier = Modifier) {
+    // Beside the entry's title, which says it: silent for a screen reader, a monogram's letter too (keething-spec
+    // app.accessibility AC1).
+    @Suppress("NAME_SHADOWING") val modifier = modifier.clearAndSetSemantics {}
     val shape = RoundedCornerShape(size * 0.36f)
     if (image != null) {
         Box(

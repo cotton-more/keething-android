@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
+import dev.keething.android.ui.spokenMasked
 import dev.keething.card.BankAccount
 import dev.keething.card.CardSection
 import dev.keething.card.Countries
@@ -117,6 +118,7 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                                     if (i == 0 && shown && account.numberLabel == "IBAN") withStyle(SpanStyle(color = accent)) { append(group) } else append(group)
                                 }
                             },
+                            if (shown) Modifier else Modifier.spokenMasked(text),
                             style = MaterialTheme.typography.titleLarge,
                             fontFamily = MonospaceFamily,
                             letterSpacing = 0.5.sp,
@@ -216,6 +218,7 @@ internal fun DocumentSection(section: CardSection, document: IdentityDocument, r
                             PaperLine("NUMBER", number, actions) {
                                 Text(
                                     if (shown) number?.revealedText().orEmpty() else RevealState.MASK,
+                                    if (shown) Modifier else Modifier.spokenMasked(RevealState.MASK),
                                     color = ink,
                                     fontFamily = MonospaceFamily,
                                     fontSize = 20.sp,

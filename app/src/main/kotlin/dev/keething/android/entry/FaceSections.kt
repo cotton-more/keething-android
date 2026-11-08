@@ -80,6 +80,7 @@ import dev.keething.android.ui.ContactlessMark
 import dev.keething.android.ui.QrCodeImage
 import dev.keething.android.ui.cardArt
 import dev.keething.android.ui.colouredSecret
+import dev.keething.android.ui.spokenMasked
 import dev.keething.card.CardSection
 import dev.keething.card.EntryAvatar
 import dev.keething.card.ExpiryHint
@@ -220,7 +221,7 @@ private fun CardFront(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Re
                 .clip(RoundedCornerShape(10.dp))
                 .then(if (number != null) Modifier.copyOnTap(number, actions) else Modifier)
                 .padding(horizontal = 6.dp, vertical = 4.dp)
-                .semantics { if (!revealed) contentDescription = "Card number, hidden" },
+                .semantics { if (!revealed) contentDescription = "Card number, " + RevealState.spoken(card.maskedNumber).lowercase() },
         ) {
             BasicText(
                 if (revealed) card.groupedNumber ?: number?.revealedText().orEmpty() else card.maskedNumber,
@@ -308,6 +309,7 @@ private fun CardBack(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Rev
                         val revealed = !cvc.isConcealed || reveal.isRevealed(cvc.id)
                         Text(
                             if (revealed) cvc.revealedText() else "•••",
+                            if (revealed) Modifier else Modifier.spokenMasked("•••"),
                             color = Color(0xFF15151A),
                             fontFamily = MonospaceFamily,
                             fontSize = 19.sp,
@@ -409,7 +411,7 @@ internal fun WiFiSection(
                                     if (keyShown) {
                                         Text(colouredSecret(key.revealedText()), style = MaterialTheme.typography.bodyLarge, fontFamily = MonospaceFamily)
                                     } else {
-                                        Text(RevealState.MASK, style = MaterialTheme.typography.bodyLarge, letterSpacing = 2.sp, maxLines = 1)
+                                        Text(RevealState.MASK, Modifier.spokenMasked(RevealState.MASK), style = MaterialTheme.typography.bodyLarge, letterSpacing = 2.sp, maxLines = 1)
                                     }
                                 }
                             }

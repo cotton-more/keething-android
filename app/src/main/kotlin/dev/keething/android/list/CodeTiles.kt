@@ -56,6 +56,7 @@ import dev.keething.android.ui.CodeRing
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.EntryIcon
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.secondsLeft
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.TotpDisplay
 import java.time.Instant
@@ -149,7 +150,12 @@ private fun CodeTileView(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClickLabel = "Copy code", onClick = onCopy)
-                .semantics { contentDescription = "${tile.title}, ${tile.subtitle}".trimEnd(',', ' ') }
+                // The code and its seconds too: the description is all a screen reader says of the tile (keething-spec
+                // app.accessibility AC4).
+                .semantics {
+                    contentDescription = listOf(tile.title, tile.subtitle, display.formatted, secondsLeft(display.secondsRemaining))
+                        .filter { it.isNotBlank() }.joinToString(", ")
+                }
                 .padding(start = 16.dp, end = 56.dp, top = 14.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {

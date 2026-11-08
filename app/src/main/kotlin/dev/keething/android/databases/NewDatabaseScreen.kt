@@ -1,6 +1,7 @@
 package dev.keething.android.databases
 
 import dev.keething.android.ui.keepOutOfAutofill
+import dev.keething.android.ui.secretToAccessibility
 import dev.keething.domain.storage.StoragePlace
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -309,7 +310,7 @@ private fun PasswordFields(model: NewDatabaseModel) {
     SecretTextMenu(copyable = false) {
         SecureTextField(
             state = model.password,
-            modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
+            modifier = Modifier.keepOutOfAutofill().secretToAccessibility(model.password.text.length, shown = model.reveals).fillMaxWidth(),
             label = { Text("Master password") },
             textStyle = style,
             textObfuscationMode = mode,
@@ -329,7 +330,7 @@ private fun PasswordFields(model: NewDatabaseModel) {
     SecretTextMenu(copyable = false) {
         SecureTextField(
             state = model.again,
-            modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
+            modifier = Modifier.keepOutOfAutofill().secretToAccessibility(model.again.text.length, shown = model.reveals).fillMaxWidth(),
             label = { Text("Again") },
             textStyle = style,
             textObfuscationMode = mode,

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import dev.keething.android.groups.GroupPickerSheet
 import dev.keething.android.groups.GroupTexts
 import dev.keething.android.ui.PathText
+import dev.keething.android.ui.spokenMasked
 import dev.keething.card.editing.GroupTree
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Visibility
@@ -375,7 +376,7 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, send
                     Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     when {
                         empty -> Text("empty", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        !shown -> Text("••••••••••••", style = MaterialTheme.typography.bodyLarge)
+                        !shown -> Text("••••••••••••", Modifier.spokenMasked("••••••••••••"), style = MaterialTheme.typography.bodyLarge)
                         secret && !text -> Text(colouredSecret(value), fontFamily = MonospaceFamily, style = MaterialTheme.typography.bodyLarge)
                         else -> Text(value, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
                     }

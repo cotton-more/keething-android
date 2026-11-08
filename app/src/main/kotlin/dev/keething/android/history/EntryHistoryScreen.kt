@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.keething.android.ui.spokenMasked
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
@@ -274,6 +275,7 @@ private fun ValueText(value: String, secret: Boolean, masked: Boolean, struck: B
             value.isEmpty() -> "(empty)"
             else -> value
         },
+        if (masked) Modifier.spokenMasked("••••••") else Modifier,
         style = MaterialTheme.typography.bodyMedium.copy(
             // A secret shown is monospaced, as on the card.
             fontFamily = if (secret && !masked) MonospaceFamily else null,

@@ -11,6 +11,8 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.FitText
 import dev.keething.android.ui.keepOutOfAutofill
@@ -653,7 +655,7 @@ private fun ExpiryRow(draft: EntryDraft, update: (EntryDraft) -> Unit) {
                 Text(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(zone).format(draft.expiryTime))
             }
         }
-        Switch(checked = draft.expires, onCheckedChange = { update(draft.copy(expires = it)) })
+        Switch(checked = draft.expires, onCheckedChange = { update(draft.copy(expires = it)) }, Modifier.semantics { contentDescription = "Expires" })
     }
     if (picking) {
         val day = draft.expiryTime.atZone(zone).toLocalDate()

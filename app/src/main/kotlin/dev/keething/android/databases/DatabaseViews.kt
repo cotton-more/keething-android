@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -126,7 +127,9 @@ private fun opaque(rgb: Int): Color = Color(0xFF000000.toInt() or rgb)
 internal fun DatabaseTile(initial: String, colorIndex: Int?, size: Dp = 40.dp) {
     val colors = colorIndex?.let { databaseColors(it) }
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(colors?.soft ?: MaterialTheme.colorScheme.secondaryContainer),
+        // Its letter repeats the name beside it: silent for a screen reader (keething-spec app.accessibility AC1).
+        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(colors?.soft ?: MaterialTheme.colorScheme.secondaryContainer)
+            .clearAndSetSemantics {},
         contentAlignment = Alignment.Center,
     ) {
         Text(

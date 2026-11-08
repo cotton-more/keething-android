@@ -1173,6 +1173,15 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   chip beside a row's text goes under it where it would leave the title less than about seven and a half
   characters (as a list row's code, §6.2). A " · " never starts a line, a date or "722 ms" is not broken, and a
   shown password wraps at the line's end, not after a `/` or a `-` as if it were two words.
+- A screen reader (TalkBack; keething-spec `app.accessibility`): every control that acts has a name, an icon or a
+  monogram beside a label that says the same is silent (Material 3 1.5's extended button drops its text, so the
+  card's Edit is named by hand). A masked value is read as "Hidden", with only its part in clear ("Card number,
+  hidden, ending 1111"), never its dots; a secure field gives accessibility services only its length while hidden
+  (Compose's `SecureTextField` gives the typed text itself). A one-time code is read with "N seconds left" and nothing
+  about it is announced as it counts; the Codes view's tile says its title, username, code and seconds. A recovery
+  phrase's words are read "Word 3, …". Swipes and long presses are labelled actions too; section titles are
+  headings; the list's banners are announced when they appear, as snackbars and the lock screen's failure are.
+  `task a11y:dump` checks the screen shown: a control without a name, a secret in the tree (DEVELOPMENT.md).
 - The generator's words are the EFF large word list (CC BY 3.0 US, `assets/licenses`). A recovery phrase is checked
   against BIP-39's ten word lists (MIT, `assets/licenses`; 184 KB, read when first needed).
 - QR codes are made by Nayuki's `qrcodegen` (MIT, `assets/licenses`; 38 KB, no dependencies, medium error

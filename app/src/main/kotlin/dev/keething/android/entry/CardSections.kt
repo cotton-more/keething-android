@@ -52,6 +52,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,6 +64,7 @@ import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.colouredSecret
 import dev.keething.android.ui.segmentShape
+import dev.keething.android.ui.spokenMasked
 import dev.keething.card.CardSection
 import dev.keething.card.EntryAvatar
 import dev.keething.card.ExpiryHint
@@ -85,7 +88,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 
 private val OUTER = 22.dp
 
@@ -131,7 +133,7 @@ internal fun Titled(title: String?, content: @Composable () -> Unit) {
         if (title != null) {
             Text(
                 title,
-                Modifier.padding(start = 8.dp, bottom = 8.dp),
+                Modifier.padding(start = 8.dp, bottom = 8.dp).semantics { heading() },
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -371,7 +373,7 @@ private fun FieldValueText(row: FieldRow, reveal: RevealState) {
     val text = reveal.displayValue(row)
     val style = MaterialTheme.typography.bodyLarge
     when {
-        row.isConcealed && !reveal.isRevealed(row.id) -> Text(text, style = style, letterSpacing = 2.sp, maxLines = 1)
+        row.isConcealed && !reveal.isRevealed(row.id) -> Text(text, Modifier.spokenMasked(text), style = style, letterSpacing = 2.sp, maxLines = 1)
         row.isConcealed -> Text(colouredSecret(text), style = style, fontFamily = MonospaceFamily)
         row.link != null -> Text(text, style = style, color = MaterialTheme.colorScheme.primary, maxLines = 3, overflow = TextOverflow.Ellipsis)
         else -> Text(text, style = style)
@@ -394,7 +396,7 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
-                Text(section.title.orEmpty(), style = MaterialTheme.typography.titleSmall)
+                Text(section.title.orEmpty(), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
                 Text(
                     "${section.rows.size - used} of ${section.rows.size} left",
                     style = MaterialTheme.typography.bodySmall,
@@ -480,6 +482,7 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
                 if (usedOn == null || !masked) {
                     Text(
                         if (row.isConcealed && !masked && usedOn == null) colouredSecret(text) else AnnotatedString(text),
+                        if (masked) Modifier.spokenMasked(text) else Modifier,
                         fontFamily = MonospaceFamily,
                         style = MaterialTheme.typography.bodyMedium.copy(textDecoration = if (usedOn != null) TextDecoration.LineThrough else null),
                         color = if (usedOn != null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,

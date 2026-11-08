@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -67,6 +68,7 @@ import dev.keething.android.ui.NetworkBadge
 import dev.keething.android.ui.QrCodeImage
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.segmentShape
+import dev.keething.android.ui.spokenMasked
 import dev.keething.card.AddressCheck
 import dev.keething.card.CardSection
 import dev.keething.card.CryptoNetwork
@@ -267,6 +269,7 @@ private fun WordGrid(phrase: SeedPhrase) {
                         Row(
                             Modifier
                                 .weight(1f)
+                                .clearAndSetSemantics { contentDescription = "Word ${i + 1}, $word" }
                                 .heightIn(min = 36.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Steel.cell)
@@ -308,6 +311,7 @@ private fun PassphraseLine(row: FieldRow, reveal: RevealState, actions: CardActi
             Text("+ PASSPHRASE", color = Steel.label, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
             Text(
                 reveal.displayValue(row),
+                if (shown) Modifier else Modifier.spokenMasked(reveal.displayValue(row)),
                 color = Steel.ink,
                 fontFamily = MonospaceFamily,
                 fontSize = 15.sp,

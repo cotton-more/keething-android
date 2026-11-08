@@ -1,5 +1,7 @@
 package dev.keething.android.entry
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import dev.keething.android.session.isReadOnly
 import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import dev.keething.android.sharing.ShareSheet
@@ -88,8 +90,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -373,7 +373,8 @@ internal fun EntryCardScreen(
                     onClick = onEdit,
                     icon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
                     text = { Text("Edit") },
-                    modifier = Modifier.navigationBarsPadding(),
+                    // Material 3 1.5's extended button leaves its text out of what a screen reader gets.
+                    modifier = Modifier.navigationBarsPadding().semantics { contentDescription = "Edit" },
                 )
             }
         },

@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
@@ -125,6 +126,9 @@ internal fun ContactlessMark(modifier: Modifier = Modifier) {
  */
 @Composable
 internal fun EntryMark(avatar: EntryAvatar, image: ImageBitmap?, face: EntryFace?, size: Dp, modifier: Modifier = Modifier) {
+    // Beside the entry's title, which says it: silent for a screen reader, as EntryIcon is (keething-spec
+    // app.accessibility AC1).
+    @Suppress("NAME_SHADOWING") val modifier = modifier.clearAndSetSemantics {}
     when (face) {
         is EntryFace.Card -> MiniCard(face, avatar, size, modifier)
         is EntryFace.WiFi -> MiniWiFi(size, modifier)

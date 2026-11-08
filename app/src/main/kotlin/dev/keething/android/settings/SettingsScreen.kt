@@ -1,5 +1,7 @@
 package dev.keething.android.settings
 
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import dev.keething.android.about.BuildInfo
 import dev.keething.android.about.ProblemReport
 import android.content.Intent
@@ -342,7 +344,7 @@ private fun Group(title: String, content: @Composable () -> Unit) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).heightIn(min = 56.dp).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         content()
     }
 }

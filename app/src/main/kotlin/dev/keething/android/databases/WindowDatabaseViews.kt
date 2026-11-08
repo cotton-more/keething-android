@@ -80,6 +80,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -438,7 +439,7 @@ internal fun DatabasesScreen(
 private fun SectionTitle(text: String) {
     Text(
         text,
-        Modifier.padding(start = 8.dp, top = 16.dp, bottom = 8.dp),
+        Modifier.padding(start = 8.dp, top = 16.dp, bottom = 8.dp).semantics { heading() },
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary,

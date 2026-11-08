@@ -88,6 +88,19 @@ class SpecialFieldsTest {
     }
 
     @Test
+    fun aMaskedValueIsSpokenAsHiddenWithOnlyItsClearPartNeverTheDots() {
+        val card = build(visa, cardTypes)
+        val number = card.rows.first { it.id == card.paymentCard?.numberRowId }
+        val cvc = card.rows.first { it.type == FieldType.CARD_CVC }
+
+        assertEquals("Hidden, ending 1111", RevealState.spoken(RevealState().displayValue(number)))
+        assertEquals("Hidden", RevealState.spoken(RevealState().displayValue(cvc)), "a protected value: nothing of it")
+        assertEquals("4111 1111 1111 1111", RevealState.spoken(RevealState().toggle(number.id).displayValue(number)), "shown: as text")
+        assertEquals("Visa, hidden, ending 1111", RevealState.spoken("Visa •• 1111"))
+        assertFalse(RevealState.spoken(RevealState.MASK).contains('•'))
+    }
+
+    @Test
     fun aProtectedNumberIsNeverReadTheTypeFieldNamesTheBrand() {
         val p = build(visaWith(1, field("number", "4111111111111111", protected = true)), cardTypes).paymentCard!!
 

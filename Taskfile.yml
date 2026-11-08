@@ -116,6 +116,11 @@ tasks:
       - adb exec-out screencap -p > {{.FILE}}
       - echo "Saved {{.FILE}}"
 
+  a11y:dump:
+    desc: "The shown screen's accessibility tree, checked for unnamed controls and secrets read aloud: task a11y:dump -- [--tree] [--secret <text>]"
+    cmds:
+      - tools/a11y-dump.py {{.CLI_ARGS}}
+
   # Test databases and pages (fictitious, password pw)
 
   autofill:serve:

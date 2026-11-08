@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -56,9 +58,18 @@ internal fun CodeValue(display: TotpDisplay) {
             color = colour,
         )
         CodeRing(display.period, colour, MaterialTheme.colorScheme.outlineVariant, size = 22.dp)
-        Text("${display.secondsRemaining} s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            "${display.secondsRemaining} s",
+            // Read when the reader reaches it, never announced as it counts (keething-spec app.accessibility AC4).
+            Modifier.semantics { contentDescription = secondsLeft(display.secondsRemaining) },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
+
+/** A code's seconds as a screen reader says them. */
+internal fun secondsLeft(seconds: Int): String = if (seconds == 1) "1 second left" else "$seconds seconds left"
 
 /**
  * The ring that runs down a code's period, smoothly (SPEC §6.1): redrawn on every frame, without

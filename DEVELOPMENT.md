@@ -185,6 +185,19 @@ still empty; `write S5Fam.kdbx` for a Create), `rename <the database's path>` (b
 next read of the database instead: set it, then save a change, and lock while the save waits at its first step
 (keething-spec kdbx.hardening AC3: after 10 s it is stopped, and the next unlock says the change was not saved).
 
+## Checking a screen for a screen reader
+
+    task a11y:dump                       # the screen shown: unnamed controls, a secret in the tree
+    task a11y:dump -- --tree             # and every node of the app as a reader meets it
+    task a11y:dump -- --secret 4111111111111111   # more values that must never be in the tree (default: pw)
+
+The screens are `FLAG_SECURE` (a screenshot is black), but uiautomator still gets the accessibility tree
+(keething-spec app.accessibility AC1, AC2). It flags a node that acts (clickable, long-clickable, checkable) with no
+text or description of its own or inside it, a node whose text or description is one of the secrets, and a password
+field whose text is not dots; it exits 1 when anything is flagged. Headings, live regions and the reading order are not
+in uiautomator's dump: those are TalkBack's to hear. With two devices connected (the forwarder and the phone's own
+entry are the same Pixel), set `ANDROID_SERIAL`.
+
 ## The field types' former key renamed
 
     tools/rename-field-types.sh <database.kdbx> <new.kdbx>   # asks for the password; writes only the new file

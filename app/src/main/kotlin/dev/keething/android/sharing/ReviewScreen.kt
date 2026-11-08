@@ -57,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
 import dev.keething.android.session.OpenDatabase
 import dev.keething.android.ui.keepOutOfAutofill
+import dev.keething.android.ui.spokenMasked
 import kotlinx.coroutines.flow.StateFlow
 import dev.keething.android.session.entries
 import dev.keething.vault.databases.EntryRef
@@ -332,6 +333,7 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
                     Text(part.label(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
                         part.preview(entry),
+                        Modifier.spokenMasked(part.preview(entry)),
                         style = MaterialTheme.typography.bodyLarge,
                         color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                         maxLines = 1,
