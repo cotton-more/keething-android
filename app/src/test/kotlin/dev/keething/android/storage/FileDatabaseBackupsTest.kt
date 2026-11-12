@@ -4,6 +4,7 @@ import dev.keething.vault.databases.DatabaseId
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.file.Files
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.AfterTest
@@ -24,7 +25,10 @@ class FileDatabaseBackupsTest {
         folder.deleteRecursively()
     }
 
-    private fun names() = File(folder, "backups").list().orEmpty().sorted()
+    /** The folder's files but the copies' SHA-256. */
+    private fun names() = File(folder, "backups").list().orEmpty().filter { it != FileDatabaseBackups.DIGESTS }.sorted()
+
+    private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
 
     /** A save that went through: its copy kept, then the oldest beyond ten pushed out. */
     private fun FileDatabaseBackups.save(database: ByteArray, fileName: String, at: Instant) {
@@ -68,6 +72,77 @@ class FileDatabaseBackupsTest {
         assertEquals("db 2026-10-20T19-32-05.kdbx", kept.first(), "the two oldest went")
     }
 
+    // spec: databases.backups/AC3
+    @Test
+    fun theNumberKeptIsTheDatabasesSettingAtEachSave() {
+        var count = 5
+        val backups = FileDatabaseBackups(File(folder, "backups"), zone = ZoneOffset.UTC, count = { count })
+        for (i in 0 until 7) backups.save(byteArrayOf(i.toByte()), "db.kdbx", at.plusSeconds(i * 60L))
+        assertEquals(5, names().size)
+
+        count = 20
+        for (i in 7 until 30) backups.save(byteArrayOf(i.toByte()), "db.kdbx", at.plusSeconds(i * 60L))
+        assertEquals(20, names().size)
+    }
+
+    // spec: databases.backups-window/AC2
+    @Test
+    fun fewerKeptDeletesTheOldestAtOnceAndDeletingAllLeavesOtherFiles() {
+        val dir = File(folder, "backups")
+        for (i in 0 until 8) backups.save(byteArrayOf(i.toByte()), "db.kdbx", at.plusSeconds(i * 60L))
+        File(dir, "notes.txt").writeText("mine")
+        assertEquals(FileDatabaseBackups.Summary(8, 8), backups.summary())
+
+        assertEquals(3, backups.prune(5))
+        assertEquals("db 2026-10-20T19-33-05.kdbx", names().first(), "the three oldest went")
+        assertEquals(FileDatabaseBackups.Summary(5, 5), backups.summary())
+
+        assertEquals(5, backups.deleteAll())
+        assertEquals(listOf("notes.txt"), names())
+        assertEquals(FileDatabaseBackups.Summary(0, 0), backups.summary())
+    }
+
+    // spec: databases.backups/AC1
+    @Test
+    fun whetherACopyHasTheSameBytesIsKnownFromTheirSha256WrittenBesideThem() {
+        val dir = File(folder, "backups")
+        backups.save(byteArrayOf(1, 2, 3), "db.kdbx", at)
+        backups.save(byteArrayOf(4, 5), "db.kdbx", at.plusSeconds(60))
+        assertTrue(backups.holds(sha256(byteArrayOf(1, 2, 3))))
+        assertFalse(backups.holds(sha256(byteArrayOf(9))))
+        // Written as each copy was kept: another object (the app started again) knows them without reading them.
+        val lines = File(dir, FileDatabaseBackups.DIGESTS).readLines()
+        assertEquals(2, lines.size)
+        assertTrue(lines.any { it.startsWith(sha256(byteArrayOf(4, 5)).toHexString() + " 2 db ") })
+        assertTrue(FileDatabaseBackups(dir, zone = ZoneOffset.UTC).holds(sha256(byteArrayOf(4, 5))))
+
+        // A copy that was taken back is not one.
+        backups.keep(byteArrayOf(7), "db.kdbx", at.plusSeconds(120))
+        backups.notSaved()
+        assertFalse(backups.holds(sha256(byteArrayOf(7))))
+    }
+
+    @Test
+    fun aCopyWithoutItsLineIsReadOnceAndAPrunedOneLosesIts() {
+        val dir = File(folder, "backups").apply { mkdirs() }
+        // Kept before the SHA-256 were written beside them.
+        File(dir, "db 2026-10-20T19-30-05.kdbx").writeBytes(byteArrayOf(1))
+        File(dir, "db 2026-10-20T19-31-05.kdbx").writeBytes(byteArrayOf(2))
+
+        assertTrue(backups.holds(sha256(byteArrayOf(1))))
+        assertTrue(backups.holds(sha256(byteArrayOf(2))))
+        assertEquals(2, File(dir, FileDatabaseBackups.DIGESTS).readLines().size)
+
+        // A line that does not match its copy's size is not trusted.
+        File(dir, "db 2026-10-20T19-31-05.kdbx").writeBytes(byteArrayOf(3, 3))
+        val fresh = FileDatabaseBackups(dir, zone = ZoneOffset.UTC)
+        assertTrue(fresh.holds(sha256(byteArrayOf(3, 3))))
+        assertFalse(fresh.holds(sha256(byteArrayOf(2))))
+
+        fresh.prune(1)
+        assertEquals(1, File(dir, FileDatabaseBackups.DIGESTS).readLines().size)
+    }
+
     @Test
     fun twoPersonalKdbxInTwoFoldersKeepTheirNewestTenEachInTheirDatabasesFolder() {
         val base = File(folder, "backups")
@@ -79,9 +154,9 @@ class FileDatabaseBackupsTest {
             two.save("two $i".encodeToByteArray(), "Personal.kdbx", at.plusSeconds(i * 60L + 1))
         }
 
-        val oneNames = File(base, "one").list().orEmpty().sorted()
+        val oneNames = File(base, "one").list().orEmpty().filter { it != FileDatabaseBackups.DIGESTS }.sorted()
         assertEquals(10, oneNames.size)
-        assertEquals(10, File(base, "two").list().orEmpty().size)
+        assertEquals(10, File(base, "two").list().orEmpty().count { it != FileDatabaseBackups.DIGESTS })
         assertEquals("one 11", File(base, "one/${oneNames.last()}").readText())
     }
 

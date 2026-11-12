@@ -335,6 +335,8 @@ public class VaultSession(
         watch = null
         key?.wipe()
         key = null
+        // The next session backs the file up before its first save (keething-spec databases.backups AC1).
+        saver.forget()
         attachments?.wipe()
         attachments = null
         (mutableState.value as? SessionState.Unlocked)?.vault?.wipe()

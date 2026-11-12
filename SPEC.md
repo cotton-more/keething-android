@@ -574,9 +574,17 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    and every group as before.
 6. If the file on disk changed meanwhile (its SHA-256 read again, and by its version once more as the store replaces
    it), do it all again on the new file (once more, then fail).
-7. Back up the old file into app-private storage (`filesDir/backups/<database id>/`, `<name> <local date and
+7. Back up the old file into app-private storage, once a session (keething-spec databases.backups AC1): not when the
+   database's switch is off (its record's `backupsOn`, §6.2), not when the file is the one this session's last save
+   wrote (its SHA-256, kept by the saver from the unlock to the lock: `VaultSaver.forget` at the lock; a save the lock
+   overtook leaves nothing for the next session; a conflict copy taken is not the session's own, so its bytes are backed
+   up at the next save), not when one of the database's backups has the same bytes (their SHA-256 in `.sha256` beside
+   them, `<hex> <size> <name>` a line, written as each is kept; one without its line, or whose size differs, is read
+   once). Decided at each attempt from that attempt's read (step 6), so a file changed elsewhere is copied before it is
+   replaced, and a save that did not replace the file changes nothing of it. Nothing is copied when a database is
+   opened. The copy goes to `filesDir/backups/<database id>/`, `<name> <local date and
    time>.kdbx`, `_2`… for more within a second, numbered after the last one there, flushed to the storage before the
-   replace; the newest 10 in the database's folder, newest by when they were written, not by the local time in their
+   replace; the newest as many as the database keeps (`backupsKept`: 5, 10, 20 or 50, 10 by default) in its folder, newest by when they were written, not by the local time in their
    names (a time zone changed would push the newest out: keething-spec kdbx.backups AC3), and only once the replace
    went through: a save that did not replace the file takes its copy back and pushes none out (kdbx.hardening AC9),
    whatever the file was called, other files left alone, so two `Personal.kdbx` keep theirs apart and a
@@ -737,7 +745,7 @@ file made before keep opening with the old key: the app's own backups (§3.3 ste
   time. Its sheet shows both versions in brief (entries, the newest change of one; the copy opened with a copy of the
   session's key, its secrets wiped at once, `VaultSession.copyContents`) and two choices, each saying what it does and
   asked once more in a dialog before it is done:
-  - *Keep the open one*: the copy is kept among the database's backups under its own name (§3.3 step 7), then deleted
+  - *Keep the open one*: the copy is kept among the database's backups under its own name (§3.3 step 7; with backups off too: it is a file the user did not make), then deleted
     (`VaultSession.removeConflictCopy`, `VaultSaver.removeCopy`); a copy that cannot be deleted stays, its backup taken
     back.
   - *Use the other one*: offered only when the copy opens with the database's key and the database can be changed
@@ -1749,7 +1757,17 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   and master key", 2026-11-08), **Key file** (its name and folder, or "None · It opens with its password alone"; Choose… /
   Change…, Forget; "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It
   must be there at every unlock, the fingerprint too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
-  **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
+  **Backups** (below), **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
+  **Backups** (keething-spec databases.backups-window AC2, AC3; the canvas "Database backups", agreed 2026-11-12), open
+  or locked alike: the switch **Back up before changes** (the record's `backupsOn`, on by default), while it is on
+  **Keep** 5 · 10 · 20 · 50 (`backupsKept`, 10 by default), a line ("7 kept, 8.1 MB: the file as it was before the first
+  change of each unlock.", "None yet: the first is kept before Family’s first change after an unlock, the file as it
+  was.", "Off: nothing is copied before a change. The 7 kept stay until deleted.") and "On this phone only, apart from
+  other databases’: removing Keething, or its data, removes them." A number below how many there are asks first
+  ("Keep 5 backups?", "The 2 oldest backups of Family are deleted from this phone now. They can’t be brought back.",
+  Cancel / Delete 2) and deletes them at once; a larger one asks nothing. Turning it off with backups kept asks "Stop
+  backing up Family?" ("Family is no longer copied before its changes. Its 7 backups can stay here or go.", Cancel /
+  Keep them / Delete them). The list of backups, deleting one and restoring are to come (stages 2 and 3).
   **Name and colour** (keething-spec databases.rename-recolour): while the database is open and can be changed, the name
   in a field (the file's `Meta/DatabaseName` as written; under it "Its file stays Work.kdbx.", "Empty: it is called by
   its file name, Work." or "“Passwords” counts as no name: …"), the palette's nine colours and None (a dashed ring) in two

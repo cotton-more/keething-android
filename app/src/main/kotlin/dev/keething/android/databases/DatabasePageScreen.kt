@@ -255,6 +255,9 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
         Section("Fingerprint") {
             FingerprintOfDatabase(container, id, line)
         }
+        Section("Backups") {
+            BackupsOfDatabase(container, id, line.name)
+        }
         Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             TextButton(onClick = { removing = true }) {
                 Icon(Icons.Rounded.PlaylistRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)

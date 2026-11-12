@@ -162,6 +162,39 @@ class DatabaseListTest {
         assertEquals(DatabaseId("x"), list.currentId)
     }
 
+    // spec: databases.backups-window/AC2
+    @Test
+    fun eachDatabaseKeepsItsOwnBackupSettingsInItsRecordOnBackupsAndTenByDefault() {
+        val store = MapSettings()
+        val list = list(store)
+        val personal = list.add("/a/Personal.kdbx")
+        val work = list.add("/b/Work.kdbx")
+        assertTrue(personal.backupsOn)
+        assertEquals(10, personal.backupsKept)
+        assertFalse(store.string(DatabaseList.STORE_KEY)!!.contains("backups"), "defaults are not written: a list of before stays as it was")
+
+        list.update(personal.id) { it.copy(backupsOn = false) }
+        list.update(work.id) { it.copy(backupsKept = 50) }
+
+        val read = list(store)
+        assertEquals(false to 10, read.record(personal.id)!!.let { it.backupsOn to it.backupsKept })
+        assertEquals(true to 50, read.record(work.id)!!.let { it.backupsOn to it.backupsKept })
+    }
+
+    @Test
+    fun aNumberOfBackupsThisAppDoesNotOfferReadsAsTheNextOneItDoes() {
+        val store = MapSettings()
+        store.setString(
+            DatabaseList.STORE_KEY,
+            """{"version":1,"databases":[{"id":"x","path":"/a/X.kdbx","backupsKept":7},{"id":"y","path":"/b/Y.kdbx","backupsKept":100}]}""",
+        )
+
+        val list = list(store)
+
+        assertEquals(10, list.record(DatabaseId("x"))!!.backupsKept)
+        assertEquals(50, list.record(DatabaseId("y"))!!.backupsKept)
+    }
+
     // Changing the list
 
     @Test

@@ -104,6 +104,9 @@ internal class Sessions(
     offered: (grant: String) -> Unit,
 ) : DefaultLifecycleObserver {
     /** The fingerprint's switch and days for the app, and each database's stored password (SPEC §5). */
+    /** Each database's backups object ([backups]); before the sessions, which take theirs as they start. */
+    private val backupsOf = mutableMapOf<DatabaseId, FileDatabaseBackups>()
+
     val biometric = BiometricSetup(biometricStores, list, settingsStore, AndroidClock, biometricIo)
 
     /** The app's locks, counted: a new database made across one stays locked, and New database's form goes. */
@@ -164,6 +167,20 @@ internal class Sessions(
 
     /** A database's session, while it is in the window. */
     fun session(id: DatabaseId): DatabaseSession? = vaults.session(id)
+
+    /**
+     * The database's backups, one object for its sessions and its page, with its switch and number kept as its record
+     * has them at each save (keething-spec databases.backups-window AC2).
+     */
+    fun backups(id: DatabaseId): FileDatabaseBackups = synchronized(backupsOf) {
+        backupsOf.getOrPut(id) {
+            FileDatabaseBackups(
+                File(backupsFolder, id.fileName),
+                count = { list.record(id)?.backupsKept ?: DatabaseRecord.DEFAULT_BACKUPS_KEPT },
+                isOn = { list.record(id)?.backupsOn ?: true },
+            )
+        }
+    }
 
     /** The entry of a ref in its own open database, with that database's session (keething-spec databases.one-list AC2). */
     fun entry(ref: EntryRef): OpenEntry? = vaults.entry(ref)
@@ -384,7 +401,7 @@ internal class Sessions(
         val session = VaultSession(
             store = store,
             opener = VaultOpener(),
-            backups = FileDatabaseBackups(File(backupsFolder, record.id.fileName)),
+            backups = backups(record.id),
             clock = AndroidClock,
             scope = scope,
             io = Dispatchers.IO,

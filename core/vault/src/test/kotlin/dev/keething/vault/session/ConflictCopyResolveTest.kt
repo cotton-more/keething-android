@@ -103,6 +103,9 @@ class ConflictCopyResolveTest {
         val next = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "after"))))
         runCurrent()
         assertIs<SaveOutcome.Saved>(next.await())
+        // The copy's bytes came from another device: the session did not write them, so they are backed up too.
+        assertEquals(2, f.backups.kept.size)
+        assertContentEquals(copyBytes, f.backups.kept.last().second)
     }
 
     @Test

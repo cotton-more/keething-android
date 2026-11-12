@@ -31,6 +31,7 @@ import dev.keething.vault.session.FakeStore
 import dev.keething.vault.session.fixtureBytes
 import java.io.IOException
 import java.io.InputStream
+import java.security.MessageDigest
 import java.time.Instant
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
@@ -72,6 +73,12 @@ class VaultSaverTest {
             if (pending) kept.removeAt(kept.lastIndex)
             pending = false
         }
+
+        var isOn = true
+        override val on: Boolean get() = isOn
+
+        // As the app's: a copy of the same bytes, by its SHA-256.
+        override fun holds(sha256: ByteArray): Boolean = kept.any { MessageDigest.isEqual(MessageDigest.getInstance("SHA-256").digest(it), sha256) }
     }
 
     private val backups = FakeBackups()
@@ -180,7 +187,8 @@ class VaultSaverTest {
 
         val end = unlock(store)
         assertEquals(start.entries, end.entries.filter { it.id != id }, "the other entries are as they were")
-        assertEquals(3, backups.kept.size, "one per save: create, recycle, restore")
+        assertEquals(1, backups.kept.size, "one a session: the file as it was before the first save")
+        assertContentEquals(fixtureBytes("kdbx4-aes-argon2d"), backups.kept.single())
     }
 
     // spec: edit.delete-for-good/AC1
@@ -201,7 +209,119 @@ class VaultSaverTest {
 
         val end = unlock(store)
         assertEquals(start.entries.filter { it.id != entry.id }, end.entries, "the other entries are as they were")
-        assertEquals(2, backups.kept.size, "one per save: recycle, delete")
+        assertEquals(1, backups.kept.size, "one a session: the file as it was before the first save")
+    }
+
+    /** Saves a new note titled [title] into [store] with [saver]. */
+    private fun note(saver: VaultSaver, store: FakeStore, title: String, key: DatabaseKey = key()): SaveResult {
+        val root = unlock(store, key).groups.single { it.isRoot }
+        return saver.save(VaultEdit.Create(Entry.newId(), GroupDestination(root.id), EntryChanges(title = title)), key, now)
+    }
+
+    // spec: databases.backups/AC1
+    @Test
+    fun aSessionBacksUpTheFileOnceBeforeItsFirstSaveAndAgainAfterALock() {
+        val original = fixtureBytes("kdbx4-aes-argon2d")
+        val store = FakeStore(original)
+        val saver = VaultSaver(store, backups)
+
+        saved(note(saver, store, "one"))
+        val first = store.content!!
+        saved(note(saver, store, "two"))
+        saved(note(saver, store, "three"))
+        assertEquals(1, backups.kept.size, "the file the session wrote is not backed up")
+        assertContentEquals(original, backups.kept.single(), "the file as it was before the session's changes")
+
+        saver.forget()
+        val wrote = store.content!!
+        saved(note(saver, store, "four"))
+        assertEquals(2, backups.kept.size, "the next session backs up its first save's file")
+        assertContentEquals(wrote, backups.kept.last())
+        assertTrue(!first.contentEquals(wrote))
+    }
+
+    @Test
+    fun aFileChangedElsewhereBetweenTwoSavesIsBackedUpBeforeItIsReplaced() {
+        val key = key()
+        val elsewhere = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        saved(note(VaultSaver(elsewhere, FakeBackups()), elsewhere, "from the Mac", key))
+        val store = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        val saver = VaultSaver(store, backups)
+        saved(note(saver, store, "first", key))
+
+        store.change(elsewhere.content)
+        saved(note(saver, store, "second", key))
+
+        assertEquals(2, backups.kept.size)
+        assertContentEquals(elsewhere.content, backups.kept.last(), "Syncthing's version, copied before it was replaced")
+    }
+
+    @Test
+    fun aSaveReadingTheFileAgainAfterItChangedBacksUpTheNewFileNotTheOld() {
+        val key = key()
+        val elsewhere = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        saved(note(VaultSaver(elsewhere, FakeBackups()), elsewhere, "from the Mac", key))
+        val store = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
+        // Changed while the first attempt's copy was written: that copy goes, the second attempt copies what came.
+        backups.whileKeeping = { kept -> if (kept == 1) store.change(elsewhere.content) }
+
+        saved(note(VaultSaver(store, backups), store, "mine", key))
+
+        assertEquals(1, backups.kept.size)
+        assertContentEquals(elsewhere.content, backups.kept.single())
+    }
+
+    @Test
+    fun aSaveThatDidNotReplaceTheFileLeavesTheSessionsOwnFileAsItWas() {
+        val original = fixtureBytes("kdbx4-aes-argon2d")
+        val store = FakeStore(original)
+        val saver = VaultSaver(store, backups)
+
+        // The first save fails at the replace: its copy goes, and the file is still not the session's.
+        store.failNextReplace = true
+        failure(note(saver, store, "lost"))
+        assertTrue(backups.kept.isEmpty())
+        saved(note(saver, store, "one"))
+        assertContentEquals(original, backups.kept.single())
+
+        // A later one fails: the file is still the one the session wrote, so the next save copies nothing.
+        store.failNextReplace = true
+        failure(note(saver, store, "lost again"))
+        saved(note(saver, store, "two"))
+        assertEquals(1, backups.kept.size)
+    }
+
+    @Test
+    fun aSaveTheLockOvertookLeavesNothingForTheNextSession() {
+        val store = FakeStore(fixtureBytes("kdbx4-aes-argon2d"))
+        val saver = VaultSaver(store, backups)
+        // The lock comes while the save runs; the save still replaces the file.
+        backups.whileKeeping = { kept -> if (kept == 1) saver.forget() }
+        saved(note(saver, store, "one"))
+        val wrote = store.content!!
+
+        saved(note(saver, store, "two"))
+
+        assertEquals(2, backups.kept.size, "the next session's first save copies the file")
+        assertContentEquals(wrote, backups.kept.last())
+    }
+
+    // spec: databases.backups/AC1
+    @Test
+    fun aFileWhoseBytesABackupHasAlreadyOrWithBackupsOffIsNotCopied() {
+        val original = fixtureBytes("kdbx4-aes-argon2d")
+        val store = FakeStore(original)
+        saved(note(VaultSaver(store, backups), store, "one"))
+        assertEquals(1, backups.kept.size)
+        // Back to the bytes a backup has (a restore's undo, another device going back): not copied again.
+        store.change(original)
+        saved(note(VaultSaver(store, backups), store, "two"))
+        assertEquals(1, backups.kept.size)
+
+        val off = FakeBackups().apply { isOn = false }
+        val other = FakeStore(original)
+        saved(note(VaultSaver(other, off), other, "off"))
+        assertTrue(off.kept.isEmpty(), "off: no backup before a save")
     }
 
     @Test

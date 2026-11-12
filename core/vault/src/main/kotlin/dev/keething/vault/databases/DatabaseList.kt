@@ -61,6 +61,10 @@ public data class DatabaseRecord(
     val inWindow: Boolean = false,
     /** Checked in the chooser, as at the last unlock of several (plan AD13). */
     val checkedInChooser: Boolean = true,
+    /** Its switch "Back up before changes": the file is backed up before a save (keething-spec databases.backups-window AC2). */
+    val backupsOn: Boolean = true,
+    /** How many of its backups are kept, one of [BACKUPS_KEPT] (keething-spec databases.backups-window AC2). */
+    val backupsKept: Int = DEFAULT_BACKUPS_KEPT,
 ) {
     public val fileName: String get() = file.fileName
 
@@ -72,6 +76,11 @@ public data class DatabaseRecord(
     public val isPasswordless: Boolean get() = keyFile != null && opensWithoutPassword
 
     public companion object {
+        /** The numbers of backups a database can keep (keething-spec databases.backups-window AC2). */
+        public val BACKUPS_KEPT: List<Int> = listOf(5, 10, 20, 50)
+
+        public const val DEFAULT_BACKUPS_KEPT: Int = 10
+
         /**
          * KeePassXC fills in "Passwords" as every new database's name (its wizard; here in the languages of the
          * keyboard layouts the Mac knows), so it says nothing of which database it is (folded: case and accents aside).
@@ -315,6 +324,9 @@ public class DatabaseList(
             record.lastOpened?.let { put("lastOpened", it.toEpochMilli() / 1000.0) }
             put("inWindow", record.inWindow)
             put("checkedInChooser", record.checkedInChooser)
+            // Only once changed, as fingerprintAsked.
+            if (!record.backupsOn) put("backupsOn", false)
+            if (record.backupsKept != DatabaseRecord.DEFAULT_BACKUPS_KEPT) put("backupsKept", record.backupsKept)
         }
 
         /**
@@ -346,6 +358,11 @@ public class DatabaseList(
             lastOpened = map.field<Double>("lastOpened")?.let { Instant.ofEpochMilli(Math.round(it * 1000)) },
             inWindow = map.field<Boolean>("inWindow") ?: false,
             checkedInChooser = map.field<Boolean>("checkedInChooser") ?: true,
+            backupsOn = map.field<Boolean>("backupsOn") ?: true,
+            // A number this app does not offer (a newer one's) keeps the nearest larger one offered, else the largest.
+            backupsKept = map.field<Double>("backupsKept")?.toInt()?.let { kept ->
+                DatabaseRecord.BACKUPS_KEPT.firstOrNull { it >= kept } ?: DatabaseRecord.BACKUPS_KEPT.last()
+            } ?: DatabaseRecord.DEFAULT_BACKUPS_KEPT,
         )
 
         /** The field's value; null when it is missing or null; another type makes the list unreadable. */

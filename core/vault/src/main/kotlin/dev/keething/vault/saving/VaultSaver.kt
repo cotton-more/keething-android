@@ -43,9 +43,28 @@ import java.time.temporal.ChronoUnit
  * all the work: the new file is written and read back with it, and a save derives nothing (keething-spec
  * kdbx.hardening AC1). [stopped] is asked right before the backup and right before the replace: a save the lock
  * overtook stops there, the file and its backups as they were (AC3). A key wiped meanwhile fails it so too (AC2).
+ * The file a save replaces is backed up once a session (keething-spec databases.backups AC1): not when the session wrote
+ * it ([forget] ends the session), not when a backup has the same bytes, not when backups are off.
  * Blocks: call it off the main thread.
  */
 internal class VaultSaver(private val store: DatabaseStore, private val backups: DatabaseBackups) {
+    /** The SHA-256 of the file the session's last save wrote, and which session that was; guarded by itself. */
+    private val written = Written()
+
+    private class Written {
+        var session = 0
+        var sha256: ByteArray? = null
+    }
+
+    /**
+     * The session ended (a lock): the next save backs the file up as it is, unless a backup has its bytes. A save the
+     * lock overtook that still replaces the file leaves nothing for the next session.
+     */
+    fun forget() = synchronized(written) {
+        written.session++
+        written.sha256 = null
+    }
+
     fun save(edit: VaultEdit, key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult =
         refusing { saveOrRefuse(stopped, make = { original -> makeFile(original, edit, key, now) }, now = now) }
 
@@ -92,7 +111,8 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
      * [SaveFailure.CopyNotOpened], nothing replaced.
      */
     fun takeCopy(copyName: String, key: DatabaseKey, now: Instant, stopped: () -> Boolean = { false }): SaveResult {
-        val result = refusing { saveOrRefuse(stopped, make = { original -> copied(original, copyName, key) }, now = now) }
+        // The copy's bytes came from another device and were never backed up: the next save backs them up.
+        val result = refusing { saveOrRefuse(stopped, make = { original -> copied(original, copyName, key) }, now = now, ours = false) }
         if (result !is SaveResult.Saved) return result
         val deleted = try {
             store.deleteConflictCopy(copyName)
@@ -149,20 +169,24 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
      * save needs (keething-spec app.large-database AC2). It is read again once the new file is made, as a stream too: its
      * SHA-256 must be the first read's, and the backup is written from it as it comes. [beforeBackup]
      * (an upgrade's): what is done once the new file is made and the old one is still what was read; that read is held
-     * whole, as it needs the bytes.
+     * whole, as it needs the bytes. [ours]: the new file counts as the session's own, so its next save does not back it up.
      */
     private fun saveOrRefuse(
         stopped: () -> Boolean,
         make: (original: Original) -> Made,
         now: Instant,
+        ours: Boolean = true,
         beforeBackup: ((original: ByteArray) -> Unit)? = null,
     ): SaveResult {
+        val session = synchronized(written) { written.session }
         repeat(ATTEMPTS) {
             val first = Original(store)
             val made = make(first)
+            // Decided for each read: a file changed elsewhere since the last attempt is not the session's.
+            val copy = needsBackup(first)
             // The file must still be what was read; otherwise read it again and redo the edit on top.
             val version = try {
-                if (beforeBackup == null) backUp(first, now, stopped) else backUpWhole(first, now, stopped, beforeBackup)
+                if (beforeBackup == null) backUp(first, now, stopped, copy) else backUpWhole(first, now, stopped, beforeBackup, copy)
             } catch (refused: Refused) {
                 made.discard()
                 throw refused
@@ -177,23 +201,25 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             } catch (_: DatabaseChangedException) {
                 // Changed since that read (a sync, at the last moment) and nothing was replaced: read it again, as above.
                 made.discard()
-                backups.notSaved()
+                if (copy) backups.notSaved()
                 return@repeat
             } catch (refused: Refused) {
                 made.discard()
-                backups.notSaved()
+                if (copy) backups.notSaved()
                 throw refused
             } catch (failure: DatabaseReplacedException) {
                 // Replaced all the same, its new time not made sure of: the copy is the replaced file's backup.
                 made.discard()
-                backups.saved()
+                if (copy) backups.saved()
+                wrote(session, made.file, ours)
                 throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
             } catch (failure: Exception) {
                 made.discard()
-                backups.notSaved()
+                if (copy) backups.notSaved()
                 throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
             }
-            backups.saved()
+            if (copy) backups.saved()
+            wrote(session, made.file, ours)
             val saved = store.version()
             if (saved == null) {
                 made.discard()
@@ -205,18 +231,42 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     }
 
     /**
-     * Reads the file again and keeps the backup from it as it is read, never holding it whole: its version when it is
-     * still what [first] read, else null with no copy kept. A save [stopped] by then stops before the backup.
+     * Whether the file [first] read is backed up before it is replaced (keething-spec databases.backups AC1): backups on,
+     * not the file the session wrote, no backup of the same bytes. A backup that cannot be looked through counts as none.
      */
-    private fun backUp(first: Original, now: Instant, stopped: () -> Boolean): FileVersion? {
+    private fun needsBackup(first: Original): Boolean {
+        if (!backups.on) return false
+        val sha256 = first.sha256
+        val ours = synchronized(written) { written.sha256?.let { MessageDigest.isEqual(it, sha256) } == true }
+        if (ours) return false
+        return try {
+            !backups.holds(sha256)
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    /** [file] replaced the database in [session]: the session's own from now on, unless not [ours] or the session ended. */
+    private fun wrote(session: Int, file: ByteArray, ours: Boolean) {
+        val sha256 = if (ours) MessageDigest.getInstance("SHA-256").digest(file) else null
+        synchronized(written) { if (written.session == session) written.sha256 = sha256 }
+    }
+
+    /**
+     * Reads the file again and, when [copy], keeps the backup from it as it is read, never holding it whole: its version
+     * when it is still what [first] read, else null with no copy kept. A save [stopped] by then stops before the backup.
+     */
+    private fun backUp(first: Original, now: Instant, stopped: () -> Boolean, copy: Boolean): FileVersion? {
         val digest = MessageDigest.getInstance("SHA-256")
         var keeping = false
         val read = try {
             store.read { input ->
                 if (stopped()) throw Refused(SaveFailure.Locked)
                 val digesting = DigestInputStream(input, digest)
-                keeping = true
-                backups.keep(digesting, store.fileName, now)
+                if (copy) {
+                    keeping = true
+                    backups.keep(digesting, store.fileName, now)
+                }
                 // To the end whatever the backup read: the digest is the whole file's.
                 val rest = ByteArray(64 * 1024)
                 while (digesting.read(rest) >= 0) Unit
@@ -234,11 +284,18 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     }
 
     /** As [backUp], with the file read whole for [beforeBackup] first. */
-    private fun backUpWhole(first: Original, now: Instant, stopped: () -> Boolean, beforeBackup: (original: ByteArray) -> Unit): FileVersion? {
+    private fun backUpWhole(
+        first: Original,
+        now: Instant,
+        stopped: () -> Boolean,
+        beforeBackup: (original: ByteArray) -> Unit,
+        copy: Boolean,
+    ): FileVersion? {
         val current = store.read()
         if (current !is DatabaseRead.Found || !first.isIn(current.bytes)) return null
         if (stopped()) throw Refused(SaveFailure.Locked)
         beforeBackup(current.bytes)
+        if (!copy) return current.version
         try {
             backups.keep(current.bytes, store.fileName, now)
         } catch (failure: Exception) {
@@ -284,7 +341,10 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         fun isIn(current: ByteArray): Boolean = hasDigest(sha256(current))
 
         /** Whether bytes of the SHA-256 [sha256] are the same bytes. */
-        fun hasDigest(sha256: ByteArray): Boolean = MessageDigest.isEqual(sha256, checkNotNull(digest) { "not opened" })
+        fun hasDigest(sha256: ByteArray): Boolean = MessageDigest.isEqual(sha256, this.sha256)
+
+        /** The SHA-256 of the file as it was read. */
+        val sha256: ByteArray get() = checkNotNull(digest) { "not opened" }
 
         private companion object {
             fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)

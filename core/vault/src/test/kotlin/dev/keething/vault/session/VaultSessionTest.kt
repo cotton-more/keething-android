@@ -23,6 +23,7 @@ import dev.keething.vault.saving.VaultSaver
 import java.time.Instant
 import java.time.LocalDateTime
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -418,6 +419,34 @@ class VaultSessionTest {
     }
 
     // Saving
+
+    // spec: databases.backups/AC1
+    @Test
+    fun nothingIsBackedUpAtAnUnlockAndOnceASessionBeforeItsFirstSave() = runTest {
+        val f = unlocked()
+        assertTrue(f.backups.isEmpty(), "not on opening")
+        val original = f.store.content!!
+        suspend fun note(notes: String) {
+            val entry = f.vault.entries.first()
+            val outcome = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = notes))))
+            runCurrent()
+            assertEquals(SaveOutcome.Saved(), outcome.await())
+        }
+
+        note("one")
+        note("two")
+        assertEquals(1, f.backups.size)
+        assertContentEquals(original, f.backups.single())
+
+        f.session.lock()
+        val wrote = f.store.content!!
+        assertNotNull(f.session.unlock(Secret.of("pw")))
+        runCurrent()
+        assertEquals(1, f.backups.size, "not on opening")
+        note("three")
+        assertEquals(2, f.backups.size, "a new session backs up the file before its first save")
+        assertContentEquals(wrote, f.backups.last())
+    }
 
     @Test
     fun aSaveWritesTheFileAndTheVaultBecomesTheFileReadBack() = runTest {
