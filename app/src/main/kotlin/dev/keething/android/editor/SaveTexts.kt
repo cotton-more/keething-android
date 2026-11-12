@@ -32,6 +32,10 @@ internal fun SaveFailure.describe(file: File): String = when (this) {
         failure.isWrongKey -> "The other version does not open with this database's password or key file (changed on another device?). Nothing was changed."
         else -> "The other version could not be opened, so nothing was changed: " + failure.describe(file.path).replaceFirstChar(Char::lowercase)
     }
+    SaveFailure.BackupGone -> "That backup is not there any more. Nothing was changed."
+    SaveFailure.BackupDamaged -> "That backup's file is damaged, so it would not open. Nothing was changed."
+    is SaveFailure.BackupNotOpened ->
+        "That backup could not be opened, so nothing was changed: " + failure.describe(file.path).replaceFirstChar(Char::lowercase)
     SaveFailure.FileKeepsChanging -> "The database file keeps changing (a sync?). Nothing was saved; try again in a moment."
     is SaveFailure.WriteFailed -> "Could not write the database: $detail."
     SaveFailure.OutOfMemory -> SizeTexts.OUT_OF_MEMORY

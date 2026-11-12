@@ -69,6 +69,22 @@ public sealed interface SaveFailure {
      */
     public data class CopyNotOpened(val failure: OpenFailure) : SaveFailure
 
+    /** The backup to restore is not there any more (keething-spec databases.backups-window AC8). */
+    public data object BackupGone : SaveFailure
+
+    /**
+     * The backup to restore would not open: its header is damaged, or its bytes are not those kept (keething-spec
+     * databases.backups-window AC5, AC8); nothing was replaced.
+     */
+    public data object BackupDamaged : SaveFailure
+
+    /**
+     * The backup to restore was opened with the database's key and is not readable ([failure]: damaged inside, a format
+     * Keething does not read), not a key it rejects (that one is restored, keething-spec databases.backups-window AC7);
+     * nothing was replaced.
+     */
+    public data class BackupNotOpened(val failure: OpenFailure) : SaveFailure
+
     /** The file changed on disk while saving, twice in a row. */
     public data object FileKeepsChanging : SaveFailure
 
@@ -106,4 +122,15 @@ internal sealed interface SaveResult {
     ) : SaveResult
 
     class Failed(val failure: SaveFailure) : SaveResult
+}
+
+internal sealed interface RestoreResult {
+    /**
+     * The file was replaced with the backup's bytes. [opened]: those read back with the database's key, ready to be the
+     * vault; null when no key was given (locked) or the backup does not open with it ([olderKey]). [beforeRestoring]:
+     * the backup the file as it was is in, to undo it with.
+     */
+    class Restored(val opened: OpenedVault?, val olderKey: Boolean, val beforeRestoring: String) : RestoreResult
+
+    class Failed(val failure: SaveFailure) : RestoreResult
 }

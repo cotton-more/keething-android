@@ -266,7 +266,7 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                 FingerprintOfDatabase(container, id, line)
             }
             Section("Backups") {
-                BackupsOfDatabase(container, id, line.name, onNotice = { notices.trySend(it) })
+                BackupsOfDatabase(container, id, line.name, onNotice = { notices.trySend(it) }, onRestored = linesModel::refresh)
             }
             Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { removing = true }) {

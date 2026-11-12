@@ -734,6 +734,26 @@ with the old key, and a key file made for it is removed. Where the database is o
 the Mac) the next reload locks it "Password changed" and a stored password it rejects is deleted (§5). Copies of the
 file made before keep opening with the old key: the app's own backups (§3.3 step 7) too.
 
+**A backup restored** (keething-spec databases.backups-window AC6-AC9; the database's page, §6.2) replaces the file's
+bytes with the backup's as they are, nothing rewritten, a save in its turn among the saves (`VaultSession.restoreBackup`,
+`VaultSaver.restore`; a database outside the window, with no session, through `BackupRestorer`, as a locked one). The
+backup is read whole and must be the bytes kept (its line in `.sha256`; one without a line gets one now) with a header
+that reads (`KdbxReader.isHeaderDamaged`); else nothing happens. Open, it is first opened with the session's key (no
+derivation when its key derivation is the file's): one the key opens becomes the vault, as the file read back; one it
+rejects (made before a master key change) is restored all the same, and the session then locks
+(`LockReason.RestoredOlderKey`: "A backup made before its master key changed was restored. Enter the password it had
+then.") and the fingerprint's stored password for it is deleted, to be set up again at the next typed unlock
+(`BiometricSetup.restoredOlderKey`); one that does not read for another reason (damaged inside) is refused. Locked,
+nothing is read: it unlocks as always. Read-only (KDBX 3.1, too large: §3.3) it is refused at once. Then as a save
+(steps 5-8): the file read for its digest, backed up and replaced only while it is still what was read, once more if
+it changed. The backup is made whatever the session wrote and with the switch off, `<name> <time> (before
+restoring).kdbx` (`DatabaseBackups.keepBeforeRestoring`), unless a backup has the same bytes already: that one is the
+file before the restore, so an Undo, which restores it, adds no copy of the backup it undoes. The restored file is not
+the session's own (step 7): its next save backs it up unless a backup has its bytes, which the one restored does. Once
+replaced, the oldest beyond the number kept go while the switch is on, never the backup just restored, which counts
+among them (`FileDatabaseBackups.restored`); off, none go. A failure takes the copy back: the file and the backups as
+they were.
+
 ### 3.4 Conflicts
 
 - A `*.sync-conflict-*` copy of a database next to it is shown as a banner of that database (named while two or
@@ -1758,7 +1778,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Change…, Forget; "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It
   must be there at every unlock, the fingerprint too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
   **Backups** (below), **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
-  **Backups** (keething-spec databases.backups-window AC1-AC5; the canvas "Database backups", agreed 2026-11-12), open
+  **Backups** (keething-spec databases.backups-window AC1-AC9; the canvas "Database backups", agreed 2026-11-12), open
   or locked alike: the switch **Back up before changes** (the record's `backupsOn`, on by default), while it is on
   **Keep** 5 · 10 · 20 · 50 (`backupsKept`, 10 by default), a line ("7 kept, 8.1 MB: the file as it was before the first
   change of each unlock.", "None yet: the first is kept before Family’s first change after an unlock, the file as it
@@ -1769,15 +1789,28 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   backing up Family?" ("Family is no longer copied before its changes. Its 7 backups can stay here or go.", Cancel /
   Keep them / Delete them). Then the backups, newest first, by when each was written, read with no key: each its date
   ("Today, 14:03", "Yesterday, 21:40", "Mon 9 Nov, 08:15"), how long ago ("17 hours ago", "3 days ago" by the calendar)
-  and size; one whose header does not read or does not match its own SHA-256 (KDBX 4: `KdbxReader.isHeaderDamaged`;
-  a KDBX 3.1 header has none, only its signature is read) says "damaged: it would not open" in red. The newest three,
+  and size, the file before a restore marked **Before restoring** beside its date; one whose header does not read or
+  does not match its own SHA-256 (KDBX 4: `KdbxReader.isHeaderDamaged`; a KDBX 3.1 header has none, only its signature
+  is read) says "damaged: it would not open" in red. The newest three,
   then **Show all N** / **Show fewer** in place; **Delete all backups…** under them ("Delete all backups?", "The 7
   backups of Family are deleted from this phone. They can’t be brought back.", "Backups made before a master key
   change still open with the old one: this is how they go.", Cancel / Delete all). A backup opens a sheet: its date,
-  how long ago and size, a damaged one's "Its file is damaged: its header does not match its checksum, so it would not
-  open. It cannot be restored.", **Delete…** ("Delete this backup?", "The backup of Mon 9 Nov, 08:15 is deleted from
-  this phone. It can’t be brought back.", Cancel / Delete; done, "Deleted the backup of Mon 9 Nov, 08:15" at the
-  bottom) and Close. Off, the backups kept are listed and deleted all the same. Restoring is to come (stage 3).
+  how long ago and size, **Restore this backup…** ("Family becomes as it was then"), **Delete…** ("Delete this
+  backup?", "The backup of Mon 9 Nov, 08:15 is deleted from this phone. It can’t be brought back.", Cancel / Delete;
+  done, "Deleted the backup of Mon 9 Nov, 08:15" at the bottom) and Close. In place of Restore, a damaged one says "Its
+  file is damaged: its header does not match its checksum, so it would not open. It cannot be restored.", and a
+  read-only database (§3.3) "Family is read only on this phone: its backups are listed and deleted, not restored.",
+  which the section says too. Restore asks once ("Restore this backup?", "Family becomes as it was on Mon 9 Nov, 08:15.
+  Changes made since leave the database, here and on every device it syncs with.", "The file as it is now is kept as
+  a backup first, so the restore can be undone.", Cancel / Restore; "as it was today, 14:03" for one of today or
+  yesterday), then restores it (§3.3 "A backup restored") on the
+  app's scope, "Restoring the backup of Mon 9 Nov, 08:15…" in the section meanwhile and Restore off. Done, "Restored
+  the backup of Mon 9 Nov, 08:15" at the bottom with **Undo**, which restores the file before the restore the same way
+  ("Back to Family as it was before the restore"); the page's header then shows the file's new time. A backup that does not open with the key Family was open with
+  locks it, the section saying "Restored. This backup opens with the master key Family had on Sun 1 Nov, 10:20, so
+  Family is locked: unlock it with that password. Its fingerprint stays off until then." A failure is said in the
+  section ("Not restored: Family.kdbx could not be written (…). Nothing was changed, and no backup was added."). Off,
+  the backups kept are listed, restored and deleted all the same.
   **Name and colour** (keething-spec databases.rename-recolour): while the database is open and can be changed, the name
   in a field (the file's `Meta/DatabaseName` as written; under it "Its file stays Work.kdbx.", "Empty: it is called by
   its file name, Work." or "“Passwords” counts as no name: …"), the palette's nine colours and None (a dashed ring) in two

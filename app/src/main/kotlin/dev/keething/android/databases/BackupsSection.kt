@@ -10,15 +10,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -46,7 +50,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,13 +60,18 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.editor.describe
 import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.android.ui.ButtonLabel
 import dev.keething.android.ui.Notice
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.segmentShape
+import dev.keething.android.unlock.describe
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseRecord
+import dev.keething.vault.saving.SaveFailure
+import dev.keething.vault.session.RestoreOutcome
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -159,6 +170,53 @@ internal object BackupTexts {
 
     const val DELETE_ALL_NOTE: String = "Backups made before a master key change still open with the old one: this is how they go."
 
+    /** The mark of the file as it was before a restore (keething-spec databases.backups-window AC6). */
+    const val BEFORE_RESTORING: String = "Before restoring"
+
+    fun restoreLine(name: String): String = "$name becomes as it was then"
+
+    /** Why a backup is not offered for restoring in a read-only database (AC9). */
+    fun readOnly(name: String): String = "$name is read only on this phone: its backups are listed and deleted, not restored."
+
+    const val RESTORE_TITLE: String = "Restore this backup?"
+
+    fun restoreText(name: String, date: String): String =
+        "$name becomes as it was ${onDate(date)}. Changes made since leave the database, here and on every device it syncs with."
+
+    const val RESTORE_NOTE: String = "The file as it is now is kept as a backup first, so the restore can be undone."
+
+    fun restoring(date: String): String = "Restoring the backup of $date…"
+
+    fun undoing(name: String): String = "Bringing $name back as it was before the restore…"
+
+    fun restored(date: String): String = "Restored the backup of $date"
+
+    fun undone(name: String): String = "Back to $name as it was before the restore"
+
+    /**
+     * Restored over an open database whose key the backup does not open with (AC7): it locked, and the fingerprint
+     * waits for the password typed. [date]: the backup's, null when not known (an Undo's).
+     */
+    fun olderKey(name: String, date: String?): String =
+        "Restored. This backup opens with the master key $name had " + (date?.let(::onDate) ?: "then") +
+            ", so $name is locked: unlock it with that password. Its fingerprint stays off until then."
+
+    /** A restore that did not happen (AC8): the file and the backups as they were, and why. [file]: the database's. */
+    fun notRestored(file: File, failure: SaveFailure): String = when (failure) {
+        is SaveFailure.WriteFailed -> "Not restored: ${file.name} could not be written (${failure.detail}). Nothing was changed, and no backup was added."
+        SaveFailure.FileKeepsChanging -> "Not restored: ${file.name} kept changing (a sync?). Nothing was changed, and no backup was added; try again in a moment."
+        SaveFailure.Locked -> "Not restored: the database locked while the backup was being opened. Nothing was changed, and no backup was added."
+        is SaveFailure.CannotOpen ->
+            "Not restored: " + failure.failure.describe(file.path).replaceFirstChar(Char::lowercase) + " Nothing was changed, and no backup was added."
+        else -> "Not restored. " + failure.describe(file).removeSuffix(".") + ", and no backup was added."
+    }
+
+    /** A backup's [date] in a sentence: "on Mon 9 Nov, 08:15", but "today, 14:03" and "yesterday, 21:40". */
+    private fun onDate(date: String): String = when {
+        date.startsWith("Today") || date.startsWith("Yesterday") -> date.replaceFirstChar(Char::lowercaseChar)
+        else -> "on $date"
+    }
+
     private fun count(n: Long, unit: String): String = if (n == 1L) "1 $unit" else "$n ${unit}s"
 
     private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
@@ -167,15 +225,19 @@ internal object BackupTexts {
 }
 
 /**
- * The database's page, Backups (keething-spec databases.backups-window AC1-AC5; the canvas "Database backups"): its
+ * The database's page, Backups (keething-spec databases.backups-window AC1-AC9; the canvas "Database backups"): its
  * switch "Back up before changes", Keep 5 · 10 · 20 · 50 while it is on, how many there are and their size, then the
- * backups newest first (the newest three, Show all N for the rest in place), each opening a sheet with Delete…, and
- * Delete all backups…. Open or locked alike: the settings are the record's, never the file's, and nothing about a
- * backup needs its key. Fewer asks first and deletes the oldest at once; turning it off asks whether the backups stay
- * or go; a deletion is said through [onNotice].
+ * backups newest first (the newest three, Show all N for the rest in place, the file before a restore marked), each
+ * opening a sheet with Restore this backup… and Delete…, and Delete all backups…. Open or locked alike: the settings
+ * are the record's, never the file's, and nothing about a backup needs its key. Fewer asks first and deletes the
+ * oldest at once; turning it off asks whether the backups stay or go. A restore asks once, then runs on the app's
+ * scope with a line here while it does; done, it is said through [onNotice] with Undo ([onRestored] told, the page's
+ * header shows the file's new time), a deletion so too; a failure,
+ * or a database locked by a backup with an older key, is said here. Not offered for a damaged backup or in a
+ * read-only database.
  */
 @Composable
-internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: String, onNotice: (Notice) -> Unit) {
+internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: String, onNotice: (Notice) -> Unit, onRestored: () -> Unit = {}) {
     val list = container.sessions.list
     val databases by list.state.collectAsStateWithLifecycle()
     val record = databases.record(id) ?: return
@@ -190,10 +252,15 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
     var opened by remember { mutableStateOf<FileDatabaseBackups.Backup?>(null) }
     var askingDelete by remember { mutableStateOf<FileDatabaseBackups.Backup?>(null) }
     var askingDeleteAll by remember { mutableStateOf(false) }
+    var askingRestore by remember { mutableStateOf<FileDatabaseBackups.Backup?>(null) }
+    var restoring by remember { mutableStateOf<String?>(null) }
+    var info by remember { mutableStateOf<String?>(null) }
+    var problem by remember { mutableStateOf<String?>(null) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { reads++ }
     // A save from this page (its name and colour) may keep one: read again as the open database changes.
     container.sessions.state.collectAsStateWithLifecycle().value
     val state = container.sessions.session(id)?.session?.state?.let { flow -> key(flow) { flow.collectAsStateWithLifecycle().value } }
+    val readOnly = ReadOnlyReason.of(state) != null
     LaunchedEffect(reads, state, record.backupsKept) { read = withContext(Dispatchers.IO) { Read(backups.list(), Instant.now()) } }
     val all = read?.backups.orEmpty()
     val count = all.size
@@ -209,6 +276,52 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
         }
     }
 
+    // [undo]: restoring the file as it was before the restore just done, said so; no Undo of an Undo.
+    fun restore(backup: String, date: String?, undo: Boolean) {
+        if (restoring != null) return
+        restoring = if (undo) BackupTexts.undoing(name) else BackupTexts.restoring(date.orEmpty())
+        info = null
+        problem = null
+        container.sessions.restoreBackup(id, backup) { outcome ->
+            restoring = null
+            reads++
+            when (outcome) {
+                is RestoreOutcome.Restored -> {
+                    onRestored()
+                    if (outcome.olderKey) info = BackupTexts.olderKey(name, date)
+                    onNotice(
+                        if (undo) {
+                            Notice(BackupTexts.undone(name))
+                        } else {
+                            Notice(BackupTexts.restored(date.orEmpty()), undo = { restore(outcome.beforeRestoring, date = null, undo = true) })
+                        },
+                    )
+                }
+                is RestoreOutcome.Failed -> problem = BackupTexts.notRestored(File(record.file.fileName), outcome.failure)
+            }
+        }
+    }
+
+    askingRestore?.let { backup ->
+        val date = date(backup)
+        AlertDialog(
+            onDismissRequest = { askingRestore = null },
+            title = { Text(BackupTexts.RESTORE_TITLE) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(BackupTexts.restoreText(name, date))
+                    Text(BackupTexts.RESTORE_NOTE, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    askingRestore = null
+                    restore(backup.name, date, undo = false)
+                }) { Text("Restore") }
+            },
+            dismissButton = { TextButton(onClick = { askingRestore = null }) { Text("Cancel") } },
+        )
+    }
     if (askingOff) {
         AlertDialog(
             onDismissRequest = { askingOff = false },
@@ -289,6 +402,13 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
             date = date(backup),
             detail = "${BackupTexts.ago(backup.at, read?.now ?: Instant.now(), zone)} · ${size(backup.bytes)}",
             damaged = backup.damaged,
+            restoreLine = BackupTexts.restoreLine(name),
+            readOnly = if (readOnly) BackupTexts.readOnly(name) else null,
+            restoring = restoring != null,
+            onRestore = {
+                opened = null
+                askingRestore = backup
+            },
             onDelete = {
                 opened = null
                 askingDelete = backup
@@ -342,6 +462,37 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+    restoring?.let { text ->
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .semantics { liveRegion = LiveRegionMode.Polite }.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    val note = info ?: if (readOnly && count > 0) BackupTexts.readOnly(name) else null
+    note?.let { text ->
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    problem?.let { text ->
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.errorContainer)
+                .semantics { liveRegion = LiveRegionMode.Assertive }.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+        }
+    }
     if (count > 0) {
         val shown = if (expanded) all else all.take(SHOWN)
         Column(verticalArrangement = Arrangement.spacedBy(SegmentGap)) {
@@ -355,13 +506,25 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
                         .clip(segmentShape(index, shown.size))
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .clickable(onClickLabel = "Open") { opened = backup }
-                        .semantics(mergeDescendants = true) { contentDescription = "Backup of $date, $detail" }
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "Backup of $date, " + (if (backup.beforeRestoring) "${BackupTexts.BEFORE_RESTORING.lowercase()}, " else "") + detail
+                        }
                         .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(date, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(date, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                            if (backup.beforeRestoring) {
+                                Text(
+                                    BackupTexts.BEFORE_RESTORING,
+                                    Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                            }
+                        }
                         Text(
                             detail,
                             style = MaterialTheme.typography.bodyMedium,
@@ -392,10 +555,24 @@ private class Read(val backups: List<FileDatabaseBackups.Backup>, val now: Insta
 /** How many the section shows before Show all N. */
 private const val SHOWN = 3
 
-/** A backup's sheet: its date, how long ago and its size, Delete…, and why a damaged one cannot be restored (AC5). */
+/**
+ * A backup's sheet: its date, how long ago and its size, Restore this backup… and Delete…; instead of Restore, why a
+ * damaged one cannot be restored (AC5) or that a read-only database's are not ([readOnly], AC9). Restore waits while a
+ * restore runs ([restoring]).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BackupSheet(date: String, detail: String, damaged: Boolean, onDelete: () -> Unit, onDismiss: () -> Unit) {
+private fun BackupSheet(
+    date: String,
+    detail: String,
+    damaged: Boolean,
+    restoreLine: String,
+    readOnly: String?,
+    restoring: Boolean,
+    onRestore: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -406,10 +583,31 @@ private fun BackupSheet(date: String, detail: String, damaged: Boolean, onDelete
                 Text(date, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                 Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (damaged) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            when {
+                damaged -> Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                     Text(BackupTexts.DAMAGED, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                }
+                readOnly != null -> Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(readOnly, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                else -> Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable(enabled = !restoring, onClick = onRestore)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    val color = if (restoring) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface
+                    Icon(Icons.Rounded.History, contentDescription = null, tint = color)
+                    Column {
+                        Text("Restore this backup…", style = MaterialTheme.typography.bodyLarge, color = color)
+                        Text(restoreLine, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
             Row(

@@ -219,6 +219,18 @@ public class BiometricSetup(
         return stores.openSeveral(ids.map { it.fileName }, onRecognised) { name -> byName[name]?.let(stillWanted) == true }
     }
 
+    /**
+     * A backup restored over [id] does not open with the key it was open with (keething-spec databases.backups-window
+     * AC7): its stored password goes, and the fingerprint is set up again at the next typed unlock. Why the deletion
+     * failed, or null.
+     */
+    public suspend fun restoredOlderKey(id: DatabaseId): String? {
+        if (id !in state.value.stored) return null
+        val failure = delete(id)
+        setUpAgain(setOf(id), SetUpAgain.PASSWORD_REJECTED)
+        return failure
+    }
+
     /** [id]'s stored password; returns why that failed, or null. */
     internal suspend fun delete(id: DatabaseId): String? {
         val failure = withContext(io) {

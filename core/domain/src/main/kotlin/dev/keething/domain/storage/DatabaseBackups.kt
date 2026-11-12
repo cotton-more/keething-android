@@ -1,5 +1,6 @@
 package dev.keething.domain.storage
 
+import java.io.IOException
 import java.io.InputStream
 import java.time.Instant
 
@@ -30,5 +31,30 @@ public fun interface DatabaseBackups {
     public val on: Boolean get() = true
 
     /** Whether one of the database's copies has the SHA-256 [sha256]: the same bytes are kept already. */
-    public fun holds(sha256: ByteArray): Boolean = false
+    public fun holds(sha256: ByteArray): Boolean = holding(sha256) != null
+
+    /** The name of a copy with the SHA-256 [sha256], or null when none has the same bytes. */
+    public fun holding(sha256: ByteArray): String? = null
+
+    /**
+     * The copy named [name], whole, to restore it (keething-spec databases.backups-window AC6): null when it is not
+     * there; [BackupDamagedException] when its bytes are not those kept.
+     */
+    public fun read(name: String): ByteArray? = null
+
+    /**
+     * As [keep], whatever [on] says: the file before a restore, its copy marked so ("Before restoring", keething-spec
+     * databases.backups-window AC6). Its name: the restore's Undo restores it. [restored] or [notSaved] follows.
+     */
+    public fun keepBeforeRestoring(database: InputStream, fileName: String, at: Instant): String =
+        throw UnsupportedOperationException("restoring a backup")
+
+    /**
+     * The restore that kept the last copy replaced the file with the copy named [restoredName]: as [saved], but the oldest
+     * go only while backups are on, and never that one.
+     */
+    public fun restored(restoredName: String): Unit = saved()
 }
+
+/** A backup's bytes are not those kept: changed or damaged since (keething-spec databases.backups-window AC5). */
+public class BackupDamagedException(message: String) : IOException(message)

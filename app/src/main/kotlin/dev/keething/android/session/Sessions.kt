@@ -37,7 +37,10 @@ import dev.keething.vault.databases.UnlockRun
 import dev.keething.vault.databases.VaultSessions
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.VaultOpener
+import dev.keething.vault.saving.BackupRestorer
+import dev.keething.vault.saving.SaveFailure
 import dev.keething.vault.session.LockReason
+import dev.keething.vault.session.RestoreOutcome
 import dev.keething.vault.session.SaveRoom
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.VaultSession
@@ -59,6 +62,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** One stay of the app in the foreground: [number] counts them; [beganLocked]: its lock screen showed when it began. */
 internal data class Visit(val number: Int, val beganLocked: Boolean)
@@ -179,6 +183,32 @@ internal class Sessions(
                 count = { list.record(id)?.backupsKept ?: DatabaseRecord.DEFAULT_BACKUPS_KEPT },
                 isOn = { list.record(id)?.backupsOn ?: true },
             )
+        }
+    }
+
+    /**
+     * Restores [id]'s backup named [name] (keething-spec databases.backups-window AC6-AC8), on the app's scope: the page
+     * may go meanwhile. Through its session while it is in the window, else the file alone. Restored over an open
+     * database whose key it does not open with, the fingerprint's stored password goes (AC7). [done] hears how it ended.
+     */
+    fun restoreBackup(id: DatabaseId, name: String, done: (RestoreOutcome) -> Unit) {
+        scope.launch {
+            val session = vaults.session(id)?.session
+            val outcome = when {
+                session != null -> session.restoreBackup(name).await()
+                else -> {
+                    val record = list.record(id)
+                    if (record == null) {
+                        RestoreOutcome.Failed(SaveFailure.CannotOpen(OpenFailure.Missing))
+                    } else {
+                        withContext(Dispatchers.IO) { BackupRestorer(storeAt(record.file), backups(id), AndroidClock).restore(name) }
+                    }
+                }
+            }
+            if (outcome is RestoreOutcome.Restored && outcome.olderKey) {
+                biometric.restoredOlderKey(id)?.let { Log.w(TAG, "stored password not deleted after a restore: $it") }
+            }
+            done(outcome)
         }
     }
 
@@ -439,6 +469,7 @@ internal class Sessions(
             LockReason.Manual -> "manual"
             LockReason.Timeout -> "timeout"
             LockReason.PasswordChanged -> "password changed"
+            LockReason.RestoredOlderKey -> "backup restored, older key"
             is LockReason.UnlockFailed -> "unlock failed, " + when (val failure = reason.failure) {
                 OpenFailure.WrongPassword -> "wrong password"
                 OpenFailure.WrongPasswordOrKeyFile -> "wrong password or key file"

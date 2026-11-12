@@ -1,5 +1,6 @@
 package dev.keething.android.storage
 
+import dev.keething.domain.storage.BackupDamagedException
 import dev.keething.vault.databases.DatabaseId
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -11,6 +12,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -286,10 +288,68 @@ class FileDatabaseBackupsTest {
         assertFalse("db 2026-10-20T21-30-05.kdbx" in names(), "Berlin's oldest went")
     }
 
+    // spec: databases.backups-window/AC6
+    @Test
+    fun theFileBeforeARestoreIsKeptMarkedWithBackupsOffAndShareTheNumbersOfItsSecond() {
+        val backups = FileDatabaseBackups(File(folder, "backups"), zone = ZoneOffset.UTC, isOn = { false })
+        backups.save(byteArrayOf(1), "db.kdbx", at)
+
+        val name = backups.keepBeforeRestoring(ByteArrayInputStream(byteArrayOf(2)), "db.kdbx", at)
+        backups.restored("db 2026-10-20T19-30-05.kdbx")
+
+        assertEquals("db 2026-10-20T19-30-05_2 (before restoring).kdbx", name)
+        assertEquals(listOf("db 2026-10-20T19-30-05.kdbx", name), names())
+        assertEquals(listOf(true, false), backups.list().map { it.beforeRestoring })
+        assertEquals(name, backups.holding(sha256(byteArrayOf(2))), "its SHA-256 written beside it")
+        backups.keep(byteArrayOf(3), "db.kdbx", at)
+        assertTrue("db 2026-10-20T19-30-05_3.kdbx" in names())
+    }
+
+    @Test
+    fun aRestoreThatDidNotReplaceTheFileTakesItsMarkedCopyBack() {
+        backups.keepBeforeRestoring(ByteArrayInputStream(byteArrayOf(2)), "db.kdbx", at)
+        backups.notSaved()
+
+        assertEquals(emptyList(), names())
+    }
+
+    @Test
+    fun aRestorePushesTheOldestOutOnlyWhileOnAndNeverTheBackupRestored() {
+        var on = true
+        val backups = FileDatabaseBackups(File(folder, "backups"), zone = ZoneOffset.UTC, count = { 3 }, isOn = { on })
+        for (i in 0 until 3) backups.save(byteArrayOf(i.toByte()), "db.kdbx", at.plusSeconds(i * 60L))
+        val oldest = "db 2026-10-20T19-30-05.kdbx"
+
+        backups.keepBeforeRestoring(ByteArrayInputStream(byteArrayOf(9)), "db.kdbx", at.plusSeconds(600))
+        backups.restored(oldest)
+        assertEquals(listOf(oldest, "db 2026-10-20T19-32-05.kdbx", "db 2026-10-20T19-40-05 (before restoring).kdbx"), names(), "the second oldest went")
+
+        on = false
+        backups.keepBeforeRestoring(ByteArrayInputStream(byteArrayOf(8)), "db.kdbx", at.plusSeconds(1200))
+        backups.restored(oldest)
+        assertEquals(4, names().size, "off, the kept ones stay")
+    }
+
+    @Test
+    fun aBackupIsReadWholeOnlyWhileItsBytesAreThoseKept() {
+        backups.save(byteArrayOf(1, 2, 3), "db.kdbx", at)
+        val name = "db 2026-10-20T19-30-05.kdbx"
+
+        assertContentEquals(byteArrayOf(1, 2, 3), backups.read(name))
+        assertNull(backups.read("db 2026-10-20T19-31-05.kdbx"), "not there")
+        assertNull(backups.read("../db.kdbx"), "not a backup's name")
+
+        File(folder, "backups/$name").writeBytes(byteArrayOf(1, 2, 4))
+        assertFailsWith<BackupDamagedException> { backups.read(name) }
+    }
+
     @Test
     fun aBackupsNameSortsByItsTimeThenItsNumber() {
         assertEquals("2026-10-20T19-30-05_01", FileDatabaseBackups.order("db 2026-10-20T19-30-05.kdbx"))
         assertEquals("2026-10-20T19-30-05_10", FileDatabaseBackups.order("My db 2026-10-20T19-30-05_10.kdbx"))
+        assertEquals("2026-10-20T19-30-05_02", FileDatabaseBackups.order("db 2026-10-20T19-30-05_2 (before restoring).kdbx"))
+        assertTrue(FileDatabaseBackups.isBeforeRestoring("db 2026-10-20T19-30-05 (before restoring).kdbx"))
+        assertFalse(FileDatabaseBackups.isBeforeRestoring("db (before restoring) 2026-10-20T19-30-05.kdbx"))
         for (name in listOf("db.kdbx", "db 2026-10-20T19-30-05_1.kdbx", "db 2026-10-20T19-30-05_100.kdbx", "db 2026-10-20 19-30-05.kdbx", "db 2026-10-20T19-30-05.txt")) {
             assertNull(FileDatabaseBackups.order(name), name)
         }

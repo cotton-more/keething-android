@@ -687,6 +687,26 @@ class BiometricUnlockTest {
         assertNull(work.biometric.state.value.setUpAgain)
     }
 
+    // spec: databases.backups-window/AC7
+    @Test
+    fun aBackupRestoredWithAnOlderKeyDropsTheStoredPasswordUntilOneIsTyped() = runTest {
+        val f = storedPassword("pw")
+        val other = f.add("/db/Other.kdbx")
+
+        assertNull(f.setup.restoredOlderKey(f.id))
+        assertNull(f.setup.restoredOlderKey(other.id), "nothing stored: nothing to set up again")
+        runCurrent()
+
+        assertNull(f.stored())
+        assertFalse(state(f).stored)
+        assertEquals(SetUpAgain.PASSWORD_REJECTED, state(f).setUpAgain)
+        assertNull(other.biometric.state.value.setUpAgain)
+        assertTrue(f.typed("pw"))
+        runCurrent()
+        assertTrue(state(f).stored)
+        assertNull(state(f).setUpAgain)
+    }
+
     @Test
     fun aStoredPasswordTheDatabaseRejectedIsSaidUntilOneIsStoredAgain() = runTest {
         val f = storedPassword("old-pw")

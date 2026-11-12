@@ -27,6 +27,12 @@ public sealed interface LockReason {
 
     /** A reload found that the key no longer opens the database: its password was changed elsewhere. */
     public data object PasswordChanged : LockReason
+
+    /**
+     * A backup was restored that does not open with the key the database was open with: made before a master key
+     * change, it opens with the key it had then (keething-spec databases.backups-window AC7).
+     */
+    public data object RestoredOlderKey : LockReason
 }
 
 /** How one unlock ended. */
@@ -90,6 +96,19 @@ public sealed interface SaveOutcome {
      * unlock says so ([SessionState.Unlocked.unsaved]).
      */
     public data object Interrupted : SaveOutcome
+}
+
+/** How restoring a backup ended (keething-spec databases.backups-window AC6-AC8). */
+public sealed interface RestoreOutcome {
+    /**
+     * The file is the backup's bytes. [beforeRestoring]: the backup the file as it was is in, which Undo restores.
+     * [olderKey]: the database was open and the backup does not open with its key, so it locked
+     * ([LockReason.RestoredOlderKey]); open with it, the vault is the backup read back.
+     */
+    public data class Restored(val beforeRestoring: String, val olderKey: Boolean) : RestoreOutcome
+
+    /** Nothing was replaced and no backup added; why. */
+    public data class Failed(val failure: SaveFailure) : RestoreOutcome
 }
 
 public sealed interface SessionState {

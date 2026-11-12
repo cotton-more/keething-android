@@ -1,9 +1,11 @@
 package dev.keething.android.databases
 
+import dev.keething.vault.saving.SaveFailure
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /** What the database page's Backups section says (the canvas "Database backups"). */
 class BackupTextsTest {
@@ -89,5 +91,54 @@ class BackupTextsTest {
         assertEquals("The 7 backups of Family are deleted from this phone. They can’t be brought back.", BackupTexts.deleteAllText("Family", 7))
         assertEquals("The backup of Family is deleted from this phone. It can’t be brought back.", BackupTexts.deleteAllText("Family", 1))
         assertEquals("Backups made before a master key change still open with the old one: this is how they go.", BackupTexts.DELETE_ALL_NOTE)
+    }
+
+    // spec: databases.backups-window/AC6
+    @Test
+    fun theRestoreAsksNamingTheDateAndThatTheChangesSinceLeaveEveryDevice() {
+        assertEquals("Restore this backup?", BackupTexts.RESTORE_TITLE)
+        assertEquals(
+            "Family becomes as it was on Mon 9 Nov, 08:15. Changes made since leave the database, here and on every device it syncs with.",
+            BackupTexts.restoreText("Family", "Mon 9 Nov, 08:15"),
+        )
+        assertEquals("The file as it is now is kept as a backup first, so the restore can be undone.", BackupTexts.RESTORE_NOTE)
+        assertEquals(
+            "Family becomes as it was today, 14:03. Changes made since leave the database, here and on every device it syncs with.",
+            BackupTexts.restoreText("Family", "Today, 14:03"),
+        )
+        assertEquals("Family becomes as it was then", BackupTexts.restoreLine("Family"))
+        assertEquals("Restoring the backup of Mon 9 Nov, 08:15…", BackupTexts.restoring("Mon 9 Nov, 08:15"))
+    }
+
+    // spec: databases.backups-window/AC7
+    @Test
+    fun doneItSaysWhichBackupAndAnOlderKeyLocksSayingSo() {
+        assertEquals("Restored the backup of Mon 9 Nov, 08:15", BackupTexts.restored("Mon 9 Nov, 08:15"))
+        assertEquals("Back to Family as it was before the restore", BackupTexts.undone("Family"))
+        assertEquals(
+            "Restored. This backup opens with the master key Family had on Sun 1 Nov, 10:20, so Family is locked: unlock it with that password. Its fingerprint stays off until then.",
+            BackupTexts.olderKey("Family", "Sun 1 Nov, 10:20"),
+        )
+        assertTrue(BackupTexts.olderKey("Family", "Yesterday, 21:40").contains("the master key Family had yesterday, 21:40, so"))
+    }
+
+    // spec: databases.backups-window/AC8
+    @Test
+    fun aFailedRestoreSaysWhyAndThatNothingChanged() {
+        val file = java.io.File("/storage/emulated/0/Sync/KeePass/Family.kdbx")
+        assertEquals(
+            "Not restored: Family.kdbx could not be written (Keething has no access to its folder any more). Nothing was changed, and no backup was added.",
+            BackupTexts.notRestored(file, SaveFailure.WriteFailed("Keething has no access to its folder any more")),
+        )
+        assertEquals(
+            "Not restored. That backup is not there any more. Nothing was changed, and no backup was added.",
+            BackupTexts.notRestored(file, SaveFailure.BackupGone),
+        )
+    }
+
+    // spec: databases.backups-window/AC9
+    @Test
+    fun aReadOnlyDatabaseSaysItsBackupsAreNotRestored() {
+        assertEquals("Family is read only on this phone: its backups are listed and deleted, not restored.", BackupTexts.readOnly("Family"))
     }
 }

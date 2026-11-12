@@ -21,6 +21,7 @@ internal fun LockReason.notice(timeout: Duration, file: String, wrongInARow: Int
     LockReason.Initial, LockReason.Manual -> null
     LockReason.Timeout -> LockNotice("Locked after ${timeout.minutesText()} in the background", isProblem = false)
     LockReason.PasswordChanged -> LockNotice("The database password was changed. Enter the new one.", isProblem = true)
+    LockReason.RestoredOlderKey -> LockNotice("A backup made before its master key changed was restored. Enter the password it had then.", isProblem = true)
     is LockReason.UnlockFailed -> LockNotice(failure.describe(file, wrongInARow), isProblem = true)
 }
 

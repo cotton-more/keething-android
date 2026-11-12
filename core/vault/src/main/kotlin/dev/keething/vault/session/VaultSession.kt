@@ -23,6 +23,7 @@ import dev.keething.vault.opening.HistoryResult
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
+import dev.keething.vault.saving.RestoreResult
 import dev.keething.vault.saving.SaveFailure
 import dev.keething.vault.saving.SaveResult
 import dev.keething.vault.saving.VaultSaver
@@ -648,6 +649,58 @@ public class VaultSession(
                 val unlocked = mutableState.value as? SessionState.Unlocked
                 if (token == generation && unlocked != null && copies != unlocked.conflictCopies) set(unlocked.copy(conflictCopies = copies))
                 failure
+            }
+        }
+    }
+
+    /**
+     * Restores the database's backup named [name] (keething-spec databases.backups-window AC6-AC9): its bytes replace the
+     * file in their turn among the saves, the file as it was backed up first ([VaultSaver.restore]). Open, the backup is
+     * opened with the session's key and becomes the vault; one that does not open with it locks the session
+     * ([LockReason.RestoredOlderKey]). Refused at once when read-only (AC9). Locked (or a lock came before it started),
+     * the file is replaced and nothing read: it unlocks as always.
+     */
+    public fun restoreBackup(name: String): Deferred<RestoreOutcome> {
+        val unlocked = mutableState.value as? SessionState.Unlocked
+        if (unlocked != null) {
+            if (unlocked.viewOnly) return CompletableDeferred(RestoreOutcome.Failed(SaveFailure.ViewOnly))
+            (unlocked.room as? SaveRoom.TooLarge)?.let { return CompletableDeferred(RestoreOutcome.Failed(SaveFailure.TooLarge(it.alone))) }
+        }
+        val token = generation
+        val attempt = if (unlocked != null) key?.copy() else null
+        attempt?.let { reading += it }
+        return scope.async {
+            var taken = false
+            try {
+                fileWork.withLock {
+                    // Locked while it waited: the file is restored all the same, read back by the next unlock.
+                    val withKey = attempt?.takeIf { token == generation }
+                    val result = withContext(io) { saver.restore(name, withKey, clock.now()) }
+                    when (result) {
+                        is RestoreResult.Failed -> RestoreOutcome.Failed(result.failure)
+                        is RestoreResult.Restored -> {
+                            val opened = result.opened
+                            val copies = conflictCopies()
+                            when {
+                                token != generation -> opened?.let {
+                                    it.vault.wipe()
+                                    it.attachments.wipe()
+                                }
+                                opened != null -> {
+                                    key?.wipe()
+                                    key = attempt
+                                    taken = true
+                                    adopt(OpenResult.Opened(opened), copies)
+                                }
+                                result.olderKey -> lock(LockReason.RestoredOlderKey)
+                            }
+                            RestoreOutcome.Restored(result.beforeRestoring, olderKey = result.olderKey)
+                        }
+                    }
+                }
+            } finally {
+                attempt?.let { reading -= it }
+                if (!taken) attempt?.wipe()
             }
         }
     }

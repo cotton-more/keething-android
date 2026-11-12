@@ -1,8 +1,10 @@
 package dev.keething.android.storage
 
+import dev.keething.domain.storage.BackupDamagedException
 import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.vault.storage.BackupCheck
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -24,7 +26,12 @@ import java.time.format.DateTimeFormatter
  *
  * Each copy's SHA-256 is kept in [DIGESTS] beside them (`<hex> <size> <name>` a line), written as a copy is kept, so
  * whether a copy has the same bytes is known without reading them all ([holds]); a copy without its line (one of
- * before, a process ended before it was written) is read once and gets one.
+ * before, a process ended before it was written) is read once and gets one. A copy restored must still be those bytes
+ * ([read]).
+ *
+ * The file before a restore is kept whatever the switch says, marked by its name (`… (before restoring).kdbx`), so the
+ * mark stays with the copy whatever else is lost; otherwise it is a copy like the others, pushed out in its turn
+ * (keething-spec databases.backups-window AC6).
  */
 internal class FileDatabaseBackups(
     private val folder: File,
@@ -51,7 +58,7 @@ internal class FileDatabaseBackups(
      * A copy as the database's page lists it: its file's [name], when it was written, its size, and whether its header
      * shows it would not open (keething-spec databases.backups-window AC1, AC5).
      */
-    data class Backup(val name: String, val at: Instant, val bytes: Long, val damaged: Boolean)
+    data class Backup(val name: String, val at: Instant, val bytes: Long, val damaged: Boolean, val beforeRestoring: Boolean = false)
 
     override val on: Boolean get() = isOn()
 
@@ -63,15 +70,20 @@ internal class FileDatabaseBackups(
         write(fileName, at) { database.copyTo(it, 64 * 1024) }
     }
 
+    override fun keepBeforeRestoring(database: InputStream, fileName: String, at: Instant): String =
+        write(fileName, at, beforeRestoring = true) { database.copyTo(it, 64 * 1024) }.name
+
     @Synchronized
-    private fun write(fileName: String, at: Instant, writing: (DigestOutputStream) -> Unit) {
+    private fun write(fileName: String, at: Instant, beforeRestoring: Boolean = false, writing: (DigestOutputStream) -> Unit): File {
         if (!folder.isDirectory && !folder.mkdirs()) throw IOException("backup folder")
         val stem = fileName.substringBeforeLast('.')
         val stamp = STAMP.format(at.atZone(zone))
         // Two saves within a second (a new entry, then deleting it): "_2", "_3"… sort after the first. After the last one
-        // there is, not in a gap the pruning left: that name would sort first and go at once.
-        val names = (listOf("") + (2..99).map { "_$it" }).map { File(folder, "$stem $stamp$it.kdbx") }
-        val target = names.getOrNull(names.indexOfLast { it.exists() } + 1) ?: throw IOException("backup: too many saves within a second")
+        // there is, not in a gap the pruning left: that name would sort first and go at once. Marked or not, one number.
+        val numbers = listOf("") + (2..99).map { "_$it" }
+        val taken = numbers.indexOfLast { File(folder, "$stem $stamp$it.kdbx").exists() || File(folder, "$stem $stamp$it$MARK.kdbx").exists() }
+        val number = numbers.getOrNull(taken + 1) ?: throw IOException("backup: too many saves within a second")
+        val target = File(folder, "$stem $stamp$number${if (beforeRestoring) MARK else ""}.kdbx")
         kept = target
         keptDigest = null
         val sha256 = MessageDigest.getInstance("SHA-256")
@@ -82,6 +94,7 @@ internal class FileDatabaseBackups(
             file.fd.sync()
         }
         keptDigest = sha256.digest()
+        return target
     }
 
     @Synchronized
@@ -95,6 +108,23 @@ internal class FileDatabaseBackups(
     }
 
     @Synchronized
+    override fun restored(restoredName: String) {
+        val copy = kept
+        val sha256 = keptDigest
+        kept = null
+        keptDigest = null
+        if (copy != null && sha256 != null) digests()[copy.name] = Digest(copy.length(), sha256)
+        // Off, the copies kept stay until deleted. On, the newest stay as after a save, but the one restored stays whatever
+        // its age, a backup the user chose: it counts among them, and the oldest of the others go in its place.
+        if (isOn()) {
+            val all = newestFirst()
+            val others = all.filter { it.name != restoredName }
+            others.drop(if (others.size < all.size) count() - 1 else count()).forEach(File::delete)
+        }
+        writeDigests()
+    }
+
+    @Synchronized
     override fun notSaved() {
         kept?.delete()
         kept = null
@@ -102,10 +132,10 @@ internal class FileDatabaseBackups(
     }
 
     @Synchronized
-    override fun holds(sha256: ByteArray): Boolean {
+    override fun holding(sha256: ByteArray): String? {
         val known = digests()
         var added = false
-        var found = false
+        var found: String? = null
         for (file in backups()) {
             val size = file.length()
             val digest = known[file.name]?.takeIf { it.size == size } ?: try {
@@ -117,12 +147,38 @@ internal class FileDatabaseBackups(
                 continue
             }
             if (MessageDigest.isEqual(digest.sha256, sha256)) {
-                found = true
+                found = file.name
                 break
             }
         }
         if (added) writeDigests()
         return found
+    }
+
+    /**
+     * The copy named [name], whole (keething-spec databases.backups-window AC6): only a backup's name in this folder;
+     * null when it is not there. Its bytes must be those kept, by its line in [DIGESTS] ([BackupDamagedException]
+     * otherwise); one without a line gets one now.
+     */
+    @Synchronized
+    override fun read(name: String): ByteArray? {
+        if (order(name) == null || name.contains('/')) return null
+        val file = File(folder, name)
+        if (!file.isFile) return null
+        val bytes = try {
+            file.readBytes()
+        } catch (_: FileNotFoundException) {
+            return null
+        }
+        val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes)
+        val known = digests()[name]
+        if (known == null) {
+            digests()[name] = Digest(bytes.size.toLong(), sha256)
+            writeDigests()
+        } else if (known.size != bytes.size.toLong() || !MessageDigest.isEqual(known.sha256, sha256)) {
+            throw BackupDamagedException("$name is not the copy kept")
+        }
+        return bytes
     }
 
     /** How many copies there are and their size together. */
@@ -140,7 +196,7 @@ internal class FileDatabaseBackups(
         } catch (_: IOException) {
             true
         }
-        Backup(file.name, Instant.ofEpochMilli(file.lastModified()), file.length(), damaged)
+        Backup(file.name, Instant.ofEpochMilli(file.lastModified()), file.length(), damaged, beforeRestoring = isBeforeRestoring(file.name))
     }
 
     /** Only the newest [keep] stay; how many went (keething-spec databases.backups-window AC2). */
@@ -223,18 +279,25 @@ internal class FileDatabaseBackups(
         /** The copies' SHA-256, beside them; not a backup's name, so never pruned as one. */
         internal const val DIGESTS = ".sha256"
 
+        /** What a copy's name ends with before `.kdbx` when it is the file before a restore. */
+        private const val MARK = " (before restoring)"
+
         private val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH-mm-ss")
-        private val BACKUP = Regex(".* ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2})(?:_([2-9]|[1-9][0-9]))?\\.kdbx")
+        private val BACKUP = Regex(".* ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2})(?:_([2-9]|[1-9][0-9]))?( \\(before restoring\\))?\\.kdbx")
 
         /**
-         * A backup's name, `<name> 2026-10-26T14-03-22.kdbx` or `…_2.kdbx`: its time and number in an order that sorts
-         * as they were made; null when it is not a backup (the Mac's `backupOrder`).
+         * A backup's name, `<name> 2026-10-26T14-03-22.kdbx` or `…_2.kdbx`, either with ` (before restoring)` before
+         * `.kdbx`: its time and number in an order that sorts as they were made; null when it is not a backup (the
+         * Mac's `backupOrder`).
          */
         internal fun order(fileName: String): String? {
             val match = BACKUP.matchEntire(fileName) ?: return null
             val number = match.groupValues[2].ifEmpty { "1" }.toInt()
             return "${match.groupValues[1]}_%02d".format(number)
         }
+
+        /** Whether the backup named [fileName] is the file as it was before a restore (keething-spec databases.backups-window AC6). */
+        internal fun isBeforeRestoring(fileName: String): Boolean = BACKUP.matchEntire(fileName)?.groupValues?.get(3)?.isNotEmpty() == true
 
         private fun digestOf(file: File): ByteArray {
             val sha256 = MessageDigest.getInstance("SHA-256")
