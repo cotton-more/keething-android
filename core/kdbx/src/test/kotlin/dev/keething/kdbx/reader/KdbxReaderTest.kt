@@ -91,6 +91,22 @@ class KdbxReaderTest {
         assertEquals("header truncated", truncated.detail)
     }
 
+    // spec: databases.backups-window/AC5
+    @Test
+    fun aDamagedHeaderIsToldWithoutAKey() {
+        fun damaged(bytes: ByteArray) = KdbxReader.isHeaderDamaged(ByteArrayInputStream(bytes))
+        for (name in listOf("kdbx4-aes-argon2d", "kdbx4-chacha20-argon2id", "kdbx4-aes-aeskdf", "kdbx3")) {
+            assertEquals(false, damaged(Fixtures.bytes("$name.kdbx")), name)
+        }
+        val file = Fixtures.bytes("kdbx4-aes-aeskdf.kdbx")
+        assertTrue(damaged(file.copyOf().apply { this[40] = (this[40].toInt() xor 1).toByte() }), "a header byte changed")
+        assertTrue(damaged(file.copyOf(60)), "cut short")
+        assertTrue(damaged("<KeePassFile/>".encodeToByteArray()), "not a KeePass database")
+        assertTrue(damaged(ByteArray(0)), "empty")
+        val payload = file.copyOf().apply { this[size - 100] = (this[size - 100].toInt() xor 1).toByte() }
+        assertEquals(false, damaged(payload), "the payload is not the header's: it needs the key")
+    }
+
     @Test
     fun aFileOpenedForEditingAsItIsReadIsTheFileReadWholeAndWhatFollowsItIsLeft() {
         val file = Fixtures.bytes("kdbx4-chacha20-argon2id.kdbx")

@@ -1,6 +1,7 @@
 package dev.keething.android.storage
 
 import dev.keething.domain.storage.DatabaseBackups
+import dev.keething.vault.storage.BackupCheck
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -30,6 +31,7 @@ internal class FileDatabaseBackups(
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val count: () -> Int = { 10 },
     private val isOn: () -> Boolean = { true },
+    private val isDamaged: (File) -> Boolean = { file -> file.inputStream().use(BackupCheck::isDamaged) },
 ) : DatabaseBackups {
     /** The copy the running save kept, until it says how it went. */
     private var kept: File? = null
@@ -44,6 +46,12 @@ internal class FileDatabaseBackups(
 
     /** How many copies there are and their bytes together. */
     data class Summary(val count: Int, val bytes: Long)
+
+    /**
+     * A copy as the database's page lists it: its file's [name], when it was written, its size, and whether its header
+     * shows it would not open (keething-spec databases.backups-window AC1, AC5).
+     */
+    data class Backup(val name: String, val at: Instant, val bytes: Long, val damaged: Boolean)
 
     override val on: Boolean get() = isOn()
 
@@ -121,16 +129,36 @@ internal class FileDatabaseBackups(
     @Synchronized
     fun summary(): Summary = backups().let { files -> Summary(files.size, files.sumOf(File::length)) }
 
+    /**
+     * The copies, newest first, each with its header checked (keething-spec databases.backups-window AC1, AC5): one that
+     * cannot be read counts as damaged.
+     */
+    @Synchronized
+    fun list(): List<Backup> = newestFirst().map { file ->
+        val damaged = try {
+            isDamaged(file)
+        } catch (_: IOException) {
+            true
+        }
+        Backup(file.name, Instant.ofEpochMilli(file.lastModified()), file.length(), damaged)
+    }
+
     /** Only the newest [keep] stay; how many went (keething-spec databases.backups-window AC2). */
     @Synchronized
     fun prune(keep: Int): Int {
-        // Newest first by when they were written, then by name: a name's local time sorts wrong after the time zone
-        // changed (a flight west, the fall back from summer time), and a new copy would go at once (kdbx.backups AC3).
-        val gone = backups()
-            .map { file -> Triple(file, file.lastModified(), order(file.name)!!) }
-            .sortedWith(compareByDescending<Triple<File, Long, String>> { it.second }.thenByDescending { it.third })
-            .drop(keep)
-            .count { it.first.delete() }
+        val gone = newestFirst().drop(keep).count(File::delete)
+        writeDigests()
+        return gone
+    }
+
+    /**
+     * The copy named [name] goes (keething-spec databases.backups-window AC4); only a backup's name in this folder.
+     * Whether it went; one gone already did not.
+     */
+    @Synchronized
+    fun delete(name: String): Boolean {
+        if (order(name) == null || name.contains('/')) return false
+        val gone = File(folder, name).delete()
         writeDigests()
         return gone
     }
@@ -138,6 +166,15 @@ internal class FileDatabaseBackups(
     /** Every copy goes, files that are not copies stay (keething-spec databases.backups-window AC3); how many went. */
     @Synchronized
     fun deleteAll(): Int = prune(0)
+
+    /**
+     * Newest first by when they were written, then by name: a name's local time sorts wrong after the time zone changed
+     * (a flight west, the fall back from summer time), and a new copy would go at once (kdbx.backups AC3).
+     */
+    private fun newestFirst(): List<File> = backups()
+        .map { file -> Triple(file, file.lastModified(), order(file.name)!!) }
+        .sortedWith(compareByDescending<Triple<File, Long, String>> { it.second }.thenByDescending { it.third })
+        .map { it.first }
 
     /** The folder's copies: its files named as backups. */
     private fun backups(): List<File> = folder.listFiles().orEmpty().filter { it.isFile && order(it.name) != null }

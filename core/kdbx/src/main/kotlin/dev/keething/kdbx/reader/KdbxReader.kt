@@ -52,6 +52,32 @@ public object KdbxReader {
     /** Whether the file is KDBX 3.x, told from its first 12 bytes alone. Throws when it is not a KeePass database. */
     public fun isKdbx3(file: ByteArray): Boolean = Header.version(file).first == 3
 
+    /**
+     * Whether the file read from [input] shows damage without a key (keething-spec databases.backups-window AC5): not a
+     * KeePass database, or a KDBX 4 header cut short or not matching its own SHA-256. A KDBX 3.1 header has no checksum
+     * of its own (its `Meta/HeaderHash` is in the encrypted part) and another version is not this reader's to judge:
+     * neither counts as damaged. Reads the header and no further.
+     */
+    public fun isHeaderDamaged(input: InputStream): Boolean {
+        val file = try {
+            Header.read(input)
+        } catch (_: KdbxException.NotKdbx) {
+            return true
+        } catch (_: KdbxException.UnsupportedVersion) {
+            return false
+        }
+        val r = ByteReader(file, 12)
+        while (true) {
+            val id = r.uint8() ?: return true
+            r.size()?.let(r::bytes) ?: return true
+            if (id == 0) break
+        }
+        val checksumStart = r.position
+        val sha256 = r.bytes(32) ?: return true
+        val actual = MessageDigest.getInstance("SHA-256").apply { update(file, 0, checksumStart) }.digest()
+        return !MessageDigest.isEqual(actual, sha256)
+    }
+
     /** [historyOf]: the UUID of an entry whose history items are read too (`document.history`). */
     public fun open(file: ByteArray, key: DatabaseKey, historyOf: String? = null): KdbxDatabase =
         if (isKdbx3(file)) read3(file, key, historyOf) else read(file, { header -> key.transformed(header.kdf) }, historyOf)

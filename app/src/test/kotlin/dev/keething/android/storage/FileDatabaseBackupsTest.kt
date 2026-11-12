@@ -213,6 +213,60 @@ class FileDatabaseBackupsTest {
         assertFalse("db 2026-10-20T19-30-05.kdbx" in names(), "the oldest went")
     }
 
+    // spec: databases.backups-window/AC1
+    @Test
+    fun theBackupsAreListedNewestFirstWithWhenTheyWereWrittenAndTheirSize() {
+        val dir = File(folder, "backups")
+        for (i in 0 until 3) backups.save(ByteArray(10 + i), "db.kdbx", at.plusSeconds(i * 60L))
+        File(dir, "notes.txt").writeText("mine")
+        // Written at 19:30, 19:31 and 19:32, the middle one's time put last: the time it was written decides, not its name.
+        File(dir, "db 2026-10-20T19-30-05.kdbx").setLastModified(at.toEpochMilli())
+        File(dir, "db 2026-10-20T19-31-05.kdbx").setLastModified(at.plusSeconds(600).toEpochMilli())
+        File(dir, "db 2026-10-20T19-32-05.kdbx").setLastModified(at.plusSeconds(120).toEpochMilli())
+
+        val listed = backups.list()
+
+        assertEquals(listOf("db 2026-10-20T19-31-05.kdbx", "db 2026-10-20T19-32-05.kdbx", "db 2026-10-20T19-30-05.kdbx"), listed.map { it.name })
+        assertEquals(listOf(11L, 12L, 10L), listed.map { it.bytes })
+        assertEquals(at.plusSeconds(600), listed.first().at)
+        assertEquals(emptyList(), FileDatabaseBackups(File(folder, "none")).list())
+    }
+
+    // spec: databases.backups-window/AC5
+    @Test
+    fun aBackupWhoseHeaderDoesNotMatchItsChecksumIsListedAsDamaged() {
+        val database = File(System.getProperty("keething.fixtures"), "kdbx4-aes-argon2d.kdbx").readBytes()
+        backups.save(database, "db.kdbx", at)
+        backups.save(database.copyOf().apply { this[40] = (this[40].toInt() xor 1).toByte() }, "db.kdbx", at.plusSeconds(60))
+        backups.save(database.copyOf(60), "db.kdbx", at.plusSeconds(120))
+
+        val damaged = backups.list().associate { it.name to it.damaged }
+
+        assertEquals(
+            mapOf("db 2026-10-20T19-30-05.kdbx" to false, "db 2026-10-20T19-31-05.kdbx" to true, "db 2026-10-20T19-32-05.kdbx" to true),
+            damaged,
+        )
+    }
+
+    // spec: databases.backups-window/AC4
+    @Test
+    fun oneBackupIsDeletedByItsNameAndNoOtherFile() {
+        val dir = File(folder, "backups")
+        for (i in 0 until 3) backups.save(byteArrayOf(i.toByte()), "db.kdbx", at.plusSeconds(i * 60L))
+        File(dir, "notes.txt").writeText("mine")
+
+        assertTrue(backups.delete("db 2026-10-20T19-31-05.kdbx"))
+
+        assertEquals(listOf("db 2026-10-20T19-30-05.kdbx", "db 2026-10-20T19-32-05.kdbx", "notes.txt"), names())
+        assertFalse(backups.delete("db 2026-10-20T19-31-05.kdbx"), "gone already")
+        assertFalse(backups.delete("notes.txt"), "not a backup")
+        assertFalse(backups.delete("../backups/db 2026-10-20T19-30-05.kdbx"), "not a name in the folder")
+        assertEquals(3, names().size)
+        assertFalse(File(dir, FileDatabaseBackups.DIGESTS).readText().contains("19-31-05"), "its SHA-256 went with it")
+        assertTrue(backups.holds(sha256(byteArrayOf(0))))
+        assertFalse(backups.holds(sha256(byteArrayOf(1))))
+    }
+
     // spec: kdbx.backups/AC3
     @Test
     fun aTimeZoneChangeDoesNotPushTheNewestBackupOut() {

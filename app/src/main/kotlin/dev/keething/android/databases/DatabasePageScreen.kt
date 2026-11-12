@@ -67,6 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,6 +86,9 @@ import dev.keething.android.AppContainer
 import dev.keething.android.biometric.KeystorePasswordStores.KeyLocation
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.ButtonLabel
+import dev.keething.android.ui.NoticeHost
+import dev.keething.android.ui.NoticeEffect
+import dev.keething.android.ui.Notice
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.segmentShape
@@ -93,6 +97,8 @@ import dev.keething.vault.databases.DatabaseId
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -177,6 +183,9 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
     var problem by remember { mutableStateOf<String?>(null) }
     val files = rememberFileActions(container, onProblem = { problem = it })
     val root = remember { Environment.getExternalStorageDirectory().path }
+    val snackbar = remember { SnackbarHostState() }
+    val notices = remember { Channel<Notice>(Channel.BUFFERED) }
+    NoticeEffect(remember { notices.receiveAsFlow() }, snackbar)
 
     if (removing) {
         RemoveFromListDialog(
@@ -191,87 +200,90 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
         )
     }
 
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = readableInset()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Row(Modifier.height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to Settings") }
-        }
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            DatabaseTile(line.initial, line.colorIndex, size = 64.dp)
-            Spacer(Modifier.height(8.dp))
-            DatabaseLabelText(line.label, MaterialTheme.typography.headlineSmall)
-            Text(DatabaseText.abbreviated(line.path, root), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, overflow = TextOverflow.MiddleEllipsis, maxLines = 2)
-            changedText(line)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-        problem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-        if (line.isMissing) {
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Rounded.FindInPage, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                    Text(
-                        container.sessions.list.record(id)?.lockScreen(line)?.missingText ?: "Not found at ${DatabaseText.abbreviated(line.path, root)}",
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
-                FilledTonalButton(onClick = { files.locate(id, line.reach == Reach.NO_ACCESS) }) {
-                    ButtonLabel(if (line.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…", Icons.Rounded.Search, iconSize = 18.dp, gap = 8.dp)
-                }
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = readableInset()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(Modifier.height(56.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to Settings") }
             }
-        }
-        DatabaseChanges(container, id, line)
-        Section("Key file") {
-            val key = line.keyFile
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Icon(Icons.Rounded.Key, contentDescription = null, tint = if (key?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-                Column(Modifier.weight(1f)) {
-                    Text(key?.name ?: "None", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        when {
-                            key == null -> "It opens with its password alone"
-                            else -> key.detail
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (key?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                DatabaseTile(line.initial, line.colorIndex, size = 64.dp)
+                Spacer(Modifier.height(8.dp))
+                DatabaseLabelText(line.label, MaterialTheme.typography.headlineSmall)
+                Text(DatabaseText.abbreviated(line.path, root), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, overflow = TextOverflow.MiddleEllipsis, maxLines = 2)
+                changedText(line)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            problem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+            if (line.isMissing) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Rounded.FindInPage, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                        Text(
+                            container.sessions.list.record(id)?.lockScreen(line)?.missingText ?: "Not found at ${DatabaseText.abbreviated(line.path, root)}",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
+                    FilledTonalButton(onClick = { files.locate(id, line.reach == Reach.NO_ACCESS) }) {
+                        ButtonLabel(if (line.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…", Icons.Rounded.Search, iconSize = 18.dp, gap = 8.dp)
+                    }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = { files.chooseKeyFile(id) }) {
-                    Text(if (key == null) "Choose…" else "Change…")
+            DatabaseChanges(container, id, line)
+            Section("Key file") {
+                val key = line.keyFile
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Icon(Icons.Rounded.Key, contentDescription = null, tint = if (key?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f)) {
+                        Text(key?.name ?: "None", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            when {
+                                key == null -> "It opens with its password alone"
+                                else -> key.detail
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (key?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-                if (key != null) TextButton(onClick = { databases.setKeyFile(id, null) }) { Text("Forget") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { files.chooseKeyFile(id) }) {
+                        Text(if (key == null) "Choose…" else "Change…")
+                    }
+                    if (key != null) TextButton(onClick = { databases.setKeyFile(id, null) }) { Text("Forget") }
+                }
+                Text(
+                    "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It must be there at every unlock, the fingerprint too.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            Text(
-                "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It must be there at every unlock, the fingerprint too.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Section("Fingerprint") {
-            FingerprintOfDatabase(container, id, line)
-        }
-        Section("Backups") {
-            BackupsOfDatabase(container, id, line.name)
-        }
-        Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = { removing = true }) {
-                Icon(Icons.Rounded.PlaylistRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.size(8.dp))
-                Text("Remove from list…", color = MaterialTheme.colorScheme.error)
+            Section("Fingerprint") {
+                FingerprintOfDatabase(container, id, line)
             }
-            Text(
-                "Forgets it on this phone, with its stored password. The file stays.",
-                Modifier.padding(horizontal = 12.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Section("Backups") {
+                BackupsOfDatabase(container, id, line.name, onNotice = { notices.trySend(it) })
+            }
+            Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { removing = true }) {
+                    Icon(Icons.Rounded.PlaylistRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Remove from list…", color = MaterialTheme.colorScheme.error)
+                }
+                Text(
+                    "Forgets it on this phone, with its stored password. The file stays.",
+                    Modifier.padding(horizontal = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(24.dp))
         }
-        Spacer(Modifier.height(24.dp))
+        NoticeHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
     }
 }
 

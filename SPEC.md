@@ -1758,7 +1758,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Change…, Forget; "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It
   must be there at every unlock, the fingerprint too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
   **Backups** (below), **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
-  **Backups** (keething-spec databases.backups-window AC2, AC3; the canvas "Database backups", agreed 2026-11-12), open
+  **Backups** (keething-spec databases.backups-window AC1-AC5; the canvas "Database backups", agreed 2026-11-12), open
   or locked alike: the switch **Back up before changes** (the record's `backupsOn`, on by default), while it is on
   **Keep** 5 · 10 · 20 · 50 (`backupsKept`, 10 by default), a line ("7 kept, 8.1 MB: the file as it was before the first
   change of each unlock.", "None yet: the first is kept before Family’s first change after an unlock, the file as it
@@ -1767,7 +1767,17 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   ("Keep 5 backups?", "The 2 oldest backups of Family are deleted from this phone now. They can’t be brought back.",
   Cancel / Delete 2) and deletes them at once; a larger one asks nothing. Turning it off with backups kept asks "Stop
   backing up Family?" ("Family is no longer copied before its changes. Its 7 backups can stay here or go.", Cancel /
-  Keep them / Delete them). The list of backups, deleting one and restoring are to come (stages 2 and 3).
+  Keep them / Delete them). Then the backups, newest first, by when each was written, read with no key: each its date
+  ("Today, 14:03", "Yesterday, 21:40", "Mon 9 Nov, 08:15"), how long ago ("17 hours ago", "3 days ago" by the calendar)
+  and size; one whose header does not read or does not match its own SHA-256 (KDBX 4: `KdbxReader.isHeaderDamaged`;
+  a KDBX 3.1 header has none, only its signature is read) says "damaged: it would not open" in red. The newest three,
+  then **Show all N** / **Show fewer** in place; **Delete all backups…** under them ("Delete all backups?", "The 7
+  backups of Family are deleted from this phone. They can’t be brought back.", "Backups made before a master key
+  change still open with the old one: this is how they go.", Cancel / Delete all). A backup opens a sheet: its date,
+  how long ago and size, a damaged one's "Its file is damaged: its header does not match its checksum, so it would not
+  open. It cannot be restored.", **Delete…** ("Delete this backup?", "The backup of Mon 9 Nov, 08:15 is deleted from
+  this phone. It can’t be brought back.", Cancel / Delete; done, "Deleted the backup of Mon 9 Nov, 08:15" at the
+  bottom) and Close. Off, the backups kept are listed and deleted all the same. Restoring is to come (stage 3).
   **Name and colour** (keething-spec databases.rename-recolour): while the database is open and can be changed, the name
   in a field (the file's `Meta/DatabaseName` as written; under it "Its file stays Work.kdbx.", "Empty: it is called by
   its file name, Work." or "“Passwords” counts as no name: …"), the palette's nine colours and None (a dashed ring) in two
