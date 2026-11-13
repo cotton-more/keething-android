@@ -54,7 +54,7 @@ class NotOpenDatabasesTest {
         val window = listOf(
             WindowDatabase(DatabaseId("Personal"), SessionState.Unlocked(dev.keething.domain.vault.Vault(emptyList())), off),
             WindowDatabase(DatabaseId("Work"), locked, off),
-            WindowDatabase(DatabaseId("Family"), locked, on.copy(passwordDue = true, reminderDays = 14)),
+            WindowDatabase(DatabaseId("Family"), locked, on.copy(stored = false)),
             WindowDatabase(DatabaseId("Crypto"), locked, off),
             WindowDatabase(DatabaseId("Taxes"), locked, off),
         )
@@ -66,14 +66,14 @@ class NotOpenDatabasesTest {
         val notOpen = NotOpenDatabases.of(window, lines, skipped = emptySet())
         assertEquals(listOf("Work", "Family", "Crypto", "Taxes"), notOpen.map { it.line.name }, "open ones and those out of the window are not there")
         assertEquals(
-            listOf(NotOpenState.Locked, NotOpenState.FingerprintPaused(14), NotOpenState.NotFound(), NotOpenState.NeedsKeyFile("taxes.keyx", null)),
+            listOf(NotOpenState.Locked, NotOpenState.FingerprintToSetUp(null), NotOpenState.NotFound(), NotOpenState.NeedsKeyFile("taxes.keyx", null)),
             notOpen.map { it.state },
         )
-        assertEquals(listOf("Locked", "Fingerprint paused", "Not found", "Needs its key file"), notOpen.map { it.state.word })
+        assertEquals(listOf("Locked", "Fingerprint to set up", "Not found", "Needs its key file"), notOpen.map { it.state.word })
         assertEquals(
             listOf(
                 "Locked · tap to type its password",
-                "Fingerprint paused: type the password (every 14 days)",
+                "Fingerprint to set up: type its password once",
                 "Not found at Sync/Crypto.kdbx",
                 "Needs its key file: taxes.keyx is not there",
             ),
@@ -86,7 +86,7 @@ class NotOpenDatabasesTest {
     @Test
     fun eachStateHasAnIconNoOtherStateHasAndItsWordToBeReadAloud() {
         val states = listOf(
-            NotOpenState.Locked, NotOpenState.Opening, NotOpenState.FingerprintPaused(14), NotOpenState.FingerprintToSetUp(null),
+            NotOpenState.Locked, NotOpenState.Opening, NotOpenState.FingerprintToSetUp(null),
             NotOpenState.NotFound(Reach.NOT_FOUND), NotOpenState.NotFound(Reach.NO_ACCESS), NotOpenState.NotFound(Reach.NEEDS_FOLDER),
             NotOpenState.NeedsKeyFile("work.keyx", null), NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash")),
             NotOpenState.WrongPassword, NotOpenState.PasswordChanged, NotOpenState.Skipped,
@@ -118,9 +118,8 @@ class NotOpenDatabasesTest {
         assertEquals(NotOpenState.FingerprintToSetUp(SetUpAgain.FINGERPRINTS_CHANGED), state(failed(OpenFailure.WrongPassword), fingerprint = changed, skipped = true), "the fingerprint's verdict before skipped")
         assertEquals(NotOpenState.Skipped, state(failed(OpenFailure.WrongPassword), skipped = true), "skipped before a wrong password")
         assertEquals(NotOpenState.WrongPassword, state(failed(OpenFailure.WrongPasswordOrKeyFile)))
-        assertEquals(NotOpenState.WrongPassword, state(failed(OpenFailure.WrongPassword), fingerprint = on.copy(passwordDue = true)), "before the fingerprint waiting")
         assertEquals(NotOpenState.PasswordChanged, state(SessionState.Locked(LockReason.PasswordChanged)))
-        assertEquals(NotOpenState.FingerprintPaused(14), state(locked, fingerprint = on.copy(passwordDue = true, reminderDays = 14)))
+        assertEquals(NotOpenState.Locked, state(locked, fingerprint = on.copy(reminder = true, reminderDays = 14)), "a reminder due: no state of its own (unlock.reminder-not-a-lock AC1)")
         assertEquals(NotOpenState.FingerprintToSetUp(null), state(locked, fingerprint = on.copy(stored = false)), "nothing stored yet")
         assertEquals(NotOpenState.Locked, state(locked, fingerprint = on.copy(stored = false, passwordless = true)), "its key file alone: nothing to store")
         assertEquals(NotOpenState.Locked, state(locked, fingerprint = on.copy(stored = false, appEnabled = false)), "the app's switch off")

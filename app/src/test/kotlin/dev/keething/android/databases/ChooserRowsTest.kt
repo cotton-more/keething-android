@@ -51,7 +51,7 @@ class ChooserRowsTest {
             WindowDatabase(DatabaseId("Personal"), locked, on),
             WindowDatabase(DatabaseId("Work"), locked, off),
             WindowDatabase(DatabaseId("Solo"), locked, off.copy(passwordless = true)),
-            WindowDatabase(DatabaseId("Family"), locked, on.copy(passwordDue = true, reminderDays = 14)),
+            WindowDatabase(DatabaseId("Family"), locked, on.copy(stored = false)),
             WindowDatabase(DatabaseId("Crypto"), locked, on),
             WindowDatabase(DatabaseId("Taxes"), locked, off),
             WindowDatabase(DatabaseId("Club"), locked, off),
@@ -65,7 +65,7 @@ class ChooserRowsTest {
 
         assertEquals(listOf("Personal", "Work", "Solo", "Family", "Crypto", "Taxes", "Club"), rows.map { it.line.name }, "the window's, in its order")
         assertEquals(
-            listOf("Fingerprint", "Password + work.keyx", "Key file solo.keyx", "Fingerprint paused · 14 days", "Not found", "taxes.keyx not there", "Password"),
+            listOf("Fingerprint", "Password + work.keyx", "Key file solo.keyx", "Fingerprint to set up", "Not found", "taxes.keyx not there", "Password"),
             rows.map { it.opensWith },
         )
         assertEquals(
@@ -131,9 +131,9 @@ class ChooserRowsTest {
             ChooserRows.note(FingerprintOutcome.KeyInvalidated),
         )
         assertEquals("Could not read the stored passwords: the Keystore did not open the keyring.", ChooserRows.note(FingerprintOutcome.StorageError("the Keystore did not open the keyring")))
-        // Each database's row says its own: its fingerprint off, its password due or rejected, nothing stored.
+        // Each database's row says its own: its fingerprint off, its password rejected, nothing stored.
         for (outcome in listOf(
-            FingerprintOutcome.Unlocked, FingerprintOutcome.InProgress, FingerprintOutcome.NothingStored, FingerprintOutcome.PasswordDue,
+            FingerprintOutcome.Unlocked, FingerprintOutcome.InProgress, FingerprintOutcome.NothingStored,
             FingerprintOutcome.StoredPasswordRejected, FingerprintOutcome.NotAvailable("it is turned off for this database"),
             FingerprintOutcome.UnlockFailed(OpenFailure.Missing),
         )) assertNull(ChooserRows.note(outcome), outcome.toString())

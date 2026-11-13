@@ -21,6 +21,7 @@ import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.biometric.FingerprintAnswer
+import dev.keething.vault.biometric.QuickTasks
 import dev.keething.vault.biometric.WindowFingerprint
 import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.storage.KeyFiles
@@ -257,6 +258,26 @@ internal class Sessions(
     }
 
     /**
+     * Autofill, the codes shortcut and a quick note: what they open asks nothing, and what still has the reminder's
+     * question standing when the app leaves the foreground locks again (keething-spec unlock.reminder-not-a-lock AC5).
+     */
+    val quickTasks = QuickTasks(vaults)
+
+    /**
+     * The first open database whose reminder asks over its list (keething-spec unlock.reminder-not-a-lock AC1): several
+     * opened at once are asked one after another; one a quick task opened is not asked (AC5).
+     */
+    val reminderQuestion: StateFlow<DatabaseSession?> = open
+        .map { open -> open.map { it.database } }
+        .distinctUntilChanged { a, b -> a.size == b.size && a.indices.all { a[it] === b[it] } }
+        .flatMapLatest { databases ->
+            if (databases.isEmpty()) return@flatMapLatest flowOf(null)
+            combine(databases.map { database -> database.biometric.state.map { database.takeIf { _ -> it.reminder } } }) { it.toList() }
+                .combine(quickTasks.found) { asked, found -> asked.firstOrNull { it != null && it.id !in found } }
+        }
+        .stateIn(scope, SharingStarted.Eagerly, null)
+
+    /**
      * The open databases as they are this moment, in the window's order ([open] follows them a moment later): autofill
      * answers the system at once.
      */
@@ -420,6 +441,7 @@ internal class Sessions(
 
     override fun onStop(owner: LifecycleOwner) {
         locks.movedToBackground()
+        quickTasks.end()
         // Before the databases' own timer, which sets the same alarm to the time they have left.
         if (quickNoteAwaited > 0) lockAlarm.schedule(settings.lockTimeout.value)
         // A database open or opening: the timer starts, and the alarm with it (above).
@@ -470,6 +492,7 @@ internal class Sessions(
             LockReason.Timeout -> "timeout"
             LockReason.PasswordChanged -> "password changed"
             LockReason.RestoredOlderKey -> "backup restored, older key"
+            LockReason.AfterQuickTask -> "after a quick task, its reminder due"
             is LockReason.UnlockFailed -> "unlock failed, " + when (val failure = reason.failure) {
                 OpenFailure.WrongPassword -> "wrong password"
                 OpenFailure.WrongPasswordOrKeyFile -> "wrong password or key file"

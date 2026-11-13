@@ -253,7 +253,7 @@ Lock them to change it."), **Lock the others** when they are what makes it so (a
 `Sessions.lockOthers`; it becomes changeable once a save fits, §3.3), **Update to KDBX 4…** for a KDBX 3.1 one (the
 question Edit asks, §3.2), Show only this, Lock it. A database not open: each chip is its state's icon in the database's dot colour, in place of its dot, and its
 label, with no word for the state (keething-spec databases.not-open AC8; `NotOpenState.glyph`, one icon per state:
-Locked a lock, Opening… a spinner, Fingerprint paused a pause mark, Fingerprint to set up the fingerprint, Not found a
+Locked a lock, Opening… a spinner, Fingerprint to set up the fingerprint, Not found a
 folder with a question mark, No access a folder crossed out, Needs its folder a folder with a plus, Needs its key file
 a key crossed out, Cannot be read a warning triangle, Wrong password a lock with an exclamation mark, Password changed
 a lock with a turning arrow, Skipped a skip-forward mark; the state's word is read aloud, its whole say in its sheet).
@@ -262,7 +262,7 @@ record, §3.1), Needs its key file (by the files as they
 are now, so an old failure goes once the file is back); what typing cannot fix (its key file cannot be used, Cannot be
 read); the fingerprint's verdict (Fingerprint to set up again: the fingerprints changed, or its stored password was not
 accepted; kept per database until one is stored again, `BiometricState.setUpAgain`); Skipped (by the chooser's run, below);
-Wrong password; Password changed; Fingerprint paused (its password due) or Fingerprint to set up (nothing stored yet);
+Wrong password; Password changed; Fingerprint to set up (nothing stored yet; a reminder due is no state, §5);
 Locked. The states follow the sessions and the fingerprint at once, and the files whenever those change or the list
 comes back. A tap shows its lock screen with Back, the search kept for when it opens (its entries join the list, its
 chip goes); Lock all clears it as ever. A long press opens its sheet: its whole say ("Locked · tap to type its
@@ -274,7 +274,7 @@ Choose key file… (it has one), Close.
 **The chooser and its run** (keething-spec databases.chooser; the Mac's D6b, D7; plan AD13). With nothing open the app
 shows the lone database's lock screen, or with several in the window the **chooser**, "Open your databases": each
 database of the window with how it opens (Fingerprint, Password, Password + work.keyx, Key file work.keyx, Fingerprint
-paused · 14 days, Fingerprint to set up, Fingerprint to set up again; one open or opening says Open or Opening…, unchecked; `ChooserRows`); what typing cannot open (not
+to set up, Fingerprint to set up again; one open or opening says Open or Opening…, unchecked; `ChooserRows`); what typing cannot open (not
 found, no access, needs its folder, its key file not there or no access or unusable, cannot be read) has no check and
 says why, with Locate… for one not found or without access and Folder… for one that needs its folder; a row's long
 press opens its sheet (its tile, name and folder; **Remove from list…**, asked first as on the lock screen's sheet), so
@@ -1129,13 +1129,13 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   return after the timeout), for the database shown then: not after the lock button, nor for another database chosen
   meanwhile (`FingerprintOffers`). With nothing open and several in the window the chooser takes that one offer,
   for all of them (§3.1, below). A database that opens with its key file alone (§4) opens
-  after a prompt without a `CryptoObject` (nothing is stored: the fingerprint is the check that it is the user) and is
-  never due; one that its key file alone no longer opens gets its field back, and nothing is deleted. No prompt while
+  after a prompt without a `CryptoObject` (nothing is stored: the fingerprint is the check that it is the user), and
+  the reminder asks about its key file (below); one that its key file alone no longer opens gets its field back, and nothing is deleted. No prompt while
   the database's file or its key file is not there. A lock (the button, the timeout, sleep) after the fingerprint,
   also while the stored password is read, opens nothing and deletes nothing.
 - **One fingerprint for several** (keething-spec unlock.biometric-several, databases.several-open AC7; `WindowFingerprint`,
   the Mac's `unlockWithTouchID()`; plan AD13): the chooser's (§3.1) opens every database of the window that can — locked,
-  both switches on, its file and key file there, its password not due, and stored, or it opens with its key file alone
+  both switches on, its file and key file there, and its password stored (a reminder due holds none back, below), or it opens with its key file alone
   — each with its own stored password; the others are not read and say why on their rows and chips. It is asked only
   when one would open, decided without reading anything. One prompt (with a `CryptoObject` for the Keystore's key) opens
   the keyring's private key, and it each stored password, read one after another; the private key is dropped before any
@@ -1165,26 +1165,47 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   read (…)"), everything kept, no key replaced; so is a file that cannot be read. Cancel or "Use password" → the
   password field takes the focus, nothing deleted. A failed check (too many attempts) shows the system's words and
   keeps it; so does a database that could not be opened for another reason (missing, damaged).
-- **The typed password now and then**: with the fingerprint on, the master password is never typed and gets
+- **The typed password now and then** (keething-spec unlock.password-reminder, unlock.reminder-not-a-lock; the canvas
+  "Password reminder", agreed 2026-11-13): with the fingerprint on, the master password is never typed and gets
   forgotten (1Key asks again too). After 14 days without a typed unlock of a database (Settings: 7, 14, 30 days or
-  Never, for the app; a stored value that is not one of them reads as 14) its password is due: its lock screen does
-  not offer the fingerprint, by itself or with its button, and says "It has been 14 days: type the master password,
-  so it is not forgotten" (after a problem, before the reason of the lock); the field takes the focus. The days are
-  **each database's** (`lastTypedUnlock.<id>`): typing one database's password does not count for another. Its next
-  typed unlock that opens the vault starts its days again, and the fingerprint is back; a fingerprint unlock, a
-  wrong password or the cancelled prompt do not count. The stored copy stays meanwhile. The days count from the last
-  typed unlock, from turning the app's switch on (every database's) or its own (its), on the wall clock, and only while
-  the fingerprint opens it; with no time saved yet (a database new to the list) or one in the future (the clock set
-  back) they count from now: it is a reminder, not a barrier, the fingerprint already says who it is. Never is there
-  for those who type the password elsewhere every day (the Mac app); Settings then says in red that a forgotten
-  password opens its database for nobody.
+  Never, for the app; a stored value that is not one of them reads as 14) its reminder is due. It is a reminder, not a
+  lock (the owner, 2026-10-29: the user has the right to forget the password, and the app cannot recover it either
+  way): the database opens as usual, the fingerprint included (by itself, its button, one fingerprint for several),
+  nothing said ahead, and once open its list asks once (`BiometricUnlock.reminder`, decided as it opens, so a typed
+  unlock asks nothing; `Sessions.reminderQuestion`, one database at a time, after the fingerprint's question): "Do you
+  still remember it?", "It has been 15 days since the master password of “Family” was typed.", **Check it** and **Yes**.
+  Yes is believed. Check it asks for the password (a secure field with its eye, out of autofill), checked with its key
+  file against the key it is open with (`VaultSession.confirmKey`, the key derivation once; never stored): it matches,
+  or "It does not match. 2 tries left." and the typed text stays to be corrected; after 3 tries "It does not match"
+  (it stays open, nothing changed; look it up if it is saved in the database, or Change master key…, which opens it,
+  and "Keething asks again tomorrow.", Close). Yes or a match start its days again and say "Keething asks again in 14
+  days." at the bottom. Put away (Back, a tap beside it, Cancel) or after 3 tries it is put off: asked again at the first
+  opening a day later at the earliest (`reminderPutOff.<id>`), never sooner; a lock before an answer puts nothing off. A
+  database that opens with its key file alone is asked "Is the key file safe?" ("It has been 30 days. Is the key file
+  family.keyx kept somewhere safe, besides this phone?", **Not now**, **Yes**; only Yes starts its days, an Unlock with
+  nothing typed does not); one with a password and a key file is asked the password's question with "Keep the key file
+  family.keyx somewhere safe too: without it the password opens nothing." A **quick task** — autofill (filling, saving
+  a login), the Codes shortcut, a quick note — asks nothing: what it found locked and opened is not asked while it lasts,
+  and when the app leaves the foreground each of those whose question still stands is locked again
+  (`QuickTasks`, `LockReason.AfterQuickTask`, which the lock screen does not mention), so the next ordinary opening
+  asks; one open before the task is left as it is. The days are **each database's** (`lastTypedUnlock.<id>`): typing one
+  database's password does not count for another. Its next typed unlock that opens the vault starts its days again; a
+  fingerprint unlock, a wrong password or the cancelled prompt do not count. The stored copy stays. The days count from
+  the last typed unlock, from turning the app's switch on (every database's) or its own (its), on the wall clock, and
+  only while the fingerprint opens it; with no time saved yet (a database new to the list) or one in the future (the
+  clock set back) they count from now. Never is there for those who type the password elsewhere every day (the Mac
+  app); Settings then says, in the ordinary colour with a warning icon, "Keething never asks. A forgotten master
+  password, or a lost key file, opens its database for nobody, not even with Keething." (until 2026-11-13 the password
+  was due instead: the fingerprint was not offered until it was typed, and Never was said in red).
 - **Settings**: the app's switch with "Each database whose Use fingerprint is on opens with it: its lock screen offers
   it once, by the fingerprint beside the password, and its page in Databases turns it on or off. Turning this off
   deletes all their stored passwords." (or
-  why the phone cannot), and the days while it is on. A database's page: Use fingerprint with what it does now: "Not
+  why the phone cannot), and while it is on "Ask about each master key every" 7 days · 14 days · 30 days · Never with
+  "After this long without its master password typed, Keething asks once, after an unlock, whether you still remember
+  it (or keep its key file safe). The fingerprint opens it all the same." (Never: above). A database's page: Use fingerprint with what it does now: "Not
   available: …" when the phone cannot, "Off: its password is typed every time." (with the app's off, the words
   above), "The fingerprint opens it, and nothing is stored." (its key
-  file alone), "Paused: it has been 14 days, so the next unlock asks for its password.", "Its password is stored,
+  file alone), "Its password is stored,
   sealed by a key in the phone's security chip (StrongBox) that opens only after your fingerprint. A fingerprint
   added on this phone undoes it.", or "Its password is stored the next time it is unlocked with the password." The
   databases' rows have a fingerprint for each whose Use fingerprint is on, the app's too.
@@ -1242,6 +1263,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - Restoring a version (keething-spec edit.history-restore, agreed 2026-11-08) has a canvas of its own:
   https://claude.ai/artifact/5cZ3wiPf5Q3qen5zArKtcV (History's Go back to this version…, the question with what changes,
   a full history, going back, the card after it, the recycle bin, a read-only database, a failure, dark).
+- The password reminder (keething-spec unlock.reminder-not-a-lock, agreed 2026-11-13) has a canvas of its own:
+  https://claude.ai/artifact/CN2ZK5AubEyFqM2zS9i7WV (the question over the list, Yes, Check it, a password that does
+  not match, three tries, a key file alone, a password and a key file, Settings with 14 days and with Never, dark).
 
 ### 6.1 Look and feel
 
@@ -1395,7 +1419,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   opens the database (§5) the field does not open the keyboard by itself. With the keyboard up the logo shrinks from
   104 to 64 dp and the database's line keeps to one line (the folder cut in the middle, when it changed whole), so
   that the line, the chip, the field and its key file line stay above the keyboard (checked at font scale 1.3). When the
-  password is due (§5) the button is not there and the reason chip says so. A wrong password (or key file,
+  reminder is due (§5) nothing changes here: it asks once the database is open. A wrong password (or key file,
   §4) shakes the field. The first list after an unlock says how long the key derivation took, once per unlock (the database's name before it
   while two or more are open; Back to a database still open says nothing). On a screen less than 480 dp high
   (a phone in landscape) the logo, name and database are on the left and the field on the right; with the keyboard

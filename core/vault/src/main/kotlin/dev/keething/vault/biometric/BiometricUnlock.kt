@@ -9,6 +9,7 @@ import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseRecord
 import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.opening.OpenFailure
+import dev.keething.vault.session.KeyConfirmation
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
 import dev.keething.vault.session.VaultSession
@@ -32,7 +33,7 @@ public data class BiometricState(
     val databaseEnabled: Boolean,
     /** Its fingerprint was chosen, or not: the lock screen does not ask it again (keething-spec unlock.biometric AC4). */
     val asked: Boolean = false,
-    /** It opens with its key file alone: the fingerprint opens it with nothing stored, and it is never due. */
+    /** It opens with its key file alone: the fingerprint opens it with nothing stored, and the reminder asks about its key file. */
     val passwordless: Boolean = false,
     /** Null until the first [BiometricUnlock.refresh]. */
     val availability: BiometricAvailability? = null,
@@ -46,10 +47,14 @@ public data class BiometricState(
      * "Opening…" from here, not only once the vault's own unlock starts.
      */
     val opening: Boolean = false,
-    /** Ask for the typed password after this many days without one; null: never (SPEC §5). The app's choice. */
+    /** Ask about the master key after this many days without the password typed; null: never (SPEC §5). The app's choice. */
     val reminderDays: Int? = DEFAULT_REMINDER_DAYS,
-    /** [reminderDays] have passed since this database's last typed unlock: the fingerprint waits until it is typed. */
-    val passwordDue: Boolean = false,
+    /**
+     * [reminderDays] had passed when it opened, and the question was not put off within a day: whether the master
+     * password is still remembered (or the key file kept safe) is to be asked over its list now (keething-spec
+     * unlock.reminder-not-a-lock AC1, AC4). Gone once answered, put off, or locked.
+     */
+    val reminder: Boolean = false,
     /** Why its stored password went, while nothing is stored again (keething-spec databases.not-open AC1). */
     val setUpAgain: SetUpAgain? = null,
     /**
@@ -63,11 +68,11 @@ public data class BiometricState(
     /** The fingerprint opens this database: the app's switch and its own. */
     public val enabled: Boolean get() = appEnabled && databaseEnabled
 
-    /** It is set up and works on this phone, whether or not the password is due now: stored, or nothing to store. */
+    /** It is set up and works on this phone: stored, or nothing to store. */
     public val isSetUp: Boolean get() = enabled && availability == BiometricAvailability.Available && (stored || passwordless)
 
-    /** The lock screen offers the fingerprint. */
-    public val canUnlock: Boolean get() = isSetUp && !passwordDue
+    /** The lock screen offers the fingerprint: the reminder never withholds it (keething-spec unlock.reminder-not-a-lock AC1). */
+    public val canUnlock: Boolean get() = isSetUp
 
     /**
      * A database whose fingerprint was never chosen is asked once whether to use it, after a typed unlock that opened it
@@ -115,9 +120,6 @@ public sealed interface FingerprintOutcome {
     /** The fingerprints changed and the key with them, or this database's stored copy no longer opens: it is deleted. */
     public data object KeyInvalidated : FingerprintOutcome
 
-    /** [BiometricState.reminderDays] have passed: the password is to be typed this time. */
-    public data object PasswordDue : FingerprintOutcome
-
     /** The database no longer opens with the stored password (changed elsewhere): it is deleted. */
     public data object StoredPasswordRejected : FingerprintOutcome
 
@@ -148,9 +150,12 @@ public sealed interface FingerprintOutcome {
  * - A stored password the database rejects deletes its own (kept with a key file, which may be the wrong part, and
  *   while a key file changed since the last unlock that worked); new fingerprints delete every database's; a copy that
  *   no longer opens deletes its own. A cancelled or failed fingerprint keeps it.
- * - After [BiometricState.reminderDays] without a typed unlock of this database its password is due: the fingerprint
- *   is not offered until it is typed again. The stored copy stays.
- * - A database that opens with its key file alone opens after the fingerprint with nothing stored, and is never due.
+ * - After [BiometricState.reminderDays] without a typed unlock of this database the reminder is due: it opens as usual,
+ *   the fingerprint included, and once open the question stands ([BiometricState.reminder]): [remembered], [check] or
+ *   [putOff] (keething-spec unlock.reminder-not-a-lock). It is decided when it opens, so a typed unlock, which starts
+ *   the days again, asks nothing. The stored copy stays.
+ * - A database that opens with its key file alone opens after the fingerprint with nothing stored; its reminder asks
+ *   about its key file, and only [remembered] starts its days again.
  * - No fingerprint is asked while its file or its key file is not there.
  *
  * Call it from the main thread. [scope] is the app's (storing a typed password outlives the screen); [states] ends with
@@ -174,6 +179,13 @@ public class BiometricUnlock(
     /** The password a typed unlock opened it with, kept while [BiometricState.question] waits for its answer. */
     private var forQuestion: Secret? = null
 
+    /** A typed password is opening it: its days start again, so the reminder does not ask. */
+    private var typing = false
+
+    /** [BiometricState.reminder]; [wasOpen]: it was open when last looked at, so an opening is told from a change. */
+    private var reminder = false
+    private var wasOpen = session.state.value is SessionState.Unlocked
+
     private val mutableState = MutableStateFlow(current())
     public val state: StateFlow<BiometricState> = mutableState.asStateFlow()
 
@@ -183,6 +195,7 @@ public class BiometricUnlock(
             try {
                 combine(setup.state, list.state, session.state) { _, _, _ -> }.collect {
                     if (forQuestion != null && (session.state.value !is SessionState.Unlocked || !current().canAsk)) dropQuestion()
+                    followReminder()
                     publish()
                 }
             } finally {
@@ -206,7 +219,7 @@ public class BiometricUnlock(
             prompting = prompting,
             opening = opening,
             reminderDays = setupState.reminderDays,
-            passwordDue = record != null && setup.isDue(record),
+            reminder = reminder,
             setUpAgain = setupState.setUpAgain[id],
             question = forQuestion != null,
             questionNothingTyped = forQuestion?.isEmpty() == true,
@@ -257,6 +270,62 @@ public class BiometricUnlock(
     }
 
     /**
+     * The reminder's question is decided as it opens, however it opened, and goes when it locks, or when the reminder no
+     * longer counts for it (Never chosen, a switch off).
+     */
+    private fun followReminder() {
+        val open = session.state.value is SessionState.Unlocked
+        val record = list.record(id)
+        reminder = when {
+            !open || record == null -> false
+            !wasOpen -> !typing && setup.asksNow(record)
+            else -> reminder && setup.isDue(record)
+        }
+        wasOpen = open
+    }
+
+    /**
+     * "Yes" to the reminder (keething-spec unlock.reminder-not-a-lock AC2, AC7): believed, the days start again. Nothing
+     * when no question stands.
+     */
+    public fun remembered() {
+        if (!reminder) return
+        restartDays()
+        publish()
+    }
+
+    /**
+     * "Check it" (keething-spec unlock.reminder-not-a-lock AC2, AC3): [typed] with its key file is compared with the key
+     * it is open with, the key derivation run once. Confirmed starts the days again; Wrong changes nothing and grants
+     * nothing (it is open already). The caller wipes [typed] once this returns.
+     */
+    public suspend fun check(typed: Secret): KeyConfirmation {
+        val result = session.confirmKey(typed)
+        if (result is KeyConfirmation.Confirmed && reminder) {
+            restartDays()
+            publish()
+        }
+        return result
+    }
+
+    /**
+     * The question left without an answer (put away, Not now) or after three tries that did not match: asked again at the
+     * first opening a day later at the earliest (keething-spec unlock.reminder-not-a-lock AC4).
+     */
+    public fun putOff() {
+        if (!reminder) return
+        setup.putOff(id)
+        reminder = false
+        publish()
+    }
+
+    /** A typed password opened it, or the reminder was answered: the days start again, and no question stands. */
+    private fun restartDays() {
+        setup.typedNow(id)
+        reminder = false
+    }
+
+    /**
      * The typed password: unlocks, and stores the password when the fingerprint is on for this database and this unlock
      * opened the vault. Nothing typed (a database with a key file) stores nothing: there is no password. [ask]: a
      * database whose fingerprint was never chosen is asked whether to use it once this opened it ([BiometricState.question]).
@@ -264,6 +333,7 @@ public class BiometricUnlock(
      */
     public fun unlock(password: Secret, ask: Boolean = false): Deferred<UnlockOutcome>? {
         val outcome = session.unlock(password) ?: return null
+        typing = !password.isEmpty()
         afterTyped(outcome, password, ask)
         return outcome
     }
@@ -276,6 +346,7 @@ public class BiometricUnlock(
      */
     public fun unlockCreated(key: DerivedKey, password: Secret): Deferred<UnlockOutcome>? {
         val outcome = session.unlockAdopting(key.key) ?: return null
+        typing = !password.isEmpty()
         afterTyped(outcome, password)
         return outcome
     }
@@ -286,7 +357,8 @@ public class BiometricUnlock(
             try {
                 if (outcome.await() == UnlockOutcome.Opened) {
                     setup.opened(id)
-                    setup.typedNow(id)
+                    // Nothing typed (its key file alone): only a Yes about its key file starts its days (AC7).
+                    if (!password.isEmpty()) restartDays()
                     val now = current()
                     when {
                         now.enabled -> kept?.takeUnless(Secret::isEmpty)?.let { storeTyped(it) }
@@ -300,6 +372,7 @@ public class BiometricUnlock(
                     publish()
                 }
             } finally {
+                typing = false
                 kept?.wipe()
             }
         }
@@ -318,10 +391,6 @@ public class BiometricUnlock(
         // It could not open: asking for a finger only to fail is noise (keething-spec unlock.key-file AC3).
         if (!fileExists(record.file)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
         record.keyFile?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }
-        if (setup.isDue(record)) {
-            publish()
-            return FingerprintOutcome.PasswordDue
-        }
         prompting = true
         setup.asking = true
         publish()
@@ -411,12 +480,12 @@ public class BiometricUnlock(
     /**
      * Its master key was changed on this phone (keething-spec databases.change-master-key AC6), as a typed unlock of
      * [password]: its days start, and while the fingerprint is on for it the new password is stored in place of the old;
-     * with its key file alone (null) a stored password goes, as there is none. Why that failed, or null. The caller may
-     * wipe [password] once this returns.
+     * with its key file alone (null) a stored password goes, as there is none, and its days go on (only a Yes about its
+     * key file starts them). Why that failed, or null. The caller may wipe [password] once this returns.
      */
     internal suspend fun keyChanged(password: Secret?): String? {
         setup.opened(id)
-        setup.typedNow(id)
+        if (password != null) restartDays()
         val failure = when {
             !current().enabled -> null
             password == null -> setup.delete(id)

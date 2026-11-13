@@ -89,11 +89,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -155,8 +157,14 @@ import dev.keething.android.databases.rememberFileActions
 import dev.keething.android.databases.Reach
 import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.unlock.FingerprintQuestion
+import dev.keething.android.unlock.ReminderKind
+import dev.keething.android.unlock.ReminderNotMatched
+import dev.keething.android.unlock.ReminderQuestion
+import dev.keething.android.unlock.ReminderQuestionModel
 import dev.keething.vault.biometric.FingerprintAnswer
 import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.DatabaseSession
+import dev.keething.vault.session.SessionState
 import dev.keething.vault.databases.EntryRef
 import androidx.compose.material.icons.rounded.Storage
 import dev.keething.android.ui.NoticeEffect
@@ -323,6 +331,47 @@ internal fun EntryListScreen(
             }
         }
     }
+
+    // The reminder's question, once a database whose days are up is open (keething-spec unlock.reminder-not-a-lock):
+    // one at a time, after the fingerprint's.
+    val reminderAsked by container.sessions.reminderQuestion.collectAsStateWithLifecycle()
+    val reminderScope = rememberCoroutineScope()
+    // Three tries that did not match: said until closed, though the question is put off by then.
+    var notMatched by remember { mutableStateOf<DatabaseSession?>(null) }
+    val reminder = remember(reminderAsked) {
+        reminderAsked?.let { database ->
+            val record = container.sessions.list.record(database.id)
+            val name = record?.displayName ?: database.location.fileName
+            val biometric = database.biometric.current()
+            ReminderQuestionModel(
+                database = database,
+                name = name,
+                kind = ReminderKind.of(biometric.passwordless, record?.keyFile?.fileName),
+                days = container.sessions.biometric.daysSince(database.id),
+                interval = biometric.reminderDays,
+                file = database.location.fileName,
+                scope = reminderScope,
+                said = { container.windowNotices.trySend(Notice(it)) },
+                failed = { notMatched = database },
+            )
+        }
+    }
+    DisposableEffect(reminder) { onDispose { reminder?.clear() } }
+    notMatched?.let { database ->
+        val state by database.session.state.collectAsStateWithLifecycle()
+        if (state !is SessionState.Unlocked) {
+            notMatched = null
+            return@let
+        }
+        ReminderNotMatched(
+            name = container.sessions.list.record(database.id)?.displayName ?: database.location.fileName,
+            onChangeMasterKey = {
+                notMatched = null
+                container.masterKeys.open(database.id)
+            },
+            onClose = { notMatched = null },
+        )
+    } ?: reminder?.takeIf { question == null }?.let { ReminderQuestion(it) }
 
     // The quick actions of a long-pressed row, with the section it was in (Remove from Recent is only for a recent row).
     var quick by remember { mutableStateOf<Pair<QuickActions, ListSection.Kind>?>(null) }

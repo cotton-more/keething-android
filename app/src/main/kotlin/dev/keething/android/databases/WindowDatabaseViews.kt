@@ -45,7 +45,6 @@ import androidx.compose.material.icons.rounded.KeyOff
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.LockReset
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.PauseCircle
 import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SkipNext
@@ -125,7 +124,6 @@ internal fun NotOpenMark(state: NotOpenState, color: Color, size: Dp, behind: Co
         else -> Icon(
             when (state.glyph) {
                 NotOpenState.Glyph.LOCK -> Icons.Rounded.Lock
-                NotOpenState.Glyph.PAUSE -> Icons.Rounded.PauseCircle
                 NotOpenState.Glyph.FINGERPRINT -> Icons.Rounded.Fingerprint
                 NotOpenState.Glyph.FOLDER_OFF -> Icons.Rounded.FolderOff
                 NotOpenState.Glyph.FOLDER_NEW -> Icons.Rounded.CreateNewFolder

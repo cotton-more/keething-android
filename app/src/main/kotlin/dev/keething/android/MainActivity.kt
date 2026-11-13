@@ -33,9 +33,15 @@ class MainActivity : ComponentActivity() {
         follow(intent)
     }
 
-    /** The "Codes" launcher shortcut (SPEC §6.2); the launcher icon itself opens the app as it was left. */
+    /**
+     * The "Codes" launcher shortcut (SPEC §6.2); the launcher icon itself opens the app as it was left. A quick task: what
+     * it opens asks nothing, and locks again once the app is left if its reminder is due (keething-spec
+     * unlock.reminder-not-a-lock AC5).
+     */
     private fun follow(intent: Intent) {
-        if (intent.action == ACTION_CODES) navigation.showCodes()
+        if (intent.action != ACTION_CODES) return
+        container.sessions.quickTasks.begin()
+        navigation.showCodes()
     }
 
     companion object {

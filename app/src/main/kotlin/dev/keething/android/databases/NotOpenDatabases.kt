@@ -16,7 +16,7 @@ import dev.keething.vault.session.SessionState
 internal sealed interface NotOpenState {
     /** The state's icon (the owner, 2026-11-01): one per state, no other state has it. */
     enum class Glyph {
-        LOCK, SPINNER, PAUSE, FINGERPRINT, FOLDER_QUESTION, FOLDER_OFF, FOLDER_NEW, KEY_OFF, WARNING, LOCK_WARNING,
+        LOCK, SPINNER, FINGERPRINT, FOLDER_QUESTION, FOLDER_OFF, FOLDER_NEW, KEY_OFF, WARNING, LOCK_WARNING,
         LOCK_RESET, SKIP,
     }
 
@@ -31,12 +31,6 @@ internal sealed interface NotOpenState {
     data object Opening : NotOpenState {
         override val word = "Opening…"
         override val glyph = Glyph.SPINNER
-    }
-
-    /** Its password is due: the fingerprint waits until it is typed. */
-    data class FingerprintPaused(val days: Int) : NotOpenState {
-        override val word = "Fingerprint paused"
-        override val glyph = Glyph.PAUSE
     }
 
     /** [why] its stored password went; null: nothing was stored yet. */
@@ -99,7 +93,6 @@ internal data class NotOpenDatabase(val line: DatabaseLine, val state: NotOpenSt
         get() = when (val state = state) {
             NotOpenState.Locked -> "Locked · tap to type its password"
             NotOpenState.Opening -> "Opening…"
-            is NotOpenState.FingerprintPaused -> "Fingerprint paused: type the password (every ${state.days} days)"
             is NotOpenState.FingerprintToSetUp -> when (state.why) {
                 SetUpAgain.FINGERPRINTS_CHANGED -> "Fingerprint to set up again: the fingerprints changed"
                 SetUpAgain.PASSWORD_REJECTED -> "Fingerprint to set up again: the stored password was not accepted"
@@ -162,11 +155,7 @@ internal object NotOpenDatabases {
         if (skipped) return NotOpenState.Skipped
         if (failure?.isWrongKey == true) return NotOpenState.WrongPassword
         if (reason == LockReason.PasswordChanged) return NotOpenState.PasswordChanged
-        if (uses) {
-            val days = fingerprint.reminderDays
-            if (days != null && fingerprint.passwordDue && !fingerprint.passwordless) return NotOpenState.FingerprintPaused(days)
-            if (!fingerprint.stored && !fingerprint.passwordless) return NotOpenState.FingerprintToSetUp(null)
-        }
+        if (uses && !fingerprint.stored && !fingerprint.passwordless) return NotOpenState.FingerprintToSetUp(null)
         return NotOpenState.Locked
     }
 

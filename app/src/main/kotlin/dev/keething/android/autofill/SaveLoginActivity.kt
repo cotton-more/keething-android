@@ -90,6 +90,8 @@ class SaveLoginActivity : ComponentActivity() {
             Toast.makeText(this, "Nothing to save: the login was typed too long ago", Toast.LENGTH_LONG).show()
             return finish()
         }
+        // Autofill's: what it opens asks nothing (keething-spec unlock.reminder-not-a-lock AC5).
+        if (savedInstanceState == null) container.sessions.quickTasks.begin()
         secureWindow()
         enableEdgeToEdge()
         val label = container.autofillEntries.label(save.target)

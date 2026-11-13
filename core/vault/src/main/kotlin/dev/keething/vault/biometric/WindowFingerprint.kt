@@ -28,9 +28,10 @@ public class WindowFingerprintResult(public val outcome: FingerprintOutcome, pub
  * AC7; the Mac's `TouchIDUnlock.unlockWithTouchID()`), as AD5 chose: one prompt opens the keyring, the keyring each
  * database's stored password.
  *
- * - It opens every database of the window that can: locked, its fingerprint on, its file and key file there, its
- *   password not due, and stored — or one that opens with its key file alone (nothing stored: the fingerprint is the
- *   check). Each with its own stored password, never another's; the others are not read and say why.
+ * - It opens every database of the window that can: locked, its fingerprint on, its file and key file there, and its
+ *   password stored — or one that opens with its key file alone (nothing stored: the fingerprint is the check); a
+ *   reminder due holds none back (keething-spec unlock.reminder-not-a-lock AC1). Each with its own stored password,
+ *   never another's; the others are not read and say why.
  * - The stored passwords are read one after another under the one prompt, and what opened them is let go before any
  *   key is derived; then the databases open side by side, each judged by its own attempt as soon as it ends (a rejected
  *   stored password deleted then, that database's only; [BiometricUnlock]'s rules).
@@ -94,7 +95,7 @@ public class WindowFingerprint(
 
     /** Each database's outcome into [each]; the prompt's own answer when it let nothing through, else null. */
     private suspend fun unlock(looked: List<DatabaseRecord>, each: MutableMap<DatabaseId, FingerprintOutcome>): FingerprintOutcome? {
-        // Who can: its fingerprint on, its files there, its password not due; then a sensor; then a stored password.
+        // Who can: its fingerprint on, its files there; then a sensor; then a stored password.
         val candidates = looked.filter { record -> whyNot(record)?.also { each[record.id] = it } == null }
         if (candidates.isEmpty()) return null
         val availability = setup.availability()
@@ -206,7 +207,6 @@ public class WindowFingerprint(
         // It could not open: asking for a finger only to fail is noise (keething-spec unlock.key-file AC3).
         if (!fileExists(record.file)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
         record.keyFile?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }
-        if (setup.isDue(record)) return FingerprintOutcome.PasswordDue
         return null
     }
 

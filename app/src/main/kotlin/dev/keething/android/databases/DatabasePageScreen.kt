@@ -327,7 +327,6 @@ private fun FingerprintOfDatabase(container: AppContainer, id: DatabaseId, line:
             !state.enabled -> "Off: Unlock with the fingerprint is off in Settings. Once it is on, the fingerprint can be turned on here."
             !on -> "Off: its password is typed every time."
             record?.isPasswordless == true -> "The fingerprint opens it, and nothing is stored."
-            setup.isDue(id) -> "Paused: it has been ${state.reminderDays} days, so the next unlock asks for its password."
             stored -> "Its password is stored, sealed by a key in ${location.describe()} that opens only after your fingerprint. " +
                 "A fingerprint added on this phone undoes it."
             else -> "Its password is stored the next time it is unlocked with the password."

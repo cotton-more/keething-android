@@ -16,7 +16,7 @@ class BesideFieldTest {
         assertEquals(Beside.UNLOCK, besideField(available, offered = true, typed = true), "typing: Unlock")
         assertEquals(Beside.UNLOCK, besideField(available, offered = false, typed = false), "not offered (the run, a file not there): Unlock")
         assertEquals(Beside.UNLOCK, besideField(available.copy(appEnabled = false), offered = true, typed = false), "the app's switch off")
-        assertEquals(Beside.UNLOCK, besideField(available.copy(passwordDue = true), offered = true, typed = false), "the password due")
+        assertEquals(Beside.FINGERPRINT, besideField(available.copy(reminder = true), offered = true, typed = false), "the reminder never withholds it")
         assertEquals(Beside.UNLOCK, besideField(available.copy(stored = false), offered = true, typed = false), "on, nothing stored yet: typed to set it up")
         assertEquals(Beside.FINGERPRINT, besideField(available.copy(stored = false, passwordless = true), offered = true, typed = false), "its key file alone")
     }

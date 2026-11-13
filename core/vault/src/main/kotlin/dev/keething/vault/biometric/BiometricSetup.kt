@@ -122,6 +122,7 @@ public class BiometricSetup(
             return null
         }
         settings.setString(lastTypedKey(id), null)
+        settings.setString(reminderPutOffKey(id), null)
         mutableState.update { it.copy(setupFailures = it.setupFailures - id, setUpAgain = it.setUpAgain - id) }
         return delete(id)
     }
@@ -134,6 +135,7 @@ public class BiometricSetup(
     /** The database left the list: its stored password, its days and its key-file note go. Why the deletion failed, or null. */
     public suspend fun forget(id: DatabaseId): String? {
         settings.setString(lastTypedKey(id), null)
+        settings.setString(reminderPutOffKey(id), null)
         settings.setString(keyFileChangedKey(id), null)
         mutableState.update { it.copy(setupFailures = it.setupFailures - id, setUpAgain = it.setUpAgain - id) }
         return delete(id)
@@ -155,21 +157,22 @@ public class BiometricSetup(
         settings.setString(keyFileChangedKey(id), null)
     }
 
-    /** A typed unlock opened it, or its days start again. */
+    /** A typed unlock opened it, or its days start again; a question put off is answered. */
     internal fun typedNow(id: DatabaseId) {
         settings.setString(lastTypedKey(id), clock.now().toEpochMilli().toString())
+        settings.setString(reminderPutOffKey(id), null)
     }
 
     /**
-     * The database's password is due: [BiometricSetupState.reminderDays] of wall-clock days without it being typed, as
-     * the user counts them. No time saved yet (a database new to the list) or one in the future (the clock was set back):
-     * the days count from now; it is a reminder, not a barrier. A database the fingerprint does not open (a switch off)
-     * counts nothing: its days start when it is turned on. One that opens with its key file alone has no password to
-     * forget: never due.
+     * The reminder is due: [BiometricSetupState.reminderDays] of wall-clock days without the database's password typed
+     * (or, for one that opens with its key file alone, without a Yes about its key file), as the user counts them. No
+     * time saved yet (a database new to the list) or one in the future (the clock was set back): the days count from
+     * now. A database the fingerprint does not open (a switch off) counts nothing: its days start when it is turned on.
+     * Due, the fingerprint opens it all the same (keething-spec unlock.reminder-not-a-lock AC1): it is asked once open.
      */
     internal fun isDue(record: DatabaseRecord): Boolean {
         val days = state.value.reminderDays ?: return false
-        if (!state.value.enabled || !record.useBiometric || record.isPasswordless) return false
+        if (!state.value.enabled || !record.useBiometric) return false
         val now = clock.now()
         val last = settings.string(lastTypedKey(record.id))?.toLongOrNull()?.let(Instant::ofEpochMilli)
         if (last == null || last.isAfter(now)) {
@@ -179,8 +182,27 @@ public class BiometricSetup(
         return Duration.between(last, now) >= Duration.ofDays(days.toLong())
     }
 
-    /** [id]'s password is due now (its page in Settings says so). */
-    public fun isDue(id: DatabaseId): Boolean = list.record(id)?.let { isDue(it) } ?: false
+    /**
+     * The reminder is due and asks at this opening: not put off within the last day (keething-spec
+     * unlock.reminder-not-a-lock AC4; a put-off time in the future, the clock set back, asks).
+     */
+    internal fun asksNow(record: DatabaseRecord): Boolean {
+        if (!isDue(record)) return false
+        val now = clock.now()
+        val putOff = settings.string(reminderPutOffKey(record.id))?.toLongOrNull()?.let(Instant::ofEpochMilli) ?: return true
+        return putOff.isAfter(now) || Duration.between(putOff, now) >= Duration.ofDays(1)
+    }
+
+    /** Whole days since [id]'s days started (its last typed unlock, or Yes), for the reminder's words; 0 with none saved. */
+    public fun daysSince(id: DatabaseId): Long {
+        val last = settings.string(lastTypedKey(id))?.toLongOrNull()?.let(Instant::ofEpochMilli) ?: return 0
+        return Duration.between(last, clock.now()).toDays().coerceAtLeast(0)
+    }
+
+    /** The question was put away, Not now, or three tries did not match: asked again a day later at the earliest. */
+    internal fun putOff(id: DatabaseId) {
+        settings.setString(reminderPutOffKey(id), clock.now().toEpochMilli().toString())
+    }
 
     internal suspend fun availability(): BiometricAvailability =
         withContext(io) { stores.availability() }.also { availability -> mutableState.update { it.copy(availability = availability) } }
@@ -299,6 +321,9 @@ public class BiometricSetup(
 
         /** When a typed unlock last opened the database, in milliseconds since 1970 (not a secret). */
         public fun lastTypedKey(id: DatabaseId): String = "lastTypedUnlock.${id.value}"
+
+        /** When the reminder's question was last left without an answer, in milliseconds since 1970 (not a secret). */
+        public fun reminderPutOffKey(id: DatabaseId): String = "reminderPutOff.${id.value}"
 
         /** Set while the database's key file was chosen, changed or forgotten and nothing has opened it since. */
         public fun keyFileChangedKey(id: DatabaseId): String = "biometricKeyFileChanged.${id.value}"

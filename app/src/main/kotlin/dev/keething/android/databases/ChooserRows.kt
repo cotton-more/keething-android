@@ -14,7 +14,7 @@ import dev.keething.vault.session.SessionState
  */
 internal data class ChooserRow(
     val line: DatabaseLine,
-    /** Under its name: "Fingerprint", "Password + work.keyx", "Fingerprint paused · 14 days", "Not found". */
+    /** Under its name: "Fingerprint", "Password + work.keyx", "Fingerprint to set up", "Not found". */
     val opensWith: String,
     val glyph: Glyph,
     val tone: Tone,
@@ -69,8 +69,6 @@ internal object ChooserRows {
             val fingerprintRow = { text: String, tone: ChooserRow.Tone -> row(text, ChooserRow.Glyph.FINGERPRINT, tone) }
             if (!fingerprint.stored && fingerprint.setUpAgain != null) return fingerprintRow("Fingerprint to set up again", ChooserRow.Tone.WARNING)
             if (!fingerprint.stored && !fingerprint.passwordless) return fingerprintRow("Fingerprint to set up", ChooserRow.Tone.WARNING)
-            val days = fingerprint.reminderDays
-            if (days != null && fingerprint.passwordDue && !fingerprint.passwordless) return fingerprintRow("Fingerprint paused · $days days", ChooserRow.Tone.WARNING)
             return fingerprintRow("Fingerprint", ChooserRow.Tone.READY)
         }
         if (key != null) {
@@ -105,7 +103,7 @@ internal object ChooserRows {
         FingerprintOutcome.KeyInvalidated -> "The fingerprints on this phone changed: type the passwords to set up the fingerprint again."
         is FingerprintOutcome.StorageError -> "Could not read the stored passwords: ${outcome.reason}."
         FingerprintOutcome.Unlocked, FingerprintOutcome.InProgress, is FingerprintOutcome.NotAvailable, FingerprintOutcome.NothingStored,
-        FingerprintOutcome.PasswordDue, FingerprintOutcome.StoredPasswordRejected, is FingerprintOutcome.UnlockFailed,
+        FingerprintOutcome.StoredPasswordRejected, is FingerprintOutcome.UnlockFailed,
         -> null
     }
 

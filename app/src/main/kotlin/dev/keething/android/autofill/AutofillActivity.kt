@@ -36,6 +36,8 @@ class AutofillActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         request = AutofillRequest.from(intent) ?: return finish()
+        // What it opens asks nothing, and locks again if its reminder is due (keething-spec unlock.reminder-not-a-lock AC5).
+        if (savedInstanceState == null) container.sessions.quickTasks.begin()
         secureWindow()
         if (request.mode == AutofillMode.GENERATE) {
             enableEdgeToEdge()

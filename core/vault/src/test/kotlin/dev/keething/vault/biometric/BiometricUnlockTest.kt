@@ -17,6 +17,7 @@ import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.session.FakeClock
 import dev.keething.vault.session.FakeKeyFile
 import dev.keething.vault.session.FakeStore
+import dev.keething.vault.session.KeyConfirmation
 import dev.keething.vault.session.LockReason
 import dev.keething.vault.session.SessionState
 import dev.keething.vault.session.UnlockOutcome
@@ -33,6 +34,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
@@ -123,6 +125,29 @@ class BiometricUnlockTest {
     private fun TestScope.state(f: Fixture): BiometricState {
         runCurrent()
         return f.biometric.state.value
+    }
+
+    /**
+     * Opens the database with the fingerprint and says whether the reminder asks over its list once it is open
+     * (keething-spec unlock.reminder-not-a-lock AC1); then locks it, the question left as it was.
+     */
+    private suspend fun TestScope.asksAfterFingerprint(unlock: BiometricUnlock, session: VaultSession): Boolean {
+        unlock.refresh()
+        assertEquals(FingerprintOutcome.Unlocked, unlock.unlockWithFingerprint(), "the reminder never holds the fingerprint back")
+        runCurrent()
+        val asks = unlock.state.value.reminder
+        session.lock()
+        runCurrent()
+        return asks
+    }
+
+    private suspend fun TestScope.asksAfterFingerprint(f: Fixture): Boolean = asksAfterFingerprint(f.biometric, f.session)
+
+    /** Opens it with the fingerprint and leaves it open: the question stands now, or not. */
+    private suspend fun TestScope.openedWithFingerprint(f: Fixture): BiometricState {
+        f.biometric.refresh()
+        assertEquals(FingerprintOutcome.Unlocked, f.biometric.unlockWithFingerprint())
+        return state(f)
     }
 
     // The switches
@@ -1021,13 +1046,13 @@ class BiometricUnlockTest {
         f.settings.setString(BiometricSetup.lastTypedKey(f.id), f.clock.now().minusSeconds(15L * 86_400).toEpochMilli().toString())
         f.settings.setString(BiometricSetup.lastTypedKey(work.id), f.clock.now().minusSeconds(1L * 86_400).toEpochMilli().toString())
 
-        assertTrue(f.biometric.refresh().passwordDue, "Personal: 15 days")
-        assertEquals(FingerprintOutcome.PasswordDue, f.biometric.unlockWithFingerprint())
-        assertFalse(work.biometric.refresh().passwordDue, "Work: 1 day")
+        assertTrue(asksAfterFingerprint(f), "Personal: 15 days")
+        assertFalse(asksAfterFingerprint(work.biometric, work.session), "Work: 1 day")
 
         f.typed("pw", work.biometric)
         runCurrent()
-        assertTrue(f.biometric.refresh().passwordDue, "typing Work's password does not count for Personal")
+        work.session.lock()
+        assertTrue(asksAfterFingerprint(f), "typing Work's password does not count for Personal")
     }
 
     @Test
@@ -1037,8 +1062,7 @@ class BiometricUnlockTest {
         val work = f.add("/db/Work.kdbx")
         f.store("pw", work.id)
 
-        assertFalse(work.biometric.refresh().passwordDue)
-        assertTrue(work.biometric.state.value.canUnlock)
+        assertFalse(asksAfterFingerprint(work.biometric, work.session))
     }
 
     @Test
@@ -1104,14 +1128,15 @@ class BiometricUnlockTest {
     // A database that opens with its key file alone (keething-spec unlock.key-file AC6)
 
     @Test
-    fun aKeyFileOnlyDatabaseOpensAfterTheFingerprintWithNothingStoredAndIsNeverDue() = runTest {
+    fun aKeyFileOnlyDatabaseOpensAfterTheFingerprintWithNothingStoredAndIsAskedAboutItsKeyFile() = runTest {
         val f = fixture(database = keyFileBytes("keyfile-only.kdbx"), keyFile = FakeKeyFile(keyFileBytes("keyx.keyx")))
         f.list.update(f.id) { it.copy(opensWithoutPassword = true) }
         f.clock.sleep(30.days)
 
         val state = f.biometric.refresh()
-        assertTrue(state.canUnlock && state.passwordless && !state.stored && !state.passwordDue, "no password to forget")
+        assertTrue(state.canUnlock && state.passwordless && !state.stored)
         assertEquals(FingerprintOutcome.Unlocked, f.biometric.unlockWithFingerprint())
+        assertTrue(state(f).reminder, "no password to forget: its key file is asked about (unlock.reminder-not-a-lock AC7)")
 
         assertIs<SessionState.Unlocked>(f.session.state.value)
         assertEquals(1, f.stores.confirms, "the fingerprint is the check that it is the user")
@@ -1148,79 +1173,90 @@ class BiometricUnlockTest {
         assertEquals(0, f.stores.prompts)
     }
 
-    // Asking for the typed password now and then
+    // Asking about the master password now and then (unlock.password-reminder, unlock.reminder-not-a-lock)
 
     @Test
-    fun afterFourteenDaysWithoutATypedUnlockThePasswordIsDueAndTheFingerprintIsNotOffered() = runTest {
+    fun afterFourteenDaysTheFingerprintOpensItAsUsualAndTheReminderAsksOnceOpen() = runTest {
+        // spec: unlock.reminder-not-a-lock/AC1
         val f = storedPassword("pw")
         assertEquals(14, f.biometric.state.value.reminderDays, "the default")
 
         f.clock.sleep(13.days)
-        f.biometric.refresh()
-        assertTrue(f.biometric.state.value.canUnlock)
+        assertFalse(asksAfterFingerprint(f), "13 days")
 
         f.clock.sleep(1.days)
-        f.biometric.refresh()
-        assertTrue(f.biometric.state.value.passwordDue)
-        assertTrue(f.biometric.state.value.isSetUp)
-        assertFalse(f.biometric.state.value.canUnlock)
-        assertEquals(FingerprintOutcome.PasswordDue, f.biometric.unlockWithFingerprint())
-        assertTrue(f.session.state.value is SessionState.Locked)
+        assertTrue(f.biometric.refresh().canUnlock, "due, the fingerprint is offered all the same")
+        val open = openedWithFingerprint(f)
+        assertTrue(open.reminder)
         assertEquals("pw", f.stored()?.reveal(), "the stored copy stays")
+
+        f.session.lock()
+        assertFalse(state(f).reminder, "locked, no question stands")
     }
 
     @Test
     fun aTypedUnlockStartsTheDaysAgainAndAFingerprintUnlockDoesNot() = runTest {
         val f = storedPassword("pw")
         f.clock.sleep(10.days)
-        assertEquals(FingerprintOutcome.Unlocked, f.biometric.unlockWithFingerprint())
-        f.session.lock()
+        assertFalse(asksAfterFingerprint(f))
 
         f.clock.sleep(4.days)
-        f.biometric.refresh()
-        assertTrue(f.biometric.state.value.passwordDue, "the fingerprint unlock did not count")
+        assertTrue(asksAfterFingerprint(f), "the fingerprint unlock did not count")
 
         assertTrue(f.typed("pw"))
         runCurrent()
-        assertFalse(f.biometric.state.value.passwordDue)
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+        assertFalse(state(f).reminder, "a typed unlock asks nothing: it starts the days again")
         f.session.lock()
 
         f.clock.sleep(13.days)
-        f.biometric.refresh()
-        assertTrue(f.biometric.state.value.canUnlock)
+        assertFalse(asksAfterFingerprint(f))
     }
 
     @Test
     fun aWrongTypedPasswordDoesNotStartTheDaysAgain() = runTest {
         val f = storedPassword("pw")
         f.clock.sleep(14.days)
-        f.biometric.refresh()
 
         f.typed("wrong")
         runCurrent()
-        f.biometric.refresh()
 
-        assertTrue(f.biometric.state.value.passwordDue)
+        assertTrue(asksAfterFingerprint(f))
     }
 
     @Test
     fun theDaysCanBeChosenOrTurnedOffAndAreRemembered() = runTest {
         val f = storedPassword("pw")
         f.clock.sleep(8.days)
-        f.biometric.refresh()
-        assertFalse(f.biometric.state.value.passwordDue)
+        assertFalse(asksAfterFingerprint(f))
 
         f.setup.setReminderDays(7)
-        assertTrue(state(f).passwordDue)
+        assertTrue(asksAfterFingerprint(f))
 
         f.setup.setReminderDays(null)
-        assertFalse(state(f).passwordDue)
+        assertFalse(asksAfterFingerprint(f))
         f.clock.sleep(365.days)
-        f.biometric.refresh()
-        assertTrue(f.biometric.state.value.canUnlock)
+        assertFalse(asksAfterFingerprint(f))
 
         val next = BiometricSetup(f.stores, f.list, f.settings, f.clock, StandardTestDispatcher(testScheduler))
         assertNull(next.state.value.reminderDays)
+    }
+
+    @Test
+    fun aQuestionStandingGoesWhenNeverIsChosenOrItsFingerprintTurnedOff() = runTest {
+        val f = storedPassword("pw")
+        f.clock.sleep(14.days)
+        assertTrue(openedWithFingerprint(f).reminder)
+
+        f.setup.setReminderDays(null)
+        assertFalse(state(f).reminder, "Never")
+
+        f.setup.setReminderDays(14)
+        assertFalse(state(f).reminder, "decided at the opening, not asked by a change of the days")
+        f.session.lock()
+        assertTrue(openedWithFingerprint(f).reminder)
+        f.setup.setUseBiometric(f.id, false)
+        assertFalse(state(f).reminder, "its fingerprint off")
     }
 
     @Test
@@ -1244,9 +1280,8 @@ class BiometricUnlockTest {
         f.clock.sleep(20.days)
         f.setup.setEnabled(true)
         f.store("pw")
-        f.biometric.refresh()
 
-        assertFalse(f.biometric.state.value.passwordDue)
+        assertFalse(asksAfterFingerprint(f))
     }
 
     @Test
@@ -1256,15 +1291,145 @@ class BiometricUnlockTest {
         val f = fixture(enabled = false, settings = settings)
         f.store("pw")
         f.clock.sleep(13.days)
-        f.biometric.refresh()
-        assertTrue(f.biometric.state.value.canUnlock)
+        assertFalse(asksAfterFingerprint(f))
 
         // The clock was set back.
         settings.setString(BiometricSetup.lastTypedKey(f.id), f.clock.now().plusSeconds(30L * 86_400).toEpochMilli().toString())
-        f.biometric.refresh()
+        assertFalse(asksAfterFingerprint(f))
         f.clock.sleep(13.days)
-        f.biometric.refresh()
-        assertTrue(f.biometric.state.value.canUnlock)
+        assertFalse(asksAfterFingerprint(f))
+    }
+
+    // Answering the reminder (keething-spec unlock.reminder-not-a-lock)
+
+    @Test
+    fun yesIsBelievedAndStartsTheDaysAgain() = runTest {
+        // spec: unlock.reminder-not-a-lock/AC2
+        val f = storedPassword("pw")
+        f.clock.sleep(15.days)
+        assertTrue(openedWithFingerprint(f).reminder)
+
+        f.biometric.remembered()
+
+        assertFalse(f.biometric.state.value.reminder, "answered: gone at once")
+        assertEquals(f.clock.now().toEpochMilli().toString(), f.settings.string(BiometricSetup.lastTypedKey(f.id)))
+        f.session.lock()
+        f.clock.sleep(13.days)
+        assertFalse(asksAfterFingerprint(f))
+        f.clock.sleep(1.days)
+        assertTrue(asksAfterFingerprint(f))
+    }
+
+    @Test
+    fun aCheckedPasswordThatMatchesStartsTheDaysAgain() = runTest {
+        // spec: unlock.reminder-not-a-lock/AC2
+        val f = storedPassword("pw")
+        f.clock.sleep(15.days)
+        assertTrue(openedWithFingerprint(f).reminder)
+
+        val typed = Secret.of("pw")
+        val result = f.biometric.check(typed)
+        typed.wipe()
+
+        assertIs<KeyConfirmation.Confirmed>(result)
+        assertFalse(state(f).reminder)
+        assertTrue(f.stores.saves.isEmpty(), "a password checked while open is never stored")
+        f.session.lock()
+        f.clock.sleep(13.days)
+        assertFalse(asksAfterFingerprint(f))
+    }
+
+    @Test
+    fun aCheckedPasswordThatDoesNotMatchChangesNothingAndGrantsNothing() = runTest {
+        // spec: unlock.reminder-not-a-lock/AC3
+        val f = storedPassword("pw")
+        f.clock.sleep(15.days)
+        assertTrue(openedWithFingerprint(f).reminder)
+        val before = f.settings.string(BiometricSetup.lastTypedKey(f.id))
+
+        repeat(3) {
+            val typed = Secret.of("wrong")
+            assertEquals(KeyConfirmation.Wrong, f.biometric.check(typed))
+            typed.wipe()
+        }
+
+        assertTrue(state(f).reminder, "still standing: the days do not start again")
+        assertEquals(before, f.settings.string(BiometricSetup.lastTypedKey(f.id)))
+        assertIs<SessionState.Unlocked>(f.session.state.value, "it stays open, as it was")
+        assertEquals("pw", f.stored()?.reveal(), "nothing deleted")
+        assertTrue(f.stores.saves.isEmpty())
+
+        f.session.lock()
+        val typed = Secret.of("pw")
+        assertEquals(KeyConfirmation.Locked, f.biometric.check(typed), "locked, nothing is checked")
+        typed.wipe()
+    }
+
+    @Test
+    fun aQuestionPutOffIsAskedAgainOnlyADayLater() = runTest {
+        // spec: unlock.reminder-not-a-lock/AC4
+        val f = storedPassword("pw")
+        f.clock.sleep(15.days)
+        assertTrue(openedWithFingerprint(f).reminder)
+
+        f.biometric.putOff()
+
+        assertFalse(state(f).reminder, "put away: gone for this opening")
+        f.session.lock()
+        f.clock.sleep(23.hours)
+        assertFalse(asksAfterFingerprint(f), "not sooner than a day")
+        f.clock.sleep(1.hours)
+        assertTrue(asksAfterFingerprint(f), "a day later, at the first opening")
+
+        // The clock set back: a put-off time in the future asks.
+        f.settings.setString(BiometricSetup.reminderPutOffKey(f.id), f.clock.now().plusSeconds(3_600).toEpochMilli().toString())
+        assertTrue(asksAfterFingerprint(f))
+    }
+
+    @Test
+    fun aQuestionLeftOpenIsNotPutOffAndAsksAtTheNextOpening() = runTest {
+        // spec: unlock.reminder-not-a-lock/AC4
+        val f = storedPassword("pw")
+        f.clock.sleep(15.days)
+        assertTrue(asksAfterFingerprint(f), "locked before an answer (the timeout, a quick task)")
+        assertTrue(asksAfterFingerprint(f), "the next opening asks")
+    }
+
+    @Test
+    fun aKeyFileOnlyDatabasesDaysStartAgainOnlyAtYes() = runTest {
+        // spec: unlock.reminder-not-a-lock/AC7
+        val f = fixture(database = keyFileBytes("keyfile-only.kdbx"), keyFile = FakeKeyFile(keyFileBytes("keyx.keyx")))
+        f.list.update(f.id) { it.copy(opensWithoutPassword = true) }
+        f.clock.sleep(15.days)
+
+        assertTrue(f.typed(""), "Unlock with nothing typed")
+        runCurrent()
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+        assertTrue(state(f).reminder, "an unlock without the fingerprint asks too, and starts nothing")
+        f.biometric.putOff()
+        f.session.lock()
+
+        f.clock.sleep(1.days)
+        assertTrue(openedWithFingerprint(f).reminder)
+        f.biometric.remembered()
+        f.session.lock()
+        f.clock.sleep(13.days)
+        assertFalse(asksAfterFingerprint(f), "Yes started its days")
+    }
+
+    @Test
+    fun aPasswordAndKeyFileDatabaseIsCheckedWithItsKeyFile() = runTest {
+        // spec: unlock.reminder-not-a-lock/AC8
+        val f = fixture(database = keyFileBytes("keyfile-keyx.kdbx"), keyFile = FakeKeyFile(keyFileBytes("keyx.keyx")))
+        f.store("pw")
+        f.clock.sleep(15.days)
+        assertTrue(openedWithFingerprint(f).reminder)
+
+        val typed = Secret.of("pw")
+        assertIs<KeyConfirmation.Confirmed>(f.biometric.check(typed))
+        typed.wipe()
+
+        assertFalse(state(f).reminder, "one schedule for both")
     }
 
     // The one stored password of before (plan AD5)

@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.DashboardCustomize
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -309,11 +310,14 @@ private fun FingerprintSetting(container: AppContainer) {
     if (state.enabled) PasswordReminderSetting(setup, state.reminderDays)
 }
 
-/** How often the fingerprint steps aside for each typed password (SPEC §5): the app's choice, each database's days. */
+/**
+ * How often each database's master key is asked about once open (SPEC §5; keething-spec unlock.password-reminder,
+ * unlock.reminder-not-a-lock): the app's choice, each database's days.
+ */
 @Composable
 private fun PasswordReminderSetting(setup: BiometricSetup, reminderDays: Int?) {
     Spacer(Modifier.height(4.dp))
-    Text("Ask for each master password every", style = MaterialTheme.typography.bodyLarge)
+    Text("Ask about each master key every", style = MaterialTheme.typography.bodyLarge)
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         BiometricState.REMINDER_CHOICES.forEachIndexed { index, days ->
             SegmentedButton(
@@ -325,17 +329,28 @@ private fun PasswordReminderSetting(setup: BiometricSetup, reminderDays: Int?) {
             }
         }
     }
-    Text(
-        if (reminderDays == null) {
-            "The fingerprint always opens them. If you forget a master password, its database cannot be opened " +
-                "by anyone, not even with Keething."
-        } else {
-            "After this long without typing it, the next unlock asks for that database's password, so it is not " +
-                "forgotten. Then the fingerprint again."
-        },
-        style = MaterialTheme.typography.bodyMedium,
-        color = if (reminderDays == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    if (reminderDays != null) {
+        Text(
+            "After this long without its master password typed, Keething asks once, after an unlock, whether you still " +
+                "remember it (or keep its key file safe). The fingerprint opens it all the same.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+    // In the ordinary colour, marked so it is not passed over (keething-spec unlock.reminder-not-a-lock AC6).
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(
+            "Keething never asks. A forgotten master password, or a lost key file, opens its database for nobody, not " +
+                "even with Keething.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
 }
 
 @Composable

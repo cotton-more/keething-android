@@ -299,7 +299,6 @@ internal fun LockScreen(
         // it, plan AD13), what was typed here aside; then why it is locked. In the run a wrong password is said over the
         // field instead.
         val reasonNotice = reason?.notice(timeout, lock?.line?.path ?: database.location.fileName, wrongInARow)
-        val dueNotice = biometric.reminderDays?.takeIf { biometric.isSetUp && biometric.passwordDue }?.let(::passwordDueNotice)
         val setUpAgain = biometric.setUpAgain?.takeIf { biometric.enabled && !biometric.stored }?.notice()
         // On, nothing stored yet (its page, a stored password gone): what is typed now sets it up.
         val typeToSetUp = setUpByTypingNotice.takeIf {
@@ -309,9 +308,9 @@ internal fun LockScreen(
             ?: when {
                 lock?.line?.isMissing == true -> null
                 lock?.problem != null -> LockNotice(lock.problem, isProblem = true)
-                run != null -> setUpAgain ?: reasonNotice?.takeIf { reason == LockReason.PasswordChanged } ?: typeToSetUp ?: dueNotice
+                run != null -> setUpAgain ?: reasonNotice?.takeIf { reason == LockReason.PasswordChanged } ?: typeToSetUp
                 else -> fingerprintNotice ?: reasonNotice?.takeIf { it.isProblem && model.typedHere } ?: setUpAgain
-                    ?: reasonNotice?.takeIf { it.isProblem } ?: typeToSetUp ?: dueNotice ?: reasonNotice
+                    ?: reasonNotice?.takeIf { it.isProblem } ?: typeToSetUp ?: reasonNotice
             }
         notice?.let {
             Spacer(Modifier.height(12.dp))

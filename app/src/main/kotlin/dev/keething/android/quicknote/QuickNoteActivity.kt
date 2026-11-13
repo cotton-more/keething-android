@@ -102,6 +102,8 @@ class QuickNoteActivity : ComponentActivity() {
         // Before the model is first asked for.
         restored = savedInstanceState != null
         super.onCreate(savedInstanceState)
+        // What it opens asks nothing, and locks again if its reminder is due (keething-spec unlock.reminder-not-a-lock AC5).
+        if (!restored) container.sessions.quickTasks.begin()
         secureWindow()
         enableEdgeToEdge()
         setContent {

@@ -33,6 +33,13 @@ public sealed interface LockReason {
      * change, it opens with the key it had then (keething-spec databases.backups-window AC7).
      */
     public data object RestoredOlderKey : LockReason
+
+    /**
+     * Opened for a quick task (autofill, the codes shortcut, a quick note) while its reminder was due, and locked again
+     * once the task was done, so that the next ordinary opening asks (keething-spec unlock.reminder-not-a-lock AC5).
+     * Nothing is said of it: nothing warns of the question ahead (AC1).
+     */
+    public data object AfterQuickTask : LockReason
 }
 
 /** How one unlock ended. */

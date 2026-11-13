@@ -18,7 +18,8 @@ internal data class LockNotice(val text: String, val isProblem: Boolean, val fin
  * [wrongInARow]: the wrong keys typed in a row on its lock screen.
  */
 internal fun LockReason.notice(timeout: Duration, file: String, wrongInARow: Int = 1): LockNotice? = when (this) {
-    LockReason.Initial, LockReason.Manual -> null
+    // After a quick task the reminder locked it again: nothing warns of its question ahead (unlock.reminder-not-a-lock AC1).
+    LockReason.Initial, LockReason.Manual, LockReason.AfterQuickTask -> null
     LockReason.Timeout -> LockNotice("Locked after ${timeout.minutesText()} in the background", isProblem = false)
     LockReason.PasswordChanged -> LockNotice("The database password was changed. Enter the new one.", isProblem = true)
     LockReason.RestoredOlderKey -> LockNotice("A backup made before its master key changed was restored. Enter the password it had then.", isProblem = true)
@@ -37,7 +38,6 @@ internal fun FingerprintOutcome.notice(): LockNotice? = when (this) {
     // The system's own words: "Too many attempts. Try again later." and the like.
     is FingerprintOutcome.AuthenticationFailed -> LockNotice(reason, isProblem = true)
     is FingerprintOutcome.StorageError -> LockNotice("The stored password could not be read ($reason).", isProblem = true)
-    FingerprintOutcome.PasswordDue -> null
 }
 
 /**
@@ -78,10 +78,6 @@ internal fun besideField(biometric: BiometricState, offered: Boolean, typed: Boo
     biometric.canAsk -> Beside.UNLOCK_THEN_ASK
     else -> Beside.UNLOCK
 }
-
-/** The fingerprint waits while the password is due (SPEC §5): the screen says why it is not offered. */
-internal fun passwordDueNotice(days: Int): LockNotice =
-    LockNotice("It has been $days days: type the master password, so it is not forgotten.", isProblem = false)
 
 /**
  * Why it did not open; [file]: the database's path on the phone, for the words. From the second wrong key in a row
