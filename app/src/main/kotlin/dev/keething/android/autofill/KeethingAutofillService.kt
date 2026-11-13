@@ -1,5 +1,6 @@
 package dev.keething.android.autofill
 
+import android.content.pm.PackageManager
 import android.os.CancellationSignal
 import android.service.autofill.AutofillService
 import android.service.autofill.FillCallback
@@ -10,6 +11,7 @@ import android.util.Log
 import dev.keething.android.KeethingApplication
 import dev.keething.autofill.form.AutofillForm
 import dev.keething.autofill.target.FillTarget
+import dev.keething.autofill.target.SigningCheck
 import dev.keething.domain.secret.Secret
 
 /**
@@ -21,12 +23,16 @@ class KeethingAutofillService : AutofillService() {
     private val container get() = (application as KeethingApplication).container
     private val responses: FillResponses get() = container.fillResponses
 
+    // A listed browser is one only when the system says it is signed with one of its certificates (a rotated
+    // key's older certificate included).
+    private val signing = SigningCheck { name, sha256 -> packageManager.hasSigningCertificate(name, sha256, PackageManager.CERT_INPUT_SHA256) }
+
     override fun onFillRequest(request: FillRequest, cancellationSignal: CancellationSignal, callback: FillCallback) {
         val response = runCatching {
             val structure = request.fillContexts.last().structure
             val screen = ScreenFields.read(structure)
             val manual = request.flags and FillRequest.FLAG_MANUAL_REQUEST != 0
-            val form = AutofillForm.parse(screen.packageName, screen.fields, packageName, manual)
+            val form = AutofillForm.parse(screen.packageName, screen.fields, packageName, signing, manual)
             // Kinds and counts only: never a value, a domain or an app (SPEC §2).
             Log.i(TAG, "fill request: ${screen.fields.size} fields, " + (form?.describe() ?: "nothing to fill"))
             form?.let { responses.response(screen, it, request.inlineSuggestionsRequest) }
@@ -50,12 +56,12 @@ class KeethingAutofillService : AutofillService() {
     private fun typedLogin(request: SaveRequest): PendingSave? {
         val screens = request.fillContexts.map { ScreenFields.read(it.structure, withTexts = true) }
         val last = screens.last()
-        val form = AutofillForm.parse(last.packageName, last.fields, packageName) ?: return null
+        val form = AutofillForm.parse(last.packageName, last.fields, packageName, signing) ?: return null
         fun ScreenFields.text(index: Int) = texts.getOrNull(index)?.takeIf { it.isNotEmpty() }
         val password = form.savedPasswords.firstNotNullOfOrNull(last::text) ?: return null
         val current = if (form.newPasswords.isNotEmpty()) form.passwords.firstNotNullOfOrNull(last::text) else null
         val username = form.usernames.firstNotNullOfOrNull(last::text) ?: screens.dropLast(1).asReversed().firstNotNullOfOrNull { screen ->
-            AutofillForm.parse(screen.packageName, screen.fields, packageName)?.takeIf { it.target == form.target }?.usernames?.firstNotNullOfOrNull(screen::text)
+            AutofillForm.parse(screen.packageName, screen.fields, packageName, signing)?.takeIf { it.target == form.target }?.usernames?.firstNotNullOfOrNull(screen::text)
         }
         // Kinds only: never a value, a domain or an app.
         Log.i(TAG, "save request: " + (if (form.target is FillTarget.WebPage) "web page" else "app") +
