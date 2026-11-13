@@ -17,11 +17,14 @@ internal class AttachmentProvider : FileProvider() {
         return if (bytes != null && AttachmentTypes.isText(bytes)) AttachmentTypes.TEXT else type
     }
 
-    /** The file behind [uri]: `/attachments/<folder>/<name>` under the cache, as `attachment_paths.xml` says. */
+    /**
+     * The file behind [uri]: `/attachments/<database>/<folder>/<name>` under the cache, as `attachment_paths.xml` and
+     * [AttachmentFiles.write] lay it out.
+     */
     private fun cachedFile(uri: Uri): File? {
         val segments = uri.pathSegments
-        if (segments.size != 3 || segments[0] != "attachments" || segments.any { it == ".." || it == "." }) return null
+        if (segments.size != 4 || segments[0] != "attachments" || segments.any { it == ".." || it == "." }) return null
         val root = File(context?.cacheDir ?: return null, "attachments")
-        return File(File(root, segments[1]), segments[2])
+        return File(File(File(root, segments[1]), segments[2]), segments[3])
     }
 }

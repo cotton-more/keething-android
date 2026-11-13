@@ -589,8 +589,10 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    went through: a save that did not replace the file takes its copy back and pushes none out (kdbx.hardening AC9),
    whatever the file was called, other files left alone, so two `Personal.kdbx` keep theirs apart and a
    database located under another name keeps its older ones; the flat files of before the list stay in
-   `filesDir/backups` as they were; not in the Syncthing folder, and the app allows no Android backup, so they
-   stay on the phone) and replace: temporary file in the same folder, then rename. The temporary file is
+   `filesDir/backups` as they were; not in the Syncthing folder, and the app allows no Android backup and no
+   transfer to a new phone (`allowBackup="false"` and `data_extraction_rules.xml`: since Android 12 the first alone
+   does not stop a transfer), so they stay on the phone) and replace: temporary file in the same folder, then rename.
+   The temporary file is
    `.syncthing.keething-<uuid>.tmp`: Syncthing never scans or sends `.syncthing.*.tmp` (its own downloads),
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
