@@ -4,6 +4,9 @@ import dev.keething.domain.storage.StoppedSave
 import dev.keething.android.session.file
 import android.util.Log
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -123,15 +126,24 @@ internal class EntryListViewModel(
     private val recycleBin: RecycleBinMoves,
     private val clipboard: SensitiveClipboard,
     private val query: TextFieldState,
-    /** The Codes view (keething-spec app.codes-view); read in a snapshot, so a change lists again. */
-    private val codesOnly: () -> Boolean,
-    /** A card open beside the list (two panes); read in a snapshot. */
-    private val besideCard: () -> Boolean = { false },
+    /** The Codes view (keething-spec app.codes-view) as the model starts; [codesOnly] after. */
+    codesOnlyAtStart: Boolean = false,
+    /** A card open beside the list (two panes) as the model starts; [besideCard] after. */
+    besideCardAtStart: Boolean = false,
     /** The list of databases: the current one's name before its vault is listed. */
     databases: StateFlow<Databases> = MutableStateFlow(Databases(emptyList(), null)),
     /** A new entry was saved into this database (a code added, keething-spec app.codes-view AC7): the next one starts there. */
     private val newEntryMade: (DatabaseId) -> Unit = {},
 ) : ViewModel() {
+    /**
+     * The Codes view, set by the screen; a change lists again. The model's own state, not the screen's: the model
+     * outlives a screen rebuilt (a rotation, dark mode), which would leave it reading the old one's.
+     */
+    var codesOnly by mutableStateOf(codesOnlyAtStart)
+
+    /** A card open beside the list (two panes), set by the screen as [codesOnly] is. */
+    var besideCard by mutableStateOf(besideCardAtStart)
+
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
 
@@ -161,12 +173,12 @@ internal class EntryListViewModel(
      */
     private var recentShown = recents.ids.value
     private val recentIds: Flow<List<String>> =
-        combine(recents.ids, snapshotFlow { besideCard() }) { ids, holding ->
+        combine(recents.ids, snapshotFlow { besideCard }) { ids, holding ->
             if (holding && recentShown.isNotEmpty()) recentShown.filter { it in ids } else ids
         }.onEach { recentShown = it }
 
     private val shown: StateFlow<Shown> =
-        combine(prepared, snapshotFlow { query.text.toString() to codesOnly() }, recentIds) { prepared, (text, codes), recentIds ->
+        combine(prepared, snapshotFlow { query.text.toString() to codesOnly }, recentIds) { prepared, (text, codes), recentIds ->
             Listed(prepared, text, codes, recentIds)
         }
             .mapLatest { (prepared, text, codes, recentIds) ->
@@ -183,7 +195,7 @@ internal class EntryListViewModel(
 
     /** The chips over the keyboard for the query (SPEC §6.2): the filters, the names a filter can be, or narrowing. */
     val chips: StateFlow<ChipLine> =
-        combine(prepared, snapshotFlow { query.text.toString() to codesOnly() }) { prepared, (text, codes) -> Triple(prepared, text, codes) }
+        combine(prepared, snapshotFlow { query.text.toString() to codesOnly }) { prepared, (text, codes) -> Triple(prepared, text, codes) }
             .mapLatest { (prepared, text, codes) ->
                 prepared?.let { withContext(Dispatchers.Default) { searchChips(text, it.listing, codes) } } ?: ChipLine(emptyList())
             }

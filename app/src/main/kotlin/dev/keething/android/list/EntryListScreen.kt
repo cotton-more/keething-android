@@ -96,7 +96,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.SideEffect
+import dev.keething.android.ui.HoldPortrait
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -219,20 +220,24 @@ internal fun EntryListScreen(
     onCloseDatabase: (DatabaseId) -> Unit = {},
     onDatabases: () -> Unit = {},
 ) {
-    val codes by rememberUpdatedState(codesOnly)
     // Beside the card (two panes), the open entry's rows are marked.
     val selected = selectedId?.takeIf { inTwoPanes() }
-    val holdRecent by rememberUpdatedState(selected != null)
     val requests by container.shareRequests.book.collectAsStateWithLifecycle()
     val model = viewModel {
         val sessions = container.sessions
         EntryListViewModel(
             sessions.open, sessions.state, sessions::entry, container.recents, container.toldUnlocks, container.recycleBin,
             container.clipboard, query,
-            codesOnly = { codes }, besideCard = { holdRecent }, databases = sessions.list.state,
+            codesOnlyAtStart = codesOnly, besideCardAtStart = selected != null, databases = sessions.list.state,
             newEntryMade = { container.settings.lastNewEntryDatabase = it },
         )
     }
+    SideEffect {
+        model.codesOnly = codesOnly
+        model.besideCard = selected != null
+    }
+    // A phone holds the Codes view upright: sideways it only spreads the tiles (Android 16 ignores it on a large screen).
+    if (codesOnly) HoldPortrait()
     val state by model.state.collectAsStateWithLifecycle()
     val chips by model.chips.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }

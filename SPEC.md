@@ -1899,7 +1899,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   entry's title, its own code first, its further ones in field order (`VaultListing.codes`). A tile: the entry's icon
   and title, under it the username (own code) or the field's name with a field icon (further code), under that
   the entry's group line as its row in the list has it (the path behind a folder, nothing for the root group; with two
-  or more databases open "● <database> › <path>"), then the live code large with its ring, red in its last five seconds. A tap anywhere on it copies the code as any code copy (the
+  or more databases open "● <database> › <path>"), then the live code large with its ring, red in its last five seconds. On a phone the view stays upright (either way up; `HoldPortrait`), sideways only spreading the tiles; a tablet or an unfolded foldable turns as it is held. A tap anywhere on it copies the code as any code copy (the
   notice names a further code by its field); ⋯ opens a sheet with the code, Copy code, Open entry, Edit code… and
   Delete from the entry. **Edit code** (`EditCodeSheet`, `CodeEdits.edit`): the code live as it would be, a further
   code's name (checked as any field's), the secret kept or replaced (Camera, Image, Paste or typed, read as the editor
