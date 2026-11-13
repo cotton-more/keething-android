@@ -2,6 +2,7 @@ package dev.keething.autofill.form
 
 import dev.keething.autofill.target.Browsers
 import dev.keething.autofill.target.FillTarget
+import dev.keething.autofill.target.SigningCheck
 import dev.keething.domain.vault.Entry
 import dev.keething.search.site.SiteAddress
 
@@ -49,11 +50,12 @@ public data class AutofillForm(
          * or new-password field, Keething itself ([ownPackage]), or a browser page that is not an http(s)
          * site. A sign-up ([isSignUp]) is saved, never filled. [manual]: the user asked for autofill on a field
          * (long press › Autofill), so a focused field that says nothing about itself is taken as the username.
+         * [signing] tells whether a listed browser is signed as listed ([Browsers]).
          */
-        public fun parse(packageName: String, fields: List<FormField>, ownPackage: String, manual: Boolean = false): AutofillForm? {
+        public fun parse(packageName: String, fields: List<FormField>, ownPackage: String, signing: SigningCheck, manual: Boolean = false): AutofillForm? {
             if (packageName == ownPackage) return null
             val kinds = fields.associateWith(FieldClassifier::kind).filterValues { it != FieldKind.IGNORED }
-            val browser = Browsers.isBrowser(packageName)
+            val browser = Browsers.isBrowser(packageName, signing)
             val target: FillTarget
             val inTarget: Map<FormField, FieldKind>
             if (browser) {

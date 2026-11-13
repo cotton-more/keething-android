@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Nothing of the app's leaves the phone (SPEC §3.3 step 7, keething-spec security.storage AC3): not in a cloud backup, and
+not in a transfer to a new phone, which android:allowBackup="false" does not stop for an app targeting Android 12 or
+later. The databases' backups, the list and its settings stay; the new phone starts with the welcome, its databases
+added from their folders again (the grants, the fingerprint's key and the sealed passwords could not come along anyway).
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

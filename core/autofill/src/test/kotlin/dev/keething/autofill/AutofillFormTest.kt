@@ -2,7 +2,9 @@ package dev.keething.autofill
 
 import dev.keething.autofill.form.AutofillForm
 import dev.keething.autofill.form.FormField
+import dev.keething.autofill.target.Browsers
 import dev.keething.autofill.target.FillTarget
+import dev.keething.autofill.target.SigningCheck
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Entry
 import kotlin.test.Test
@@ -17,6 +19,12 @@ class AutofillFormTest {
     private val app = "com.example.bank"
     private val chrome = "com.android.chrome"
 
+    // Chrome's certificate as Google's list of browsers gives it; the system's answer is faked from it.
+    private val chromesCertificate = "f0fd6c5b410f25cb25c3b53346c8972fae30f8ee7411df910480ad6b2d60db83"
+    private fun signedWith(certificate: String) = SigningCheck { _, sha256 -> sha256.hex() == certificate }
+    private val signed = signedWith(chromesCertificate)
+    private fun ByteArray.hex() = joinToString("") { "%02x".format(it) }
+
     private fun text(index: Int, id: String? = null, focused: Boolean = false, domain: String? = null, scheme: String? = null, hint: String? = null) =
         FormField(index, inputType = 1, idEntry = id, hint = hint, isFocused = focused, webDomain = domain, webScheme = scheme)
 
@@ -25,7 +33,7 @@ class AutofillFormTest {
 
     @Test
     fun anAppsLoginForm() {
-        val form = AutofillForm.parse(app, listOf(text(0, "login"), password(1), text(2, "promo")), own)!!
+        val form = AutofillForm.parse(app, listOf(text(0, "login"), password(1), text(2, "promo")), own, signed)!!
         assertEquals(FillTarget.App(app), form.target)
         assertEquals(listOf(0), form.usernames)
         assertEquals(listOf(1), form.passwords)
@@ -35,42 +43,42 @@ class AutofillFormTest {
 
     @Test
     fun theTextFieldRightBeforeThePasswordIsTheUsername() {
-        val form = AutofillForm.parse(app, listOf(text(0), text(1), password(2), text(3)), own)!!
+        val form = AutofillForm.parse(app, listOf(text(0), text(1), password(2), text(3)), own, signed)!!
         assertEquals(listOf(1), form.usernames)
     }
 
     @Test
     fun aPhoneFieldIsTheUsernameOnlyWhenNothingElseIs() {
         val phone = FormField(0, inputType = 3)
-        assertEquals(listOf(0), AutofillForm.parse(app, listOf(phone, password(1)), own)!!.usernames)
-        assertEquals(listOf(1), AutofillForm.parse(app, listOf(phone, text(1, "email"), password(2)), own)!!.usernames)
+        assertEquals(listOf(0), AutofillForm.parse(app, listOf(phone, password(1)), own, signed)!!.usernames)
+        assertEquals(listOf(1), AutofillForm.parse(app, listOf(phone, text(1, "email"), password(2)), own, signed)!!.usernames)
     }
 
     @Test
     fun aUsernameAloneIsTheFirstStepOfALogin() {
-        val form = AutofillForm.parse(app, listOf(FormField(0, inputType = 0x21)), own)!!
+        val form = AutofillForm.parse(app, listOf(FormField(0, inputType = 0x21)), own, signed)!!
         assertEquals(listOf(0), form.usernames)
         assertEquals(emptyList(), form.passwords)
     }
 
     @Test
     fun aCodeAlone() {
-        val form = AutofillForm.parse(app, listOf(text(0, hint = "Verification code")), own)!!
+        val form = AutofillForm.parse(app, listOf(text(0, hint = "Verification code")), own, signed)!!
         assertTrue(form.asksOnlyForCode)
         assertEquals(listOf(0), form.codes)
     }
 
     @Test
     fun nothingToFill() {
-        assertNull(AutofillForm.parse(app, listOf(text(0), text(1)), own), "plain fields only")
-        assertNull(AutofillForm.parse(app, emptyList(), own))
-        assertNull(AutofillForm.parse(own, listOf(text(0, "login"), password(1)), own), "Keething itself")
+        assertNull(AutofillForm.parse(app, listOf(text(0), text(1)), own, signed), "plain fields only")
+        assertNull(AutofillForm.parse(app, emptyList(), own, signed))
+        assertNull(AutofillForm.parse(own, listOf(text(0, "login"), password(1)), own, signed), "Keething itself")
     }
 
     @Test
     fun aSignUpIsNotFilledButItsNewPasswordIsSaved() {
         val fields = listOf(FormField(0, inputType = 0x21), FormField(1, listOf("newPassword")), FormField(2, listOf("newPassword")))
-        val form = AutofillForm.parse(app, fields, own)!!
+        val form = AutofillForm.parse(app, fields, own, signed)!!
         assertTrue(form.isSignUp)
         assertEquals(listOf(0), form.usernames, "the username is saved with it")
         assertEquals(emptyList(), form.passwords)
@@ -82,7 +90,7 @@ class AutofillFormTest {
     @Test
     fun aPasswordChangeGetsOnlyTheCurrentPasswordAndSavesTheNewOne() {
         val fields = listOf(password(0, "current_password"), password(1, "new_password"), password(2, "confirm_password"))
-        val form = AutofillForm.parse(app, fields, own)!!
+        val form = AutofillForm.parse(app, fields, own, signed)!!
         assertEquals(listOf(0), form.passwords)
         assertEquals(listOf(0), form.fields, "the entry fills the current one only")
         assertEquals(listOf(1, 2), form.newPasswords)
@@ -92,22 +100,22 @@ class AutofillFormTest {
 
     @Test
     fun aLoginSavesItsPassword() {
-        val form = AutofillForm.parse(app, listOf(text(0, "login"), password(1)), own)!!
+        val form = AutofillForm.parse(app, listOf(text(0, "login"), password(1)), own, signed)!!
         assertEquals(listOf(1), form.savedPasswords)
-        assertEquals(emptyList(), AutofillForm.parse(app, listOf(FormField(0, listOf("smsOTPCode"))), own)!!.savedPasswords, "a code is not saved")
+        assertEquals(emptyList(), AutofillForm.parse(app, listOf(FormField(0, listOf("smsOTPCode"))), own, signed)!!.savedPasswords, "a code is not saved")
     }
 
     @Test
     fun aManualRequestTakesTheFocusedPlainFieldAsTheUsername() {
         val fields = listOf(text(0), text(1, focused = true))
-        assertNull(AutofillForm.parse(app, fields, own))
-        assertEquals(listOf(1), AutofillForm.parse(app, fields, own, manual = true)!!.usernames)
+        assertNull(AutofillForm.parse(app, fields, own, signed))
+        assertEquals(listOf(1), AutofillForm.parse(app, fields, own, signed, manual = true)!!.usernames)
     }
 
     @Test
     fun aBrowserPageIsItsWebDomain() {
         val fields = listOf(text(0, "login", domain = "github.com", scheme = "https"), password(1, domain = "github.com", scheme = "https"))
-        val target = assertIs<FillTarget.WebPage>(AutofillForm.parse(chrome, fields, own)!!.target)
+        val target = assertIs<FillTarget.WebPage>(AutofillForm.parse(chrome, fields, own, signed)!!.target)
         assertEquals("github.com", target.site.host)
         assertTrue(target.site.isSecure)
         assertEquals(chrome, target.browserPackage)
@@ -115,7 +123,7 @@ class AutofillFormTest {
 
     @Test
     fun aPlainHttpPageIsNotSecure() {
-        val form = AutofillForm.parse(chrome, listOf(password(0, domain = "localhost:8000", scheme = "http")), own)!!
+        val form = AutofillForm.parse(chrome, listOf(password(0, domain = "localhost:8000", scheme = "http")), own, signed)!!
         val site = assertIs<FillTarget.WebPage>(form.target).site
         assertFalse(site.isSecure)
         assertEquals(8000, site.port)
@@ -124,22 +132,22 @@ class AutofillFormTest {
     @Test
     fun aWebDomainWithoutAPortLeavesThePortOpen() {
         // What Firefox reports for http://localhost:8000.
-        val form = AutofillForm.parse(chrome, listOf(password(0, domain = "localhost", scheme = "http")), own)!!
+        val form = AutofillForm.parse(chrome, listOf(password(0, domain = "localhost", scheme = "http")), own, signed)!!
         val page = assertIs<FillTarget.WebPage>(form.target)
         assertFalse(page.portKnown)
-        assertTrue(assertIs<FillTarget.WebPage>(AutofillForm.parse(chrome, listOf(password(0, domain = "localhost:8000")), own)!!.target).portKnown)
+        assertTrue(assertIs<FillTarget.WebPage>(AutofillForm.parse(chrome, listOf(password(0, domain = "localhost:8000")), own, signed)!!.target).portKnown)
     }
 
     @Test
     fun withoutASchemeThePageIsTakenAsHttps() {
-        val form = AutofillForm.parse(chrome, listOf(password(0, domain = "github.com")), own)!!
+        val form = AutofillForm.parse(chrome, listOf(password(0, domain = "github.com")), own, signed)!!
         assertTrue(assertIs<FillTarget.WebPage>(form.target).site.isSecure)
     }
 
     @Test
     fun aBrowserFieldWithoutAWebPageIsNotFilled() {
-        assertNull(AutofillForm.parse(chrome, listOf(text(0, "login"), password(1)), own))
-        assertNull(AutofillForm.parse(chrome, listOf(password(0, domain = "settings", scheme = "chrome")), own))
+        assertNull(AutofillForm.parse(chrome, listOf(text(0, "login"), password(1)), own, signed))
+        assertNull(AutofillForm.parse(chrome, listOf(password(0, domain = "settings", scheme = "chrome")), own, signed))
     }
 
     @Test
@@ -149,7 +157,7 @@ class AutofillFormTest {
             password(1, domain = "shop.example", scheme = "https", focused = true),
             password(2, domain = "ads.example", scheme = "https"),
         )
-        val form = AutofillForm.parse(chrome, fields, own)!!
+        val form = AutofillForm.parse(chrome, fields, own, signed)!!
         assertEquals("shop.example", assertIs<FillTarget.WebPage>(form.target).site.host)
         assertEquals(listOf(0, 1), form.fields)
     }
@@ -157,7 +165,7 @@ class AutofillFormTest {
     @Test
     fun theFocusedFieldsPageWins() {
         val fields = listOf(password(0, domain = "a.example"), password(1, domain = "b.example", focused = true))
-        val form = AutofillForm.parse(chrome, fields, own)!!
+        val form = AutofillForm.parse(chrome, fields, own, signed)!!
         assertEquals("b.example", assertIs<FillTarget.WebPage>(form.target).site.host)
         assertEquals(listOf(1), form.passwords)
     }
@@ -166,12 +174,33 @@ class AutofillFormTest {
     fun anAppsWebDomainIsNotTrusted() {
         // Any app can show (or claim) a bank's page in a web view: only browsers are taken at their word.
         val fields = listOf(text(0, "login", domain = "bank.de", scheme = "https"), password(1, domain = "bank.de", scheme = "https"))
-        assertEquals(FillTarget.App(app), AutofillForm.parse(app, fields, own)!!.target)
+        assertEquals(FillTarget.App(app), AutofillForm.parse(app, fields, own, signed)!!.target)
+    }
+
+    @Test
+    fun aListedBrowserSignedOtherwiseIsAnApp() {
+        // An app installed under the package of a browser the phone does not have: its page is not taken.
+        val fields = listOf(text(0, "login", domain = "bank.de", scheme = "https"), password(1, domain = "bank.de", scheme = "https"))
+        val impostor = signedWith("00".repeat(32))
+        assertEquals(FillTarget.App(chrome), AutofillForm.parse(chrome, fields, own, impostor)!!.target)
+        assertIs<FillTarget.WebPage>(AutofillForm.parse(chrome, fields, own, signed)!!.target)
+    }
+
+    @Test
+    fun aBrowserIsAskedForItsOwnCertificatesOnly() {
+        val asked = mutableListOf<String>()
+        val check = SigningCheck { name, sha256 -> asked += "$name ${sha256.hex()}"; false }
+        assertFalse(Browsers.isBrowser(chrome, check))
+        assertFalse(Browsers.isBrowser(app, check))
+        assertEquals(listOf(
+            "$chrome $chromesCertificate",
+            "$chrome 1975b2f17177bc89a5dff31f9e64a6cae281a53dc1d1d59b1d147fe1c82afa00",
+        ), asked, "an unlisted app is never asked about")
     }
 
     @Test
     fun theValuesAnEntryFillsIn() {
-        val form = AutofillForm.parse(app, listOf(text(0, "login"), password(1), text(2, "otp")), own)!!
+        val form = AutofillForm.parse(app, listOf(text(0, "login"), password(1), text(2, "otp")), own, signed)!!
         val entry = Entry(id = "e", username = "alice", password = Secret.of("s3cret"))
         assertEquals(mapOf(0 to "alice", 1 to "s3cret", 2 to "123456"), form.valuesFor(entry, "123456"))
         assertEquals(mapOf(0 to null, 1 to "s3cret", 2 to null), form.valuesFor(Entry(id = "p", password = Secret.of("s3cret")), null))

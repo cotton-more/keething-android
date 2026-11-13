@@ -40,11 +40,13 @@
 
     <!--
     largeHeap: opening the 35 MB database holds several copies of it for a moment, plus 64 MiB for Argon2
-    (ROADMAP step 2).
+    (ROADMAP step 2). No backup and no transfer to a new phone: allowBackup stops the first, the extraction rules
+    the second (Android 12 and later transfer an app's data whatever allowBackup says).
     -->
     <application
         android:name=".KeethingApplication"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:largeHeap="true"

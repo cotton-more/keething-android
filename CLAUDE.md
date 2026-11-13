@@ -13,6 +13,11 @@
 - Never open, copy or test against the owner's real database without asking; tests use `fixtures/`
   (password `pw`).
 - Report honestly what was verified on the phone and what was only built.
+- A new or changed screen, sheet or dialog meets keething-spec `app.accessibility` before its step is done: every
+  control named, no secret in the tree, sections as headings, what appears by itself announced once, a swipe or long
+  press also offered as a reader action. On the phone `task a11y:dump` runs on each of them (it must pass); what the
+  dump cannot see (headings, announcements, reading order) is heard with TalkBack. The commit says which were checked
+  and how.
 - Build, test, install and phone commands go through `Taskfile.yml` (`task` lists them; `task test`,
   `task test:module -- kdbx`, `task install:debug`, `task apk:install`, `task screenshot`, `task spec:check` …)
   rather than typing the Gradle, adb or script command by hand. A command used often that is missing there is

@@ -589,8 +589,10 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    went through: a save that did not replace the file takes its copy back and pushes none out (kdbx.hardening AC9),
    whatever the file was called, other files left alone, so two `Personal.kdbx` keep theirs apart and a
    database located under another name keeps its older ones; the flat files of before the list stay in
-   `filesDir/backups` as they were; not in the Syncthing folder, and the app allows no Android backup, so they
-   stay on the phone) and replace: temporary file in the same folder, then rename. The temporary file is
+   `filesDir/backups` as they were; not in the Syncthing folder, and the app allows no Android backup and no
+   transfer to a new phone (`allowBackup="false"` and `data_extraction_rules.xml`: since Android 12 the first alone
+   does not stop a transfer), so they stay on the phone) and replace: temporary file in the same folder, then rename.
+   The temporary file is
    `.syncthing.keething-<uuid>.tmp`: Syncthing never scans or sends `.syncthing.*.tmp` (its own downloads),
    and the random middle keeps it apart from the `.syncthing.<name>.tmp` Syncthing downloads into. Checked in
    the experiment: while the app wrote an 8 MiB file, the Mac's folder (sampled every 50 ms) never showed the
@@ -2204,7 +2206,11 @@ service, the screen it opens and the system's view structure are in `app/autofil
   change gets only the current password. Never a field's text, only what it is.
 - **The target**: in a known browser (Chrome, Firefox and their forks, Brave, Edge, Samsung Internet,
   Vivaldi, DuckDuckGo, …; `Browsers`) the web domain of the page, with its scheme; fields of another domain
-  (a frame of another site) are left out. Anywhere else the app's package name, which the system gives:
+  (a frame of another site) are left out. A browser is known by its package and the certificate it is signed
+  with: each listed package has the SHA-256 of its signing certificates beside it, and counts only when the system
+  says it is signed with one of them (`PackageManager.hasSigningCertificate`, which takes a rotated key's older
+  certificate too). An app installed under the package of a browser the phone does not have is signed otherwise,
+  and is an app. Anywhere else the app's package name, which the system gives:
   an app's web domain is never trusted, since any app can show (or claim) a bank's page in a web view.
   Android's browsers name a page by its host only (`localhost` for `http://localhost:8000`, checked in
   Chrome and Firefox), so a port written in an entry matches any port then.
@@ -2259,8 +2265,8 @@ service, the screen it opens and the system's view structure are in `app/autofil
 - **Never** offered: a protected custom value; an entry that matches neither the page's site nor the app.
   The log says kinds and counts only (`fill request: 2 fields, web page, 1 username, 1 password, 0 code`),
   never a value, a domain or an app.
-- Not done, and why: a check of the browser's signing certificate (a fake browser would have to be
-  installed under a browser's package name; Chrome is a system app); `android://<hash>@<package>` URLs
+- Not done, and why: a browser not listed, or whose certificate was not found (Mull, Ecosia: DEVELOPMENT.md),
+  is an app; its page is not trusted; `android://<hash>@<package>` URLs
   (Chrome's way to name an app; not known to be in the owner's database); honouring an app's
   `importantForAutofill="no"` (apps set it on login fields too).
 - **Save**: a form with a password gets `SaveInfo` (the password, or a sign-up's or a password change's new

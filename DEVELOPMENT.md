@@ -235,6 +235,26 @@ service") or Firefox on the phone.
 
 The public suffix list is built in (`core/search`); `tools/update-public-suffix-list.sh` fetches a new one.
 
+## Autofill's browsers
+
+A browser's web domain is trusted only when its package is listed in `Browsers` (core/autofill) and the system
+says it is signed with one of the certificates listed beside it (SPEC §7, Trust). Each certificate is the
+SHA-256 of the signing certificate, in lower-case hex, with where it came from in the comment above it. To add a
+browser or a certificate:
+
+- Google's list of browsers privileged for passkeys gives most of them:
+  `https://www.gstatic.com/gpm-passkeys-privileged-apps/apps.json`, each package's `cert_fingerprint_sha256`.
+- An F-Droid repository's `index-v2.json` gives each version's `manifest.signer.sha256` (F-Droid's own key for
+  a build F-Droid signs, the developer's for a reproducible one).
+- Otherwise the release's APK: `apksigner verify --print-certs <apk>`, the "certificate SHA-256 digest".
+
+A browser whose certificate cannot be found is left out (it is then an app: its web domain is ignored). Left out
+2026-11-13: Mull (`us.spotco.fennec_dos`, discontinued, in no repository any more) and Ecosia
+(`com.ecosia.android`, on Google Play only).
+
+To check one that is not trusted: an app with a WebView showing `http://localhost:8000/login.html`, its package a
+listed browser's that the phone does not have, signed with the debug key, is offered no entry of the page.
+
 ## Checking sharing between two devices
 
 Sharing (SPEC §10) needs two Keething installs: the test phone and the emulator do, each with a fictitious

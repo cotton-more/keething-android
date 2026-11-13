@@ -16,8 +16,8 @@ import java.time.format.DateTimeFormatter
 
 /**
  * One database's copies as it was before a save (SPEC §3.3 step 7; the Mac `KDBXFileSaver.backup`): in a folder of
- * its own in the app's storage (`filesDir/backups/<database id>`, never backed up off the phone: the app does not allow
- * backups), named after the database and the local time; the newest [count] stay, newest by when they were written. The folder is the database's, so
+ * its own in the app's storage (`filesDir/backups/<database id>`, never backed up off the phone: the app allows no
+ * backup and no transfer to a new phone, `data_extraction_rules.xml`), named after the database and the local time; the newest [count] stay, newest by when they were written. The folder is the database's, so
  * two `Personal.kdbx` in two folders keep theirs apart, and a database located under another name keeps its older
  * ones; files in it that are not backups are left alone. The oldest go only once a save replaced the database
  * ([saved]); a save that did not takes its own copy back ([notSaved]), so it pushes no older one out (keething-spec

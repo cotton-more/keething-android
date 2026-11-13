@@ -2,13 +2,16 @@ package dev.keething.vault.session
 
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseBackups
+import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.key.KeyFile
+import dev.keething.kdbx.key.WipedKeyException
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.vault.opening.OpenFailure
+import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,11 +28,11 @@ import kotlinx.coroutines.test.runTest
 
 /** An unlock with a key file (keething-spec kdbx.key-files AC7–AC10, unlock.key-file AC4; the Mac's `KeyFileTests`). */
 class KeyFileUnlockTest {
-    private class Fixture(scope: TestScope, val store: FakeStore, val keyFile: FakeKeyFile?) {
+    private class Fixture(scope: TestScope, val store: FakeStore, val keyFile: FakeKeyFile?, opener: VaultOpener = VaultOpener()) {
         val states = mutableListOf<SessionState>()
         val session = VaultSession(
             store = store,
-            opener = VaultOpener(),
+            opener = opener,
             backups = DatabaseBackups { _, _, _ -> },
             clock = FakeClock(scope.testScheduler),
             scope = scope.backgroundScope,
@@ -80,6 +83,30 @@ class KeyFileUnlockTest {
         f.unlock("pw")
         runCurrent()
         assertEquals(2, f.keyFile.reads, "but at every unlock")
+    }
+
+    @Test
+    fun aKeyFilesKeyIsInMemoryOnlyWhileUnlocked() = runTest {
+        // Every key the session tries, as the opener is handed it.
+        val tried = mutableListOf<DatabaseKey>()
+        val opener = object : VaultOpener() {
+            override fun open(store: DatabaseStore, key: DatabaseKey): OpenResult = super.open(store, key).also { tried += key }
+        }
+        val f = Fixture(this, FakeStore(keyfileDatabase()), FakeKeyFile(keyFileBytes("keyx.keyx")), opener)
+
+        f.unlock("typo")
+        runCurrent()
+        assertTrue(f.keyFile!!.handedOut.single().all { it == 0.toByte() }, "the bytes read are wiped")
+        assertFailsWith<WipedKeyException>("a rejected key is wiped at once") { tried.single().copy() }
+
+        f.unlock("pw")
+        runCurrent()
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+        assertTrue(f.keyFile.handedOut.all { bytes -> bytes.all { it == 0.toByte() } }, "the bytes read are wiped")
+        tried.last().copy().wipe() // the session's key, usable while unlocked
+
+        f.session.lock()
+        assertFailsWith<WipedKeyException>("the lock wipes it") { tried.last().copy() }
     }
 
     @Test
