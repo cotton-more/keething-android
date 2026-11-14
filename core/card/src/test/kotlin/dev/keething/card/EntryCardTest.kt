@@ -160,6 +160,17 @@ class EntryCardTest {
         assertEquals("287 082", d6.formatted)
     }
 
+    // spec: card.code-timer/AC2
+    @Test
+    fun theNextCodeIsTheOneTheNextPeriodStartsWith() {
+        val c = TotpConfig(Secret.of(sha1))
+        val now = TotpDisplay.of(c, Instant.ofEpochSecond(45))
+        assertEquals(TotpDisplay.of(c, Instant.ofEpochSecond(60)).code, now.next)
+        assertEquals(TotpDisplay.of(c, Instant.ofEpochSecond(89)).code, now.next, "the whole next period")
+        assertEquals(now.next.substring(0, 3) + " " + now.next.substring(3), now.nextFormatted)
+        assertEquals(TotpDisplay.of(c, Instant.ofEpochSecond(90)).code, TotpDisplay.of(c, Instant.ofEpochSecond(89)).next, "in a code's last second")
+    }
+
     @Test
     fun codeProgressGoesFromFullToEmpty() {
         val c = TotpConfig(Secret.of(sha1))

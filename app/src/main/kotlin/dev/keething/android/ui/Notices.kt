@@ -42,6 +42,9 @@ internal data class Notice(
     companion object {
         /** "Password copied · clears in 30 s" (SPEC §6). */
         fun copied(what: String) = Notice("$what copied · clears in 30 s")
+
+        /** The next one-time code, copied before its time (keething-spec card.code-timer). */
+        fun nextCodeCopied(seconds: Int) = Notice("Next code copied · works in $seconds s")
     }
 }
 

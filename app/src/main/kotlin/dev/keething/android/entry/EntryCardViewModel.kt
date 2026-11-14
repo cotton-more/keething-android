@@ -227,6 +227,14 @@ internal class EntryCardViewModel(
         mutableNotices.trySend(if (canMarkUsed(row) && row.usedOn == null) copied.copy(undo = { setUsed(row, true) }, actionLabel = "Mark as used") else copied)
     }
 
+    /** A code row's next code (keething-spec card.code-timer): copied as the code is, said with when it starts to work. */
+    fun copyNext(row: FieldRow) {
+        val display = row.totp?.let { TotpDisplay.of(it, Instant.now()) } ?: return
+        clipboard.copy(display.next, sensitive = true)
+        if (content.value?.inRecycleBin == false) recents.note(ref.text)
+        mutableNotices.trySend(Notice.nextCodeCopied(display.secondsRemaining))
+    }
+
     /**
      * A part of a note's text, or of protected Notes, the user selected and copied (SPEC §6.4; Mac
      * `EntryCardModel.copySelection`): through the app as every copy, concealed and cleared as its row's Copy. Only from

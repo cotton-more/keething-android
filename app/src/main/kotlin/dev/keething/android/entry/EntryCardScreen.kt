@@ -249,6 +249,7 @@ internal fun EntryCardScreen(
     }
     val actions = CardActions(
         onCopy = model::copy,
+        onCopyNext = model::copyNext,
         onToggle = model::toggleReveal,
         onToggleSection = model::toggleSection,
         onOpenLink = openLink,
@@ -714,6 +715,8 @@ private fun ShareWarning(onShare: () -> Unit, onShowQrCode: () -> Unit, onDismis
 /** What the rows of the card can do. */
 internal class CardActions(
     val onCopy: (FieldRow) -> Unit,
+    /** A code row's next code (keething-spec card.code-timer). */
+    val onCopyNext: (FieldRow) -> Unit = {},
     val onToggle: (String) -> Unit,
     val onToggleSection: (CardSection) -> Unit,
     /** Shows these concealed rows if any is masked, else masks them (a payment card's number and CVC). */

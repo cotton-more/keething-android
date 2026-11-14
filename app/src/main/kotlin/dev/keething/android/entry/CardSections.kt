@@ -226,7 +226,7 @@ internal fun FieldRowView(
                 Text(row.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (row.kind == FieldRow.Kind.TOTP) {
-                row.totp?.let { CodeValue(TotpDisplay.of(it, now.value)) }
+                row.totp?.let { CodeValue(TotpDisplay.of(it, now.value), onCopyNext = { actions.onCopyNext(row) }) }
             } else {
                 FieldValueText(row, reveal)
             }

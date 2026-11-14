@@ -105,7 +105,7 @@ public object GroupPathFormatter {
     }
 }
 
-/** What a one-time code row shows at a moment: the code, its grouped form and the countdown (Mac `TOTPDisplay`). */
+/** What a one-time code row shows at a moment: the code, its grouped form, the countdown and the next code (Mac `TOTPDisplay`). */
 public data class TotpDisplay(
     /** The digits: what is copied. */
     val code: String,
@@ -113,17 +113,24 @@ public data class TotpDisplay(
     val formatted: String,
     val secondsRemaining: Int,
     val period: Int,
+    /** The code that follows when this one's period ends (keething-spec card.code-timer): what "Next" copies. */
+    val next: String = "",
 ) {
+    /** [next] grouped as [formatted] is. */
+    val nextFormatted: String get() = group(next)
+
     /** Fraction of the period left: 1.0 right after the code changes, down to 1/period. */
     val progress: Double get() = secondsRemaining.toDouble() / period
 
     public companion object {
         public fun of(config: TotpConfig, at: Instant): TotpDisplay {
             val code = TotpGenerator.code(config, at)
-            return TotpDisplay(code, group(code), TotpGenerator.secondsRemaining(config, at), maxOf(config.period, 1))
+            val seconds = TotpGenerator.secondsRemaining(config, at)
+            val next = TotpGenerator.code(config, at.plusSeconds(seconds.toLong()))
+            return TotpDisplay(code, group(code), seconds, maxOf(config.period, 1), next)
         }
 
-        private fun group(code: String): String =
+        internal fun group(code: String): String =
             if (code.length >= 4 && code.length % 2 == 0) code.substring(0, code.length / 2) + " " + code.substring(code.length / 2) else code
     }
 }

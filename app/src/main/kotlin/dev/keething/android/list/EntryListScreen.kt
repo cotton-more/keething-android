@@ -140,7 +140,9 @@ import dev.keething.android.databases.databaseColors
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.editor.NewEntryDatabases
-import dev.keething.android.ui.CodeRing
+import dev.keething.android.ui.DIMMED
+import dev.keething.android.ui.codeFill
+import androidx.compose.ui.draw.alpha
 import dev.keething.android.ui.CodesIcon
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.EntryMark
@@ -519,6 +521,7 @@ internal fun EntryListScreen(
                 CodeTiles(
                     state, maxWidth, padding, gridState, now, text, searched = !EntrySearch.isEmpty(text),
                     onCopy = model::copyCode,
+                    onCopyNext = model::copyNextCode,
                     onMore = { codeSheet = it },
                 )
                 return@BoxWithConstraints
@@ -911,7 +914,7 @@ private fun DatabaseLine(mark: DatabaseMark, group: List<String>) {
     }
 }
 
-/** The live code of a row, with the ring that runs down its period; a tap copies it. */
+/** The live code of a row on a fill that drains over its period (keething-spec card.code-timer); a tap copies it. */
 @Composable
 private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Unit, modifier: Modifier, height: Dp = 36.dp) {
     val display = TotpDisplay.of(config, now.value)
@@ -922,13 +925,11 @@ private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Un
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         modifier = modifier.semantics { contentDescription = "Copy one-time code" },
     ) {
-        Row(
-            Modifier.height(height).padding(start = 12.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        Box(
+            Modifier.height(height).codeFill(display.period, MaterialTheme.colorScheme.primary, CircleShape).padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Text(display.formatted, style = codeTextStyle())
-            CodeRing(display.period, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.outlineVariant, size = 16.dp, stroke = 2.5.dp)
+            Text(display.formatted, Modifier.alpha(if (display.secondsRemaining <= 5) DIMMED else 1f), style = codeTextStyle())
         }
     }
 }

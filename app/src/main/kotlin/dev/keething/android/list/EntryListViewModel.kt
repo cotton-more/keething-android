@@ -35,6 +35,7 @@ import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.Notice
 import dev.keething.android.unlock.describe
 import dev.keething.card.OpenableUrl
+import dev.keething.card.TotpDisplay
 import dev.keething.domain.vault.Entry
 import dev.keething.totp.TotpGenerator
 import dev.keething.vault.databases.Databases
@@ -398,6 +399,15 @@ internal class EntryListViewModel(
         clipboard.copy(TotpGenerator.code(tile.totp, Instant.now()), sensitive = true)
         used(entry)
         notice(Notice.copied(if (tile.further) tile.subtitle else "One-time code"))
+    }
+
+    /** A tile's next code (keething-spec card.code-timer): the code its period after this one starts with. */
+    fun copyNextCode(tile: CodeTile) {
+        val entry = entry(tile.entryId) ?: return
+        val display = TotpDisplay.of(tile.totp, Instant.now())
+        clipboard.copy(display.next, sensitive = true)
+        used(entry)
+        notice(Notice.nextCodeCopied(display.secondsRemaining))
     }
 
     /** The code button of a row. */

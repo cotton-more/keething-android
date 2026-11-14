@@ -1245,7 +1245,13 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   unlock.lock-screen-keyboard, its canvas https://claude.ai/artifact/6Dj42ofwFyNuAu1v9YGE7z): the fingerprint is the
   button beside the field in place of the arrow, the key file chosen in the field, no app name.
 - List and card: Expressive segmented groups (rows with small gaps, large outer corners); a list row with a
-  one-time code shows the live code and its ring as a button that copies it.
+  one-time code shows the live code as a button that copies it, on a fill that drains over its period (the ring until
+  2026-11-14; keething-spec card.code-timer, its canvas https://claude.ai/artifact/299z7q9vyCatPJ421tQrKH, variant D).
+- A live code on the card, the Codes view's tiles and the editor (card.code-timer): the digits on a tinted fill that drains
+  from right to left and fills again in 0.4 s when the next code starts, dimmed over the last five seconds; under them,
+  always on a line of its own, "Next in 12 s 731 004", the next code, which takes the code's colour then. A tap on it copies the next
+  code ("Next code copied · works in 12 s"); nothing switches by itself: sites are asked to accept the previous code
+  (RFC 6238 §5.2), not the next. The list's row keeps the pill alone.
 - Card: a tinted tile per field kind; the password row has an eye, copy and a menu; recovery codes are a
   numbered grid with one eye; a copy confirms in a snackbar ("Password copied · clears in 30 s").
 - A row's tile or icon and its buttons stay at the top, in the height of a one-line row (a card's field, a list's
@@ -1289,7 +1295,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (AndroidX `material3-adaptive-navigation3`, its list-detail scene).
 - Entry icons: the database's custom icons (KeePassXC stores downloaded favicons) when present, otherwise a
   monogram with a colour derived from the title, the same as on the Mac. Nothing is fetched (no network).
-- Motion: the list row grows into the card (shared element transition); the one-time code ring runs down
+- Motion: the list row grows into the card (shared element transition); a one-time code's fill drains
   smoothly; copying gives a light haptic tick and a short confirmation.
 - Passwords in a monospaced font with digits and symbols coloured, as in 1Password. The font is Google
   Sans Code, bundled (SIL Open Font License, `assets/licenses`): every character must be clear.
@@ -1493,7 +1499,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy (with
   Resolve…: a sheet keeping the open version or using the other one, §3.4), a reload that failed (the vault read
   before is shown) and a database too large to save or near that (§3.3) are banners above the list.
-- **Card**: as on the Mac (sections, masked values with an eye, live codes with a ring, tap to copy, links
+- **Card**: as on the Mac (sections, masked values with an eye, live codes with the next one beside them, tap to copy, links
   open the browser, attachments open in another app / save to a folder, §4). An app's address (`androidapp://<package>`
   in the URL, a `KP2A_URL…` field or a field typed `url` or untyped; keething-spec card.app-address, canvas
   https://claude.ai/artifact/M7w5or3TN83mFj1DmRPAkE) is shown as the app the phone has: its own icon in place of the
@@ -1900,7 +1906,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   entry's title, its own code first, its further ones in field order (`VaultListing.codes`). A tile: the entry's icon
   and title, under it the username (own code) or the field's name with a field icon (further code), under that
   the entry's group line as its row in the list has it (the path behind a folder, nothing for the root group; with two
-  or more databases open "● <database> › <path>"), then the live code large with its ring, red in its last five seconds. On a phone the view stays upright (either way up; `HoldPortrait`), sideways only spreading the tiles; a tablet or an unfolded foldable turns as it is held. A tap anywhere on it copies the code as any code copy (the
+  or more databases open "● <database> › <path>"), then the live code large with the next one beside it (card.code-timer). On a phone the view stays upright (either way up; `HoldPortrait`), sideways only spreading the tiles; a tablet or an unfolded foldable turns as it is held. A tap anywhere on it copies the code as any code copy (the
   notice names a further code by its field); ⋯ opens a sheet with the code, Copy code, Open entry, Edit code… and
   Delete from the entry. **Edit code** (`EditCodeSheet`, `CodeEdits.edit`): the code live as it would be, a further
   code's name (checked as any field's), the secret kept or replaced (Camera, Image, Paste or typed, read as the editor

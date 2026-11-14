@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
-import dev.keething.android.ui.CodeRing
+import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.EntryIcon
 import dev.keething.android.ui.SegmentGap
@@ -80,6 +80,7 @@ internal fun CodeTiles(
     query: String,
     searched: Boolean,
     onCopy: (CodeTile) -> Unit,
+    onCopyNext: (CodeTile) -> Unit,
     onMore: (CodeTile) -> Unit,
 ) {
     val columns = if (width >= TWO_COLUMNS) 2 else 1
@@ -103,6 +104,7 @@ internal fun CodeTiles(
             CodeTileView(
                 tile, shape, state.icons, now,
                 onCopy = { onCopy(tile) },
+                onCopyNext = { onCopyNext(tile) },
                 onMore = { onMore(tile) },
                 modifier = Modifier.animateItem().padding(bottom = if (columns == 1) SegmentGap else 8.dp),
             )
@@ -131,7 +133,7 @@ internal fun CodeTiles(
 /**
  * A code's tile (the canvas's "Codes"): the entry's icon and title, under it the username or a further code's field
  * name (a field icon before it) and where the entry is, as its row says it ([GroupLine]), and the live code large with
- * its ring.
+ * the next one beside it (keething-spec card.code-timer).
  */
 @Composable
 private fun CodeTileView(
@@ -140,11 +142,11 @@ private fun CodeTileView(
     icons: CustomIconImages?,
     now: State<Instant>,
     onCopy: () -> Unit,
+    onCopyNext: () -> Unit,
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val display = TotpDisplay.of(tile.totp, now.value)
-    val colour = if (display.secondsRemaining <= 5) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     Box(modifier.fillMaxWidth().clip(shape).background(MaterialTheme.extraColors.row)) {
         Column(
             Modifier
@@ -167,22 +169,7 @@ private fun CodeTileView(
                     GroupLine(tile.database, tile.group)
                 }
             }
-            Row(
-                Modifier.padding(start = 54.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    display.formatted,
-                    fontFamily = MonospaceFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 30.sp,
-                    lineHeight = 38.sp,
-                    letterSpacing = 1.sp,
-                    color = colour,
-                )
-                CodeRing(display.period, colour, MaterialTheme.colorScheme.outlineVariant, size = 22.dp)
-            }
+            Box(Modifier.padding(start = 54.dp)) { CodeValue(display, onCopyNext, fontSize = 30.sp) }
         }
         IconButton(onClick = onMore, modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
             Icon(Icons.Rounded.MoreVert, contentDescription = "More for ${tile.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
