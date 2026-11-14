@@ -2,6 +2,7 @@ package dev.keething.android
 
 import android.app.ActivityManager
 import android.app.Application
+import android.app.UiModeManager
 import androidx.compose.foundation.ComposeFoundationFlags
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -22,6 +23,8 @@ class KeethingApplication : Application() {
         val activities = getSystemService(ActivityManager::class.java)
         Argon2Engine.native = NativeArgon2.load { ActivityManager.MemoryInfo().also(activities::getMemoryInfo).availMem }
         container = AppContainer(this)
+        // The theme chosen in Settings, told again in case the system forgot it (keething-spec app.theme-choice).
+        getSystemService(UiModeManager::class.java).setApplicationNightMode(container.settings.theme.value.nightMode)
         // The app's whole process going to the background and back, not one screen (SPEC §4).
         ProcessLifecycleOwner.get().lifecycle.addObserver(container.sessions)
     }

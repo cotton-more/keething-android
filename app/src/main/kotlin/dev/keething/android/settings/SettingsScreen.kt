@@ -5,6 +5,7 @@ import androidx.compose.ui.semantics.semantics
 import dev.keething.android.about.BuildInfo
 import dev.keething.android.about.ProblemReport
 import android.content.Intent
+import android.app.UiModeManager
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.provider.Settings
@@ -137,6 +138,9 @@ internal fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Group("Theme") {
+            ThemeSetting(container)
+        }
         Group("Sharing: requests and pictures last") {
             val validity by container.settings.requestValidity.collectAsStateWithLifecycle()
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -188,6 +192,27 @@ internal fun SettingsScreen(
 }
 
 private const val MIB = 1024 * 1024
+
+/** "Theme" (keething-spec app.theme-choice): System, Light, Dark; a change rebuilds the screen in the new theme. */
+@Composable
+private fun ThemeSetting(container: AppContainer) {
+    val context = LocalContext.current
+    val chosen by container.settings.theme.collectAsStateWithLifecycle()
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        ThemeChoice.entries.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = option == chosen,
+                onClick = {
+                    container.settings.chooseTheme(option)
+                    context.getSystemService(UiModeManager::class.java).setApplicationNightMode(option.nightMode)
+                },
+                shape = SegmentedButtonDefaults.itemShape(index, ThemeChoice.entries.size),
+            ) {
+                FitText(option.label)
+            }
+        }
+    }
+}
 
 /** "Quick notes go to" (SPEC §6.4; keething-spec app.quick-note AC1): Current database or one of the list, with its dot. */
 @Composable

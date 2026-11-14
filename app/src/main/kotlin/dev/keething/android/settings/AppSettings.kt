@@ -50,6 +50,16 @@ internal class AppSettings(private val store: SettingsStore) {
         mutableRequestValidity.value = validity
     }
 
+    private val mutableTheme = MutableStateFlow(ThemeChoice.of(store.string(THEME)))
+
+    /** Light, dark or as the system (keething-spec app.theme-choice); the system is told by whoever chooses it. */
+    val theme: StateFlow<ThemeChoice> = mutableTheme.asStateFlow()
+
+    fun chooseTheme(choice: ThemeChoice) {
+        store.setString(THEME, choice.stored.takeIf { choice != ThemeChoice.System })
+        mutableTheme.value = choice
+    }
+
     /** The name a request was last made with: the next one starts with it. */
     var requestName: String
         get() = store.string(REQUEST_NAME).orEmpty()
@@ -113,6 +123,7 @@ internal class AppSettings(private val store: SettingsStore) {
         private const val LOCK_TIMEOUT_MINUTES = "lockTimeoutMinutes"
         private const val REQUEST_VALIDITY_DAYS = "requestValidityDays"
         private const val REQUEST_NAME = "requestName"
+        private const val THEME = "theme"
         private const val DISMISSED_SUGGESTIONS = "dismissedTypeSuggestions"
         private const val LAST_NEW_ENTRY_DATABASE = "lastNewEntryDatabase"
         private const val QUICK_NOTE_DATABASE = "quickNoteDatabase"
