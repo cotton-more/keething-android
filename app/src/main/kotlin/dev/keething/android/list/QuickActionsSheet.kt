@@ -48,7 +48,10 @@ import java.time.Instant
 internal interface QuickActionHandler {
     fun copyUsername(id: String)
     fun copyPassword(id: String)
-    fun copyCode(id: String)
+    fun copyCode(tile: CodeTile)
+
+    /** The entry's two or more codes, in their sheet (keething-spec search.row-codes AC5). */
+    fun showCodes(row: EntryRow)
     fun openSite(id: String, url: String)
     fun edit(id: String)
     fun removeFromRecent(id: String)
@@ -85,7 +88,12 @@ internal fun QuickActionsSheet(
         Action("Copy username", Icons.Rounded.Person, detail = actions.username, act = done { handler.copyUsername(id) })
             .takeIf { row.hasUsername },
         Action("Copy password", Icons.Rounded.Key, act = done { handler.copyPassword(id) }).takeIf { row.hasPassword },
-        row.totp?.let { Action("Copy one-time code", Icons.Rounded.Timer, code = TotpDisplay.of(it, now.value).formatted, act = done { handler.copyCode(id) }) },
+        // One code is copied as from the row's button, two or more open their sheet (keething-spec search.row-codes AC5).
+        row.codes.singleOrNull()?.let { tile ->
+            Action("Copy one-time code", Icons.Rounded.Timer, code = TotpDisplay.of(tile.totp, now.value).formatted, act = done { handler.copyCode(tile) })
+        } ?: row.codes.takeIf { it.size > 1 }?.let { codes ->
+            Action("Copy one-time code…", Icons.Rounded.Timer, detail = "${codes.size} codes", act = done { handler.showCodes(row) })
+        },
         actions.url?.let { url -> Action("Open ${actions.host}", Icons.AutoMirrored.Rounded.OpenInNew, act = done { handler.openSite(id, url) }) },
     )
     val changes = if (actions.inRecycleBin) {

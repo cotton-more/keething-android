@@ -39,6 +39,10 @@ ENTRIES = [
         ("One-time code 2", "otpauth://totp/Further:second?secret=GEZDGNBVGY3TQOJQ&issuer=Further", True),
         ("Work account", "otpauth://totp/Further:work?secret=MFRGGZDFMZTWQ2LK&period=60&issuer=Further")]),
     ("Further code only (fictitious)", [("Robot", "otpauth://totp/Only:robot?secret=KRSXG5CTMVRXEZLU&issuer=Only", True)]),
+    # More codes than a phone's screen holds: the row's sheet of codes scrolls (keething-spec search.row-codes AC4).
+    ("Many codes (fictitious)", [("otp", "otpauth://totp/Many:me?secret=JBSWY3DPEHPK3PXP&issuer=Many", True)] + [
+        (f"Account {n}", f"otpauth://totp/Many:account{n}?secret={base64.b32encode(f'many-codes-{n:02}'.encode()).decode().rstrip('=')}&issuer=Many", True)
+        for n in range(2, 13)]),
     ("No code yet (fictitious)", []),
 ]
 

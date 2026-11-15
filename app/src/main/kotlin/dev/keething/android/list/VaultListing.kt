@@ -23,7 +23,7 @@ import dev.keething.search.narrowing
 import java.text.Collator
 import java.time.Instant
 
-/** One row of the list (SPEC §6.2): title, username and site, the live code when there is one. */
+/** One row of the list (SPEC §6.2): title, username and site, the live codes when there are any. */
 internal data class EntryRow(
     /** The entry's ref ([EntryRef.text]): the same UUID in two databases is two rows. */
     val id: String,
@@ -38,7 +38,11 @@ internal data class EntryRow(
     /** What a swipe can copy (SPEC §6.2). */
     val hasUsername: Boolean,
     val hasPassword: Boolean,
-    val totp: TotpConfig?,
+    /**
+     * Its one-time codes as the Codes view lists them, its own first, then its further ones in field order (keething-spec
+     * search.row-codes AC1); the button shows the first, and with two or more opens them all.
+     */
+    val codes: List<CodeTile>,
     val deadline: RowDeadline?,
     /** A payment card's or a Wi-Fi network's small face, drawn instead of the icon (SPEC §6.2). */
     val face: EntryFace? = null,
@@ -196,27 +200,39 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
         val tiles = ArrayList<CodeTile>()
         val searched = ArrayList<Entry>()
         for (entry in vault.entries) {
-            val title = entry.displayTitle
-            val avatar = EntryAvatar.of(title)
-            val icon = entry.customIconId?.takeIf { it in vault.customIcons }
-            fun add(tile: CodeTile, fields: List<CustomField>) {
+            for (tile in tilesOf(entry)) {
                 tiles += tile
+                // A further code is found by its field's name, which its tile's subtitle is.
+                val fields = if (tile.further) listOf(CustomField.plain(tile.subtitle, "")) else emptyList()
                 searched += Entry(
-                    id = tile.key, title = title, username = entry.username, groupPath = entry.groupPath, tags = entry.tags,
+                    id = tile.key, title = tile.title, username = entry.username, groupPath = entry.groupPath, tags = entry.tags,
                     customFields = fields, attachments = entry.attachments,
                 )
-            }
-            val mark = marks[entry.id]
-            entry.totp?.let { add(CodeTile(entry.id, entry.id, title, entry.username, null, it, avatar, icon, entry.groupPath, mark), emptyList()) }
-            for (field in entry.customFields) {
-                val config = OneTimeCodes.config(field) ?: continue
-                val name = codeName(field.name)
-                val tile = CodeTile("${entry.id}\n${field.name}", entry.id, title, name, field.name, config, avatar, icon, entry.groupPath, mark)
-                add(tile, listOf(CustomField.plain(name, "")))
             }
         }
         tiles to searched
     }
+
+    /** [entry]'s codes, its own first, then its further ones in field order; a code that cannot be read is not one. */
+    private fun tilesOf(entry: Entry): List<CodeTile> {
+        val title = entry.displayTitle
+        val avatar = EntryAvatar.of(title)
+        val icon = entry.customIconId?.takeIf { it in vault.customIcons }
+        val mark = marks[entry.id]
+        val tiles = ArrayList<CodeTile>()
+        entry.totp?.let { tiles += CodeTile(entry.id, entry.id, title, entry.username, null, it, avatar, icon, entry.groupPath, mark) }
+        for (field in entry.customFields) {
+            val config = OneTimeCodes.config(field) ?: continue
+            tiles += CodeTile("${entry.id}\n${field.name}", entry.id, title, codeName(field.name), field.name, config, avatar, icon, entry.groupPath, mark)
+        }
+        return tiles
+    }
+
+    /**
+     * Each entry's codes for its row (keething-spec search.row-codes AC1): the Codes view's tiles, read once, not at every
+     * query; the bins' entries are read as their rows are made (few, and no tile of theirs is in the Codes view).
+     */
+    private val rowCodes: Map<String, List<CodeTile>> by lazy { codeTiles.values.groupBy { it.entryId } }
 
     private val codeIndex by lazy {
         val labelOf = labels?.let { list -> vault.entries.indices.associate { vault.entries[it].id to list[it] } }
@@ -311,7 +327,7 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
         hasAttachments = entry.attachments.isNotEmpty(),
         hasUsername = entry.username.isNotEmpty(),
         hasPassword = !entry.password.isEmpty(),
-        totp = entry.totp,
+        codes = if (entry.id in byId) rowCodes[entry.id].orEmpty() else tilesOf(entry),
         deadline = deadlines[entry.id],
         face = faces[entry.id],
         database = marks[entry.id],

@@ -11,6 +11,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import dev.keething.android.recyclebin.DeleteForGoodDialog
 import dev.keething.android.ui.NoteTile
 import androidx.compose.ui.draw.rotate
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -82,7 +84,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -111,6 +113,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -178,7 +181,6 @@ import dev.keething.android.ui.segmentShape
 import dev.keething.card.EntryFace
 import dev.keething.card.ExpiryHint
 import dev.keething.card.TotpDisplay
-import dev.keething.domain.totp.TotpConfig
 import dev.keething.search.EntrySearch
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
@@ -380,6 +382,12 @@ internal fun EntryListScreen(
         )
     } ?: reminder?.takeIf { question == null }?.let { ReminderQuestion(it) }
 
+    // The codes of a row whose entry has two or more, opened by its code button or its quick actions (keething-spec
+    // search.row-codes AC4).
+    var codesOf by remember { mutableStateOf<EntryRow?>(null) }
+    codesOf?.let { row ->
+        RowCodesSheet(row, state.icons, now, onCopy = model::copyCode, onCopyNext = model::copyNextCode, onDismiss = { codesOf = null })
+    }
     // The quick actions of a long-pressed row, with the section it was in (Remove from Recent is only for a recent row).
     var quick by remember { mutableStateOf<Pair<QuickActions, ListSection.Kind>?>(null) }
     // A row in the bin whose Delete for good… was tapped: the dialog asks first (its id and title).
@@ -404,7 +412,10 @@ internal fun EntryListScreen(
             handler = object : QuickActionHandler {
                 override fun copyUsername(id: String) = model.copyUsername(id)
                 override fun copyPassword(id: String) = model.copyPassword(id)
-                override fun copyCode(id: String) = model.copyCode(id)
+                override fun copyCode(tile: CodeTile) = model.copyCode(tile)
+                override fun showCodes(row: EntryRow) {
+                    codesOf = row
+                }
                 override fun edit(id: String) = onEdit(id)
                 override fun removeFromRecent(id: String) = model.removeFromRecent(id)
                 override fun moveToRecycleBin(id: String) = model.moveToRecycleBin(id)
@@ -563,7 +574,7 @@ internal fun EntryListScreen(
                                 onOpen = { onOpen(row.id, section.kind.name) },
                                 selected = row.id == selected,
                                 onLongPress = { model.quickActions(row)?.let { quick = it to section.kind } },
-                                onCopyCode = { model.copyCode(row.id) },
+                                onCode = { if (row.codes.size == 1) model.copyCode(row.codes.single()) else codesOf = row },
                                 codeUnder = codeUnder,
                             )
                         }
@@ -778,7 +789,8 @@ internal fun SectionTitle(title: String) {
 
 /**
  * A row of the list; also autofill's entry picker, which neither offers quick actions nor shows the live code
- * ([onLongPress], [onCopyCode] null). [codeUnder]: the code under the title, where the row is too narrow for it beside.
+ * ([onLongPress], [onCode] null). [onCode]: the code button, which copies the one code or opens two or more
+ * (keething-spec search.row-codes). [codeUnder]: the code under the title, where the row is too narrow for it beside.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -790,7 +802,7 @@ internal fun EntryRowView(
     now: State<Instant>,
     onOpen: () -> Unit,
     onLongPress: (() -> Unit)?,
-    onCopyCode: (() -> Unit)?,
+    onCode: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onOpenLabel: String? = null,
     codeUnder: Boolean = false,
@@ -846,10 +858,10 @@ internal fun EntryRowView(
                     Text(deadline.text, style = MaterialTheme.typography.labelLarge, color = colour, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (codeUnder && onCopyCode != null) row.totp?.let { CodeButton(it, now, onCopyCode, Modifier.padding(top = 6.dp), height = 32.dp) }
+            if (codeUnder && onCode != null && row.codes.isNotEmpty()) CodeButton(row.codes, now, onCode, Modifier.padding(top = 6.dp), height = 32.dp)
         }
-        if (!codeUnder && onCopyCode != null) row.totp?.let {
-            Box(Modifier.height(ROW_FIRST_LINES), contentAlignment = Alignment.Center) { CodeButton(it, now, onCopyCode, Modifier.padding(start = 8.dp)) }
+        if (!codeUnder && onCode != null && row.codes.isNotEmpty()) {
+            Box(Modifier.height(ROW_FIRST_LINES), contentAlignment = Alignment.Center) { CodeButton(row.codes, now, onCode, Modifier.padding(start = 8.dp)) }
         }
     }
 }
@@ -914,22 +926,45 @@ private fun DatabaseLine(mark: DatabaseMark, group: List<String>) {
     }
 }
 
-/** The live code of a row on a fill that drains over its period (keething-spec card.code-timer); a tap copies it. */
+/**
+ * The code button of a row: the first of its entry's [codes] live on a fill that drains over its period (keething-spec
+ * card.code-timer AC4). One code: a tap copies it; two or more: their number beside it, and a tap opens them all
+ * (search.row-codes AC2, AC3), said as "2 one-time codes" with the action "Show codes" (AC6).
+ */
 @Composable
-private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Unit, modifier: Modifier, height: Dp = 36.dp) {
-    val display = TotpDisplay.of(config, now.value)
-    Surface(
-        onClick = onCopy,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.extraColors.onCodePill,
-        modifier = modifier.semantics { contentDescription = "Copy one-time code" },
+private fun CodeButton(codes: List<CodeTile>, now: State<Instant>, onClick: () -> Unit, modifier: Modifier, height: Dp = 36.dp) {
+    val display = TotpDisplay.of(codes.first().totp, now.value)
+    val several = codes.size > 1
+    val colors = MaterialTheme.extraColors
+    Box(
+        modifier
+            .minimumInteractiveComponentSize()
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .codeFill(display.period, CircleShape)
+            .clickable(onClickLabel = if (several) "Show codes" else null, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = if (several) codeCount(codes.size) else "Copy one-time code" }
+            .height(height)
+            .padding(start = 12.dp, end = if (several) 6.dp else 12.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier.height(height).codeFill(display.period, CircleShape).padding(horizontal = 12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(display.formatted, Modifier.alpha(if (display.secondsRemaining <= 5) DIMMED else 1f), style = codeTextStyle())
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(display.formatted, Modifier.alpha(if (display.secondsRemaining <= 5) DIMMED else 1f), style = codeTextStyle(), color = colors.onCodePill)
+            if (several) {
+                // The count, in the digits' colour; the description says it, so the reader does not read it again.
+                Box(
+                    Modifier.clearAndSetSemantics {}.height(height - 12.dp).widthIn(min = height - 12.dp).clip(CircleShape)
+                        .background(colors.onCodePill).padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        codes.size.toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    )
+                }
+            }
         }
     }
 }

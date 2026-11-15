@@ -178,14 +178,40 @@ class VaultListingTest {
         assertEquals("GitHub", gh.title)
         assertEquals("octocat", gh.subtitle, "the username alone, the site only without one")
         assertTrue(gh.hasAttachments)
-        assertNotNull(gh.totp)
+        assertEquals(1, gh.codes.size)
         assertEquals("www.amazon.de", rows.getValue("az").subtitle, "no username: the site alone")
         assertEquals("", rows.getValue("pp").subtitle)
-        assertNull(rows.getValue("db").totp)
+        assertTrue(rows.getValue("db").codes.isEmpty())
 
         val app = Entry(id = "app", title = "Parking", url = "androidapp://com.example.parking")
         val withApp = VaultListing(Vault(entries = listOf(app)), now, Collator.getInstance(Locale.ENGLISH))
         assertEquals("", withApp.sections("", emptyList()).single().rows.single().subtitle, "an app's address is no site")
+    }
+
+    // spec: search.row-codes/AC1
+    @Test
+    fun aRowCarriesEveryCodeOfItsEntryItsOwnFirstThenItsFurtherOnesInFieldOrder() {
+        val microsoft = Entry(
+            id = "ms", title = "Microsoft", totp = secret,
+            customFields = listOf(
+                CustomField.plain("Work account", link("Microsoft")),
+                CustomField.plain("Notes", "no code"),
+                CustomField.protected("One-time code 2", link("Microsoft")),
+            ),
+        )
+        val furtherOnly = Entry(id = "hz", title = "Hetzner", customFields = listOf(CustomField.plain("Robot", link("Hetzner"))))
+        val broken = Entry(id = "br", title = "Broken", customFields = listOf(CustomField.plain("Code", "otpauth://totp/x?secret=")))
+        val binned = Entry(id = "old", title = "Old", totp = secret, customFields = listOf(CustomField.plain("Backup", link("Old"))))
+        val listing = VaultListing(Vault(entries = listOf(microsoft, furtherOnly, broken, bahn), recycleBin = listOf(binned)), now, Collator.getInstance(Locale.ENGLISH))
+        val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
+
+        assertEquals(listOf(null, "Work account", "One-time code 2"), rows.getValue("ms").codes.map { it.fieldName }, "own first, a protected link too")
+        assertEquals(listOf("ms\nWork account", "ms\nOne-time code 2"), rows.getValue("ms").codes.drop(1).map { it.key }, "the Codes view's tiles")
+        assertEquals(listOf("Robot"), rows.getValue("hz").codes.map { it.fieldName }, "further codes only: still a code")
+        assertTrue(rows.getValue("br").codes.isEmpty(), "a code that cannot be read is not one")
+        assertTrue(rows.getValue("db").codes.isEmpty())
+        assertEquals(listing.codes("").filter { it.entryId == "ms" }, rows.getValue("ms").codes, "as the Codes view lists them")
+        assertEquals(listOf(null, "Backup"), listing.sections("-", emptyList()).single().rows.single().codes.map { it.fieldName }, "an entry in the bin too")
     }
 
     @Test

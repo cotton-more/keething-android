@@ -1483,14 +1483,21 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   **Gestures**: a row swiped right copies the password, swiped left the username; past 88 dp what is under the row
   turns solid with a tick, and let go the row springs back (a side with nothing to copy says "No password" / "No
   username" and does nothing; both are accessibility actions too). A long press opens the **quick actions**:
-  copy the username (shown), the password or the one-time code (live), open the site (as the card's link), then
+  copy the username (shown), the password or the one-time code (live; with two or more, Copy one-time code… opens their
+  sheet), open the site (as the card's link), then
   Edit, Remove from Recent (a recent row: "Removed from Recent" with Undo, which puts it back in its place, the
   entry itself untouched) and Move to the recycle bin (as Delete on the card, with Undo); an entry in the bin has
   the copies, the site, Restore (the list then says "Restored to …", as the card does) and Delete for good… (asked
   first, as on its card).
   A row's code is a pill beside the title, or under it where the pill would leave
-  the title less than about seven and a half characters (large text on a narrow phone). In the light theme the pill and
-  the card's code are fixed blues, not the wallpaper's (its colours made a muddy brown of them on some phones).
+  the title less than about seven and a half characters (large text on a narrow phone). It is the entry's first code:
+  its own, else its first further one (an entry with further codes only has a pill too); a tap copies it. An entry with
+  two or more codes has their number in a small circle at the pill's end, and a tap opens a sheet of them instead
+  (keething-spec search.row-codes, the owner 2026-11-15): headed by the entry, each code with its name, live on its
+  fill with "Next in 12 s" and the next code under it, as on the card; a tap copies that code or the next one and
+  closes the sheet. TalkBack reads the pill as "3 one-time codes", action "Show codes". In the light theme the
+  pill and the card's code are fixed blues, not the wallpaper's (its colours made a muddy brown of them on some
+  phones).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. An end
   date's status has one phrase wherever it shows (keething-spec card.dates AC6, AC8): the field's line on the
   card, the card's deadline banner and the row after the field's name ("gültig bis · Expires in 36 days"), the

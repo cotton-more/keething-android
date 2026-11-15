@@ -155,7 +155,7 @@ private fun EntryPicker(
                             }
                         },
                         onLongPress = null,
-                        onCopyCode = null,
+                        onCode = null,
                         onOpenLabel = "Fill",
                         modifier = Modifier.padding(bottom = SegmentGap),
                     )

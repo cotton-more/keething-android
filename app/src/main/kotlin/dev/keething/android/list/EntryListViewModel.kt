@@ -393,7 +393,10 @@ internal class EntryListViewModel(
         notice(Notice.copied("Password"))
     }
 
-    /** A tile of the Codes view, or Copy code in its sheet (keething-spec app.codes-view AC2): as any code copy. */
+    /**
+     * A tile of the Codes view, or Copy code in its sheet (keething-spec app.codes-view AC2); a row's code button, its
+     * quick action or its codes' sheet (search.row-codes AC2, AC4): as any code copy.
+     */
     fun copyCode(tile: CodeTile) {
         val entry = entry(tile.entryId) ?: return
         clipboard.copy(TotpGenerator.code(tile.totp, Instant.now()), sensitive = true)
@@ -408,15 +411,6 @@ internal class EntryListViewModel(
         clipboard.copy(display.next, sensitive = true)
         used(entry)
         notice(Notice.nextCodeCopied(display.secondsRemaining))
-    }
-
-    /** The code button of a row. */
-    fun copyCode(id: String) {
-        val entry = entry(id) ?: return
-        val config = entry.totp ?: return
-        clipboard.copy(TotpGenerator.code(config, Instant.now()), sensitive = true)
-        used(entry)
-        notice(Notice.copied("One-time code"))
     }
 
     /**
