@@ -922,11 +922,11 @@ private fun CodeButton(config: TotpConfig, now: State<Instant>, onCopy: () -> Un
         onClick = onCopy,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        contentColor = MaterialTheme.extraColors.onCodePill,
         modifier = modifier.semantics { contentDescription = "Copy one-time code" },
     ) {
         Box(
-            Modifier.height(height).codeFill(display.period, MaterialTheme.colorScheme.primary, CircleShape).padding(horizontal = 12.dp),
+            Modifier.height(height).codeFill(display.period, CircleShape).padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(display.formatted, Modifier.alpha(if (display.secondsRemaining <= 5) DIMMED else 1f), style = codeTextStyle())

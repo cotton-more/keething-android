@@ -19,7 +19,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -29,6 +28,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import dev.keething.android.theme.MonospaceFamily
+import dev.keething.android.theme.extraColors
 import dev.keething.card.TotpDisplay
 import java.time.Instant
 import kotlinx.coroutines.delay
@@ -59,13 +59,13 @@ internal fun CodeValue(display: TotpDisplay, onCopyNext: (() -> Unit)? = null, f
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             display.formatted,
-            Modifier.codeFill(display.period, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+            Modifier.codeFill(display.period, RoundedCornerShape(12.dp))
                 .padding(horizontal = 10.dp, vertical = 2.dp),
             fontFamily = MonospaceFamily,
             fontWeight = FontWeight.SemiBold,
             fontSize = fontSize,
             letterSpacing = 1.sp,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = if (ending) DIMMED else 1f),
+            color = MaterialTheme.extraColors.onCode.copy(alpha = if (ending) DIMMED else 1f),
         )
         NextCode(display, ending, onCopyNext)
     }
@@ -74,7 +74,7 @@ internal fun CodeValue(display: TotpDisplay, onCopyNext: (() -> Unit)? = null, f
 /** "Next in 12 s 731 004"; its seconds read when the reader reaches them, never announced as they count (app.accessibility AC4). */
 @Composable
 private fun NextCode(display: TotpDisplay, ending: Boolean, onCopyNext: (() -> Unit)?) {
-    val colour = if (ending) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val colour = if (ending) MaterialTheme.extraColors.onCode else MaterialTheme.colorScheme.onSurfaceVariant
     val said = "Next code in ${secondsIn(display.secondsRemaining)}: ${display.nextFormatted}"
     Row(
         Modifier
@@ -102,23 +102,23 @@ internal const val DIMMED = 0.5f
 
 /**
  * The fill behind a code (keething-spec card.code-timer): drains from right to left over its [period] and fills again in
- * [REFILL_MILLIS] when the next code starts, over a faint track. Both are [color] (the code's) see-through, so they stand
- * out from whatever lies under them: a container colour would be close to the row's in a muted palette (a grey
- * wallpaper's, the owner's phone 2026-11-14). Redrawn on every frame without recomposing anything around it (SPEC §6.1).
+ * [REFILL_MILLIS] when the next code starts, over the time used. In the dark theme both are the code's colour
+ * see-through, so they stand out from whatever lies under them; in the light theme two fixed blues, since the wallpaper's
+ * colours made a muddy brown or grey of it on some phones (the owner, 2026-11-15). Redrawn on every frame without
+ * recomposing anything around it (SPEC §6.1).
  */
 @Composable
-internal fun Modifier.codeFill(period: Int, color: Color, shape: Shape): Modifier {
+internal fun Modifier.codeFill(period: Int, shape: Shape): Modifier {
     val left by produceState(fillFraction(period), period) {
         while (true) withFrameMillis { value = fillFraction(period) }
     }
+    val colors = MaterialTheme.extraColors
     return clip(shape).drawBehind {
-        drawRect(color.copy(alpha = TRACK_ALPHA))
-        drawRect(color.copy(alpha = FILL_ALPHA), size = size.copy(width = size.width * left))
+        drawRect(colors.codeUsed)
+        drawRect(colors.codeLeft, size = size.copy(width = size.width * left))
     }
 }
 
-private const val TRACK_ALPHA = 0.06f
-private const val FILL_ALPHA = 0.2f
 private const val REFILL_MILLIS = 400L
 
 /** The fill's width: refilling over the period's first [REFILL_MILLIS], then the fraction still to run. */

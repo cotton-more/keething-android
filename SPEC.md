@@ -1489,7 +1489,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the copies, the site, Restore (the list then says "Restored to …", as the card does) and Delete for good… (asked
   first, as on its card).
   A row's code is a pill beside the title, or under it where the pill would leave
-  the title less than about seven and a half characters (large text on a narrow phone).
+  the title less than about seven and a half characters (large text on a narrow phone). In the light theme the pill and
+  the card's code are fixed blues, not the wallpaper's (its colours made a muddy brown of them on some phones).
   A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. An end
   date's status has one phrase wherever it shows (keething-spec card.dates AC6, AC8): the field's line on the
   card, the card's deadline banner and the row after the field's name ("gültig bis · Expires in 36 days"), the

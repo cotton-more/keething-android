@@ -69,6 +69,14 @@ internal data class ExtraColors(
     /** The well a protected text sits in, recessed into its row (SPEC §6.4), and its inner shade. */
     val well: Color,
     val wellShade: Color,
+    /**
+     * A one-time code's draining fill (keething-spec card.code-timer): the time left, the time used, the digits on the card
+     * and on the list's pill. Fixed in the light theme: the wallpaper's colours made it a muddy brown or grey on some phones.
+     */
+    val codeLeft: Color,
+    val codeUsed: Color,
+    val onCode: Color,
+    val onCodePill: Color,
 )
 
 private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
@@ -92,6 +100,10 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
         onNoteTile = Color(0xFFF8E4B9),
         well = scheme.surfaceContainerLowest,
         wellShade = Color(0x99000000),
+        codeLeft = scheme.primary.copy(alpha = 0.2f),
+        codeUsed = scheme.primary.copy(alpha = 0.06f),
+        onCode = scheme.primary,
+        onCodePill = scheme.onSecondaryContainer,
     )
 } else {
     ExtraColors(
@@ -114,6 +126,10 @@ private fun extraColors(scheme: ColorScheme, dark: Boolean) = if (dark) {
         onNoteTile = Color(0xFF744E0E),
         well = scheme.surfaceContainer,
         wellShade = Color(0x1A000000),
+        codeLeft = Color(0xFFAECBFA),
+        codeUsed = Color(0xFFE8F0FE),
+        onCode = Color(0xFF0842A0),
+        onCodePill = Color(0xFF0842A0),
     )
 }
 
