@@ -425,7 +425,7 @@ class EntryEditorTest {
         val types = mapOf("Host" to "ssh.host", "Port" to "ssh.port", "Port 2" to "ssh.port", "Secret" to "ssh.host")
         val editor = EntryEditor.edit(Entry("e", customFields = fields, fieldTypes = types), now)
         assertEquals(
-            listOf("Not a host ssh can reach, shown as a row. Write it as host, user@host or host:port.", "Not a port (1–65535), shown as a row.", null, null, null),
+            listOf("Not a host name, shown as a row. Write it as host, user@host or host:port.", "Not a port (1–65535), shown as a row.", null, null, null),
             editor.start.fields.map { editor.fieldWarning(it) },
         )
         val fixed = editor.start.fields[0].copy(value = "alex@db.example.com:2222")

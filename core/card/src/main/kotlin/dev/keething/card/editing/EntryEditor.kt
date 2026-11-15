@@ -173,7 +173,7 @@ public class EntryEditor private constructor(
         val value = field.value.trim()
         if (field.isProtected || value.isEmpty()) return null
         return when (field.type) {
-            FieldType.SSH_HOST -> if (SshTarget.parse(value) == null) "Not a host ssh can reach, shown as a row. Write it as host, user@host or host:port." else null
+            FieldType.SSH_HOST -> if (SshTarget.parse(value) == null) "Not a host name, shown as a row. Write it as host, user@host or host:port." else null
             FieldType.SSH_PORT -> if (value.toIntOrNull() !in 1..65535) "Not a port (1–65535), shown as a row." else null
             else -> null
         }
