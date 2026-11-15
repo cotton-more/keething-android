@@ -997,7 +997,10 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   not, so their preview shows. Every copy is cleared after 30 s (fixed, not a setting) if it is still the
   one copied: each copy carries a token in its description. A timer clears while the app runs, an alarm
   wakes a frozen app. In the background Android hides the clipboard from the app, so then it clears whatever
-  is there, once per copy (a later copy in another app within those 30 s is lost; accepted). Checked on the
+  is there, once per copy (a later copy in another app within those 30 s is lost; accepted). A lock leaves
+  the clipboard alone: a password copied just before the database or the phone locks can still be pasted for
+  the rest of its 30 s (decided 2026-11-15; a lock on a computer clears it, keething-spec security.clipboard
+  AC5, not built for ChromeOS). Checked on the
   Android 17 emulator: both ways clear, and the alarm even starts a new process when the old one is gone.
   On the test phone the timer cleared after 30 s in each run (screen off, Doze), and the clipboard was
   empty afterwards; reading it in the background is refused ("Denying clipboard access … not in focus" in
