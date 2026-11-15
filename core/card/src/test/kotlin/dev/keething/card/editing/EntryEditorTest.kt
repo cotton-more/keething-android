@@ -418,6 +418,22 @@ class EntryEditorTest {
         assertTrue(editor.canSave(editor.start.copy(notes = "changed")), "a warning keeps nothing from saving")
     }
 
+    // spec: types.ssh-login/AC8
+    @Test
+    fun anSshHostOrPortThatIsNotOneSaysSoAndSavesAllTheSame() {
+        val fields = listOf(field("Host", "db example"), field("Port", "70000"), field("Other", "x"), field("Port 2", " 2222 "), field("Secret", "no host", protected = true))
+        val types = mapOf("Host" to "ssh.host", "Port" to "ssh.port", "Port 2" to "ssh.port", "Secret" to "ssh.host")
+        val editor = EntryEditor.edit(Entry("e", customFields = fields, fieldTypes = types), now)
+        assertEquals(
+            listOf("Not a host ssh can reach, shown as a row. Write it as host, user@host or host:port.", "Not a port (1–65535), shown as a row.", null, null, null),
+            editor.start.fields.map { editor.fieldWarning(it) },
+        )
+        val fixed = editor.start.fields[0].copy(value = "alex@db.example.com:2222")
+        assertNull(editor.fieldWarning(fixed))
+        assertNull(editor.fieldWarning(fixed.copy(value = "[2001:db8::1]:22")))
+        assertTrue(editor.canSave(editor.start.copy(notes = "changed")), "a warning keeps nothing from saving")
+    }
+
     @Test
     fun aDayFromTheCalendarIsWrittenInIsoACardsExpiryAsItsMonth() {
         val editor = EntryEditor.edit(

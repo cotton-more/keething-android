@@ -12,6 +12,7 @@ import dev.keething.card.FieldTypes
 import dev.keething.card.ImportedFieldName
 import dev.keething.card.OneTimeCodes
 import dev.keething.card.SeedPhrase
+import dev.keething.card.SshTarget
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.AttachmentChange
@@ -153,16 +154,28 @@ public class EntryEditor private constructor(
 
     /**
      * A field typed as a date whose value is not one: it is saved, and shown as text; null when it is a date,
-     * empty, protected (never read) or of another type.
+     * empty, protected (never read) or of another type. The same for an SSH host or port that is not one.
      */
     public fun fieldWarning(field: FieldDraft): String? {
         if (field.type?.isCryptoPart == true) return cryptoWarning(field)
+        sshWarning(field)?.let { return it }
         val type = field.type?.takeIf { it.isDate } ?: return null
         if (field.isProtected || field.value.isBlank() || FieldDate.parse(field.value, typed = true) != null) return null
         return if (type == FieldType.CARD_EXPIRY) {
             "Not a date, shown as text. Write it as 2027-10."
         } else {
             "Not a date, shown as text. Write it as 2027-10-31, or 2027-10 for a month."
+        }
+    }
+
+    /** An `ssh.host` ssh cannot reach, an `ssh.port` outside 1–65535; saved all the same, shown as a plain row. */
+    private fun sshWarning(field: FieldDraft): String? {
+        val value = field.value.trim()
+        if (field.isProtected || value.isEmpty()) return null
+        return when (field.type) {
+            FieldType.SSH_HOST -> if (SshTarget.parse(value) == null) "Not a host ssh can reach, shown as a row. Write it as host, user@host or host:port." else null
+            FieldType.SSH_PORT -> if (value.toIntOrNull() !in 1..65535) "Not a port (1–65535), shown as a row." else null
+            else -> null
         }
     }
 

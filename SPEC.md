@@ -1988,7 +1988,9 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   has a calendar (the day written `2027-10-31`, a card's expiry as its month `2027-10`); a value that is no
   date says so under it ("Not a date, shown as text…") and is saved all the same; likewise a recovery phrase that
   fails its check (read here even when protected: the form holds its text anyway), an address or extended key whose
-  checksum fails, a private key typed as the extended key, a path that is none. The types saved are every
+  checksum fails, a private key typed as the extended key, a path that is none, and an unprotected SSH host ssh
+  cannot reach ("Not a host ssh can reach, shown as a row. Write it as host, user@host or host:port.") or port
+  outside 1–65535 ("Not a port (1–65535), shown as a row."). The types saved are every
   field's that has one, but `text` only where the value would be read as something else; a rename carries
   the type along; types of fields the entry no longer has go with the next save, which they do not cause.
   A card number, CVC or PIN gets the number keyboard, an SSH port the digits.
