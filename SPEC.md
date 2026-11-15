@@ -2489,7 +2489,14 @@ needed each time, come later (ROADMAP).
   (§10.4), are one file, `noBackupFilesDir/sharing/requests` (version 2; version 1, without envelopes, is read),
   sealed with AES-256-GCM under 32 random bytes kept in `sharing/key`, wrapped by an AES key in the Android
   Keystore (`SharingKey`; no user authentication, never leaves the Keystore). Read at the unlock, in memory while
-  unlocked, wiped on lock. A file that cannot be read is left as it is and nothing replaces it. Not keyed to the
+  unlocked, wiped on lock. A file the storage cannot give is left as it is and nothing replaces it. One that can
+  never be read (the key gone, so `SharingKey` made a new one; its content damaged; a version this app does not
+  know) is given up at once: the book starts empty, the file goes, and the moment alone is kept for a week in
+  `sharing/requests.lost` (no name, no secret; a request lives a week at most). Sharing says it once, a banner
+  "Saved requests could not be read" until OK; an answer to no request here within that week says "Its request
+  was lost … Ask for it again" instead of "Not for a request on this phone" (decided by the owner 2026-11-15:
+  everything in the book expires within days, so starting again costs one more request; who was asked can only
+  be named once contacts are kept, keething-spec sharing.contacts). Not keyed to the
   database's own key: KeePassXC gives the file a new key-derivation salt on every save (§4), and the requests
   waiting for an answer would go with each of its edits. Not in the database: KeePass keeps an entry's old versions
   in its history, so a key deleted from an entry would stay in the file and sync to the Mac. Skipped, and why:

@@ -188,6 +188,10 @@ internal fun ReceivedScreen(
                     "Not for a request on this phone",
                     "It answers a request that was closed, expired, or made on another phone. Ask again.",
                 )
+                ReceivedModel.Opening.Lost -> Explanation(
+                    "Its request was lost",
+                    "This phone could not read its saved requests and started them again, so it cannot open answers to the ones asked before. Ask for it again.",
+                )
                 ReceivedModel.Opening.Broken -> Explanation(
                     "This code does not open",
                     "It was changed on the way, or it is not really for your request. Ask for it again, and check the pictures by a call.",

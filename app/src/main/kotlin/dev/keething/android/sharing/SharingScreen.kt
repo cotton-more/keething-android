@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.list.Banner
 import dev.keething.android.list.SectionTitle
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BesideOrUnder
@@ -71,6 +72,7 @@ internal fun SharingScreen(
     onSend: () -> Unit,
 ) {
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
+    val lost by container.shareRequests.lost.collectAsStateWithLifecycle()
     val validity by container.settings.requestValidity.collectAsStateWithLifecycle()
     val now by rememberSecondsNow()
     val theirs = book?.theirs.orEmpty()
@@ -114,6 +116,16 @@ internal fun SharingScreen(
         LazyColumn(
             contentPadding = PaddingValues(start = readableInset(), end = readableInset(), top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
         ) {
+            // Said once, until OK (keething-spec sharing.book AC3).
+            if (lost?.told == false) {
+                item(key = "lost") {
+                    Banner(
+                        "Saved requests could not be read",
+                        "This phone started its requests and envelopes again. If you were waiting for an answer, ask for it again.",
+                        onDismiss = container.shareRequests::toldLost,
+                    )
+                }
+            }
             if (theirs.isNotEmpty()) {
                 item(key = "theirs") { SectionTitle("To answer") }
                 itemsIndexed(theirs, key = { _, it -> "theirs/${it.request.id}" }) { index, their ->

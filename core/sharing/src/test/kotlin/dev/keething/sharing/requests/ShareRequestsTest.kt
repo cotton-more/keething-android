@@ -1,6 +1,7 @@
 package dev.keething.sharing.requests
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.sharing.LostBook
 import dev.keething.domain.sharing.SharingStore
 import dev.keething.domain.time.Clock
 import dev.keething.sharing.message.ShareAnswer
@@ -29,6 +30,9 @@ class ShareRequestsTest {
         override fun read(): ByteArray? = bytes
         override fun write(bytes: ByteArray) { this.bytes = bytes.copyOf() }
         override fun delete() { bytes = null }
+        var lost: LostBook? = null
+        override fun readLost(): LostBook? = lost
+        override fun writeLost(lost: LostBook?) { this.lost = lost }
     }
 
     private class FixedClock(var time: Instant) : Clock {
@@ -135,6 +139,8 @@ class ShareRequestsTest {
             override fun read(): ByteArray? = throw java.io.IOException("disk")
             override fun write(bytes: ByteArray) { written = true }
             override fun delete() { written = true }
+            override fun readLost(): LostBook? = null
+            override fun writeLost(lost: LostBook?) { written = true }
         }
         val requests = ShareRequests(broken, clock)
         requests.open(Secret.copyOf(key))
@@ -196,6 +202,55 @@ class ShareRequestsTest {
 
         alex.open(Secret.copyOf(ByteArray(32) { 1 }))
         assertTrue(alex.book.value!!.mine.isEmpty(), "another key reads an empty book")
+    }
+
+    // spec: sharing.book/AC3
+    @Test
+    fun aBookThatCanNeverBeReadIsGivenUpAndItsLossSaidOnceForAWeek() {
+        val mine = anna.receive(alex.ask("Alex", "Netflix", Duration.ofDays(3))!!.request) as ShareRequests.Received.Added
+        anna.check(mine.request.request.id, mine.request.pictures)
+        val answer = anna.answer(mine.request.request.id, payload())!!
+
+        alex.close()
+        alex.open(Secret.copyOf(ByteArray(32) { 1 }))   // the Keystore's key gone: SharingKey makes a new one
+        assertTrue(alex.book.value!!.mine.isEmpty())
+        assertNull(alexStore.bytes, "the file that can never be read goes")
+        assertEquals(LostBook(clock.time, told = false), alex.lost.value)
+        assertEquals(ShareRequests.Opened.Lost, alex.open(answer), "an answer to a request lost with the book")
+
+        alex.toldLost()
+        alex.close()
+        clock.time = clock.time.plus(Duration.ofDays(2))
+        alex.open(Secret.copyOf(ByteArray(32) { 1 }))
+        assertEquals(LostBook(Instant.parse("2026-10-23T12:00:00Z"), told = true), alex.lost.value, "kept, and said once")
+        assertEquals(ShareRequests.Opened.Lost, alex.open(answer))
+
+        clock.time = Instant.parse("2026-10-23T12:00:00Z").plus(Duration.ofDays(8))
+        alex.close()
+        alex.open(Secret.copyOf(ByteArray(32) { 1 }))
+        assertNull(alex.lost.value, "a week and a day on, no answer can be for a lost request")
+        assertNull(alexStore.lost)
+        assertEquals(ShareRequests.Opened.NotHere, alex.open(answer))
+    }
+
+    @Test
+    fun aDamagedBookOrOneOfAnUnknownVersionIsGivenUpTooANewBookIsNot() {
+        alex.ask("Alex", "Netflix", Duration.ofDays(3))!!
+        val sealed = alexStore.bytes!!
+        assertNull(alex.lost.value, "a book read as it is is not lost")
+
+        for (broken in listOf(sealed.copyOf().also { it[0] = 9 }, sealed.copyOf().also { it[it.size - 1] = (it[it.size - 1] + 1).toByte() })) {
+            alexStore.bytes = broken
+            alexStore.lost = null
+            alex.open(Secret.copyOf(key))
+            assertTrue(alex.book.value!!.mine.isEmpty())
+            assertNotNull(alex.lost.value)
+            assertNull(alexStore.bytes)
+        }
+
+        val fresh = MemoryStore()
+        ShareRequests(fresh, clock).open(Secret.copyOf(key))
+        assertNull(fresh.lost, "no file is no loss")
     }
 
     @Test

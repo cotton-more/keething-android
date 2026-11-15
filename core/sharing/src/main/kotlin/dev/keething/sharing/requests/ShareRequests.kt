@@ -1,6 +1,7 @@
 package dev.keething.sharing.requests
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.sharing.LostBook
 import dev.keething.domain.sharing.SharingStore
 import dev.keething.domain.time.Clock
 import dev.keething.sharing.crypto.SealFailure
@@ -43,11 +44,21 @@ public class ShareRequests(
     /** Null while closed (the vault locked). */
     public val book: StateFlow<RequestBook?> = mutableBook.asStateFlow()
 
+    private val mutableLost = MutableStateFlow<LostBook?>(null)
+
+    /**
+     * The book given up in the last week, if one was (keething-spec sharing.book AC3): the requests it held cannot
+     * be answered here any more. Null while closed.
+     */
+    public val lost: StateFlow<LostBook?> = mutableLost.asStateFlow()
+
     private var key: Secret? = null
 
     /**
-     * Reads the book with [localKey] (taken over: wiped on [close]). One the key does not open starts empty and is
-     * replaced by the next change; a file that cannot be read at all leaves the book closed, so nothing replaces it.
+     * Reads the book with [localKey] (taken over: wiped on [close]). One that can never be read (the key does not open
+     * it, its content is damaged, a version this app does not know) is given up: the book starts empty, the file goes,
+     * and the moment is kept a week as [lost]. A file the storage cannot give at all leaves the book closed, so
+     * nothing replaces it.
      */
     public fun open(localKey: Secret): Unit = synchronized(this) {
         close()
@@ -58,13 +69,33 @@ public class ShareRequests(
             return
         }
         key = localKey
-        mutableBook.value = read?.let { RequestBook.open(it, localKey) } ?: RequestBook.EMPTY
+        val book = read?.let { RequestBook.open(it, localKey) }
+        mutableBook.value = book ?: RequestBook.EMPTY
+        mutableLost.value = if (read != null && book == null) giveUp() else runCatching { store.readLost() }.getOrNull()
         purgeExpired()
+    }
+
+    /** Notes the moment first, so a file that could not be deleted is given up again at the next unlock. */
+    private fun giveUp(): LostBook {
+        val lost = LostBook(clock.now(), told = false)
+        runCatching {
+            store.writeLost(lost)
+            store.delete()
+        }
+        return lost
+    }
+
+    /** The user read that the book was lost: it is not said again. */
+    public fun toldLost(): Unit = synchronized(this) {
+        val lost = mutableLost.value?.takeIf { !it.told } ?: return
+        mutableLost.value = lost.copy(told = true)
+        runCatching { store.writeLost(mutableLost.value) }
     }
 
     public fun close(): Unit = synchronized(this) {
         mutableBook.value?.wipe()
         mutableBook.value = null
+        mutableLost.value = null
         key?.wipe()
         key = null
     }
@@ -179,13 +210,17 @@ public class ShareRequests(
         /** For no request of this phone: closed, expired, or made on another phone. */
         public data object NotHere : Opened
 
+        /** For no request of this phone, which gave up its book in the last week: most likely for one lost with it. */
+        public data object Lost : Opened
+
         /** Changed on the way, or not really for that request. */
         public data object Broken : Opened
     }
 
     public fun open(answer: ShareAnswer): Opened = synchronized(this) {
         purgeExpired()
-        val mine = mutableBook.value?.mine?.firstOrNull { it.request.id == answer.requestId } ?: return Opened.NotHere
+        val mine = mutableBook.value?.mine?.firstOrNull { it.request.id == answer.requestId }
+            ?: return if (mutableLost.value != null) Opened.Lost else Opened.NotHere
         try {
             Opened.Entries(mine, Answers.open(answer, mine))
         } catch (_: MalformedShareException) {
@@ -296,6 +331,11 @@ public class ShareRequests(
     private fun purgeExpired() {
         val book = mutableBook.value ?: return
         val now = clock.now()
+        // A request lives a week at most: after that no answer can be for one lost with the book.
+        if (mutableLost.value?.let { it.at + ShareRequest.MAX_VALIDITY + CLOCK_SKEW <= now } == true) {
+            mutableLost.value = null
+            runCatching { store.writeLost(null) }
+        }
         val (expired, mine) = book.mine.partition { it.request.isExpired(now) }
         val next = book.with(
             mine = mine,

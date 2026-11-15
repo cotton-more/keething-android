@@ -65,6 +65,9 @@ internal class ReceivedModel(
         /** For no request of this phone (closed, expired, another phone's). */
         data object NotHere : Opening
 
+        /** For no request of this phone, which gave up its unreadable requests in the last week (keething-spec sharing.book AC3). */
+        data object Lost : Opening
+
         /** Changed on the way, or not really for that request. */
         data object Broken : Opening
     }
@@ -161,6 +164,7 @@ internal class ReceivedModel(
         return when (opened) {
             is ShareRequests.Opened.Entries -> Opening.Opened(opened.request, opened.payload)
             ShareRequests.Opened.NotHere -> Opening.NotHere
+            ShareRequests.Opened.Lost -> Opening.Lost
             ShareRequests.Opened.Broken -> Opening.Broken
         }
     }
