@@ -1511,7 +1511,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   such links, an install icon when several do, none when none does). The field's name shows above only when it is
   the user's own (not `URL`, `URL 2`, `KP2A_URL…`); nothing is fetched or written. Every row that copies on a tap
   has the same copy button (username, URL, code, custom fields alike). **Edit** is a button at the bottom
-  right, in reach of the thumb; the bar's ⋮ holds History, Move to group…, Send to a request (§10) and Move to the
+  right, in reach of the thumb; the bar's ⋮ holds Show all or Hide all (while the card has a masked row: every one shown if any is masked,
+  else all masked again; keething-spec card.masking AC4), History, Move to group…, Send to a request (§10) and Move to the
   recycle bin (at once, the list offering Undo). **Move to group…** (keething-spec groups.entry-group AC2 from the
   card, `plans/done/android-groups.md` G6): the group picker titled "Move to group", the entry's group checked, new groups
   offered as in the editor ("made with the move"); a group chosen moves the entry at once through the checked save

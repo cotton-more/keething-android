@@ -140,6 +140,11 @@ internal class EntryCardViewModel(
         reveal.value = reveal.value.toggle(rowId)
     }
 
+    /** The card's Show all / Hide all (keething-spec card.masking AC4): every masked row shown if any is, else all masked. */
+    fun toggleAll() {
+        content.value?.let { reveal.value = reveal.value.toggleAll(it.card.rows) }
+    }
+
     /** A payment card's eye: its number and CVC shown together, or masked together. */
     fun toggleRows(rows: List<FieldRow>) {
         reveal.value = reveal.value.toggleAll(rows)

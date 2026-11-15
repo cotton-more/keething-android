@@ -55,6 +55,8 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -348,7 +350,14 @@ internal fun EntryCardScreen(
                             Text("Restore")
                         }
                     }
+                    val concealed = content.card.rows.filter { it.isConcealed && !it.isEmpty }
                     CardMenu(
+                        reveal = when {
+                            concealed.isEmpty() -> null
+                            concealed.any { !state.reveal.isRevealed(it.id) } -> true
+                            else -> false
+                        },
+                        onToggleAll = model::toggleAll,
                         inRecycleBin = content.inRecycleBin,
                         forGood = content.inRecycleBin || content.binTurnedOff,
                         onHistory = onHistory,
@@ -408,11 +417,14 @@ internal fun EntryCardScreen(
 }
 
 /**
+ * Show all or Hide all ([reveal]: true shows, false hides, null when nothing is masked; keething-spec card.masking AC4),
  * History, Move to group… (plans/android-groups.md G6), Send, Move to the recycle bin (at once; the list offers Undo).
  * In the bin: History and Delete for good…; with the bin turned off ([forGood]), Delete for good… for the bin.
  */
 @Composable
 private fun CardMenu(
+    reveal: Boolean?,
+    onToggleAll: () -> Unit,
     inRecycleBin: Boolean,
     forGood: Boolean,
     onHistory: () -> Unit,
@@ -436,6 +448,11 @@ private fun CardMenu(
                         act()
                     },
                 )
+            }
+            when (reveal) {
+                true -> item("Show all", Icons.Rounded.Visibility, onToggleAll)
+                false -> item("Hide all", Icons.Rounded.VisibilityOff, onToggleAll)
+                null -> {}
             }
             item("History", Icons.Rounded.History, onHistory)
             if (!inRecycleBin) {
