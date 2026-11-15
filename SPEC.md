@@ -1529,7 +1529,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
   brightness, black on white, for another phone to scan; nothing leaves the device; "Show the password"
   adds it as coloured text; a password too long for one code says so), **Large type** (full screen, each
-  character in its own numbered cell, big, monospaced and coloured, a space shown as `␣`, for typing it on a
+  character in its own numbered cell, big, monospaced and coloured, a space shown as `␣`, a line break `↵`, a
+  tab `⇥`, an emoji with its modifiers or a letter with its accents one character, for typing it on a
   TV or another computer), **Share…** (the system share sheet with the password as plain text, after a
   warning that it goes to another app and maybe its cloud and history; the warning offers Show as QR). Both
   full-screen views read the password from the vault by the entry's id, close on a lock, and are left with

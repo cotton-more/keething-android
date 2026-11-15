@@ -69,6 +69,7 @@ import dev.keething.card.AddressCheck
 import dev.keething.card.CryptoAddress
 import dev.keething.card.CryptoNetwork
 import dev.keething.card.EntryCardBuilder
+import dev.keething.card.LargeTypeCell
 import dev.keething.card.SeedPhrase
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.android.theme.MonospaceFamily
@@ -314,7 +315,7 @@ private fun AddressQrCode(address: String, onCopy: () -> Unit) {
 /** Each character in its own cell, numbered, so a long password is typed without losing the place. */
 @Composable
 private fun LargeType(password: String) {
-    val characters = remember(password) { characters(password) }
+    val cells = remember(password) { LargeTypeCell.of(password) }
     val digit = MaterialTheme.extraColors.digit
     val symbol = MaterialTheme.extraColors.symbol
     FlowRow(
@@ -322,8 +323,7 @@ private fun LargeType(password: String) {
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        characters.forEachIndexed { index, character ->
-            val space = character.isBlank()
+        cells.forEach { cell ->
             Column(
                 Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -333,30 +333,20 @@ private fun LargeType(password: String) {
             ) {
                 Box(Modifier.widthIn(min = 28.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        if (space) "␣" else character,
+                        cell.text,
                         fontFamily = MonospaceFamily,
                         fontSize = 40.sp,
                         lineHeight = 48.sp,
-                        color = when {
-                            space -> MaterialTheme.colorScheme.onSurfaceVariant
-                            character.first().isDigit() -> digit
-                            character.first().isLetter() -> MaterialTheme.colorScheme.onSurface
-                            else -> symbol
+                        color = when (cell.kind) {
+                            LargeTypeCell.Kind.SPACE -> MaterialTheme.colorScheme.onSurfaceVariant
+                            LargeTypeCell.Kind.DIGIT -> digit
+                            LargeTypeCell.Kind.LETTER -> MaterialTheme.colorScheme.onSurface
+                            LargeTypeCell.Kind.SYMBOL -> symbol
                         },
                     )
                 }
-                Text("${index + 1}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${cell.number}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-    }
-}
-
-/** The characters of [text], a surrogate pair (an emoji) kept as one. */
-private fun characters(text: String): List<String> = buildList {
-    var index = 0
-    while (index < text.length) {
-        val length = Character.charCount(text.codePointAt(index))
-        add(text.substring(index, index + length))
-        index += length
     }
 }
