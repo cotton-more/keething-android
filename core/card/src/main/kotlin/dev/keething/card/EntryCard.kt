@@ -49,11 +49,14 @@ public data class CardSection(val id: String, val kind: Kind, val title: String?
     }
 }
 
-/** KeePass's own expiry of the entry (its banner on the card). */
+/** KeePass's own expiry of the entry (its banner on the card), [hint] in the words of a field's (card.dates AC8). */
 public sealed interface EntryExpiry {
-    public data class Expired(val at: Instant) : EntryExpiry
+    public val at: Instant
+    public val hint: ExpiryHint
 
-    public data class Expires(val at: Instant) : EntryExpiry
+    public data class Expired(override val at: Instant, override val hint: ExpiryHint) : EntryExpiry
+
+    public data class Expires(override val at: Instant, override val hint: ExpiryHint) : EntryExpiry
 }
 
 public data class EntryCard(
@@ -167,8 +170,11 @@ public object EntryCardBuilder {
         }
         if (attachments.isNotEmpty()) sections += CardSection("attachments", CardSection.Kind.Attachments, null, attachments)
 
-        val expiry = entry.expiryTime?.takeIf { entry.expires }?.let {
-            if (entry.isExpired(now)) EntryExpiry.Expired(it) else EntryExpiry.Expires(it)
+        val expiry = entry.expiryTime?.takeIf { entry.expires }?.let { at ->
+            DeadlineList.entryExpiryDate(at)?.let { date ->
+                val hint = DeadlineList.entryExpiryHint(date, entry.isExpired(now), now)
+                if (entry.isExpired(now)) EntryExpiry.Expired(at, hint) else EntryExpiry.Expires(at, hint)
+            }
         }
         // KeePass's own expiry has its banner.
         val pressing = DeadlineList.deadlines(entry, context.interpreter, now)

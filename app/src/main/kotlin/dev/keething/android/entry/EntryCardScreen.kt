@@ -655,8 +655,9 @@ private fun Banners(content: CardContent) {
         Banner(Icons.Rounded.Delete, "In the recycle bin", problem = false)
     }
     when (val expiry = card.entryExpiry) {
-        is EntryExpiry.Expired -> Banner(Icons.Rounded.ErrorOutline, "Expired on ${dates.format(expiry.at)}", problem = true)
-        is EntryExpiry.Expires -> Banner(Icons.Rounded.Schedule, "Expires on ${dates.format(expiry.at)}", problem = false)
+        // The same words as a field's end date (keething-spec card.dates AC8), then the day.
+        is EntryExpiry.Expired -> Banner(Icons.Rounded.ErrorOutline, "${expiry.hint.text} · ${dates.format(expiry.at)}", problem = true)
+        is EntryExpiry.Expires -> Banner(Icons.Rounded.Schedule, "${expiry.hint.text} · ${dates.format(expiry.at)}", problem = false)
         null -> {}
     }
     // A payment card's own expiry is a chip under its face.

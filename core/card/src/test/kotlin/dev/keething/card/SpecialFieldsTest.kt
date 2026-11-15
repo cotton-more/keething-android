@@ -220,6 +220,7 @@ class SpecialFieldsTest {
     @Test
     fun theCardsBannerIsItsMostPressingFieldDeadline() {
         assertEquals("VERTRAG › Ende", build(passport, deadlineTypes).deadline?.label)
+        assertEquals("Expired 45 days ago", build(passport, deadlineTypes).deadline?.hint?.text, "the banner says it as the field does")
         assertNull(build(contract, deadlineTypes).deadline, "KeePass's own expiry has its own banner; the field is far off")
     }
 

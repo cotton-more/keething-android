@@ -319,11 +319,7 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
 
     private fun rowDeadline(deadline: Deadline): RowDeadline {
         val hint = deadline.hint
-        val text = when {
-            deadline.source != Deadline.Source.EntryExpiry -> "${deadline.label.substringAfterLast(" › ")} · ${hint.text}"
-            hint.status == ExpiryHint.Status.EXPIRED -> "Expired ${hint.text}"
-            else -> "Expires ${hint.text}"
-        }
+        val text = if (deadline.source != Deadline.Source.EntryExpiry) "${deadline.label.substringAfterLast(" › ")} · ${hint.text}" else hint.text
         return RowDeadline(text, hint.status)
     }
 }

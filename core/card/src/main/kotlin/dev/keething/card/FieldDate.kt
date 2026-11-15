@@ -35,7 +35,10 @@ public data class CalendarDate(val year: Int, val month: Int, val day: Int? = nu
 /** How an end date stands today. */
 public data class ExpiryHint(
     val status: Status,
-    /** Neutral, as the field's own name says what ends: "in 5 months", "today", "45 days ago". */
+    /**
+     * The phrase, the same wherever an end date's status is said (keething-spec card.dates AC6, AC8): "Expires in 5
+     * months", "Expires today", "Expired 45 days ago".
+     */
     val text: String,
 ) {
     public enum class Status { EXPIRED, SOON, VALID }
@@ -66,13 +69,13 @@ public data class FieldDate(val date: CalendarDate, val isStandard: Boolean) {
         val end = date.lastDay
         val days = ChronoUnit.DAYS.between(today, end)
         if (days < 0) {
-            return ExpiryHint(ExpiryHint.Status.EXPIRED, if (days == -1L) "yesterday" else distance(end, today, -days) + " ago")
+            return ExpiryHint(ExpiryHint.Status.EXPIRED, if (days == -1L) "Expired yesterday" else "Expired " + distance(end, today, -days) + " ago")
         }
         val status = if (days <= ExpiryHint.SOON_DAYS) ExpiryHint.Status.SOON else ExpiryHint.Status.VALID
         return when (days) {
-            0L -> ExpiryHint(status, "today")
-            1L -> ExpiryHint(status, "tomorrow")
-            else -> ExpiryHint(status, "in " + distance(today, end, days))
+            0L -> ExpiryHint(status, "Expires today")
+            1L -> ExpiryHint(status, "Expires tomorrow")
+            else -> ExpiryHint(status, "Expires in " + distance(today, end, days))
         }
     }
 

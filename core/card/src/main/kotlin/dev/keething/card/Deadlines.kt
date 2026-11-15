@@ -55,15 +55,23 @@ public object DeadlineList {
         else -> null
     }
 
+    internal fun entryExpiryDate(expiry: Instant): CalendarDate? =
+        expiry.atZone(ZoneOffset.UTC).let { CalendarDate.valid(it.year, it.monthValue, it.dayOfMonth) }
+
+    /** KeePass's own expiry in a field's words (card.dates AC8); past its time on its last day, "Expired today". */
+    internal fun entryExpiryHint(date: CalendarDate, expired: Boolean, now: Instant): ExpiryHint {
+        val hint = FieldDate(date, true).expiry(now)
+        return if (expired && hint.status != ExpiryHint.Status.EXPIRED) ExpiryHint(ExpiryHint.Status.EXPIRED, "Expired today") else hint
+    }
+
     internal fun deadlines(entry: Entry, interpreter: FieldInterpreter, now: Instant): List<Deadline> {
         val out = mutableListOf<Deadline>()
         val expiry = entry.expiryTime
         if (entry.expires && expiry != null) {
-            val utc = expiry.atZone(ZoneOffset.UTC)
-            CalendarDate.valid(utc.year, utc.monthValue, utc.dayOfMonth)?.let { date ->
+            entryExpiryDate(expiry)?.let { date ->
                 out += Deadline(
                     "${entry.id}/expiry", Deadline.Source.EntryExpiry, entry.id, entry.displayTitle, entry.groupPath,
-                    "Entry expires", date, FieldDate(date, true).expiry(now),
+                    "Entry expires", date, entryExpiryHint(date, entry.isExpired(now), now),
                 )
             }
         }

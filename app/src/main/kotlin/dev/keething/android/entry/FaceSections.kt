@@ -344,7 +344,7 @@ internal fun ExpiryChip(hint: ExpiryHint) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Icon(Icons.Rounded.Schedule, contentDescription = null, Modifier.size(16.dp), tint = content)
-        Text(if (expired) "Expired ${hint.text}" else "Expires ${hint.text}", style = MaterialTheme.typography.labelLarge, color = content)
+        Text(hint.text, style = MaterialTheme.typography.labelLarge, color = content)
     }
 }
 

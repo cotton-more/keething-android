@@ -1490,7 +1490,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   first, as on its card).
   A row's code is a pill beside the title, or under it where the pill would leave
   the title less than about seven and a half characters (large text on a narrow phone).
-  A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. A
+  A row also shows the paperclip of attachments and a date that has ended or ends within 90 days. An end
+  date's status has one phrase wherever it shows (keething-spec card.dates AC6, AC8): the field's line on the
+  card, the card's deadline banner and the row after the field's name ("gültig bis · Expires in 36 days"), the
+  chip under a card's or a document's face, KeePass's own expiry (its banner then the day, "Expired yesterday ·
+  14 Jan 2027"; past its time on its last day "Expired today"); days below 60, months below 24, then years
+  ("Expires today", "Expires tomorrow", "Expires in 5 months", "Expired 45 days ago"). A
   payment card's, a Wi-Fi network's, a bank account's, an identity document's, an SSH login's or a crypto wallet's
   row (its fields typed, §6.3) shows the small face instead of the icon (a card in its network's colours, the label
   of a router, a bank with the country's flag at its corner, a small paper document, a terminal's `>_`, a small steel

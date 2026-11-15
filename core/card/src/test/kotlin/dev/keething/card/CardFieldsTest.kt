@@ -96,16 +96,17 @@ class CardFieldsTest {
     @Test
     fun theStatusTextCountsDaysThenMonthsThenYears() {
         fun text(value: String) = FieldDate.parse(value, typed = false)?.expiry(now)?.text
-        assertEquals("today", text("2027-01-15"))
-        assertEquals("tomorrow", text("2027-01-16"))
-        assertEquals("in 36 days", text("2027-02-20"))
-        assertEquals("in 5 months", text("2027-06-20"))
-        assertEquals("in 4 years", text("2031-05-01"))
-        assertEquals("yesterday", text("2027-01-14"))
-        assertEquals("45 days ago", text("2026-12-01"))
-        assertEquals("2 years ago", text("2025-01-01"))
-        assertEquals("in 12 months", text("2028-01-15"))
-        assertEquals("in 2 months", text("2027-03-20"))
+        assertEquals("Expires today", text("2027-01-15"))
+        assertEquals("Expires tomorrow", text("2027-01-16"))
+        assertEquals("Expires in 36 days", text("2027-02-20"))
+        assertEquals("Expires in 5 months", text("2027-06-20"))
+        assertEquals("Expires in 4 years", text("2031-05-01"))
+        assertEquals("Expired yesterday", text("2027-01-14"))
+        assertEquals("Expired 45 days ago", text("2026-12-01"))
+        assertEquals("Expired 2 years ago", text("2025-01-01"))
+        assertEquals("Expires in 12 months", text("2028-01-15"))
+        assertEquals("Expires in 2 months", text("2027-03-20"))
+        assertEquals("Expired 5 months ago", text("2026-08-01"))
     }
 
     @Test

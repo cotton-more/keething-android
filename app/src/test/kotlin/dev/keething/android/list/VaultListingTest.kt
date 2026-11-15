@@ -194,7 +194,7 @@ class VaultListingTest {
         val listing = VaultListing(Vault(entries = listOf(passport, expired, bahn)), now, Collator.getInstance(Locale.ENGLISH))
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
 
-        assertEquals(RowDeadline("expires · in 23 days", ExpiryHint.Status.SOON), rows.getValue("pp").deadline)
+        assertEquals(RowDeadline("expires · Expires in 23 days", ExpiryHint.Status.SOON), rows.getValue("pp").deadline)
         assertEquals(RowDeadline("Expired yesterday", ExpiryHint.Status.EXPIRED), rows.getValue("x").deadline)
         assertNull(rows.getValue("db").deadline)
     }

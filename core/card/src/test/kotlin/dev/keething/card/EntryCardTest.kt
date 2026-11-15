@@ -100,8 +100,9 @@ class EntryCardTest {
         val day = Duration.ofDays(1)
         assertNull(build(Entry("1")).entryExpiry)
         assertNull(build(Entry("1", expires = true)).entryExpiry)
-        assertEquals(EntryExpiry.Expired(now - day), build(Entry("1", expires = true, expiryTime = now - day)).entryExpiry)
-        assertEquals(EntryExpiry.Expires(now + day), build(Entry("1", expires = true, expiryTime = now + day)).entryExpiry)
+        assertEquals(EntryExpiry.Expired(now - day, ExpiryHint(ExpiryHint.Status.EXPIRED, "Expired yesterday")), build(Entry("1", expires = true, expiryTime = now - day)).entryExpiry)
+        assertEquals(EntryExpiry.Expires(now + day, ExpiryHint(ExpiryHint.Status.SOON, "Expires tomorrow")), build(Entry("1", expires = true, expiryTime = now + day)).entryExpiry)
+        assertEquals("Expired today", build(Entry("1", expires = true, expiryTime = now - Duration.ofSeconds(1))).entryExpiry?.hint?.text, "past its time on its last day")
     }
 
     // Reveal state
