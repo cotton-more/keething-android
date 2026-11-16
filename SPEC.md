@@ -1585,7 +1585,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     letters, else the BIC's fifth and sixth, else a Russian БИК, each of which says it for sure; a US routing number or a
     Chinese bank code alone does not, and then the chip is Antarctica's flag and "Country unknown", as the list's
     small face; never a guess), the holder large, the number in the accent's monospace (an IBAN in groups of four, its country
-    and check digits in the accent; a Russian 20-digit account as printed, `40817 810 5 0000 1234567`), then the
+    and check digits in the accent; a Russian 20-digit account as printed, `40817 810 5 0000 1234567`) on one line,
+    smaller rather than wrapped (down to 13 sp, where the longest IBAN fits) and cut with "…" only past that
+    (keething-spec types.bank-account AC10, the owner 2026-11-16), then the
     BIC, the bank code ("BIK" for a Russian БИК, else "BANK CODE"), the correspondent account and the bank as
     small lines. A tap copies a line; the number and the correspondent account copy **without spaces** (bank forms
     often refuse them or cut them off), and say so in the notice. **Copy IBAN** / **Copy account** copies the

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AccountBalance
@@ -109,19 +110,25 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                     StickerLine(account.numberLabel, number, actions) {
                         val text = if (shown) account.numberShown ?: number?.let(reveal::displayValue).orEmpty() else RevealState.MASK
                         val accent = MaterialTheme.extraColors.digit
+                        // One line, never wrapped (keething-spec types.bank-account AC2): smaller first, down to 13 sp,
+                        // where the longest IBAN (34 characters, 42 grouped) fits a phone's face; then cut with "…".
                         Text(
                             buildAnnotatedString {
                                 val groups = text.split(' ')
                                 groups.forEachIndexed { i, group ->
                                     if (i > 0) append(' ')
-                                    // An IBAN's country and check digits in the accent.
-                                    if (i == 0 && shown && account.numberLabel == "IBAN") withStyle(SpanStyle(color = accent)) { append(group) } else append(group)
+                                    // An IBAN's country and check digits in the accent; not a whole ungrouped value that is no IBAN.
+                                    if (i == 0 && groups.size > 1 && shown && account.numberLabel == "IBAN") withStyle(SpanStyle(color = accent)) { append(group) } else append(group)
                                 }
                             },
                             if (shown) Modifier else Modifier.spokenMasked(text),
                             style = MaterialTheme.typography.titleLarge,
                             fontFamily = MonospaceFamily,
                             letterSpacing = 0.5.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            autoSize = TextAutoSize.StepBased(minFontSize = 13.sp, maxFontSize = MaterialTheme.typography.titleLarge.fontSize, stepSize = 0.5.sp),
                         )
                     }
                     if (account.items.isNotEmpty()) {
