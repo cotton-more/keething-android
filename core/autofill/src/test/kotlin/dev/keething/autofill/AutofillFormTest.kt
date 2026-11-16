@@ -49,9 +49,20 @@ class AutofillFormTest {
 
     @Test
     fun aPhoneFieldIsTheUsernameOnlyWhenNothingElseIs() {
-        val phone = FormField(0, inputType = 3)
+        val phone = FormField(0, inputType = 3, hint = "Telefonnummer")
+        assertEquals(listOf(0), AutofillForm.parse(app, listOf(phone), own, signed)!!.usernames)
         assertEquals(listOf(0), AutofillForm.parse(app, listOf(phone, password(1)), own, signed)!!.usernames)
         assertEquals(listOf(1), AutofillForm.parse(app, listOf(phone, text(1, "email"), password(2)), own, signed)!!.usernames)
+    }
+
+    // spec: autofill.form/AC5
+    @Test
+    fun anAmountOnAPhoneKeypadIsOfferedNothing() {
+        // A bank's transfer: the amount typed on a phone keypad, a note.
+        val amount = FormField(0, inputType = 3, idEntry = "amount", isFocused = true)
+        assertNull(AutofillForm.parse(app, listOf(amount, text(1, hint = "Notiz hinzufügen")), own, signed))
+        // Before a password, an unnamed keypad field is still the username.
+        assertEquals(listOf(0), AutofillForm.parse(app, listOf(FormField(0, inputType = 3), password(1)), own, signed)!!.usernames)
     }
 
     @Test

@@ -65,7 +65,10 @@ class FieldClassifierTest {
         assertEquals(FieldKind.USERNAME, kind(inputType = TEXT or 0x20))
         assertEquals(FieldKind.USERNAME, kind(inputType = TEXT or 0xd0))
         assertEquals(FieldKind.IGNORED, kind(inputType = TEXT or 0xb0), "a filter")
-        assertEquals(FieldKind.PHONE, kind(inputType = 3))
+        assertEquals(FieldKind.PHONE, kind(inputType = 3, id = "phone_number"))
+        assertEquals(FieldKind.PHONE, kind(inputType = 3, hint = "Tel."))
+        assertEquals(FieldKind.PLAIN, kind(inputType = 3), "a phone keypad alone: an amount, a quantity")
+        assertEquals(FieldKind.PLAIN, kind(inputType = 3, id = "amount_input"))
     }
 
     @Test

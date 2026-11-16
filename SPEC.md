@@ -2226,7 +2226,9 @@ service, the screen it opens and the system's view structure are in `app/autofil
   `emailAddress`, `smsOTPCode`, …), then the HTML `autocomplete` and `type`, then the input type, last the
   words in the view's id, its hint and the HTML names, in English, German and Russian ("Passwort
   wiederholen", "Код подтверждения"). A visible-password input type counts only with a password word (apps
-  use it to keep the keyboard from suggesting words). A form has usernames (or, when none, the phone number,
+  use it to keep the keyboard from suggesting words), a phone keypad only with a phone word ("Telefonnummer",
+  `phone`, "Tel."): apps take it for an amount too (a bank's transfer was offered "Unlock Keething", the owner
+  2026-11-16). A form has usernames (or, when none, the phone number,
   or the unnamed text field right before the first password), passwords and codes. Nothing is offered on a
   sign-up (only new passwords: it gets "Generate a password" and the save offer, below), on Keething's own
   screens, or on a screen without such fields; asking for

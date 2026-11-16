@@ -86,7 +86,8 @@ internal object FieldClassifier {
                 else -> null
             }
             TYPE_CLASS_NUMBER -> if (variation == TYPE_NUMBER_VARIATION_PASSWORD) words.passwordKind() else null
-            TYPE_CLASS_PHONE -> FieldKind.PHONE
+            // A phone keypad alone is no phone number: apps ask for an amount or a quantity on it. Its words decide.
+            TYPE_CLASS_PHONE -> if (words.sayPhone) FieldKind.PHONE else null
             else -> null
         }
     }
@@ -183,6 +184,6 @@ internal class Words private constructor(private val text: String) {
             "user", "login", "log ?on", "e ?mail", "\\bmail\\b", "account", "benutzer", "anmeldename", "kunden", "customer",
             "member", "identifier", "логин", "почт", "пользовател", "учетн", "учётн",
         )
-        private val PHONE = words("phone", "mobile", "handy", "rufnummer", "telefon", "телефон")
+        private val PHONE = words("phone", "mobile", "handy", "rufnummer", "telefon", "\\btel\\b", "телефон")
     }
 }
