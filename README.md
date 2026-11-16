@@ -7,6 +7,12 @@ No account, no network permission, nothing collected. Free and open source.
 It is for people who already keep their passwords in KeePass (KeePassXC on the desktop, the file synced by
 Syncthing, Nextcloud, a NAS, …) and want an Android client that is pleasant to use.
 
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="260" alt="The list of entries">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="260" alt="A crypto wallet's recovery phrase, checked">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="260" alt="A sharing request with its six pictures">
+</p>
+
 ## What it does
 
 - Opens your KeePass databases from any folder you choose, several side by side, and follows the file when your sync

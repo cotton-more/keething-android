@@ -200,6 +200,37 @@ tasks:
         [[ "$out" == /* ]] || out="{{.USER_WORKING_DIR}}/$out"
         ./gradlew -q --console=plain :core:vault:makeWalletDatabase -Poutput="$out"
 
+  screens:database:
+    desc: "The listing's showcase databases, Personal.kdbx and Family.kdbx, written by the phone's core: task screens:database -- <new folder> (password pw; needs keepassxc-cli)"
+    cmds:
+      - |
+        out="{{.CLI_ARGS}}"
+        [[ "$out" == /* ]] || out="{{.USER_WORKING_DIR}}/$out"
+        ./gradlew -q --console=plain :core:vault:makeShowcaseDatabase -Poutput="$out"
+
+  screens:demo:
+    desc: "The phone's status bar as the listing shows it (9:41, full battery and Wi-Fi, nothing else): Android's demo mode; task screens:demo-off ends it"
+    cmds:
+      - adb shell settings put global sysui_demo_allowed 1
+      - adb shell am broadcast -a com.android.systemui.demo -e command enter
+      - adb shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 0941
+      - adb shell am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false
+      - adb shell am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4 -e fully true -e mobile hide
+      - adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false
+      - adb shell am broadcast -a com.android.systemui.demo -e command status -e zen hide -e mute hide -e volume hide -e bluetooth hide -e location hide -e alarm hide -e sync hide
+
+  screens:demo-off:
+    desc: The phone's status bar back to what it really shows
+    cmds:
+      - adb shell am broadcast -a com.android.systemui.demo -e command exit
+
+  screens:frame:
+    desc: "The listing's images from the phone's screenshots: task screens:frame -- <folder> (tools/screens/frame.py; needs Google Chrome)"
+    requires:
+      vars: [CLI_ARGS]
+    cmds:
+      - python3 tools/screens/frame.py {{.CLI_ARGS}}
+
   app-address:database:
     desc: "The card's app addresses' test database, written by the phone's core: task app-address:database -- <new.kdbx> (password pw)"
     cmds:

@@ -293,3 +293,38 @@ their names) and tapped on the other one.
 An answer of several codes is saved as `keething-answer-1-of-2.png` and so on: hand them over one after the other.
 `keepassxc-cli show -s --all` on the receiving database (pulled to the Mac) shows what was saved. The camera
 needs a hand: point the phone at the other screen.
+
+## The listing's screenshots
+
+The listing (`fastlane/metadata/android/en-US`: its texts, eight framed screenshots, the feature graphic and the icon)
+is made from fictitious databases on the test phone, debug build (a release build's `FLAG_SECURE` blanks every
+screenshot), and framed on the Mac. For each release that changes what they show:
+
+    task screens:database -- showcase            # Personal.kdbx and Family.kdbx, password pw (needs keepassxc-cli)
+    adb shell mkdir -p /sdcard/Documents/Showcase && adb push showcase/*.kdbx /sdcard/Documents/Showcase/
+    adb shell run-as dev.keething.android mkdir -p files
+    adb shell run-as dev.keething.android touch files/allow-screenshots   # the debug build then allows them
+    task screens:demo                             # 9:41, full battery; task screens:demo-off afterwards
+
+The app's colours follow the phone's palette: the icon's blue is set without changing the wallpaper by
+
+    adb shell "settings put secure theme_customization_overlay_packages '{\"android.theme.customization.color_source\":\"preset\",\"android.theme.customization.system_palette\":\"2F63E0\",\"android.theme.customization.accent_color\":\"2F63E0\",\"android.theme.customization.theme_style\":\"TONAL_SPOT\"}'"
+
+Open the folder in the app (Open a database…, Documents/Showcase), both databases, and take each screenshot with
+`adb exec-out screencap -p > <folder>/<name>.png` under the names in `tools/screens/frame.py` (`SHOTS`):
+
+1. `1-list.png`: Personal's list, light, from the top.
+2. `2-card.png`: Alder Bank's card, the password shown.
+3. `3-card.png`: Alder Bank Visa.
+4. `4-wallet.png`: Bitcoin cold wallet, the phrase shown.
+5. `5-autofill.png`: Keething as the autofill service, `python3 -m http.server 8000 --bind 127.0.0.1 --directory
+   tools/screens/pages` and `adb reverse tcp:8000 tcp:8000`, `http://localhost:8000` in Firefox, the Email field
+   tapped: the keyboard offers Fjordmail (the entry's `KP2A_URL`). The frame leaves Firefox's address bar out.
+6. `6-codes.png`: the Codes view, early in a 30 s period, so that the codes are not fading.
+7. `7-share.png`: Sharing › Ask for an entry, a name and a reason, Create the request.
+8. `8-sync.png`: dark theme (`adb shell cmd uimode night yes`), both databases open, a copy of Personal.kdbx with
+   an entry added by keepassxc-cli pushed beside it as `Personal.sync-conflict-<date>-<time>-7ZKQ3RA.kdbx`: the list
+   from the top, its banner.
+
+Then `task screens:frame -- <folder>` draws them into the listing (Google Chrome headless, 1080 × 1920: Google Play
+takes nothing longer than twice its width) with the feature graphic and the icon, from the launcher's own layers.

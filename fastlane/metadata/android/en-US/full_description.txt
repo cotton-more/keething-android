@@ -1,0 +1,34 @@
+Keething is KeePass on Android that looks like it was made this year.
+
+Your passwords stay in your own .kdbx file. Keep it in a folder that Syncthing, Nextcloud or any sync app keeps up to date: Keething follows every change your sync tool delivers and never loses the file. No account, no network permission, nothing collected. Free and open source.
+
+<b>Why Keething</b>
+• Safe with sync. Keething notices when your sync app replaces the file and saves beside it safely. When Syncthing keeps two versions, you choose one on the phone. Backups of each database stay on the phone, ready to restore.
+• Made to be read. Entries are laid out cleanly, passwords in a clear font with digits and symbols coloured, one-time codes live with their countdown.
+• Private by design. The app cannot connect to the internet. Copied values are hidden from the clipboard preview and cleared after 30 seconds.
+
+<b>Entries that know what they are</b>
+• Payment cards drawn as cards, bank accounts by their IBAN, passports and IDs with their expiry, Wi-Fi networks, SSH logins.
+• Crypto wallets: the recovery phrase is checked word by word against BIP-39 and never copied: no copy button, no QR code, no share. The receiving address shows its network, its checksum and a QR code to receive.
+• Notes, custom fields, attachments, tags, and each entry's history with a way back to an earlier version.
+
+<b>Everyday use</b>
+• Fingerprint unlock.
+• Search as you type, also by group (@work) and tag (#finance).
+• All your two-factor codes in one place. Add one by pasting it or scanning its QR code.
+• Autofill in apps and browsers, with "Save this password?" after you sign in.
+• A password generator.
+• Several databases side by side, key files, and new databases made on the phone.
+
+<b>Sharing</b>
+• Ask someone for an entry and receive it encrypted for your phone alone, through any messenger, by mail, or as a QR code scanned in person. No server in between. Six pictures, read out over a call, prove the request is yours.
+• Show a password as a QR code or in large type, to type it on another device.
+
+<b>Works with your KeePass apps</b>
+KDBX 4 (AES-256 or ChaCha20, Argon2 or AES-KDF), the format of KeePassXC, KeePass and Strongbox: the same file stays yours on every device. A KDBX 3.1 database (KeePassDX makes new ones so) is shown, and upgraded to KDBX 4 when you agree, with the old file kept beside it.
+
+<b>Not yet</b>
+Twofish, hardware keys such as YubiKey, Android before 14, and languages other than English.
+
+<b>Open source</b>
+GPL-3.0-or-later. The build is reproducible: the APK is the one the published source builds. Source, issues and the security policy: https://github.com/cotton-more/keething-android

@@ -79,6 +79,14 @@ tasks.register<JavaExec>("makeWalletDatabase") {
     args(providers.gradleProperty("output").getOrElse(""))
 }
 
+// The listing's fictitious showcase databases (screenshots), written by the phone's core: `task screens:database -- <new folder>`.
+tasks.register<JavaExec>("makeShowcaseDatabase") {
+    description = "The listing's fictitious showcase databases, Personal and Family (password pw), for its screenshots"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.keething.vault.probe.MakeShowcaseDatabaseKt")
+    args(providers.gradleProperty("output").getOrElse(""))
+}
+
 // The card's app addresses' fictitious test database, written by the phone's core: `task app-address:database -- <new.kdbx>`.
 tasks.register<JavaExec>("makeAppAddressDatabase") {
     description = "A new fictitious database of app addresses (password pw) for the phone's checks"

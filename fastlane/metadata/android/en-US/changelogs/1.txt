@@ -1,0 +1,5 @@
+The first public release.
+• KeePass databases (KDBX 4, KDBX 3.1 upgraded on request) in any folder, followed as your sync app changes them.
+• Fingerprint unlock, search, entry cards, one-time codes, autofill with "Save this password?".
+• Payment cards, bank accounts, IDs, Wi-Fi, SSH logins and crypto wallets shown as what they are.
+• Encrypted sharing between phones, backups and conflict copies resolved on the phone.
