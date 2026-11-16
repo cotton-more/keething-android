@@ -21,7 +21,7 @@ class SiteMatchTest {
         assertEquals("gosuslugi.ru", domain("gosuslugi.ru"))
         assertEquals("example.co.uk", domain("a.b.example.co.uk"))
         assertEquals("example.com.ru", domain("shop.example.com.ru"))
-        assertEquals("c24.de", domain("login.c24.de"))
+        assertEquals("example.de", domain("login.example.de"))
     }
 
     @Test

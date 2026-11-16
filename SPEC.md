@@ -14,10 +14,10 @@ reads and writes: unlock with a fingerprint, search, view an entry with its cust
 copy fields and one-time codes, edit and create entries, attachments, and autofill in apps and browsers —
 with the system's "save this password?" offer after a login or sign-up.
 
-Owner's context: one user, one database (`1Password.kdbx`, ~35 MB, ~1900 entries in ~14 groups, imported from
-1Password, many custom fields, some one-time codes and attachments), password only (no key file, no
-YubiKey), **synchronised with Syncthing** between the Mac and the phone. Phone: **Pixel 11 Pro, Android 17**;
-checks on a phone run on a separate test phone (Pixel 6, Android 17).
+Written first for one person's database (about 35 MB, some 1,900 entries in a dozen groups, imported from
+1Password: many custom fields, some one-time codes and attachments), password only (no key file, no
+YubiKey), **synchronised with Syncthing** between a Mac and a phone on Android 17; checks on a phone run on a
+separate test phone (Pixel 6, Android 17).
 Installed as a self-signed APK. Google Play is the last step (§8.1), not a v1 goal, and nothing
 may block it: the storage choice in §3.1 is the one place where it matters.
 
@@ -676,7 +676,7 @@ Checked in JVM tests (the Mac's writing, editing, lifecycle and saver expectatio
 KeePassXC's own `keepassxc-cli` (2.7, when installed): it opens every written fixture, exports a written file
 exactly as the original, and reads an edited entry's protected fields, a new entry and the recycle bin.
 
-On a copy of the owner's database (2026-10-21, on the Mac, `tools/kdbx-probe.sh`, core/vault `KdbxProbe`, the
+On a copy of a real database of that size (2026-10-21, on the Mac, `tools/kdbx-probe.sh`, core/vault `KdbxProbe`, the
 Mac's `KDBXProbe --roundtrip` and `--lifecycle`; it prints counts and times, never a value): 34 MB, KDBX 4.1,
 AES-256, Argon2d, 1,858 entries, 18 groups, 52 attachments. Read and written back unchanged, KeePassXC's exports
 of both files were identical (55 places where two exports of the same file differ by themselves left out) and
