@@ -1902,8 +1902,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the top corner of the welcome, the chooser and a lock screen (not in the chooser's run, nor over another app), and
   About Keething in Settings. It covers the app as New database does. The facts are the asset `build-info.properties`,
   written by Gradle at every build (`app/build.gradle.kts`, `BuildInfo`): not BuildConfig, so nothing compiled changes
-  with the time and the configuration cache keeps no time of its own; the time is SOURCE_DATE_EPOCH's when it is set
-  (F-Droid's reproducible build), else the build's. Under them Licence "GPL-3.0-or-later" (a tap shows its text, the
+  with the time and the configuration cache keeps no time of its own; the time is SOURCE_DATE_EPOCH's when it is set,
+  else the commit's when nothing is uncommitted (the Gradle wrapper's jar, which F-Droid's scanner deletes, not
+  counted), else the build's: the same commit builds the same APK here and on F-Droid (keething-spec app.fdroid-build). Under them Licence "GPL-3.0-or-later" (a tap shows its text, the
   asset `LICENSE.txt` Gradle copies from the repository's LICENSE) and Source "github.com/cotton-more/keething-android"
   (a tap opens it), and Security "How to report a vulnerability" (a tap shows SECURITY.md, the repository's, copied by
   Gradle into the asset `SECURITY.md` as LICENSE is; keething-spec app.security-policy); then **Third-party licences**: each part in the app with what it is for, its authors and its
@@ -2343,6 +2344,10 @@ service, the screen it opens and the system's view structure are in `app/autofil
   `tools/build-apk.sh`, DEVELOPMENT.md); installed with `adb install -r` (USB or wireless debugging) or by copying the
   APK to the phone. Until 2026-10-21 the test builds were signed with the Mac's debug key instead (a known
   password: whoever has that file can sign an update the phone accepts); the owner's phone gets the own key.
+- The build is reproducible (keething-spec app.fdroid-build): a commit builds the same unsigned APK in any folder, and
+  the signed APK is that APK and its signing block alone (signed with v2/v3 only, no v1 since 2026-11-16, the
+  alignment kept), so F-Droid can ship our signature; `task apk:reproduce` checks a release against a fresh clone. No
+  dependency block in the APK; F-Droid's recipe is `tools/fdroid/dev.keething.android.yml`.
 - Updates keep the same signing key (otherwise Android refuses the update and the app must be uninstalled,
   which deletes the biometric key and settings).
 - An update keeps what the app stores (keething-spec app.upgrade-safety): the `settings` carry `storeVersion`

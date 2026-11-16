@@ -11,8 +11,10 @@ plugins {
 /**
  * What About says of this build (SPEC §6.2 "About"): its version, when it was built and from which commit, with
  * uncommitted changes or not. Written at every build, as the asset `build-info.properties`, not as BuildConfig fields:
- * nothing compiled changes with the time, and the configuration cache keeps no time of its own. F-Droid's reproducible
- * build sets SOURCE_DATE_EPOCH: its time is then the build's, so the same source makes the same APK.
+ * nothing compiled changes with the time, and the configuration cache keeps no time of its own. The same source makes
+ * the same APK (keething-spec app.fdroid-build): the time is SOURCE_DATE_EPOCH's when set, else the commit's when
+ * nothing is uncommitted, else the clock's. F-Droid's scanner deletes the Gradle wrapper's jar before it builds; that
+ * alone is not an uncommitted change.
  */
 abstract class BuildInfo : DefaultTask() {
     @get:Input
@@ -44,8 +46,9 @@ abstract class BuildInfo : DefaultTask() {
             return out.toString().trim().takeIf { result.exitValue == 0 }
         }
         val commit = git("rev-parse", "--short", "HEAD").orEmpty()
-        val dirty = git("status", "--porcelain")?.isNotEmpty() == true
-        val built = System.getenv("SOURCE_DATE_EPOCH")?.toLongOrNull()?.let(Instant::ofEpochSecond) ?: Instant.now().truncatedTo(ChronoUnit.SECONDS)
+        val dirty = git("status", "--porcelain", "--", ".", ":!gradle/wrapper/gradle-wrapper.jar")?.isNotEmpty() == true
+        val built = (System.getenv("SOURCE_DATE_EPOCH") ?: git("log", "-1", "--format=%ct").takeUnless { dirty })
+            ?.toLongOrNull()?.let(Instant::ofEpochSecond) ?: Instant.now().truncatedTo(ChronoUnit.SECONDS)
         // Written by hand: Properties.store would add a time of its own.
         output.file("build-info.properties").get().asFile.writeText(
             "version=${versionName.get()}\nversionCode=${versionCode.get()}\nbuilt=$built\ncommit=$commit\ndirty=$dirty\n",
@@ -80,6 +83,13 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    // No dependency block in the APK's signing block: Google's encrypted list, which F-Droid's scanner flags
+    // (keething-spec app.fdroid-build).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     testOptions {

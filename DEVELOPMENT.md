@@ -48,6 +48,16 @@ the script, and Claude, can build without asking; anything running as the user c
 the item, or for another `KEYSTORE`, apksigner asks. The password reaches apksigner through the environment, never a
 file or the command line. Uncommitted changes are built too (it says so).
 
+### Reproducing a release (F-Droid)
+
+    task apk:reproduce -- ~/KeePass/Keething-1.0.0-<commit>.apk
+
+The build is reproducible (keething-spec app.fdroid-build): F-Droid builds the commit itself, compares its APK with
+ours and ships ours. This makes the same comparison here before a release: a fresh clone of the APK's commit (read
+from its About) built in a folder with a space, and the APK without its signing block (`tools/apk-unsigned.py`) found
+the same byte for byte. Only an APK built from a commit with nothing uncommitted can be reproduced; its About's time
+is then the commit's. The recipe F-Droid builds from is `tools/fdroid/dev.keething.android.yml`.
+
 ### The signing key (once)
 
     mkdir -p ~/.keystores && chmod 700 ~/.keystores

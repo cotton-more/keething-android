@@ -40,13 +40,16 @@ version=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
 out=$dir/Keething-$version-$(git rev-parse --short HEAD)$([[ -z $(git status --porcelain) ]] || echo -dirty)$([[ $timings == false ]] || echo -timings).apk
 aligned=$(mktemp -d)/aligned.apk
 $tools/zipalign -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk $aligned
+# The signed APK is the unsigned build and its signing block alone (task apk:reproduce, keething-spec
+# app.fdroid-build): no v1 (JAR) signature, which minSdk 34 never reads and whose files would be entries of the archive,
+# and the entries' alignment kept as built, not redone by apksigner.
 # Through the environment, never the command line (ps shows arguments).
 if [[ -z $KEYSTORE ]] && KEETHING_KS_PASS=$(security find-generic-password -a "$USER" -s keething-apk-keystore -w 2>/dev/null); then
     export KEETHING_KS_PASS
-    $tools/apksigner sign --ks $keystore --ks-pass env:KEETHING_KS_PASS --v4-signing-enabled false --out $out $aligned
+    $tools/apksigner sign --ks $keystore --ks-pass env:KEETHING_KS_PASS --alignment-preserved true --v1-signing-enabled false --v4-signing-enabled false --out $out $aligned
     unset KEETHING_KS_PASS
 else
-    $tools/apksigner sign --ks $keystore --v4-signing-enabled false --out $out $aligned
+    $tools/apksigner sign --ks $keystore --alignment-preserved true --v1-signing-enabled false --v4-signing-enabled false --out $out $aligned
 fi
 /bin/rm -r ${aligned:h}
 $tools/apksigner verify $out

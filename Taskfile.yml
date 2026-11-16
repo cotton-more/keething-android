@@ -61,6 +61,13 @@ tasks:
     cmds:
       - tools/build-apk.sh --install
 
+  apk:reproduce:
+    desc: "A signed release APK built again from a fresh clone of its commit and compared, as F-Droid does: task apk:reproduce -- <signed.apk>"
+    requires:
+      vars: [CLI_ARGS]
+    cmds:
+      - tools/apk-reproduce.sh {{.CLI_ARGS}}
+
   apk:timings:
     desc: "A measurement build (release, Log.i's timing lines kept), installed on the connected phone; never shipped (DEVELOPMENT.md)"
     cmds:

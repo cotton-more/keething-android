@@ -1,0 +1,38 @@
+# The app's recipe for F-Droid's fdroiddata (metadata/dev.keething.android.yml), kept here so that it changes with the
+# build (keething-spec app.fdroid-build AC5). Submitted with the first release; F-Droid's own copy is the one it builds.
+# The build is reproducible: F-Droid compares its build with our signed APK (Binaries) and ships ours, signed with
+# AllowedAPKSigningKeys (task apk:reproduce makes the same comparison here).
+#
+# Not tried on F-Droid's build server yet (no `fdroid build` run): its JDK 21 (the Gradle toolchain asks for 21, and no
+# toolchain download is set up), CMake 4.1.2 from the SDK, and Gradle 9.8.1 in gradlew-fdroid's list.
+
+Categories:
+  - Security
+License: GPL-3.0-or-later
+SourceCode: https://github.com/cotton-more/keething-android
+IssueTracker: https://github.com/cotton-more/keething-android/issues
+
+AutoName: Keething
+
+RepoType: git
+Repo: https://github.com/cotton-more/keething-android.git
+# The release's APK on GitHub Releases under this name (tools/build-apk.sh names it Keething-<version>-<commit>.apk:
+# renamed when uploaded).
+Binaries: https://github.com/cotton-more/keething-android/releases/download/v%v/Keething-%v.apk
+
+Builds:
+  # The version and its code as plans/android-release-1.0.md T10 sets them.
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0
+    subdir: app
+    gradle:
+      - yes
+    ndk: 30.0.16248370
+
+AllowedAPKSigningKeys: 80003df05433d051fd61c674ffc29acd40159c076a493d67d6994e3c00cc4e8d
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1
