@@ -1,1 +1,1 @@
-Modern KeePass password manager. Your .kdbx, synced your way. No network.
+KeePass password manager for your .kdbx file. No account, no network access.

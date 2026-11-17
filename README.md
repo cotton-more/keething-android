@@ -1,8 +1,8 @@
 # Keething for Android
 
-**KeePass on Android that looks like it was made this year.**
-Your `.kdbx` file, synced your way: Keething follows every change your sync tool delivers and never loses the file.
-No account, no network permission, nothing collected. Free and open source.
+**A KeePass password manager for Android.**
+It opens the same `.kdbx` file as KeePassXC, KeePass or Strongbox, kept in step across your devices by the sync app you
+already use. There is no account, the app has no network permission, and it collects nothing. Free and open source.
 
 It is for people who already keep their passwords in KeePass (KeePassXC on the desktop, the file synced by
 Syncthing, Nextcloud, a NAS, …) and want an Android client that is pleasant to use.
