@@ -55,8 +55,10 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -255,13 +257,22 @@ private fun Rivet() {
     Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF9AA1AB)))
 }
 
-/** The words, numbered, three to a line (two with large text); a word that is in no list outlined in red. */
+/**
+ * The words, numbered, three to a line, or two when the longest word would not fit a third of the width (large text,
+ * BIP-39's eight-letter words on a narrow phone); a word that is in no list outlined in red.
+ */
 @Composable
 private fun WordGrid(phrase: SeedPhrase) {
     val bad = (phrase.check as? SeedPhrase.Check.UnknownWord)?.index
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val scale = LocalDensity.current.fontScale
-        val columns = if (maxWidth / scale < 330.dp) 2 else 3
+        val longest = remember(phrase.words, density) {
+            phrase.words.maxOfOrNull { measurer.measure(it, WordStyle, maxLines = 1).size.width } ?: 0
+        }
+        // The cell's number, the gap after it and the cell's padding beside the word.
+        val needed = with(density) { longest.toDp() } + 18.dp + 6.dp + 16.dp
+        val columns = if ((maxWidth - 12.dp) / 3 >= needed) 3 else 2
         Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics { contentDescription = "The ${phrase.words.size} words" }) {
             for (line in phrase.words.withIndex().chunked(columns)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -279,7 +290,7 @@ private fun WordGrid(phrase: SeedPhrase) {
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Text("${i + 1}", Modifier.width(18.dp), color = Steel.number, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, maxLines = 1)
-                            Text(word, color = if (i == bad) Steel.bad else Steel.ink, fontFamily = MonospaceFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(word, color = if (i == bad) Steel.bad else Steel.ink, style = WordStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     repeat(columns - line.size) { Spacer(Modifier.weight(1f)) }
@@ -288,6 +299,8 @@ private fun WordGrid(phrase: SeedPhrase) {
         }
     }
 }
+
+private val WordStyle = TextStyle(fontFamily = MonospaceFamily, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
 
 @Composable
 private fun PhraseCheck(phrase: SeedPhrase) {

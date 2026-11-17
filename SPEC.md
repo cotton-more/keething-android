@@ -1623,7 +1623,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   - **Crypto wallet** (`CryptoWallet`, an entry with a `crypto.seed`, `crypto.address` or `crypto.xpub`): the
     recovery phrase on a steel plate (brushed steel in either theme, as such phrases are kept), hidden: a lock,
     "Whoever has these words has the wallet", **Show** and **Word by word**. The phrase is read only then (it is a
-    secret like the password): shown, a numbered grid of its words, three to a line (two with large text), its
+    secret like the password): shown, a numbered grid of its words, three to a line (two when its longest word would not fit a third: large text, an
+    eight-letter word on a narrow phone), its
     count and language as a chip, and its check (`SeedPhrase`): a BIP-39 phrase's checksum in whichever of the
     BIP's ten word lists its words are in (MIT, `assets/licenses`; a typo in any word is caught: "Word 7, “worht”,
     is not a BIP-39 word. A typo?", outlined in red; "The checksum fails: a word is wrong, or two are swapped"; 12,
@@ -1880,7 +1881,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   lock timeout, the **Theme** (System, Light, Dark; keething-spec app.theme-choice: the app's own night mode, kept by the
   system for every window of the app, told again at each start), how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build (the fingerprint spike, and what the storage provider does with names in a folder granted there).
-  Last **About**: "Keething for Android 0.0.1 · build 1.", the font's licence, About Keething and Report a problem.
+  Last **About**: "Keething for Android 1.0.0 · build 1.", the font's licence, About Keething and Report a problem.
 - **Change master key** (keething-spec databases.change-master-key; agreed on the canvas "Database name, colour and
   master key", 2026-11-08), from a database's page, over whatever was shown, kept by the app as New database is (a
   change goes on when the screen is gone; a lock takes the form, with what was typed, unless the change is being
@@ -1898,7 +1899,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   fingerprint stored there stops working, and "Copies of the file made before still open with the old key: the backups
   on this phone and elsewhere, other devices' copies, a sync's old versions (Syncthing's .stversions). After a leak,
   delete those you can.", Done. Not changed: why, the form as it was; a key file made for it is removed again.
-- **About** (keething-spec app.about; the owner, 2026-11-02): the logo, "Keething", "for Android", then Version "0.0.1 ·
+- **About** (keething-spec app.about; the owner, 2026-11-02): the logo, "Keething", "for Android", then Version "1.0.0 ·
   build 1" (the version code said as a build, the owner), Built "2 November 2026, 20:06" (the phone's time zone) and Commit "becc85f", or "becc85f with uncommitted
   changes", selectable for a bug report; Back returns to what was shown. Reached with every database locked: an ⓘ in
   the top corner of the welcome, the chooser and a lock screen (not in the chooser's run, nor over another app), and
