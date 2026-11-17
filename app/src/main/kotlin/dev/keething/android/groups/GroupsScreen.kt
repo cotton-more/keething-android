@@ -55,7 +55,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.stateDescription
 import dev.keething.android.databases.DatabaseLabelText
 import dev.keething.android.databases.NotOpenDatabase
@@ -429,7 +431,7 @@ internal fun GroupsScreen(
                     stickyHeader(key = "head/${block.id.value}", contentType = "block header") {
                         BlockHeader(block, foldable, isOpen, readOnly = block.id in readOnlyIds, onFold = { folded.update { if (isOpen) it + block.id else it - block.id } })
                     }
-                    if (isOpen) content(block, model.saving, onSearch, onHold = { model.openSheet(GroupsViewModel.GroupRef(block.id, it)) })
+                    if (isOpen) content(block, model.saving, announceSaving = model.dialog == null, onSearch, onHold = { model.openSheet(GroupsViewModel.GroupRef(block.id, it)) })
                     item(key = "end/${block.id.value}", contentType = "gap") { Spacer(Modifier.height(20.dp)) }
                 }
                 if (notOpen.isNotEmpty()) item(key = "not open") { NotOpenRow(notOpen, onLockScreen) }
@@ -597,7 +599,10 @@ private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, m
             }
         },
         confirmButton = {
-            TextButton(onClick = { model.submitName(field.text) }, enabled = !saving) { Text(if (saving) "Saving…" else "Save") }
+            TextButton(onClick = { model.submitName(field.text) }, enabled = !saving) {
+                // Announced once (keething-spec app.accessibility AC6).
+                Text(if (saving) "Saving…" else "Save", if (saving) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier)
+            }
         },
         dismissButton = { TextButton(onClick = model::closeDialog, enabled = !saving) { Text("Cancel") } },
     )
@@ -696,7 +701,7 @@ private fun NotOpenRow(notOpen: List<NotOpenDatabase>, onLockScreen: (DatabaseId
     }
 }
 
-private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.GroupRef?, onSearch: (String) -> Unit, onHold: (groupId: String) -> Unit) {
+private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.GroupRef?, announceSaving: Boolean, onSearch: (String) -> Unit, onHold: (groupId: String) -> Unit) {
     val overview = block.overview
     val id = block.id.value
     item(key = "groups/$id", contentType = "header") { Box(Modifier.padding(top = 6.dp)) { SectionTitle("Groups") } }
@@ -705,6 +710,8 @@ private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.Gr
             icon = if (row.isRoot) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
             title = if (row.isRoot) "Top level" else row.name,
             supporting = if (saving == GroupsViewModel.GroupRef(block.id, row.id)) "Saving…" else groupCounts(row),
+            // A dialog open says it on its button instead (the row is behind it).
+            announced = announceSaving && saving == GroupsViewModel.GroupRef(block.id, row.id),
             count = row.total,
             indent = row.depth,
             shape = segmentShape(index, overview.groups.size),
@@ -783,6 +790,8 @@ private fun OverviewRow(
     indent: Int = 0,
     /** A group's row: its sheet. */
     onLongClick: (() -> Unit)? = null,
+    /** [supporting] says what is happening by itself ("Saving…"): announced once (keething-spec app.accessibility AC6). */
+    announced: Boolean = false,
 ) {
     Row(
         modifier
@@ -813,6 +822,7 @@ private fun OverviewRow(
             if (supporting != null) {
                 Text(
                     supporting,
+                    if (announced) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
