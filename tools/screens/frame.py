@@ -21,14 +21,14 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 # File, headline, the line under it, and rows of the screenshot to leave out (a browser's address bar).
 SHOTS = [
-    ("1-list.png", "Your passwords, readable at a glance", "A modern KeePass client for Android", None),
-    ("2-card.png", "Every field in its place", "Live one-time codes, passwords easy to read", None),
+    ("1-list.png", "Your passwords, easy to read", "A KeePass password manager for Android", None),
+    ("2-card.png", "A login and its code", "The one-time code counts down beside it", None),
     ("3-card.png", "Cards look like cards", "Bank accounts, IDs, Wi-Fi and SSH logins too", None),
     ("4-wallet.png", "Recovery phrase: checked, never copied", "Each word checked against BIP-39", None),
     ("5-autofill.png", "Autofill in apps and browsers", "And “Save this password?” after you sign in", (118, 296)),
     ("6-codes.png", "All your 2FA codes in one place", "Each with the next one ready", None),
     ("7-share.png", "Share entries, end-to-end encrypted", "Checked with six pictures, no server involved", None),
-    ("8-sync.png", "Synced your way. Never lost.", "Two versions from Syncthing? Choose on the phone", None),
+    ("8-sync.png", "Syncthing made two versions?", "See both and pick one on the phone", None),
 ]
 
 FONT = "-apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif"
@@ -99,7 +99,7 @@ svg {{ flex: none; border-radius: 64px; box-shadow: 0 18px 50px rgba(5,14,45,.45
 h1 {{ margin: 0; font-size: 92px; font-weight: 700; letter-spacing: -1px; }}
 p {{ margin: 12px 0 0; font-size: 34px; line-height: 1.3; color: rgba(255,255,255,.86); }}
 </style><svg width="280" height="280" viewBox="18 18 72 72">{svg_layers()}</svg>
-<div><h1>Keething</h1><p>KeePass on Android that looks like it was made this year.</p></div>"""
+<div><h1>Keething</h1><p>A KeePass password manager for Android.</p></div>"""
 
 
 def main():
