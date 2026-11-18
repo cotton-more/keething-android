@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="list_cancel">Отмена</string>
+    <string name="list_save">Сохранить</string>
+    <string name="list_ok">OK</string>
+    <string name="list_one_time_code">Одноразовый код</string>
+    <string name="list_copy_code">Скопировать код</string>
+    <string name="list_copy_one_time_code">Скопировать одноразовый код</string>
+    <string name="list_add_a_code">Добавить код</string>
+    <plurals name="list_one_time_codes">
+        <item quantity="one">%1$d одноразовый код</item>
+        <item quantity="few">%1$d одноразовых кода</item>
+        <item quantity="many">%1$d одноразовых кодов</item>
+        <item quantity="other">%1$d одноразового кода</item>
+    </plurals>
+
+    <string name="list_header_codes">Коды</string>
+    <plurals name="list_header_code_count">
+        <item quantity="one">%1$s · %2$s код</item>
+        <item quantity="few">%1$s · %2$s кода</item>
+        <item quantity="many">%1$s · %2$s кодов</item>
+        <item quantity="other">%1$s · %2$s кода</item>
+    </plurals>
+    <plurals name="list_header_entry_count">
+        <item quantity="one">%1$s · %2$s запись</item>
+        <item quantity="few">%1$s · %2$s записи</item>
+        <item quantity="many">%1$s · %2$s записей</item>
+        <item quantity="other">%1$s · %2$s записи</item>
+    </plurals>
+    <string name="list_lock">Заблокировать</string>
+    <string name="list_groups_and_tags">Группы и теги</string>
+    <string name="list_sharing">Поделиться</string>
+    <plurals name="list_sharing_to_answer">
+        <item quantity="one">Поделиться, ждёт ответа: %1$d</item>
+        <item quantity="few">Поделиться, ждут ответа: %1$d</item>
+        <item quantity="many">Поделиться, ждут ответа: %1$d</item>
+        <item quantity="other">Поделиться, ждут ответа: %1$d</item>
+    </plurals>
+    <string name="list_more">Ещё</string>
+    <string name="list_generate_password">Создать пароль</string>
+    <string name="list_databases">Базы</string>
+    <plurals name="list_databases_open">
+        <item quantity="one">%1$d открыта</item>
+        <item quantity="few">%1$d открыты</item>
+        <item quantity="many">%1$d открыто</item>
+        <item quantity="other">%1$d открыто</item>
+    </plurals>
+    <string name="list_settings">Настройки</string>
+
+    <string name="list_section_suggested">Подходящие</string>
+    <string name="list_section_recent">Недавние</string>
+    <string name="list_section_all">Все записи</string>
+    <plurals name="list_section_results">
+        <item quantity="one">%1$s запись</item>
+        <item quantity="few">%1$s записи</item>
+        <item quantity="many">%1$s записей</item>
+        <item quantity="other">%1$s записи</item>
+    </plurals>
+    <string name="list_section_recycle_bin">Корзина</string>
+    <string name="list_bin_empty">Корзина пуста.</string>
+    <string name="list_nothing_matches">По запросу «%1$s» ничего нет.</string>
+    <string name="list_more_actions">Другие действия</string>
+    <string name="list_has_attachments">Есть вложения</string>
+    <string name="list_group">Группа</string>
+    <string name="list_show_codes">Показать коды</string>
+    <string name="list_no_app_for_link">Нет приложения, которое откроет эту ссылку</string>
+    <string name="list_fingerprint_failed">Не удалось настроить отпечаток пальца: %1$s.</string>
+    <string name="list_fingerprint_on">Теперь «%1$s» открывается вашим отпечатком.</string>
+
+    <string name="list_search">Поиск</string>
+    <string name="list_search_entries">Поиск записей</string>
+    <string name="list_search_codes">Поиск кодов</string>
+    <string name="list_clear_search">Очистить поиск</string>
+    <string name="list_narrow_to">Сузить до</string>
+    <string name="list_chip_group">группа</string>
+    <string name="list_chip_tag">тег</string>
+    <string name="list_chip_database">база</string>
+    <string name="list_chip_file">файл</string>
+    <string name="list_chip_bin">корзина</string>
+    <string name="list_chip_any_file">Любой файл</string>
+    <string name="list_chip_shares">%1$s: %2$s</string>
+    <string name="list_chip_share">%1$s %2$d</string>
+    <string name="list_chip_database_said">База %1$s</string>
+    <string name="list_chip_database_count_said">База %1$s, %2$d</string>
+    <string name="list_new">Создать</string>
+    <string name="list_new_entry">Новая запись</string>
+    <string name="list_new_note">Новая заметка</string>
+    <string name="list_new_note_from_clipboard">Заметка из буфера обмена</string>
+    <string name="list_new_note_from_clipboard_detail">Откроется со скопированным текстом</string>
+
+    <string name="list_copy_password">Скопировать пароль</string>
+    <string name="list_copy_username">Скопировать имя пользователя</string>
+    <string name="list_no_password">Нет пароля</string>
+    <string name="list_no_username">Нет имени пользователя</string>
+
+    <string name="list_copy_one_time_code_more">Скопировать одноразовый код…</string>
+    <plurals name="list_codes_count">
+        <item quantity="one">%1$d код</item>
+        <item quantity="few">%1$d кода</item>
+        <item quantity="many">%1$d кодов</item>
+        <item quantity="other">%1$d кода</item>
+    </plurals>
+    <string name="list_open_site">Открыть %1$s</string>
+    <string name="list_restore">Восстановить</string>
+    <string name="list_delete_for_good_more">Удалить навсегда…</string>
+    <string name="list_edit">Изменить</string>
+    <string name="list_remove_from_recent">Убрать из недавних</string>
+    <string name="list_move_to_bin">Переместить в корзину</string>
+
+    <string name="list_read_only">Только чтение</string>
+
+    <string name="list_codes_no_match">Нет кода по запросу «%1$s».</string>
+    <string name="list_codes_none">Ни у одной записи нет одноразового кода.</string>
+    <string name="list_more_for">Ещё для %1$s</string>
+    <string name="list_field">Поле</string>
+    <string name="list_code_open_entry">Открыть запись</string>
+    <string name="list_code_edit">Изменить код…</string>
+    <string name="list_code_move_entry">Переместить запись в корзину</string>
+    <string name="list_code_move_entry_detail">Кроме одноразового кода, в «%1$s» ничего нет</string>
+    <string name="list_code_delete">Удалить из записи</string>
+    <string name="list_code_delete_field_detail">Поле «%1$s» будет удалено из %2$s</string>
+    <string name="list_code_delete_detail">Одноразовый код будет удалён из %1$s</string>
+
+    <string name="list_edit_code_title">Изменить код</string>
+    <string name="list_code_name">Название</string>
+    <string name="list_edit_code_secret_replaced">Секрет · заменён: код выше — новый</string>
+    <string name="list_edit_code_secret_kept">Секрет · остаётся прежним или заменяется из</string>
+    <string name="list_code_digits">Цифр</string>
+    <string name="list_code_period">Период</string>
+    <plurals name="list_code_period_seconds">
+        <item quantity="one">%1$d с</item>
+        <item quantity="few">%1$d с</item>
+        <item quantity="many">%1$d с</item>
+        <item quantity="other">%1$d с</item>
+    </plurals>
+    <string name="list_code_algorithm">Алгоритм</string>
+    <string name="list_add_code_hint">Отсканируйте QR-код, который показывает сайт, или вставьте ключ настройки.</string>
+    <string name="list_add_code_on_phone">Читается на телефоне, никуда не отправляется.</string>
+    <string name="list_add_code_no_name">У ключа настройки нет названия: укажите название записи.</string>
+    <string name="list_add_code_read">Прочитано: %1$s</string>
+    <string name="list_add_code_read_both">Прочитано: %1$s, %2$s</string>
+    <string name="list_add_code_into">Куда</string>
+    <string name="list_add_code_already_in">«%1$s» уже есть в %2$s</string>
+    <string name="list_add_code_already_in_database">«%1$s» уже есть в базе</string>
+    <string name="list_add_code_to">Добавить в «%1$s»</string>
+    <string name="list_add_code_no_code_yet">кода пока нет</string>
+    <string name="list_add_code_as_next">как ещё один код</string>
+    <string name="list_add_code_detail">%1$s · %2$s</string>
+    <string name="list_add_code_new_entry">Новая запись</string>
+    <string name="list_add_code_new_entry_detail">Название, имя пользователя и этот код</string>
+    <string name="list_add_code_entry_title">Название</string>
+    <string name="list_add_code_entry_username">Имя пользователя</string>
+    <string name="list_add_code_button">Добавить код</string>
+    <string name="list_code_source_camera">Камера</string>
+    <string name="list_code_source_image">Изображение</string>
+    <string name="list_code_source_paste">Вставить</string>
+    <string name="list_code_clipboard_empty">В буфере обмена нет ни текста, ни изображения.</string>
+    <string name="list_code_type_key_or_link">Или введите ключ настройки или ссылку otpauth://</string>
+    <string name="list_code_type_secret_or_link">Или введите секрет или ссылку</string>
+    <string name="list_code_hide_secret">Скрыть секрет</string>
+    <string name="list_code_show_secret">Показать секрет</string>
+    <string name="list_code_use">Использовать</string>
+
+    <string name="list_conflict_title">Две версии %1$s</string>
+    <string name="list_conflict_text">Syncthing сохранил обе, когда два устройства изменили базу одновременно. Keething их не объединяет: оставьте здесь одну или объедините их в KeePassXC (База данных › Объединить), чтобы сохранить изменения обеих.</string>
+    <string name="list_conflict_open_now">Открыта сейчас</string>
+    <string name="list_conflict_other">Другая</string>
+    <string name="list_conflict_other_from">От %1$s, устройство %2$s</string>
+    <string name="list_conflict_reading">Читаем…</string>
+    <string name="list_conflict_keep">Оставить открытую</string>
+    <string name="list_conflict_keep_detail">Удаляет другую версию. Сначала её копия сохраняется в резервных копиях этой базы в Keething. Изменений, сделанных только в другой версии, в открытой нет.</string>
+    <string name="list_conflict_use">Взять другую</string>
+    <string name="list_conflict_use_detail">Заменяет %1$s другой версией, файл которой затем удаляется. Сначала открытая версия сохраняется в резервных копиях Keething. Изменения, сделанные только в открытой, из базы пропадут.</string>
+    <string name="list_conflict_use_not_opened">Её нельзя взять: здесь она не открывается.</string>
+    <string name="list_conflict_confirm_keep_title">Удалить другую версию?</string>
+    <string name="list_conflict_confirm_use_title">Заменить %1$s другой версией?</string>
+    <string name="list_conflict_confirm_keep_text">Её файл удаляется; сначала её копия сохраняется в резервных копиях этой базы в Keething.</string>
+    <string name="list_conflict_confirm_use_text">Сначала открытая версия сохраняется в резервных копиях Keething, затем её место занимает другая, а файл другой удаляется. Изменения, сделанные только в открытой, из базы пропадут.</string>
+    <string name="list_conflict_confirm_keep">Удалить</string>
+    <string name="list_conflict_confirm_use">Заменить</string>
+    <plurals name="list_conflict_entries">
+        <item quantity="one">%1$d запись</item>
+        <item quantity="few">%1$d записи</item>
+        <item quantity="many">%1$d записей</item>
+        <item quantity="other">%1$d записи</item>
+    </plurals>
+    <plurals name="list_conflict_entries_changed">
+        <item quantity="one">%1$d запись · последнее изменение %2$s</item>
+        <item quantity="few">%1$d записи · последнее изменение %2$s</item>
+        <item quantity="many">%1$d записей · последнее изменение %2$s</item>
+        <item quantity="other">%1$d записи · последнее изменение %2$s</item>
+    </plurals>
+    <string name="list_conflict_wrong_key">Она не открывается паролем или файлом-ключом этой базы (их изменили на другом устройстве?).</string>
+    <string name="list_conflict_locked">База заблокирована.</string>
+    <string name="list_conflict_locked_nothing_changed">База заблокирована. Ничего не изменилось.</string>
+    <string name="list_conflict_kept">Оставлена %1$s. Другая версия удалена (её копия есть в резервных копиях Keething).</string>
+    <string name="list_conflict_still_there">Другая версия всё ещё на месте: %1$s</string>
+    <string name="list_conflict_used_copy_left">%1$s теперь — другая версия. Её файл удалить не удалось: оставьте открытую, чтобы удалить его.</string>
+    <string name="list_conflict_used">%1$s теперь — другая версия (прежняя есть в резервных копиях Keething).</string>
+    <string name="list_conflict_refused_kdbx3">Эта база в формате KDBX 3.1, только для просмотра: другую версию здесь можно только удалить.</string>
+    <string name="list_conflict_refused_too_large">На этом телефоне эта база только для чтения: другую версию здесь можно только удалить.</string>
+
+    <string name="list_banner_too_large">Только чтение: слишком большая для этого телефона</string>
+    <string name="list_banner_too_large_named">%1$s: только чтение, слишком большая для этого телефона</string>
+    <string name="list_banner_near_limit">Почти на пределе этого телефона</string>
+    <string name="list_banner_near_limit_named">%1$s: почти на пределе этого телефона</string>
+    <string name="list_banner_changeable_again">Снова можно изменять</string>
+    <string name="list_banner_changeable_again_named">%1$s: снова можно изменять</string>
+    <string name="list_banner_conflict">Syncthing нашёл две версии</string>
+    <string name="list_banner_conflict_named">%1$s: Syncthing нашёл две версии</string>
+    <string name="list_banner_conflict_text">Открыта: %1$s. Другая — от %2$s (устройство %3$s). Оставьте здесь одну из них или объедините их в KeePassXC (База данных › Объединить).</string>
+    <string name="list_banner_conflict_resolve">Разобраться…</string>
+    <string name="list_banner_stopped_save">Последнее сохранение исправлено</string>
+    <string name="list_banner_stopped_save_named">%1$s: последнее сохранение исправлено</string>
+    <string name="list_banner_stopped_save_finished">Keething закрылся во время сохранения %1$s. Сохранение завершено: изменение есть в файле.</string>
+    <string name="list_banner_stopped_save_undone">Keething закрылся во время сохранения %1$s. Завершить его не удалось, поэтому файл такой, каким был до этого (или каким его с тех пор сделала синхронизация): если изменения нет, сделайте его ещё раз.</string>
+    <string name="list_banner_unsaved">Не сохранено</string>
+    <string name="list_banner_unsaved_named">%1$s: не сохранено</string>
+    <string name="list_banner_reload">Показана версия, прочитанная раньше</string>
+    <string name="list_banner_reload_named">%1$s: показана версия, прочитанная раньше</string>
+
+    <string name="list_locked_password_changed">%1$s: заблокирована, пароль изменили на другом устройстве</string>
+    <string name="list_unlocked">Разблокировано · формирование ключа %1$s</string>
+    <string name="list_unlocked_named">%1$s: разблокирована · формирование ключа %2$s</string>
+    <string name="list_duration_ms">%1$d мс</string>
+    <string name="list_duration_s">%1$.1f с</string>
+    <string name="list_no_password_to_copy">Нет пароля, чтобы скопировать</string>
+    <string name="list_no_username_to_copy">Нет имени пользователя, чтобы скопировать</string>
+    <string name="list_field_password">Пароль</string>
+    <string name="list_field_username">Имя пользователя</string>
+    <string name="list_code_changed">Одноразовый код изменён в %1$s</string>
+    <string name="list_code_field_changed">В %2$s изменено поле «%1$s»</string>
+    <string name="list_code_deleted">Одноразовый код удалён из %1$s</string>
+    <string name="list_code_field_deleted">Из %2$s удалено поле «%1$s»</string>
+    <string name="list_code_added">Одноразовый код добавлен в %1$s</string>
+    <string name="list_code_field_added">В %2$s добавлено поле «%1$s»</string>
+    <string name="list_code_entry_added">Добавлена запись «%1$s» с кодом</string>
+    <string name="list_untitled">(Без названия)</string>
+    <string name="list_removed_from_recent">Убрано из недавних</string>
+</resources>

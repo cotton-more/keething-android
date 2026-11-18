@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Keething</string>
+    <string name="shortcut_codes">Коды</string>
+    <string name="shortcut_codes_long">Одноразовые коды</string>
+    <string name="read_with_keething">Прочитать в Keething</string>
+    <string name="keething_note">Заметка Keething</string>
+    <string name="shortcut_note_from_clipboard">Заметка из буфера</string>
+    <string name="shortcut_note_from_clipboard_long">Быстрая заметка из буфера обмена</string>
+    <string name="tile_quick_note">Быстрая заметка</string>
+    <string name="tile_quick_note_subtitle">Keething · из буфера обмена</string>
+
+    <string name="list_separator">, </string>
+    <string name="list_last">%1$s и %2$s</string>
+</resources>

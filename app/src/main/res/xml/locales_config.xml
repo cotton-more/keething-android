@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The languages Keething has, offered in the phone's Settings › Apps › Keething › Language (keething-spec plans T14).
+     A new values-<language>/ is added here too. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="ru" />
+</locale-config>

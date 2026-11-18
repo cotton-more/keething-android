@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="unlock_locked_after_minutes">
+        <item quantity="one">Заблокировано через %1$d минуту в фоне</item>
+        <item quantity="few">Заблокировано через %1$d минуты в фоне</item>
+        <item quantity="many">Заблокировано через %1$d минут в фоне</item>
+        <item quantity="other">Заблокировано через %1$d минуты в фоне</item>
+    </plurals>
+    <string name="unlock_password_changed">Пароль базы изменился. Введите новый.</string>
+    <string name="unlock_restored_older_key">Восстановлена резервная копия, сделанная до смены мастер-ключа. Введите пароль, который был тогда.</string>
+
+    <string name="unlock_fingerprint_not_available">Отпечаток пальца нельзя использовать: %1$s.</string>
+    <string name="unlock_fingerprint_key_invalidated">Отпечатки на этом телефоне изменились. Введите пароль, чтобы снова настроить вход по отпечатку.</string>
+    <string name="unlock_fingerprint_password_rejected">Пароль базы изменился. Введите новый — отпечаток будет открывать базу с ним.</string>
+    <string name="unlock_fingerprint_storage_error">Не удалось прочитать сохранённый пароль (%1$s).</string>
+    <string name="unlock_fingerprint_set_up_by_typing">Введите пароль один раз, чтобы настроить вход по отпечатку.</string>
+
+    <string name="unlock_failure_wrong_password">Неверный пароль — или этой базе нужен файл-ключ.</string>
+    <string name="unlock_failure_wrong_password_hardware_key">Неверный пароль — или этой базе нужен файл-ключ. Базу, которой нужен ещё и YubiKey (или другой аппаратный ключ), Keething открыть не может.</string>
+    <string name="unlock_failure_wrong_password_or_key_file">Неверный пароль или файл-ключ.</string>
+    <string name="unlock_failure_wrong_password_or_key_file_hardware_key">Неверный пароль или файл-ключ. Базу, которой нужен ещё и YubiKey (или другой аппаратный ключ), Keething открыть не может.</string>
+    <string name="unlock_failure_wrong_key_file">Этот файл-ключ не открывает базу (или ей нужен ещё и пароль).</string>
+    <string name="unlock_failure_wrong_key_file_hardware_key">Этот файл-ключ не открывает базу (или ей нужен ещё и пароль). Базу, которой нужен ещё и YubiKey (или другой аппаратный ключ), Keething открыть не может.</string>
+    <string name="unlock_failure_key_file_missing">Файла-ключа %1$s нет на месте.</string>
+    <string name="unlock_failure_key_file_unusable">Файл-ключ нельзя использовать: %1$s.</string>
+    <string name="unlock_failure_missing">По пути %1$s нет базы. Возможно, Syncthing как раз её заменяет: попробуйте через минуту.</string>
+    <string name="unlock_failure_access_denied">Keething больше не может читать этот файл: найдите его, чтобы снова выбрать его папку.</string>
+    <string name="unlock_failure_damaged">Файл повреждён или ещё не синхронизировался полностью (%1$s).</string>
+    <string name="unlock_failure_out_of_memory">Не хватает памяти, чтобы открыть базу.</string>
+    <string name="unlock_failure_locked">База заблокировалась, пока открывалась.</string>
+
+    <string name="unlock_unsupported_not_keepass">Этот файл — не база KeePass.</string>
+    <string name="unlock_unsupported_old_format">Эта база в старом формате KeePass (%1$s), который Keething не читает. Сохраните её заново в KeePass или KeePassXC, и она откроется здесь.</string>
+    <string name="unlock_unsupported_newer_format">Эта база в более новом формате KeePass (%1$s), чем читает эта версия Keething. Возможно, её откроет обновление Keething.</string>
+    <string name="unlock_unsupported_twofish">Эта база зашифрована Twofish, который Keething не читает. В KeePassXC (База данных › Безопасность базы данных › Параметры шифрования) или в KeePass выберите AES-256 или ChaCha20 и сохраните — тогда она откроется здесь.</string>
+    <string name="unlock_unsupported_cipher">Эта база зашифрована шифром, которого Keething не знает (%1$s).</string>
+    <string name="unlock_unsupported_key_derivation">Функцию формирования ключа этой базы Keething не выполняет: %1$s.</string>
+    <string name="unlock_unsupported_memory">Этот телефон не даёт Keething достаточно памяти для формирования ключа этой базы (%1$s). Уменьшите память Argon2 в настройках базы на компьютере (в KeePassXC: База данных › Безопасность базы данных), и она откроется здесь.</string>
+    <string name="unlock_unsupported_inner_stream">Эта база защищает значения способом, которого Keething не знает (%1$s).</string>
+
+    <string name="unlock_unsupported_named_not_keepass">не база KeePass</string>
+    <string name="unlock_unsupported_named_old_format">старый формат KeePass (%1$s)</string>
+    <string name="unlock_unsupported_named_newer_format">более новый формат KeePass (%1$s)</string>
+    <string name="unlock_unsupported_named_twofish">зашифрована Twofish</string>
+    <string name="unlock_unsupported_named_memory">нужно больше памяти, чем телефон даёт Keething</string>
+    <string name="unlock_unsupported_named_unknown">неизвестно: %1$s</string>
+
+    <string name="unlock_stored_password_not_deleted">Не удалось удалить сохранённый пароль: %1$s.</string>
+    <string name="unlock_opening">Открывается %1$s…</string>
+    <string name="unlock_run_failure">%1$s Введите ещё раз или пропустите её.</string>
+    <string name="unlock_with_fingerprint">Разблокировать отпечатком</string>
+    <string name="unlock_then_set_up_fingerprint">Разблокировать и настроить отпечаток</string>
+    <string name="unlock_run_skip">Пропустить %1$s</string>
+    <string name="unlock_run_opened">Открыто: %1$s</string>
+    <string name="unlock_back">Назад</string>
+    <string name="unlock_run_stop">Остановить</string>
+    <string name="unlock_key_file_alone">Она открывается одним файлом-ключом: вводить ничего не нужно.</string>
+    <string name="unlock_unlock">Разблокировать</string>
+    <string name="unlock_key_file">Файл-ключ</string>
+    <string name="unlock_choose_another_above">или выберите другую базу выше</string>
+    <string name="unlock_choose_another">Выбрать другую базу</string>
+    <string name="unlock_hide_password">Скрыть пароль</string>
+    <string name="unlock_show_password">Показать пароль</string>
+    <string name="unlock_key_file_remove">Файл-ключ %1$s: убрать</string>
+    <string name="unlock_key_file_choose">Файл-ключ…</string>
+
+    <string name="unlock_fingerprint_question_title">Открывать «%1$s» отпечатком пальца?</string>
+    <string name="unlock_fingerprint_question_key_file">Теперь её будет открывать ваш отпечаток, вместе с файлом-ключом.</string>
+    <string name="unlock_fingerprint_question_password">Теперь её будет открывать ваш отпечаток: только что введённый пароль хранится на этом телефоне, запечатанный вашим отпечатком.</string>
+    <string name="unlock_fingerprint_question_once">Keething спрашивает об этом один раз. Включить можно и позже, на странице базы в настройках.</string>
+    <string name="unlock_fingerprint_question_use">Открывать отпечатком</string>
+    <string name="unlock_fingerprint_question_no">Нет</string>
+
+    <string name="unlock_kdbx3_line_upgrade">Keething изменяет базы только в KDBX 4: обновите формат этой базы или откройте её только для просмотра.</string>
+    <string name="unlock_kdbx3_line_other_apps">KDBX 4 читают KeePass 2.35 и новее и KeePassXC 2.3 и новее; более старые приложения — нет. Файл KDBX 3.1 сохраняется рядом как копия.</string>
+    <string name="unlock_kdbx3_card_title">Эта база в формате KDBX 3.1</string>
+    <string name="unlock_kdbx3_dialog_title">Обновить формат «%1$s» до KDBX 4?</string>
+    <string name="unlock_kdbx3_view_only">Только просмотр</string>
+    <string name="unlock_kdbx3_upgrade">Обновить формат</string>
+
+    <string name="unlock_reminder_title_password">Вы ещё его помните?</string>
+    <string name="unlock_reminder_title_key_file">Файл-ключ в надёжном месте?</string>
+    <plurals name="unlock_reminder_text_key_file">
+        <item quantity="one">Прошёл %1$d день. Файл-ключ %2$s хранится где-то в надёжном месте, кроме этого телефона?</item>
+        <item quantity="few">Прошло %1$d дня. Файл-ключ %2$s хранится где-то в надёжном месте, кроме этого телефона?</item>
+        <item quantity="many">Прошло %1$d дней. Файл-ключ %2$s хранится где-то в надёжном месте, кроме этого телефона?</item>
+        <item quantity="other">Прошло %1$d дня. Файл-ключ %2$s хранится где-то в надёжном месте, кроме этого телефона?</item>
+    </plurals>
+    <plurals name="unlock_reminder_text_password">
+        <item quantity="one">Мастер-пароль базы «%2$s» вводили %1$d день назад.</item>
+        <item quantity="few">Мастер-пароль базы «%2$s» вводили %1$d дня назад.</item>
+        <item quantity="many">Мастер-пароль базы «%2$s» вводили %1$d дней назад.</item>
+        <item quantity="other">Мастер-пароль базы «%2$s» вводили %1$d дня назад.</item>
+    </plurals>
+    <string name="unlock_reminder_key_file_line">Файл-ключ %1$s тоже храните в надёжном месте: без него пароль ничего не откроет.</string>
+    <string name="unlock_reminder_check_text">Введите мастер-пароль базы «%1$s». Если он не совпадёт, ничего не изменится: %1$s останется открытой.</string>
+    <plurals name="unlock_reminder_wrong">
+        <item quantity="one">Не совпадает. Осталась %1$d попытка.</item>
+        <item quantity="few">Не совпадает. Осталось %1$d попытки.</item>
+        <item quantity="many">Не совпадает. Осталось %1$d попыток.</item>
+        <item quantity="other">Не совпадает. Осталось %1$d попытки.</item>
+    </plurals>
+    <string name="unlock_reminder_failed">%1$s остаётся открытой, и ничего не изменилось. Если её мастер-пароль сохранён в %1$s, найдите его там. Или задайте новый через «Сменить мастер-ключ».</string>
+    <string name="unlock_reminder_again_tomorrow">Keething спросит снова завтра.</string>
+    <plurals name="unlock_reminder_again_in">
+        <item quantity="one">Keething спросит снова через %1$d день.</item>
+        <item quantity="few">Keething спросит снова через %1$d дня.</item>
+        <item quantity="many">Keething спросит снова через %1$d дней.</item>
+        <item quantity="other">Keething спросит снова через %1$d дня.</item>
+    </plurals>
+    <plurals name="unlock_reminder_matched_again_in">
+        <item quantity="one">Совпадает. Keething спросит снова через %1$d день.</item>
+        <item quantity="few">Совпадает. Keething спросит снова через %1$d дня.</item>
+        <item quantity="many">Совпадает. Keething спросит снова через %1$d дней.</item>
+        <item quantity="other">Совпадает. Keething спросит снова через %1$d дня.</item>
+    </plurals>
+    <string name="unlock_reminder_never_again">Keething больше не спросит.</string>
+    <string name="unlock_reminder_matched_never_again">Совпадает. Keething больше не спросит.</string>
+    <string name="unlock_reminder_yes">Да</string>
+    <string name="unlock_reminder_not_now">Не сейчас</string>
+    <string name="unlock_reminder_check_it">Проверить</string>
+    <string name="unlock_reminder_check_title">Проверить мастер-пароль</string>
+    <string name="unlock_reminder_checking">Проверяем…</string>
+    <string name="unlock_reminder_check">Проверить</string>
+    <string name="unlock_reminder_cancel">Отмена</string>
+    <string name="unlock_reminder_master_password">Мастер-пароль</string>
+    <string name="unlock_reminder_hide_password">Скрыть пароль</string>
+    <string name="unlock_reminder_show_password">Показать пароль</string>
+    <string name="unlock_reminder_not_matched_title">Не совпадает</string>
+    <string name="unlock_reminder_change_master_key">Сменить мастер-ключ…</string>
+    <string name="unlock_reminder_close">Закрыть</string>
+</resources>

@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_title_quick_note">Быстрая заметка</string>
+    <string name="editor_title_new_entry">Новая запись</string>
+    <string name="editor_title_new_note">Новая заметка</string>
+    <string name="editor_title_edit_entry">Изменить запись</string>
+    <string name="editor_title_edit_note">Изменить заметку</string>
+    <string name="editor_discard_changes">Отменить изменения</string>
+    <string name="editor_close">Закрыть</string>
+    <string name="editor_save">Сохранить</string>
+    <string name="editor_ok">OK</string>
+    <string name="editor_cancel">Отмена</string>
+    <string name="editor_add">Добавить</string>
+    <string name="editor_back">Назад</string>
+    <string name="editor_undo">Отменить</string>
+    <string name="editor_chosen">Выбрано</string>
+    <string name="editor_quoted">«%1$s»</string>
+    <string name="editor_sentences">%1$s %2$s</string>
+
+    <string name="editor_discard_title">Отменить изменения?</string>
+    <string name="editor_discard_text_new_entry">Новая запись не сохранена.</string>
+    <string name="editor_discard_text_new_note">Новая заметка не сохранена.</string>
+    <string name="editor_discard_text_changed_entry">Изменения в этой записи не сохранены.</string>
+    <string name="editor_discard_text_changed_note">Изменения в этой заметке не сохранены.</string>
+    <string name="editor_discard">Отменить</string>
+    <string name="editor_keep_editing">Продолжить</string>
+
+    <string name="editor_attach_large_title">Вложить большой файл?</string>
+    <string name="editor_attach_large_the_file">Файл</string>
+    <string name="editor_attach_large_attach">Вложить</string>
+    <string name="editor_attach_large_skip">Не вкладывать</string>
+    <string name="editor_attach_same_name_title">«%1$s» уже вложен</string>
+    <string name="editor_attach_same_name_text">Заменить его новым файлом или оставить оба, новый — как «%1$s»?</string>
+    <string name="editor_attach_same_name_text_history">Заменить его новым файлом или оставить оба, новый — как «%1$s»? Заменённое вложение остаётся в истории записи.</string>
+    <string name="editor_attach_same_name_replace">Заменить</string>
+    <string name="editor_attach_same_name_keep_both">Оставить оба</string>
+
+    <string name="editor_field_title">Название</string>
+    <string name="editor_field_username">Имя пользователя</string>
+    <string name="editor_field_password">Пароль</string>
+    <string name="editor_field_website">Сайт</string>
+    <string name="editor_field_notes">Заметки</string>
+    <string name="editor_add_website">Сайт</string>
+    <string name="editor_generate_password">Создать пароль</string>
+    <string name="editor_show_password">Показать пароль</string>
+    <string name="editor_hide_password">Скрыть пароль</string>
+    <string name="editor_show_value">Показать значение</string>
+    <string name="editor_hide_value">Скрыть значение</string>
+    <string name="editor_show_secret">Показать секрет</string>
+    <string name="editor_hide_secret">Скрыть секрет</string>
+    <string name="editor_expires">Срок</string>
+    <string name="editor_save_is_off">Сохранить пока нельзя. %1$s</string>
+
+    <string name="editor_note_text">Текст</string>
+    <string name="editor_note_text_protected">защищён</string>
+    <string name="editor_note_placeholder">Что сохранить</string>
+    <string name="editor_note_protect">Защитить текст</string>
+    <string name="editor_note_protect_detail">Скрыт на карточке, пока его не покажут, и не участвует в поиске</string>
+
+    <string name="editor_tags">Теги</string>
+    <string name="editor_tags_add">Добавить тег</string>
+    <string name="editor_tags_add_another">Добавить ещё</string>
+    <string name="editor_tags_remove">Убрать тег %1$s</string>
+
+    <string name="editor_save_into">Сохранить в</string>
+    <string name="editor_save_into_choose">Выбрать базу</string>
+    <string name="editor_save_into_subtitle">Группа, теги и имя пользователя зависят от выбранной базы.</string>
+    <string name="editor_not_open">Не открыты: %1$s</string>
+    <string name="editor_names_more">%1$s, %2$s</string>
+    <string name="editor_group">Группа</string>
+    <string name="editor_group_choose">Выбрать группу</string>
+    <string name="editor_group_gone">Её больше нет в файле: выберите другую</string>
+    <string name="editor_group_made">создаётся при сохранении записи</string>
+    <string name="editor_badge_new">НОВОЕ</string>
+    <string name="editor_badge_replaced">ЗАМЕНЕНО</string>
+
+    <string name="editor_section_attachments">Вложения</string>
+    <string name="editor_attachment_no_content">Пусто</string>
+    <string name="editor_attachment_remove">Убрать вложение %1$s</string>
+    <string name="editor_attachment_reading">Читаем файлы…</string>
+    <string name="editor_attachment_add">Добавить файлы</string>
+
+    <string name="editor_section_fields">Поля</string>
+    <string name="editor_code_list_fold">Свернуть коды</string>
+    <string name="editor_code_list_show">Показать коды</string>
+    <plurals name="editor_code_list_count">
+        <item quantity="one">%1$d код</item>
+        <item quantity="few">%1$d кода</item>
+        <item quantity="many">%1$d кодов</item>
+        <item quantity="other">%1$d кода</item>
+    </plurals>
+    <plurals name="editor_code_list_count_protected">
+        <item quantity="one">%1$d код · защищены</item>
+        <item quantity="few">%1$d кода · защищены</item>
+        <item quantity="many">%1$d кодов · защищены</item>
+        <item quantity="other">%1$d кода · защищены</item>
+    </plurals>
+    <string name="editor_custom_name">Имя</string>
+    <string name="editor_custom_value">Значение</string>
+    <string name="editor_choose_day">Выбрать день</string>
+    <string name="editor_custom_remove">Убрать поле %1$s</string>
+    <string name="editor_protected">Защищено</string>
+    <string name="editor_type_auto">%1$s · авто</string>
+    <string name="editor_type_automatic">Автоматически (%1$s)</string>
+    <string name="editor_type_unknown">«%1$s» (здесь неизвестен, сохраняется)</string>
+    <string name="editor_add_field">Добавить поле</string>
+    <string name="editor_add_codes_item">Коды…</string>
+    <string name="editor_add_code_item">Одноразовый код…</string>
+    <string name="editor_add_another_code_item">Ещё один одноразовый код…</string>
+
+    <string name="editor_code">Одноразовый код</string>
+    <string name="editor_code_removed">Одноразовый код будет удалён при сохранении.</string>
+    <string name="editor_code_settings">Настройки кода</string>
+    <string name="editor_code_settings_hide">Скрыть настройки кода</string>
+    <string name="editor_code_back">Вернуть код, который был у записи</string>
+    <string name="editor_code_remove">Удалить одноразовый код</string>
+    <string name="editor_code_new_check">Новый: перед сохранением проверьте, что сайт принимает этот код.</string>
+    <string name="editor_code_changed_check">Изменён: перед сохранением проверьте, что сайт принимает этот код.</string>
+    <string name="editor_code_digits">Цифр</string>
+    <string name="editor_code_period">Период</string>
+    <plurals name="editor_code_period_seconds">
+        <item quantity="one">%1$d с</item>
+        <item quantity="few">%1$d с</item>
+        <item quantity="many">%1$d с</item>
+        <item quantity="other">%1$d с</item>
+    </plurals>
+    <string name="editor_code_algorithm">Алгоритм</string>
+    <string name="editor_code_settings_hint">Меняйте их, только если так сказано на сайте: при неверных настройках сайт не примет коды.</string>
+    <string name="editor_code_in_field">Одноразовый код. Чтобы изменить его, удалите поле и добавьте код заново.</string>
+
+    <string name="editor_add_code_title">Одноразовый код</string>
+    <string name="editor_add_another_code_title">Ещё один одноразовый код</string>
+    <string name="editor_add_code_text">Секрет, который сайт показывает при включении двухэтапного входа (часто под «Не удаётся отсканировать?»), или его ссылка otpauth://.</string>
+    <string name="editor_add_code_field">Секрет или ссылка</string>
+    <string name="editor_add_code_clipboard_empty">В буфере обмена нет ни текста, ни изображения.</string>
+    <string name="editor_add_code_paste">Вставить</string>
+    <string name="editor_add_code_image">Изображение</string>
+    <string name="editor_add_code_scan">Сканировать</string>
+
+    <string name="editor_code_image_unreadable">Не удалось прочитать изображение.</string>
+    <string name="editor_code_camera_not_allowed">Доступ к камере не разрешён: разрешите его в настройках приложения или выберите изображение.</string>
+    <string name="editor_code_camera_close">Закрыть</string>
+    <string name="editor_code_camera_title">Сканировать QR-код</string>
+    <string name="editor_code_camera_hint">Наведите камеру на QR-код, который сайт показывает для двухэтапного входа.</string>
+
+    <string name="editor_add_codes_title">Добавить коды</string>
+    <string name="editor_add_codes_text">Вставьте или введите их, по одному в строке. Каждый станет защищённым полем; карточка покажет их нумерованным списком.</string>
+    <string name="editor_add_codes_name">Имя списка</string>
+    <string name="editor_add_codes_default_name">Коды восстановления</string>
+    <string name="editor_add_codes_field">Коды</string>
+
+    <string name="editor_saving_title">Сохраняем и проверяем…</string>
+    <string name="editor_saving_text">Записываем новый файл, читаем его обратно и сравниваем каждую запись. Старый файл остаётся резервной копией.</string>
+    <string name="editor_not_saved">Не сохранено</string>
+    <string name="editor_back_to_editing">Вернуться к редактированию</string>
+
+    <string name="editor_note_no_text_on_clipboard">В буфере обмена нет текста</string>
+
+    <string name="editor_save_failure_changed_elsewhere">После загрузки эту запись изменили в другом месте (в KeePassXC или на другом устройстве). Ничего не сохранено; теперь загружена новая версия.</string>
+    <string name="editor_save_failure_entry_not_found">Этой записи больше нет в файле (её удалили в другом месте). Ничего не сохранено.</string>
+    <string name="editor_save_failure_group_not_found">Этой группы больше нет в файле (её удалили в другом месте). Ничего не сохранено; выберите другую.</string>
+    <string name="editor_save_failure_recycle_bin_disabled">В этой базе корзина выключена. Ничего не удалено; удалите запись навсегда с её карточки.</string>
+    <string name="editor_save_failure_wrong_place">Эту запись переместили (в корзину или из неё). Ничего не сохранено.</string>
+    <string name="editor_save_failure_version_gone">Этой версии больше нет в истории записи (её изменили в другом месте?). Ничего не изменилось.</string>
+    <string name="editor_save_failure_verification_failed">Новый файл не прошёл проверку (%1$s), поэтому база не заменена.</string>
+    <string name="editor_save_failure_breaks_format">После изменения файл стал бы таким, какой KeePass не принимает (%1$s), поэтому база не заменена.</string>
+    <string name="editor_save_failure_view_only">Эта база в формате KDBX 3.1, только для просмотра, пока её формат не обновлён до KDBX 4. Ничего не сохранено.</string>
+    <string name="editor_save_failure_copy_not_kept">Не удалось сохранить файл KDBX 3.1 рядом с базой (%1$s), поэтому ничего не изменилось.</string>
+    <string name="editor_save_failure_copy_gone">Другой версии больше нет (её удалили или синхронизация убрала её). Ничего не изменилось.</string>
+    <string name="editor_save_failure_copy_wrong_key">Другая версия не открывается паролем или файлом-ключом этой базы (их изменили на другом устройстве?). Ничего не изменилось.</string>
+    <string name="editor_save_failure_copy_not_opened">Не удалось открыть другую версию, поэтому ничего не изменилось: %1$s</string>
+    <string name="editor_save_failure_backup_gone">Этой резервной копии больше нет. Ничего не изменилось.</string>
+    <string name="editor_save_failure_backup_damaged">Файл этой резервной копии повреждён, она не открывается. Ничего не изменилось.</string>
+    <string name="editor_save_failure_backup_not_opened">Не удалось открыть резервную копию, поэтому ничего не изменилось: %1$s</string>
+    <string name="editor_save_failure_file_keeps_changing">Файл базы всё время меняется (синхронизация?). Ничего не сохранено; попробуйте через минуту.</string>
+    <string name="editor_save_failure_write_failed">Не удалось записать базу: %1$s.</string>
+    <string name="editor_save_failure_locked">База заблокировалась до того, как изменение сохранилось. Ничего не сохранено; файл остался прежним.</string>
+    <string name="editor_save_failure_invalid_name">У группы должно быть имя. Ничего не сохранено.</string>
+    <string name="editor_save_failure_group_name_taken">Группа с таким именем уже есть (её создали в другом месте?). Ничего не сохранено.</string>
+    <string name="editor_save_failure_group_not_changeable">Эту группу так изменить нельзя (это верхний уровень, корзина или группа в ней, либо перемещение в саму себя или туда, где она уже есть; её изменили в другом месте?). Ничего не сохранено.</string>
+    <string name="editor_save_failure_group_not_empty">Группа уже не пустая (её изменили в другом месте?). Ничего не удалено.</string>
+    <string name="editor_save_failure_password_changed">Пароль базы изменили в другом месте. Ничего не сохранено.</string>
+    <string name="editor_save_failure_cannot_open">Ничего не сохранено: %1$s</string>
+    <string name="editor_save_interrupted">База заблокировалась; изменение могло не сохраниться.</string>
+    <string name="editor_save_locked">База заблокирована. Ничего не сохранено.</string>
+
+    <string name="editor_saved">Сохранено и проверено</string>
+    <string name="editor_saved_with_note">Сохранено и проверено. %1$s</string>
+    <plurals name="editor_deleted_groups">
+        <item quantity="one">Удалена пустая группа %1$s.</item>
+        <item quantity="few">Удалены пустые группы %1$s.</item>
+        <item quantity="many">Удалены пустые группы %1$s.</item>
+        <item quantity="other">Удалены пустые группы %1$s.</item>
+    </plurals>
+
+    <plurals name="editor_unsaved">
+        <item quantity="one">Не сохранено: %1$s. База заблокировалась во время сохранения. Файл остался прежним; сделайте изменение ещё раз.</item>
+        <item quantity="few">Не сохранено: %1$s. База заблокировалась во время сохранения. Файл остался прежним; сделайте изменения ещё раз.</item>
+        <item quantity="many">Не сохранено: %1$s. База заблокировалась во время сохранения. Файл остался прежним; сделайте изменения ещё раз.</item>
+        <item quantity="other">Не сохранено: %1$s. База заблокировалась во время сохранения. Файл остался прежним; сделайте изменения ещё раз.</item>
+    </plurals>
+    <string name="editor_unsaved_an_entry">без названия</string>
+    <string name="editor_unsaved_a_group">без названия</string>
+    <string name="editor_unsaved_top_level">корневой группе</string>
+    <string name="editor_unsaved_entry_changed_first">изменения в записи %1$s</string>
+    <string name="editor_unsaved_entry_changed">изменения в записи %1$s</string>
+    <string name="editor_unsaved_entry_created_first">новая запись</string>
+    <string name="editor_unsaved_entry_created">новая запись</string>
+    <string name="editor_unsaved_entry_to_recycle_bin_first">перемещение записи %1$s в корзину</string>
+    <string name="editor_unsaved_entry_to_recycle_bin">перемещение записи %1$s в корзину</string>
+    <string name="editor_unsaved_entry_restored_first">восстановление записи %1$s</string>
+    <string name="editor_unsaved_entry_restored">восстановление записи %1$s</string>
+    <string name="editor_unsaved_entry_deleted_first">удаление записи %1$s навсегда</string>
+    <string name="editor_unsaved_entry_deleted">удаление записи %1$s навсегда</string>
+    <string name="editor_unsaved_version_restored_first">возврат записи %1$s к прежней версии</string>
+    <string name="editor_unsaved_version_restored">возврат записи %1$s к прежней версии</string>
+    <string name="editor_unsaved_group_renamed_first">переименование группы %1$s</string>
+    <string name="editor_unsaved_group_renamed">переименование группы %1$s</string>
+    <string name="editor_unsaved_group_created_first">новая группа в %1$s</string>
+    <string name="editor_unsaved_group_created">новая группа в %1$s</string>
+    <string name="editor_unsaved_group_moved_first">перемещение группы %1$s</string>
+    <string name="editor_unsaved_group_moved">перемещение группы %1$s</string>
+    <string name="editor_unsaved_group_deleted_first">удаление группы %1$s</string>
+    <string name="editor_unsaved_group_deleted">удаление группы %1$s</string>
+    <string name="editor_unsaved_name_and_color_first">новое имя и цвет базы</string>
+    <string name="editor_unsaved_name_and_color">новое имя и цвет базы</string>
+    <string name="editor_kdbx3_not_upgraded">Формат не обновлён: %1$s</string>
+</resources>

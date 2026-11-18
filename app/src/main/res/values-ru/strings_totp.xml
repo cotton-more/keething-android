@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="totp_unsupported_not_totp">поддерживаются только ссылки на коды по времени (TOTP)</string>
+    <string name="totp_unsupported_google_export">это экспорт из Google Authenticator; отсканируйте QR-код самого сайта</string>
+</resources>

@@ -251,6 +251,11 @@ tasks:
     cmds:
       - tools/check-texts.py {{.CLI_ARGS}}
 
+  texts:translations:
+    desc: "Each translation in res/values-<language>/ against the English: keys, placeholders, plural quantities: task texts:translations -- [--missing] [--complete] (tools/check-translations.py)"
+    cmds:
+      - tools/check-translations.py {{.CLI_ARGS}}
+
   spec:
     desc: "The spec's status: task spec -- [area or id]"
     dir: '{{.SPEC}}'

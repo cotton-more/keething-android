@@ -63,6 +63,53 @@ to `uiText` is resolved with it; given to `stringResource` or put into `"$x"` it
 there it is `resolve()`d first. An entry's title as shown is `Entry.displayTitle` (a `UserText`: "(Untitled)" follows
 the phone's language); it is ordered, matched and its monogram drawn by `Entry.sortTitle`.
 
+### Translations
+
+A translation is `app/src/main/res/values-<language>/strings_<package>.xml`, the English file's name, the English
+comments left out. A resource not translated falls back to English.
+
+    task texts:translations                 # keys, placeholders and plural quantities against the English
+    task texts:translations -- --missing    # and lists what is not translated yet
+    task texts:translations -- --complete   # fails on anything not translated
+
+The phone offers the languages in `app/src/main/res/xml/locales_config.xml` (Settings › Apps › Keething › Language);
+a new translation is added there too, and the check fails until it is.
+
+A plural has every quantity the language needs (Russian: `one`, `few`, `many`, `other`), and each has the English
+`other`'s placeholders: Russian `one` is also 21 and 31, so it says the number.
+
+**Russian** (keething-spec plans T14, the owner 2026-11-18). The user is «вы». A button or a menu item is an infinitive
+(«Сохранить», «Удалить навсегда…»), a hint or a message an imperative («Введите пароль»). Quotes are «ёлочки»; an
+ellipsis stays where the English has one. Keething, KeePass, KeePassXC, KDBX, Syncthing, YubiKey, IBAN, BIC, CVC stay
+as they are. «Keething» has no gender: it is not the subject of a past tense («Keething спросит снова завтра»).
+
+| English | Russian |
+|---|---|
+| entry | запись |
+| note | заметка |
+| database | база |
+| master password / master key | мастер-пароль / мастер-ключ |
+| key file | файл-ключ |
+| unlock / lock | разблокировать / заблокировать |
+| one-time code, Codes | одноразовый код, Коды |
+| recycle bin / delete for good | корзина / удалить навсегда |
+| group / tag | группа / тег |
+| attachment | вложение |
+| custom field | дополнительное поле |
+| history / version | история / версия |
+| backup | резервная копия (where tight: копия) |
+| conflict copy | конфликтная копия |
+| Sharing / request / picture | Поделиться / запрос / картинка |
+| fingerprint | отпечаток пальца (where tight: отпечаток) |
+| autofill | автозаполнение |
+| passphrase / recovery phrase | парольная фраза / фраза восстановления |
+| read only / view only | только чтение / только просмотр |
+| Upgrade (KDBX 3.1 to 4) | Обновить формат |
+| Suggested / Recent / All entries | Подходящие / Недавние / Все записи |
+| Quick note | Быстрая заметка |
+| card / identity document / bank account / crypto wallet | карта / документ / банковский счёт / криптокошелёк |
+| expires / expired | истекает / истёк |
+
 ## Building the APK
 
     tools/build-apk.sh              # release build, signed; the keystore's password from the Keychain, else asked

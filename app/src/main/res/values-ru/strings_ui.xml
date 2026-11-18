@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notice_undo">Отменить</string>
+    <string name="notice_copied">Скопировано: %1$s · очистится через 30 с</string>
+    <plurals name="notice_next_code_copied">
+        <item quantity="one">Следующий код скопирован · сработает через %1$d с</item>
+        <item quantity="few">Следующий код скопирован · сработает через %1$d с</item>
+        <item quantity="many">Следующий код скопирован · сработает через %1$d с</item>
+        <item quantity="other">Следующий код скопирован · сработает через %1$d с</item>
+    </plurals>
+
+    <string name="ui_code_copy_next">Скопировать следующий код</string>
+    <plurals name="ui_code_next_in">
+        <item quantity="one">Следующий через %1$d с%2$s</item>
+        <item quantity="few">Следующий через %1$d с%2$s</item>
+        <item quantity="many">Следующий через %1$d с%2$s</item>
+        <item quantity="other">Следующий через %1$d с%2$s</item>
+    </plurals>
+    <plurals name="ui_code_next_said">
+        <item quantity="one">Следующий код через %1$d секунду: %2$s</item>
+        <item quantity="few">Следующий код через %1$d секунды: %2$s</item>
+        <item quantity="many">Следующий код через %1$d секунд: %2$s</item>
+        <item quantity="other">Следующий код через %1$d секунды: %2$s</item>
+    </plurals>
+    <plurals name="ui_code_seconds_left">
+        <item quantity="one">Осталась %1$d секунда</item>
+        <item quantity="few">Осталось %1$d секунды</item>
+        <item quantity="many">Осталось %1$d секунд</item>
+        <item quantity="other">Осталось %1$d секунды</item>
+    </plurals>
+</resources>

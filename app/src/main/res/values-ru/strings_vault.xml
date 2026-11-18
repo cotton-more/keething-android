@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vault_locate_in_list_already">Этот файл уже есть в списке как «%1$s».</string>
+    <string name="vault_locate_database_gone">Этой базы больше нет в списке.</string>
+    <string name="vault_locate_not_on_storage">%1$s не находится в памяти телефона.</string>
+    <string name="vault_locate_folder_lacks_file">В этой папке нет %1$s.</string>
+
+    <string name="vault_run_step">Разблокировка: %1$d из %2$d</string>
+    <plurals name="vault_run_open">
+        <item quantity="one">Открыта %1$d из %2$d</item>
+        <item quantity="few">Открыто %1$d из %2$d</item>
+        <item quantity="many">Открыто %1$d из %2$d</item>
+        <item quantity="other">Открыто %1$d из %2$d</item>
+    </plurals>
+    <string name="vault_run_skipped">%1$s: пропущена</string>
+    <string name="vault_run_not_opened">%1$s: %2$s</string>
+    <string name="vault_why_not_in_list">нет в списке</string>
+    <string name="vault_why_closed">закрыта</string>
+    <string name="vault_why_opening">открывается</string>
+    <string name="vault_why_not_found">не найдена</string>
+    <string name="vault_why_key_file_not_there">нет файла %1$s</string>
+    <string name="vault_why_key_file_unusable">её файл-ключ нельзя использовать</string>
+    <string name="vault_why_cannot_be_read">не читается</string>
+
+    <string name="vault_fingerprint_off_in_settings">он выключен в настройках</string>
+    <string name="vault_fingerprint_off_for_database">он выключен для этой базы</string>
+    <string name="vault_fingerprint_no_database">нет ни одной базы</string>
+
+    <string name="vault_key_file_not_read">не удалось прочитать %1$s</string>
+    <string name="vault_key_file_too_large">%1$s слишком большой, чтобы его прочитать</string>
+    <string name="vault_key_file_no_access">Keething больше не может читать %1$s: выберите его снова</string>
+    <string name="vault_key_file_empty">файл пустой</string>
+    <string name="vault_key_file_version">файл-ключ версии %1$s, такие KeePass не создаёт</string>
+    <string name="vault_key_file_malformed">файл-ключ, ключ из которого не прочитать (%1$s)</string>
+    <string name="vault_key_file_hash_mismatch">файл-ключ, ключ которого не сходится с контрольной суммой (изменён или повреждён)</string>
+</resources>
