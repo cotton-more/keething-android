@@ -10,6 +10,7 @@ import dev.keething.domain.vault.TotpChange
 import dev.keething.kdbx.KeePassXcCli
 import dev.keething.kdbx.editing.EditingFixtures.open
 import dev.keething.kdbx.editing.EditingFixtures.reread
+import dev.keething.kdbx.schema.KdbxSchema
 import dev.keething.kdbx.tree.XElement
 import dev.keething.kdbx.xml.KdbxField
 import java.io.File
@@ -258,6 +259,25 @@ class EntryEditingTest {
         assertEquals(2, history.size)
         assertEquals("v2", history.last().all("String").first { it.first("Key")?.text == "Notes" }.first("Value")?.text)
         assertNull(EntryEditing.entry("nope", editable.root))
+    }
+
+    @Test
+    fun aSnapshotOfAnEntryWrittenOutOfOrderIsInTheSchemasOrder() {
+        // Strongbox writes an entry's Times after its fields (checks/android.md, 2026-11-05).
+        val editable = open("kdbx4-aes-aeskdf")
+        val id = EditingFixtures.document("kdbx4-aes-aeskdf").entry("Second renamed").uuid
+        val element = editable.element(id)
+        val times = element.first("Times")!!
+        element.remove(times)
+        element.insertBefore(times, element.first("AutoType") ?: element.first("History"))
+        val before = KdbxSchema.violations(editable.root)
+
+        EntryEditing.apply(EntryChanges(notes = "edited"), element, editable.root, now)
+
+        val snapshot = element.first("History")!!.all("Entry").last()
+        val names = snapshot.elements.map { it.name }
+        assertTrue(names.indexOf("Times") < names.indexOf("String"), "$names")
+        assertEquals(before, KdbxSchema.violations(editable.root), "no violation the file did not have")
     }
 
     @Test

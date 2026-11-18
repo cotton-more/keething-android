@@ -18,7 +18,7 @@ import dev.keething.vault.session.SessionState
  */
 internal data class ChooserRow(
     val line: DatabaseLine,
-    /** Under its name: "Fingerprint", "Password + work.keyx", "Fingerprint to set up", "Not found". */
+    /** Under its name: "Fingerprint", "Password + work.keyx", "Fingerprint to set up", "Password changed elsewhere", "Not found". */
     val opensWith: UiText,
     val glyph: Glyph,
     val tone: Tone,
@@ -67,6 +67,12 @@ internal object ChooserRows {
             is OpenFailure.Unsupported, is OpenFailure.Damaged, OpenFailure.AccessDenied, OpenFailure.OutOfMemory ->
                 return row(uiText(R.string.databases_chooser_cannot_be_read), ChooserRow.Glyph.UNREADABLE, ChooserRow.Tone.PROBLEM, canCheck = false)
             is OpenFailure.KeyFileUnusable -> return row(key?.let { uiText(R.string.databases_chooser_key_unusable, it.name) } ?: uiText(R.string.databases_chooser_its_key_unusable), ChooserRow.Glyph.KEY_FILE, ChooserRow.Tone.PROBLEM, canCheck = false)
+            else -> {}
+        }
+        // Locked because the password it opens with is another now; its fingerprint's went with it (checks/android.md, 2026-11-13).
+        when ((session as? SessionState.Locked)?.reason) {
+            LockReason.RestoredOlderKey -> return row(uiText(R.string.databases_chooser_restored_older_key), ChooserRow.Glyph.PASSWORD, ChooserRow.Tone.WARNING)
+            LockReason.PasswordChanged -> return row(uiText(R.string.databases_chooser_password_changed), ChooserRow.Glyph.PASSWORD, ChooserRow.Tone.WARNING)
             else -> {}
         }
         if (fingerprint.enabled && fingerprint.availability == BiometricAvailability.Available) {

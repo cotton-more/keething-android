@@ -337,6 +337,8 @@
     <string name="databases_chooser_key_file">Файл-ключ %1$s</string>
     <string name="databases_chooser_password_and_key_file">Пароль + %1$s</string>
     <string name="databases_chooser_password">Пароль</string>
+    <string name="databases_chooser_restored_older_key">Восстановлена старая копия · пароль тех времён</string>
+    <string name="databases_chooser_password_changed">Пароль изменили в другом месте</string>
     <string name="databases_chooser_unlock">Разблокировать</string>
     <plurals name="databases_chooser_unlock_count">
         <item quantity="one">Разблокировать %1$d базу</item>

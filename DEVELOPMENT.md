@@ -276,7 +276,7 @@ entries, key derived in … ms, … MiB, room …" and "<id> save done/failed in
 
 ## Stopping a save in the middle on the phone
 
-    adb shell run-as dev.keething.android sh -c 'echo "rename .syncthing" > files/debug-pause'
+    adb shell run-as dev.keething.android sh -c "'cd /data/data/dev.keething.android && echo \"rename .syncthing\" > files/debug-pause'"
     adb shell run-as dev.keething.android kill -9 $(adb shell pidof dev.keething.android)   # once the log says paused
 
 Debug builds only (`PausingFolder`): the next call of that kind on a granted folder whose path holds the text waits
@@ -284,6 +284,10 @@ two minutes, and the log (tag `KeethingPause`) says when, so the process can be 
 (keething-spec databases.saf AC4, AC5) or while New database writes (AC11). The calls: `write` (the new file made,
 still empty; `write S5Fam.kdbx` for a Create), `rename <the database's path>` (before it goes aside), `rename .syncthing`
 (before the new file goes in), `delete .syncthing` (before the old file goes). The marker is removed when it pauses.
+`adb shell` runs its words through the phone's shell once more, which drops one level of quotes and starts `sh -c`
+outside the app's folder: hence the doubled quotes and the `cd`. A Create writes the new file as
+`.syncthing.<name>.keething-new.tmp` and renames it after, so `write <name>` still catches it. A lock comes by itself
+after the lock timeout in the background (Settings, 1 min): Home while the save waits.
 `am kill` does not end an app in front; `kill -9` through `run-as` does. `read <the database's name>` pauses the
 next read of the database instead: set it, then save a change, and lock while the save waits at its first step
 (keething-spec kdbx.hardening AC3: after 10 s it is stopped, and the next unlock says the change was not saved).

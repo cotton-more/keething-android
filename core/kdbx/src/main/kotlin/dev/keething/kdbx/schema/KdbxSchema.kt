@@ -1,6 +1,7 @@
 package dev.keething.kdbx.schema
 
 import dev.keething.kdbx.tree.XElement
+import dev.keething.kdbx.tree.XNode
 import dev.keething.kdbx.tree.XText
 import java.util.Base64
 
@@ -64,6 +65,36 @@ internal object KdbxSchema {
         }
         val follower = parent.elements.firstOrNull { (model.index[it.name] ?: -1) > index }
         parent.insertBefore(child, follower)
+    }
+
+    /**
+     * Puts [element]'s children (a `Group`, an `Entry`, `Root` or `Meta`) in the schema's order, each with the blank text
+     * before it, so the indentation stays. Elements the schema does not know stay after the one before them; text that
+     * is not blank leaves the element as it is. For a history snapshot: a copy of an entry another app wrote out of order
+     * (Strongbox: `Times` after the fields) would be one more violation of the file's.
+     */
+    fun order(element: XElement) {
+        val model = sequence(element.name) ?: return
+        if (element.children.any { it is XText && it.text.isNotBlank() }) return
+        val units = mutableListOf<List<XNode>>()
+        var pending = mutableListOf<XNode>()
+        for (node in element.children) {
+            pending += node
+            if (node is XElement) {
+                units += pending
+                pending = mutableListOf()
+            }
+        }
+        var last = -1
+        val keyed = units.map { unit ->
+            last = model.index[(unit.last() as XElement).name] ?: last
+            last to unit
+        }
+        val ordered = keyed.sortedBy { it.first }
+        if (ordered == keyed) return
+        element.children.clear()
+        ordered.forEach { element.children.addAll(it.second) }
+        element.children.addAll(pending)
     }
 
     /**

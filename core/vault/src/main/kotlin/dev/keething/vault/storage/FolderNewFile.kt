@@ -13,10 +13,12 @@ import java.nio.file.FileAlreadyExistsException
 
 /**
  * A new database or key file at [path] in a granted folder (keething-spec databases.saf AC11, kdbx.new-file AC8,
- * kdbx.new-key-file AC3), never over a file there. The provider never makes a file over another: it names the new one
- * otherwise ("Personal (1).kdbx") when the name is taken, so that one, still empty, is removed again and the name is
- * said to be taken. The file is made empty and written at once; a new database is about 1.2 KB, and Syncthing waits
- * 10 s after a change before it scans. The storage has no permissions: [create]'s `readOnly` changes nothing.
+ * kdbx.new-key-file AC3), never over a file there. It is written whole under [temporaryName], which Syncthing never
+ * scans or sends, and only then renamed to its own name: a Create stopped in the middle leaves no empty or partial file
+ * under the database's name for a sync to carry to the other devices (the temporary one is removed at the next start,
+ * [dev.keething.vault.creating.CreationNote]). The provider never renames over a file: it names ours otherwise
+ * ("Personal (1).kdbx") when the name is taken, so ours is removed again and the name is said to be taken. The storage
+ * has no permissions: [create]'s `readOnly` changes nothing.
  */
 public class FolderNewFile(private val folder: GrantedFolder, private val path: String) : NewFile {
     private val parent = folderOf(path)
@@ -33,26 +35,35 @@ public class FolderNewFile(private val folder: GrantedFolder, private val path: 
     }
 
     override fun create(bytes: ByteArray, readOnly: Boolean) {
-        val given = folder.create(parent, fileName)
-        if (given != fileName) {
-            // The provider's own file, just made; only while it is still empty, in case a sync took that name since.
-            val made = pathIn(parent, given)
-            runCatching { if (folder.version(made)?.size == 0L) folder.delete(made) }
-            throw FileAlreadyExistsException(fileName)
-        }
-        try {
-            folder.write(path, bytes)
-            created = folder.version(path)
+        val temporary = pathIn(parent, folder.create(parent, temporaryName(fileName)))
+        val given = try {
+            folder.write(temporary, bytes)
+            folder.rename(temporary, fileName)
         } catch (failure: Exception) {
-            // The file is this one's own (the provider made it under the name asked): nothing is left behind.
-            runCatching { folder.delete(path) }.exceptionOrNull()?.let(failure::addSuppressed)
+            // The temporary file is this one's own: nothing is left behind.
+            runCatching { folder.delete(temporary) }.exceptionOrNull()?.let(failure::addSuppressed)
             throw failure as? IOException ?: IOException(failure.message ?: failure.javaClass.simpleName, failure)
         }
+        if (given != fileName) {
+            // Ours under the provider's other name; only while it is still what was written, in case a sync took that name since.
+            val made = pathIn(parent, given)
+            runCatching { if (folder.read(made)?.bytes?.contentEquals(bytes) == true) folder.delete(made) }
+            throw FileAlreadyExistsException(fileName)
+        }
+        created = folder.version(path)
     }
 
     override fun removeCreated() {
         val mine = created ?: return
         if (folder.version(path) == mine) folder.delete(path)
         created = null
+    }
+
+    public companion object {
+        /**
+         * The name [create] writes [fileName] under first: Syncthing never scans or sends `.syncthing.*.tmp` files (its
+         * own downloads, `.syncthing.<name>.tmp`, which the `keething-new` keeps apart).
+         */
+        public fun temporaryName(fileName: String): String = ".syncthing.$fileName.keething-new.tmp"
     }
 }

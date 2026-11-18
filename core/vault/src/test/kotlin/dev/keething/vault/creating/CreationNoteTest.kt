@@ -231,6 +231,16 @@ class CreationNoteTest {
     }
 
     @Test
+    fun theTemporaryFileOfACreateStoppedBeforeItsRenameGoes() {
+        note.begin("New")
+        note.making(inFolder("New.kdbx"), "the whole file".encodeToByteArray())
+        granted.put(FolderNewFile.temporaryName("New.kdbx"), "the who".encodeToByteArray())
+
+        assertEquals(CreationNote.Leftover("New", emptyList()), note.leftovers())
+        assertEquals(emptyList(), granted.names())
+    }
+
+    @Test
     fun aFileInAFolderWhoseGrantIsGoneIsKeptAndSaid() {
         note.begin("Gone")
         notedInFolder("Gone.kdbx").create("database".encodeToByteArray())

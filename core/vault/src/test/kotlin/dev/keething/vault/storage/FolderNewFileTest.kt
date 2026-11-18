@@ -45,6 +45,18 @@ class FolderNewFileTest {
     }
 
     @Test
+    fun aNewFileIsWrittenUnderATemporaryNameAndGetsItsOwnOnlyWhenWhole() {
+        folder.makeFolder("KeePass")
+        var whileWriting: List<String>? = null
+        folder.afterCall = { if (it.operation == Operation.WRITE) whileWriting = folder.names("KeePass") }
+
+        FolderNewFile(folder, "KeePass/Family.kdbx").create(bytes)
+
+        assertEquals(listOf(".syncthing.Family.kdbx.keething-new.tmp"), whileWriting, "nothing under the database's name for a sync to send")
+        assertEquals(listOf("Family.kdbx"), folder.names("KeePass"))
+    }
+
+    @Test
     fun aNameTakenIsSaidBeforeAndTheProvidersOtherNameIsRemovedAgain() {
         folder.put("Family.kdbx", "theirs".encodeToByteArray())
         val target = FolderNewFile(folder, "Family.kdbx")

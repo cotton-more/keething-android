@@ -154,6 +154,7 @@ internal object EntryEditing {
             inner.wipeSecrets()
             snapshot.remove(inner)
         }
+        KdbxSchema.order(snapshot)
         val history = entry.first("History") ?: XElement("History").also(entry::append)
         history.append(snapshot)
         if (maxItems >= 0) {

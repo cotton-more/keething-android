@@ -4,7 +4,11 @@ import dev.keething.domain.storage.GrantedFolder
 import dev.keething.domain.storage.NewFile
 import dev.keething.domain.storage.NewFilePlace
 import dev.keething.domain.storage.StoragePlace
+import dev.keething.domain.storage.folderOf
+import dev.keething.domain.storage.nameOf
+import dev.keething.domain.storage.pathIn
 import dev.keething.vault.databases.FileLocation
+import dev.keething.vault.storage.FolderNewFile
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
@@ -99,6 +103,8 @@ public class CreationNote(private val file: File, private val folders: (grant: S
         }
         is FileLocation.InFolder -> try {
             val folder = folders(at.grant) ?: throw IOException("the folder's grant is gone")
+            // Stopped before its rename: the temporary file Create wrote it under, never anyone else's.
+            folder.delete(pathIn(folderOf(at.path), FolderNewFile.temporaryName(nameOf(at.path))))
             val bytes = folder.read(at.path)?.bytes
             bytes == null || (bytes.isEmpty() || bytes.size.toLong() == noted.size && digest(bytes) == noted.digest) && folder.delete(at.path)
         } catch (_: IOException) {

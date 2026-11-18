@@ -106,6 +106,18 @@ class ChooserRowsTest {
 
     // spec: databases.chooser/AC3
     @Test
+    fun aDatabaseLockedBecauseItsPasswordIsAnotherNowSaysSo() {
+        val restored = row(SessionState.Locked(LockReason.RestoredOlderKey), fingerprint = on.copy(stored = false))
+        assertEquals("Older backup restored · its password then", restored.opensWith.english())
+        assertEquals(ChooserRow.Tone.WARNING, restored.tone)
+        assertTrue(restored.canCheck, "typing the password it had then opens it")
+
+        val changed = row(SessionState.Locked(LockReason.PasswordChanged))
+        assertEquals("Password changed elsewhere", changed.opensWith.english())
+        assertEquals(ChooserRow.Tone.WARNING, changed.tone)
+    }
+
+    @Test
     fun theFingerprintsStatesOpenAndOpeningOnes() {
         assertEquals("Fingerprint to set up again", row(fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.PASSWORD_REJECTED)).opensWith.english())
         assertEquals("Fingerprint to set up again", row(fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.FINGERPRINTS_CHANGED)).opensWith.english())

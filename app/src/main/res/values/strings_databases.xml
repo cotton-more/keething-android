@@ -376,6 +376,9 @@
     <string name="databases_chooser_key_file">Key file %1$s</string>
     <string name="databases_chooser_password_and_key_file">Password + %1$s</string>
     <string name="databases_chooser_password">Password</string>
+    <!-- Locked because a backup made before its master key changed was restored: it opens with the password it had then -->
+    <string name="databases_chooser_restored_older_key">Older backup restored · its password then</string>
+    <string name="databases_chooser_password_changed">Password changed elsewhere</string>
     <string name="databases_chooser_unlock">Unlock</string>
     <!-- %1$d: how many databases are checked -->
     <plurals name="databases_chooser_unlock_count">
