@@ -192,7 +192,7 @@ private fun SeedPlate(seed: FieldRow, passphrase: FieldRow?, reveal: RevealState
             Rivet()
             Text(stringResource(R.string.entry_seed_heading), Modifier.weight(1f), color = Steel.label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, maxLines = 1)
             phrase?.let {
-                val language = (it.check as? SeedPhrase.Check.Bip39)?.language?.displayName
+                val language = (it.check as? SeedPhrase.Check.Bip39)?.language?.displayName?.resolve()
                 Text(
                     if (language == null) pluralStringResource(R.plurals.entry_seed_words, it.words.size, it.words.size)
                     else pluralStringResource(R.plurals.entry_seed_words_language, it.words.size, it.words.size, language),
