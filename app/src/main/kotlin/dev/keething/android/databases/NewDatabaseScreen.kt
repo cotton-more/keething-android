@@ -510,8 +510,8 @@ private fun EncryptionPage(model: NewDatabaseModel) {
                 steps = 48,
             )
             Row {
-                Text(stringResource(R.string.databases_seconds, "0.1"), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(stringResource(R.string.databases_seconds, "5"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.databases_seconds, 0.1), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.databases_seconds_whole, 5), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (model.isMeasuring) LinearProgressIndicator(Modifier.fillMaxWidth())
             Text(model.measuredLine.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

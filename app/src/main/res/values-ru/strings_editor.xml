@@ -17,12 +17,12 @@
     <string name="editor_quoted">«%1$s»</string>
     <string name="editor_sentences">%1$s %2$s</string>
 
-    <string name="editor_discard_title">Отменить изменения?</string>
+    <string name="editor_discard_title">Не сохранять изменения?</string>
     <string name="editor_discard_text_new_entry">Новая запись не сохранена.</string>
     <string name="editor_discard_text_new_note">Новая заметка не сохранена.</string>
     <string name="editor_discard_text_changed_entry">Изменения в этой записи не сохранены.</string>
     <string name="editor_discard_text_changed_note">Изменения в этой заметке не сохранены.</string>
-    <string name="editor_discard">Отменить</string>
+    <string name="editor_discard">Не сохранять</string>
     <string name="editor_keep_editing">Продолжить</string>
 
     <string name="editor_attach_large_title">Вложить большой файл?</string>
