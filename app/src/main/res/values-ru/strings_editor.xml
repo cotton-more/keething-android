@@ -157,6 +157,7 @@
     <string name="editor_note_no_text_on_clipboard">В буфере обмена нет текста</string>
 
     <string name="editor_save_failure_changed_elsewhere">После загрузки эту запись изменили в другом месте (в KeePassXC или на другом устройстве). Ничего не сохранено; теперь загружена новая версия.</string>
+    <string name="editor_save_failure_duplicate_id">У этой записи тот же идентификатор, что у другой записи в базе, — так бывает только в повреждённом файле, поэтому здесь ни одну из них изменить нельзя. Ничего не сохранено; исправьте базу в KeePassXC (оставьте одну из двух или клонируйте одну и удалите её).</string>
     <string name="editor_save_failure_entry_not_found">Этой записи больше нет в файле (её удалили в другом месте). Ничего не сохранено.</string>
     <string name="editor_save_failure_group_not_found">Этой группы больше нет в файле (её удалили в другом месте). Ничего не сохранено; выберите другую.</string>
     <string name="editor_save_failure_recycle_bin_disabled">В этой базе корзина выключена. Ничего не удалено; удалите запись навсегда с её карточки.</string>
@@ -185,6 +186,8 @@
     <string name="editor_save_locked">База заблокирована. Ничего не сохранено.</string>
 
     <string name="editor_saved">Сохранено и проверено</string>
+    <string name="editor_may_not_sync">Приложение синхронизации может не отправить файл: его время оказалось слишком близко ко времени файла, который он заменил. Измените что-нибудь и сохраните снова.</string>
+    <string name="editor_saved_may_not_sync">%1$s\n%2$s</string>
     <string name="editor_saved_with_note">Сохранено и проверено. %1$s</string>
     <plurals name="editor_deleted_groups">
         <item quantity="one">Удалена пустая группа %1$s.</item>

@@ -3,6 +3,7 @@ package dev.keething.vault.session
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.domain.storage.DatabaseChangedException
 import dev.keething.domain.storage.DatabaseRead
+import dev.keething.domain.storage.DatabaseReplacedException
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.storage.StoppedSave
@@ -29,6 +30,9 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
     var replaced = 0
         private set
     var failNextReplace = false
+
+    /** The next replace goes through, and then says its new time could not be made sure of. */
+    var nextReplaceTooClose = false
 
     /** Runs before each read with its number (1 for the first): another device changing the file meanwhile. */
     var beforeRead: (Int) -> Unit = {}
@@ -67,6 +71,10 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
         if (expected != null && expected != current) throw DatabaseChangedException("changed since $expected")
         replaced++
         change(bytes.copyOf())
+        if (nextReplaceTooClose) {
+            nextReplaceTooClose = false
+            throw DatabaseReplacedException("less than 2 s from the file it replaced")
+        }
     }
 
     /** The files [keepBeside] kept, by the name each got; [failKeep]: it keeps nothing and throws. */
@@ -80,7 +88,13 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
         return given
     }
 
-    override fun conflictCopies(): List<ConflictCopy> = copies
+    /** Runs before each listing of the conflict copies: a test holding the session there. */
+    var beforeCopies: () -> Unit = {}
+
+    override fun conflictCopies(): List<ConflictCopy> {
+        beforeCopies()
+        return copies
+    }
 
     /** The conflict copies' bytes by name ([copies] lists them); [failCopyDelete]: a delete leaves the copy and throws. */
     val copyFiles = LinkedHashMap<String, ByteArray>()

@@ -21,6 +21,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
@@ -245,6 +246,18 @@ class BackupRestoreTest {
         f.backups.failKeep = true
         assertIs<RestoreOutcome.Failed>(restore(f))
         assertContentEquals(current, f.store.content, "not replaced without its backup")
+    }
+
+    @Test
+    fun aRestoreWhoseNewTimeCameOutTooCloseIsRestoredWithAWarning() = runTest {
+        val f = unlocked()
+        f.store.nextReplaceTooClose = true
+
+        val outcome = assertIs<RestoreOutcome.Restored>(restore(f))
+
+        assertTrue(outcome.mayNotSync)
+        assertContentEquals(backup, f.store.content)
+        assertNotEquals("changed since", f.unlocked.vault.entries.first().notes, "the vault is the backup read back")
     }
 
     // spec: databases.backups-window/AC8

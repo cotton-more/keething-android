@@ -17,9 +17,11 @@ import java.time.LocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -195,12 +197,28 @@ class ConflictCopyResolveTest {
         val read = assertIs<CopyContents.Read>(contents.await())
         assertEquals(open.entries, read.summary.entries)
         assertEquals(Instant.parse("2026-11-08T10:15:00Z"), read.summary.lastChanged)
+        assertFalse(read.kdbx3)
 
         val other = unlocked(copyBytes = keyFileBytes("keyfile-only.kdbx"))
         val notOpened = backgroundScope.async { other.session.copyContents(copy) }
         runCurrent()
         assertEquals(CopyContents.NotOpened(OpenFailure.WrongPassword), notOpened.await())
         assertIs<SessionState.Unlocked>(other.session.state.value)
+    }
+
+    @Test
+    fun aKdbx31CopyIsToldAsSuchAndTakenMakesTheDatabaseViewedOnly() = runTest {
+        val f = unlocked(copyBytes = fixtureBytes("interop/keepassdx-4.5.8"))
+        assertFalse(f.unlocked.viewOnly)
+
+        val contents = backgroundScope.async { f.session.copyContents(copy) }
+        runCurrent()
+        assertTrue(assertIs<CopyContents.Read>(contents.await()).kdbx3)
+
+        val taken = assertNotNull(f.session.takeConflictCopy(copy))
+        runCurrent()
+        assertIs<SaveOutcome.Saved>(taken.await())
+        assertTrue(f.unlocked.viewOnly, "viewed only until it is upgraded")
     }
 
     @Test

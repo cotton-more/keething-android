@@ -166,6 +166,19 @@ class KdbxReaderTest {
     }
 
     @Test
+    fun keepass1AndKdbx2PreReleaseSignaturesAreOldFormatsNotSomeOtherFile() {
+        // KeePass 1.x's second signature (0xB54BFB65) and KDBX 2's pre-release one (0xB54BFB66), little-endian at 4.
+        val keepass1 = Fixtures.bytes("kdbx3.kdbx").also { it[4] = 0x65 }
+        val failure = assertFailsWith<KdbxException.KeePass1> { KdbxReader.open(keepass1, key()) }
+        assertEquals("KeePass 1.x (.kdb)", failure.message)
+        assertFailsWith<KdbxException.KeePass1> { KdbxReader.isKdbx3(keepass1) }
+        assertEquals(false, KdbxReader.isHeaderDamaged(ByteArrayInputStream(keepass1)))
+
+        val preRelease = Fixtures.bytes("kdbx3.kdbx").also { it[4] = 0x66; it[8] = 0; it[10] = 1 }
+        assertEquals("KDBX 1.0", assertFailsWith<KdbxException.UnsupportedVersion> { KdbxReader.open(preRelease, key()) }.message)
+    }
+
+    @Test
     fun aSecondReadWithTheSameKeyDerivesNothing() {
         val file = Fixtures.bytes("kdbx4-chacha20-argon2id.kdbx")
         val key = key()

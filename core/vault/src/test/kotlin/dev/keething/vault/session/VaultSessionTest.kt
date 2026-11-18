@@ -283,6 +283,34 @@ class VaultSessionTest {
     }
 
     @Test
+    fun aSaveWhoseNewTimeCameOutTooCloseIsSavedWithAWarning() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first()
+        f.store.nextReplaceTooClose = true
+
+        val saved = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "close"))))
+        runCurrent()
+
+        assertEquals(SaveOutcome.Saved(mayNotSync = true), saved.await())
+        assertEquals("close", f.vault.entries.first().notes, "the vault is the file")
+    }
+
+    // spec: kdbx.external-changes/AC4
+    @Test
+    fun aKdbx31FileCaughtCutShortKeepsTheVaultAndDoesNotLock() = runTest {
+        val f = unlocked("interop/keepassdx-4.5.8")
+        val before = f.vault
+        val file = fixtureBytes("interop/keepassdx-4.5.8")
+
+        f.store.change(file.copyOf(file.size - 37))
+        advanceTimeBy(2.seconds)
+        runCurrent()
+
+        assertSame(before, f.vault)
+        assertIs<OpenFailure.Damaged>(f.unlockedState.reloadFailure)
+    }
+
+    @Test
     fun aDamagedFileKeepsTheVaultAndTheNextChangeRecovers() = runTest {
         val f = unlocked()
         val before = f.vault

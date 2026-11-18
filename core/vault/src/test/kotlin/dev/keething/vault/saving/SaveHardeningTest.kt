@@ -202,17 +202,18 @@ class SaveHardeningTest {
     // AC9: a failed save and the backups
 
     /** A save that went through, then one whose replace fails so: the result, and the backups before and after it. */
-    private fun saveFailing(replace: (ByteArray, FileVersion?) -> Unit): Triple<SaveResult, List<ByteArray>, List<ByteArray>> {
+    private fun saveFailing(replace: FakeStore.(ByteArray, FileVersion?) -> Unit): Triple<SaveResult, List<ByteArray>, List<ByteArray>> {
         val backups = Backups()
         val store = FakeStore(fixtureBytes("kdbx4-aes-aeskdf"))
         val key = key()
         val entry = unlock(store, key).entries.first()
-        assertIs<SaveResult.Saved>(VaultSaver(store, backups).save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "one")), key, now))
+        val one = assertIs<SaveResult.Saved>(VaultSaver(store, backups).save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "one")), key, now))
+        val loaded = one.opened.vault.entries.single { it.id == entry.id }.lastModified
         val before = backups.folder.toList()
         val failing = object : DatabaseStore by store {
-            override fun replace(bytes: ByteArray, expected: FileVersion?) = replace(bytes, expected)
+            override fun replace(bytes: ByteArray, expected: FileVersion?) = replace(store, bytes, expected)
         }
-        val result = VaultSaver(failing, backups).save(VaultEdit.Update(entry.id, null, EntryChanges(notes = "two")), key, now)
+        val result = VaultSaver(failing, backups).save(VaultEdit.Update(entry.id, loaded, EntryChanges(notes = "two")), key, now)
         return Triple(result, before, backups.folder.toList())
     }
 
@@ -233,9 +234,22 @@ class SaveHardeningTest {
     // spec: kdbx.hardening/AC9
     @Test
     fun aSaveThatReplacedTheFileButCouldNotMakeSureOfItsTimeKeepsItsBackup() {
-        val (failed, before, after) = saveFailing { _, _ -> throw DatabaseReplacedException("less than 2 s") }
+        val (saved, before, after) = saveFailing { bytes, expected ->
+            replace(bytes, expected)
+            throw DatabaseReplacedException("less than 2 s")
+        }
 
-        assertIs<SaveFailure.WriteFailed>(failure(failed))
+        // Saved, the vault the file read back, and said with a warning (databases.saf AC6).
+        val result = assertIs<SaveResult.Saved>(saved)
+        assertTrue(result.mayNotSync)
+        assertEquals("two", result.opened.vault.entries.first().notes)
         assertEquals(before.size + 1, after.size, "the replaced file's backup")
+
+        // Gone right after the replace: nothing to be the vault, a failure.
+        val (gone, _, _) = saveFailing { _, _ ->
+            change(null, notify = false)
+            throw DatabaseReplacedException("gone right after the save")
+        }
+        assertEquals(SaveFailure.WriteFailed("the new file is gone"), failure(gone))
     }
 }

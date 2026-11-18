@@ -13,7 +13,7 @@ public class BackupRestorer(store: DatabaseStore, backups: DatabaseBackups, priv
     private val saver = VaultSaver(store, backups)
 
     public fun restore(name: String): RestoreOutcome = when (val result = saver.restore(name, key = null, clock.now())) {
-        is RestoreResult.Restored -> RestoreOutcome.Restored(result.beforeRestoring, olderKey = false)
+        is RestoreResult.Restored -> RestoreOutcome.Restored(result.beforeRestoring, olderKey = false, mayNotSync = result.mayNotSync)
         is RestoreResult.Failed -> RestoreOutcome.Failed(result.failure)
     }
 }

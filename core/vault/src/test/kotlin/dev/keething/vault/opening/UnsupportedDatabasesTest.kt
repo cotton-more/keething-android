@@ -41,6 +41,8 @@ class UnsupportedDatabasesTest {
         assertEquals(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT), refusal(kdbx2))
         val kdbx5 = fixtureBytes("kdbx4-aes-argon2d").also { it[8] = 0; it[10] = 5 }
         assertEquals(OpenFailure.Unsupported("KDBX 5.0", OpenFailure.Unsupported.Kind.NEWER_FORMAT), refusal(kdbx5))
+        val keepass1 = fixtureBytes("kdbx3").also { it[4] = 0x65 }
+        assertEquals(OpenFailure.Unsupported("KeePass 1.x (.kdb)", OpenFailure.Unsupported.Kind.KEEPASS1), refusal(keepass1))
 
         assertEquals(OpenFailure.Unsupported.Kind.NOT_KEEPASS, refusal("<KeePassFile/>".encodeToByteArray()).kind)
 

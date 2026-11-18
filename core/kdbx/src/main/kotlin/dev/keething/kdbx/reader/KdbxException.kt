@@ -8,6 +8,9 @@ public sealed class KdbxException(message: String) : Exception(message) {
     public class UnsupportedVersion(public val major: Int, public val minor: Int) :
         KdbxException("KDBX $major.$minor")
 
+    /** A KeePass 1.x database (`.kdb`), told by its signature: never read, but not "no KeePass file" either. */
+    public class KeePass1 : KdbxException("KeePass 1.x (.kdb)")
+
     public class UnsupportedCipher(public val cipher: String) : KdbxException("cipher $cipher")
 
     public open class UnsupportedKdf(public val kdf: String) : KdbxException("key derivation $kdf")

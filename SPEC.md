@@ -385,7 +385,12 @@ keeps the new time. The way out is in §3.3 step 7.
   kdbx.kdbx3): AES-KDF from the header's transform seed and rounds, the stream start bytes (other bytes there are a
   wrong key: 3.1 has no header HMAC, so a damaged start reads as one too, as in KeePass), the HashedBlockStream with
   each block's SHA-256, protected values with Salsa20, attachments from `Meta/Binaries`, `Meta/HeaderHash` checked
-  when there. KDBX 2 and older are refused as unsupported. Keething changes databases only in KDBX 4, so a 3.1 file
+  when there. AES is decrypted without its padding removed, so the start bytes are compared first: a payload cut
+  short (not a whole number of blocks) or with bad padding is a damaged file, never a wrong key, and a reload that
+  meets one keeps the vault rather than locking as "Password changed". KDBX 2 and older are refused as unsupported,
+  the version named; KeePass 1.x's file (`.kdb`, its second signature `0xB54BFB65`) is named so, with the advice to
+  import it in KeePassXC or KeePass 2 and save it as KDBX, and KDBX 2's pre-release signature (`0xB54BFB66`) as the
+  old version its bytes give. Keething changes databases only in KDBX 4, so a 3.1 file
   asks once per opening: **upgrade it to KDBX 4, or view only** (`Kdbx3Question`). Its lock screen asks before the
   key, the version told from the file's first 12 bytes (`VaultSession.isKdbx3File`): a card in place of the password
   ("This database is KDBX 3.1": Keething changes databases only in KDBX 4; KeePass 2.35+ and KeePassXC 2.3+ read
@@ -519,15 +524,19 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    tree that keeps everything (unknown elements, history, custom data, other apps' data) and writes it back in order;
    of the file itself only its SHA-256 is kept. A protected value goes into the tree as a secret,
    decrypted straight into it: the tree holds no password in the clear either (§4).
-2. Find the entry by UUID; if its `LastModificationTime` differs from the one loaded → "changed elsewhere",
-   nothing is saved, the vault reloads. Other entries changed elsewhere are kept. A group's edit has no such time:
+2. Find the entry by UUID; if its `LastModificationTime` differs from the one loaded, to the second, or only one of the
+   two has a time (one no date holds reads as none, kdbx.hardening AC8) → "changed elsewhere", nothing is saved, the
+   vault reloads. Other entries changed elsewhere are kept. An entry whose UUID another entry of the file shares (only
+   a damaged file has two) is not changed at all (`SaveFailure.DuplicateId`: "… repair the database in KeePassXC"):
+   the edit would go to the first and the check read the other. A group's edit has no such time:
    it meets the groups as the file has them now, and is refused when they no longer allow it — the group gone
    (`GroupNotFound`), a name taken there by now, case and accents aside (`GroupNameTaken`), a group to delete not
    empty any more (`GroupNotEmpty`), a group that may not be changed so (`GroupNotChangeable`: the root, the bin or in
    it, a move into the bin, into itself or below it, or where it is): nothing is saved and the vault reloads; an
    empty name (`InvalidName`) is refused too, without reloading. New levels for an entry meet the file the same way: a level another app made meanwhile is
    that group (`GroupLifecycle.resolving`).
-3. Apply the change as KeePassXC does: the old version into `History`, trimmed to `HistoryMaxItems`; a new
+3. Apply the change as KeePassXC does: the old version into `History`, trimmed to `HistoryMaxItems` (not by
+   `HistoryMaxSize`, which KeePassXC also applies: keething-spec idea edit.history-max-size, after 1.0); a new
    entry with KeePassXC's elements and its group's own icon; the recycle bin made as KeePassXC makes it when
    there is none; an entry moved remembers its group in `PreviousParentGroup`, before `Times` as KeePass's schema
    has it (after `Tags` or whichever of `UUID`, `IconID`, `CustomIconUUID`, `ForegroundColor`, `BackgroundColor`,
@@ -606,7 +615,10 @@ The Mac app's save path, unchanged in substance (Mac SPEC §3.16 "How"; `core/va
    A file's time cannot be set through the Storage Access Framework, and Syncthing on Android takes times less than
    2 s apart for equal (its `ModTimeWindow`, on any file system but ext2–4): so the new file is written only once the
    clock is at least 2 s from the replaced file's time and from those its earlier saves replaced in the last minute,
-   waiting when it comes sooner, and its time is read back and checked after (databases.saf AC6). Until databases.saf
+   waiting when it comes sooner, and its time is read back and checked after (databases.saf AC6). A time read back still
+   less than 2 s from the replaced one's (rare: the wait comes first) leaves the save done, the vault the new file, and
+   says so with a warning on every screen that saves ("A sync app may not send the file: … Change something and save
+   again."); a file gone right after the replace fails the save. Until databases.saf
    stage S4 the database was reached by path and its time set through it (`PathDatabaseStore`, gone with all-files
    access): the Pixel 6 gave a file renamed over another the old time at its first read (§3.1), which the time set 2 s
    on cured; a new file keeps the time it was written at.
@@ -776,6 +788,10 @@ they were.
     the copy is then deleted, and the vault becomes the copy read back (`VaultSession.takeConflictCopy`,
     `VaultSaver.takeCopy`). A copy that does not open with the key is refused and never locks the database
     ("Password changed" is only the database's own). A copy taken but not deleted is said, and stays on the banner.
+    A copy in KDBX 3.1 (KeePassDX's, from another phone) is said so in the choice and its dialog ("The other version
+    is KDBX 3.1: once it is used, the database is viewed only until it is upgraded to KDBX 4.";
+    `CopyContents.Read.kdbx3`): taking it puts its bytes in place as they are, and the database asks the upgrade
+    question again (§3.2); the KDBX 4 file is in the backups.
   The store reads and deletes only a name that is a conflict copy of its database (`DatabaseStore.readConflictCopy`,
   `deleteConflictCopy`). Later: merge in the app.
 
@@ -1725,7 +1741,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the snackbar names the empty groups the move deleted. While two or more databases are open, **Save into** (its dot,
   label and folder) sits over the group as one block (another database: its top level, new levels typed dropped), and its sheet ("The group, tags and username follow the database
   chosen.") lists the open ones with a check on the chosen one, "Not open: …" under them (§3.1). Save shows "Saving and checking…"; saved, the editor goes back to the
-  card (a new entry's card) at once, which says "Saved and checked" in a snackbar; not saved, the sheet says
+  card (a new entry's card) at once, which says "Saved and checked" in a snackbar (saved with its file's time too
+  close for a sync app, §3.3: a second line "A sync app may not send the file: … Change something and save again.",
+  the problem's icon, shown longer; every other screen that saves adds the same line); not saved, the sheet says
   why, with "Back to editing" (save from autofill: a toast, and back to the app). ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields.
 - **Password generator** (Mac SPEC §3.20, `core/generator`): a sheet from the wand in the editor's password
   field ("Use this password" puts it in, shown) and from ⋮ › Generate a password in the list's header (a password

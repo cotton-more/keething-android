@@ -187,6 +187,7 @@
 
     <!-- Why a save wrote nothing (editor/SaveTexts.kt) -->
     <string name="editor_save_failure_changed_elsewhere">This entry was changed elsewhere (KeePassXC or another device) after it was loaded. Nothing was saved; the new version is loaded now.</string>
+    <string name="editor_save_failure_duplicate_id">This entry shares its id with another entry in the database, as only a damaged file has it, so neither can be changed here. Nothing was saved; repair the database in KeePassXC (keep one of the two, or clone one and delete it).</string>
     <string name="editor_save_failure_entry_not_found">This entry no longer exists in the file (deleted elsewhere). Nothing was saved.</string>
     <string name="editor_save_failure_group_not_found">That group no longer exists in the file (deleted elsewhere). Nothing was saved; choose another.</string>
     <string name="editor_save_failure_recycle_bin_disabled">This database has the recycle bin turned off. Nothing was deleted; delete the entry for good from its card.</string>
@@ -224,6 +225,10 @@
     <!-- A save that went through (editor/SaveTexts.kt) -->
     <string name="editor_saved">Saved and checked</string>
     <!-- %1$s: the empty groups deleted with it (editor_deleted_groups) -->
+    <!-- A save that went through, its new file's time too close to the old one's for a sync app (editor/SaveTexts.kt) -->
+    <string name="editor_may_not_sync">A sync app may not send the file: its time came out too close to the one it replaced. Change something and save again.</string>
+    <!-- %1$s: what the screen says of the save; %2$s: editor_may_not_sync, on a line of its own -->
+    <string name="editor_saved_may_not_sync">%1$s\n%2$s</string>
     <string name="editor_saved_with_note">Saved and checked. %1$s</string>
     <!-- %1$s: the groups' paths in quotes, listed ("“Work › Old” and “Spare”") -->
     <plurals name="editor_deleted_groups">

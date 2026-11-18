@@ -2,7 +2,7 @@ package dev.keething.android
 
 import dev.keething.android.about.AboutPage
 import dev.keething.android.editor.NewEntryPlaces
-import dev.keething.android.editor.savedText
+import dev.keething.android.editor.savedNotice
 import dev.keething.domain.vault.VaultGroup
 import android.content.Context
 import android.content.pm.ApplicationInfo
@@ -295,13 +295,13 @@ internal class AppContainer(context: Context) {
             created = { settings.lastNewEntryDatabase = it },
         )
 
-    fun entrySaved(deletedGroups: List<VaultGroup>) {
-        saves.trySend(Notice(savedText(deletedGroups)))
+    fun entrySaved(deletedGroups: List<VaultGroup>, mayNotSync: Boolean) {
+        saves.trySend(savedNotice(deletedGroups, mayNotSync))
     }
 
     /** A version restored from History, said by the card it goes back to. */
-    fun versionRestored(text: UiText) {
-        saves.trySend(Notice(text))
+    fun versionRestored(notice: Notice) {
+        saves.trySend(notice)
     }
 
     /** A new generator: its options are remembered, its passwords are not. */

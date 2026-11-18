@@ -170,6 +170,7 @@
     <string name="list_conflict_keep">Оставить открытую</string>
     <string name="list_conflict_keep_detail">Удаляет другую версию. Сначала её копия сохраняется в резервных копиях этой базы в Keething. Изменений, сделанных только в другой версии, в открытой нет.</string>
     <string name="list_conflict_use">Взять другую</string>
+    <string name="list_conflict_use_kdbx3">Другая версия в формате KDBX 3.1: после её выбора база будет только для просмотра, пока её формат не обновлён до KDBX 4.</string>
     <string name="list_conflict_use_detail">Заменяет %1$s другой версией, файл которой затем удаляется. Сначала открытая версия сохраняется в резервных копиях Keething. Изменения, сделанные только в открытой, из базы пропадут.</string>
     <string name="list_conflict_use_not_opened">Её нельзя взять: здесь она не открывается.</string>
     <string name="list_conflict_confirm_keep_title">Удалить другую версию?</string>

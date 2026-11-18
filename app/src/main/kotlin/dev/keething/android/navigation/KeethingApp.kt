@@ -832,8 +832,8 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                             key.ref.entry,
                             onBack = { navigation.close(key) },
                             // Back on the card, which shows the version now, saying so (edit.history-restore; the canvas).
-                            onRestored = { text ->
-                                container.versionRestored(text)
+                            onRestored = { notice ->
+                                container.versionRestored(notice)
                                 navigation.close(key)
                             },
                         )
@@ -848,9 +848,9 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                             groupId = key.groupId,
                             generator = container::passwordGenerator,
                             onClose = { navigation.close(key) },
-                            onSaved = { ref, deleted ->
-                                container.entrySaved(deleted)
-                                if (key.entryId == null) navigation.replace(Screen.Card(ref.text, origin = "new")) else navigation.back()
+                            onSaved = { saved ->
+                                container.entrySaved(saved.deletedGroups, saved.mayNotSync)
+                                if (key.entryId == null) navigation.replace(Screen.Card(saved.ref.text, origin = "new")) else navigation.back()
                             },
                             places = if (key.entryId == null) remember { container.newEntryPlaces() } else null,
                             note = key.note,

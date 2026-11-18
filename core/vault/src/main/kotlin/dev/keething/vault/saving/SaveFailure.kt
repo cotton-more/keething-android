@@ -15,6 +15,12 @@ public sealed interface SaveFailure {
     /** The entry was changed elsewhere after it was loaded: the vault is read again, nothing saved. */
     public data object ChangedElsewhere : SaveFailure
 
+    /**
+     * Another entry in the file has the entry's id, as only a damaged file has it: a change to either would be one the
+     * check cannot tell apart, so none is made (keething-spec kdbx.save).
+     */
+    public data object DuplicateId : SaveFailure
+
     /** The group is gone from the file (deleted elsewhere): a new or moved entry's, or the group changed. */
     public data object GroupNotFound : SaveFailure
 
@@ -112,13 +118,15 @@ internal sealed interface SaveResult {
      * The file was replaced; [opened] is it read back, ready to be the vault. [deletedGroups]: the groups deleted for
      * good, as they were (the empty ones a move left, innermost first, or the empty group deleted). [keptCopy]: the
      * name an upgrade's KDBX 3.1 file was kept under beside the database. [copyLeft]: the conflict copy taken in the
-     * database's place that could not be deleted afterwards.
+     * database's place that could not be deleted afterwards. [mayNotSync]: the new file's time came out too close to the
+     * replaced one's for a sync app to tell them apart (databases.saf AC6).
      */
     class Saved(
         val opened: OpenedVault,
         val deletedGroups: List<VaultGroup> = emptyList(),
         val keptCopy: String? = null,
         val copyLeft: String? = null,
+        val mayNotSync: Boolean = false,
     ) : SaveResult
 
     class Failed(val failure: SaveFailure) : SaveResult
@@ -128,9 +136,9 @@ internal sealed interface RestoreResult {
     /**
      * The file was replaced with the backup's bytes. [opened]: those read back with the database's key, ready to be the
      * vault; null when no key was given (locked) or the backup does not open with it ([olderKey]). [beforeRestoring]:
-     * the backup the file as it was is in, to undo it with.
+     * the backup the file as it was is in, to undo it with. [mayNotSync]: as [SaveResult.Saved.mayNotSync].
      */
-    class Restored(val opened: OpenedVault?, val olderKey: Boolean, val beforeRestoring: String) : RestoreResult
+    class Restored(val opened: OpenedVault?, val olderKey: Boolean, val beforeRestoring: String, val mayNotSync: Boolean = false) : RestoreResult
 
     class Failed(val failure: SaveFailure) : RestoreResult
 }

@@ -54,7 +54,9 @@ class KdbxWriterTest {
         val written = write(editable, key)
 
         assertFalse(written.contentEquals(original))
-        assertFalse(written.copyOf(200).contentEquals(original.copyOf(200)), "a new master seed")
+        assertFalse(Header.parse(written).masterSeed.contentEquals(Header.parse(original).masterSeed), "a new master seed")
+        assertFalse(Header.parse(written).iv.contentEquals(Header.parse(original).iv), "a new IV")
+        assertFalse(KdbxReader.innerStreamKey(written, key).contentEquals(KdbxReader.innerStreamKey(original, key)), "a new inner stream key")
         val before = KdbxReader.open(original, key())
         val after = KdbxReader.open(written, key)
         assertNull(after.keyDerivation, "the KDF salt is kept: the key derived for the original opens it")

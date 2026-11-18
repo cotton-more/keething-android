@@ -159,6 +159,16 @@ public class FakeGrantedFolder(
         noticed += folderOf(path)
     }
 
+    /** The file at [path] written over in place, keeping its identity (a sync app that writes in place). */
+    @Synchronized
+    public fun writeInPlace(path: String, bytes: ByteArray, modified: Instant = now()) {
+        files.getValue(path).apply {
+            this.bytes = bytes.copyOf()
+            this.modified = modified
+        }
+        noticed += folderOf(path)
+    }
+
     /** The file at [path] gives the time given, keeping its content and identity (a sync's time only). */
     @Synchronized
     public fun touch(path: String, modified: Instant) {

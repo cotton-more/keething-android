@@ -27,6 +27,8 @@ internal class Header(
     companion object {
         private const val SIGNATURE_1 = 0x9AA2D903.toInt()
         private const val SIGNATURE_2 = 0xB54BFB67.toInt()
+        private const val KEEPASS1_SIGNATURE_2 = 0xB54BFB65.toInt()
+        private const val PRE_RELEASE_SIGNATURE_2 = 0xB54BFB66.toInt()
 
         val CIPHERS = mapOf(
             "31c1f2e6bf714350be5805216afc5aff" to Cipher.AES256,
@@ -42,17 +44,24 @@ internal class Header(
         const val ARGON2D = "ef636ddf8c29444b91f7a9a403e30a0c"
         const val ARGON2ID = "9e298b1956db4773b23dfc3ec6f0a1e6"
 
-        /** The version in the file's first 12 bytes, major and minor; nothing else is read. */
+        /**
+         * The version in the file's first 12 bytes, major and minor; nothing else is read. KeePass 1.x's file and KDBX 2's
+         * pre-release one are refused here as the old formats they are.
+         */
         fun version(file: ByteArray): Pair<Int, Int> {
             val r = ByteReader(file)
             val signature1 = r.int32()
             val signature2 = r.int32()
             val minor = r.uint16()
             val major = r.uint16()
-            if (signature1 != SIGNATURE_1 || signature2 != SIGNATURE_2 || minor == null || major == null) {
-                throw KdbxException.NotKdbx()
+            if (signature1 != SIGNATURE_1 || minor == null || major == null) throw KdbxException.NotKdbx()
+            when (signature2) {
+                SIGNATURE_2 -> return major to minor
+                KEEPASS1_SIGNATURE_2 -> throw KdbxException.KeePass1()
+                // KeePass 2's pre-release files: an old version, named as their bytes give it (keething-spec kdbx.read AC7).
+                PRE_RELEASE_SIGNATURE_2 -> throw KdbxException.UnsupportedVersion(major, minor)
+                else -> throw KdbxException.NotKdbx()
             }
-            return major to minor
         }
 
         /**

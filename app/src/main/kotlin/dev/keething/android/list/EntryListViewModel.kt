@@ -18,6 +18,8 @@ import dev.keething.android.databases.DatabaseText
 import dev.keething.android.editor.unsavedText
 import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
+import dev.keething.android.editor.savedNotice
+import dev.keething.android.editor.syncWarning
 import dev.keething.card.editing.CodeEdits
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.GroupDestination
@@ -441,14 +443,14 @@ internal class EntryListViewModel(
         val found = openEntry(EntryRef.of(tile.entryId)) ?: return SAVE_LOCKED
         val field = tile.fieldName
         if (field != null && name != null) CodeEdits.nameProblem(found.entry, field, name)?.let { return it.ui() }
-        save(found.database, VaultEdit.Update(found.entry.id, found.entry.lastModified, CodeEdits.edit(found.entry, field, config, name))) { problem ->
+        save(found.database, VaultEdit.Update(found.entry.id, found.entry.lastModified, CodeEdits.edit(found.entry, field, config, name))) { problem, warn ->
             val title = found.entry.displayTitle
             val changed = if (field == null) {
                 uiText(R.string.list_code_changed, title)
             } else {
                 uiText(R.string.list_code_field_changed, name?.trim()?.ifEmpty { null } ?: field, title)
             }
-            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(changed))
+            notice(problem?.let { Notice(it, isProblem = true) } ?: savedNotice(changed, warn))
         }
         return null
     }
@@ -463,9 +465,9 @@ internal class EntryListViewModel(
         val field = tile.fieldName
         if (CodeEdits.isAllItHolds(before, field)) return recycleBin.moveToRecycleBin(found.database, before)
         val title = before.displayTitle
-        save(found.database, VaultEdit.Update(before.id, before.lastModified, CodeEdits.delete(before, field))) { problem ->
+        save(found.database, VaultEdit.Update(before.id, before.lastModified, CodeEdits.delete(before, field))) { problem, warn ->
             val text = if (field == null) uiText(R.string.list_code_deleted, title) else uiText(R.string.list_code_field_deleted, tile.subtitle, title)
-            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(text, undo = { restoreCode(tile, before) }))
+            notice(problem?.let { Notice(it, isProblem = true) } ?: savedNotice(text, warn, undo = { restoreCode(tile, before) }))
         }
     }
 
@@ -473,8 +475,9 @@ internal class EntryListViewModel(
     private fun restoreCode(tile: CodeTile, before: Entry) {
         val current = openEntry(EntryRef.of(tile.entryId)) ?: return notice(Notice(SAVE_LOCKED, isProblem = true))
         val changes = CodeEdits.restore(before, current.entry, tile.fieldName)
-        save(current.database, VaultEdit.Update(current.entry.id, current.entry.lastModified, changes)) { problem ->
+        save(current.database, VaultEdit.Update(current.entry.id, current.entry.lastModified, changes)) { problem, warn ->
             problem?.let { notice(Notice(it, isProblem = true)) }
+            if (problem == null && warn) notice(savedNotice(uiText(R.string.editor_saved), true))
         }
     }
 
@@ -485,23 +488,26 @@ internal class EntryListViewModel(
     fun addCode(database: DatabaseSession, into: Entry?, title: String, username: String, config: TotpConfig) {
         if (into != null) {
             val (changes, field) = CodeEdits.addTo(into, config)
-            save(database, VaultEdit.Update(into.id, into.lastModified, changes)) { problem ->
+            save(database, VaultEdit.Update(into.id, into.lastModified, changes)) { problem, warn ->
                 val added = field?.let { uiText(R.string.list_code_field_added, it, into.displayTitle) } ?: uiText(R.string.list_code_added, into.displayTitle)
-                notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(added))
+                notice(problem?.let { Notice(it, isProblem = true) } ?: savedNotice(added, warn))
             }
             return
         }
         val vault = (database.session.state.value as? SessionState.Unlocked)?.vault ?: return notice(Notice(SAVE_LOCKED, isProblem = true))
         val root = vault.groups.firstOrNull { it.isRoot } ?: return
         val changes = CodeEdits.newEntry(title, username, config)
-        save(database, VaultEdit.Create(Entry.newId(), GroupDestination(root.id), changes)) { problem ->
+        save(database, VaultEdit.Create(Entry.newId(), GroupDestination(root.id), changes)) { problem, warn ->
             if (problem == null) newEntryMade(database.id)
-            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(uiText(R.string.list_code_entry_added, changes.title.orEmpty().ifEmpty { null } ?: uiText(R.string.list_untitled))))
+            notice(problem?.let { Notice(it, isProblem = true) } ?: savedNotice(uiText(R.string.list_code_entry_added, changes.title.orEmpty().ifEmpty { null } ?: uiText(R.string.list_untitled)), warn))
         }
     }
 
-    /** [edit] saved in [database]; [done] gets why it failed, or null. The change's secrets are wiped once it is over. */
-    private fun save(database: DatabaseSession, edit: VaultEdit, done: (problem: UiText?) -> Unit) {
+    /**
+     * [edit] saved in [database]; [done] gets why it failed, or null, and whether the file may not be synced
+     * ([savedNotice]). The change's secrets are wiped once it is over.
+     */
+    private fun save(database: DatabaseSession, edit: VaultEdit, done: (problem: UiText?, warn: Boolean) -> Unit) {
         val changes = when (edit) {
             is VaultEdit.Update -> edit.changes
             is VaultEdit.Create -> edit.fields
@@ -510,10 +516,13 @@ internal class EntryListViewModel(
         val pending = database.session.save(edit)
         if (pending == null) {
             changes?.wipe()
-            return done(SAVE_LOCKED)
+            return done(SAVE_LOCKED, false)
         }
         pending.invokeOnCompletion { changes?.wipe() }
-        viewModelScope.launch { done(pending.await().problem(database.file)) }
+        viewModelScope.launch {
+            val outcome = pending.await()
+            done(outcome.problem(database.file), outcome.syncWarning)
+        }
     }
 
     /** The quick actions of a row; null when the entry has gone (deleted elsewhere, or locked). */

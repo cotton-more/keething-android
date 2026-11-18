@@ -35,13 +35,14 @@ import kotlinx.coroutines.launch
 
 /**
  * A short message at the bottom of a screen: something copied, or a problem; [undo] offers to take a change back,
- * or to do what [actionLabel] says.
+ * or to do what [actionLabel] says. [lasting]: long enough to be read, as one with an action is.
  */
 internal data class Notice(
     val text: UiText,
     val isProblem: Boolean = false,
     val undo: (() -> Unit)? = null,
     val actionLabel: UiText = uiText(R.string.notice_undo),
+    val lasting: Boolean = false,
 ) {
     companion object {
         /** "Password copied · clears in 30 s" (SPEC §6); [what] is the field's name, as the card shows it. */
@@ -58,7 +59,7 @@ private class NoticeVisuals(val notice: Notice, resources: Resources) : Snackbar
     override val message: String = notice.text.resolve(resources)
     override val actionLabel: String? = if (notice.undo != null) notice.actionLabel.resolve(resources) else null
     override val withDismissAction: Boolean get() = false
-    override val duration: SnackbarDuration get() = if (notice.undo != null) SnackbarDuration.Long else SnackbarDuration.Short
+    override val duration: SnackbarDuration get() = if (notice.undo != null || notice.lasting) SnackbarDuration.Long else SnackbarDuration.Short
 }
 
 /** Shows each notice of [notices], replacing the one shown; a copy also gives a light haptic tick. */

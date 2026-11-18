@@ -19,6 +19,7 @@ import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.editing.BrokenFiles
 import dev.keething.kdbx.editing.CodeFiles
+import dev.keething.kdbx.editing.HostileFiles
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
 import dev.keething.kdbx.schema.SchemaCheck
@@ -38,6 +39,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.w3c.dom.Element
@@ -159,6 +161,46 @@ class VaultSaverTest {
         assertContentEquals(original, store.content)
         assertEquals(0, store.replaced)
         assertTrue(backups.kept.isEmpty(), "no backup without a save")
+    }
+
+    @Test
+    fun aTimeOnOnlyOneSideIsChangedElsewhereAndATimeIsComparedToTheSecond() {
+        val key = key()
+        // The first entry's time written as one no date holds: read as no time (kdbx.hardening AC8).
+        val (file, timeless) = HostileFiles.withEntryTime(fixtureBytes("kdbx4-aes-aeskdf"), key, "AAAAAAAAAIA=")
+        val store = FakeStore(file)
+        val timed = unlock(store, key).entries.first { it.id != timeless }
+        val loaded = assertNotNull(timed.lastModified)
+        val saver = VaultSaver(store, backups)
+
+        assertEquals(SaveFailure.ChangedElsewhere, failure(saver.save(VaultEdit.Update(timeless, loaded, EntryChanges(notes = "x")), key, now)), "no time in the file")
+        assertEquals(SaveFailure.ChangedElsewhere, failure(saver.save(VaultEdit.Update(timed.id, null, EntryChanges(notes = "x")), key, now)), "no time loaded")
+        assertEquals(SaveFailure.ChangedElsewhere, failure(saver.save(VaultEdit.Update(timed.id, loaded.plusSeconds(1), EntryChanges(notes = "x")), key, now)))
+        assertContentEquals(file, store.content)
+
+        saved(saver.save(VaultEdit.Update(timeless, null, EntryChanges(notes = "neither")), key, now))
+        saved(saver.save(VaultEdit.Update(timed.id, loaded.plusMillis(999), EntryChanges(notes = "same second")), key, now))
+    }
+
+    @Test
+    fun aChangeToAnEntryWhoseIdIsNotUniqueIsRefusedSayingSo() {
+        SchemaCheck.allowEntryUuidTwice()
+        val key = key()
+        val (file, id) = HostileFiles.withEntryTwice(fixtureBytes("kdbx4-aes-aeskdf"), key)
+        val store = FakeStore(file)
+        val vault = unlock(store, key)
+        val twins = vault.entries.filter { it.id == id }
+        assertEquals(2, twins.size, "the file opens with both")
+        val saver = VaultSaver(store, backups)
+
+        for (twin in twins) {
+            assertEquals(SaveFailure.DuplicateId, failure(saver.save(VaultEdit.Update(id, twin.lastModified, EntryChanges(notes = "x")), key, now)))
+            assertEquals(SaveFailure.DuplicateId, failure(saver.save(VaultEdit.MoveToRecycleBin(id, twin.lastModified), key, now)))
+        }
+        assertContentEquals(file, store.content)
+
+        val other = vault.entries.first { it.id != id }
+        saved(saver.save(VaultEdit.Update(other.id, other.lastModified, EntryChanges(notes = "x")), key, now))
     }
 
     @Test
@@ -532,15 +574,18 @@ class VaultSaverTest {
         val key = key()
         val first = fixtureBytes("kdbx4-aes-aeskdf")
         val elsewhere = FakeStore(first)
-        val entry = unlock(elsewhere, key).entries.first()
-        saved(VaultSaver(elsewhere, FakeBackups()).save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "v2")), key, now))
+        val (changed, entry) = unlock(elsewhere, key).entries
+        saved(VaultSaver(elsewhere, FakeBackups()).save(VaultEdit.Update(changed.id, changed.lastModified, EntryChanges(notes = "v2")), key, now))
         val second = elsewhere.content!!
         val store = FakeStore(first)
         unlock(store, key)
-        // Every check finds the other version.
+        // Every check finds the other version; the entry saved is the same in both.
         store.beforeRead = { read -> store.change(if (read % 2 == 0) first else second, notify = false) }
 
-        assertEquals(SaveFailure.FileKeepsChanging, failure(VaultSaver(store, backups).save(VaultEdit.Update(entry.id, null, EntryChanges(notes = "x")), key, now)))
+        assertEquals(
+            SaveFailure.FileKeepsChanging,
+            failure(VaultSaver(store, backups).save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "x")), key, now)),
+        )
         assertEquals(0, store.replaced)
         assertTrue(backups.kept.isEmpty())
     }

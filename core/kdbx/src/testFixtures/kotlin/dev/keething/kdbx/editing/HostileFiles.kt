@@ -72,6 +72,13 @@ public object HostileFiles {
         EntryLifecycle.uuidText(entry)
     }
 
+    /** [file] with its first entry twice in its group, one UUID for both, as a damaged file can have it. That UUID too. */
+    public fun withEntryTwice(file: ByteArray, key: DatabaseKey): Pair<ByteArray, String> = edited(file, key) { editable ->
+        val location = EntryLifecycle.locate(editable.document.entries.first().uuid, editable.root)!!
+        location.group.insertAfter(location.entry.copy(), location.entry)
+        EntryLifecycle.uuidText(location.entry)
+    }
+
     /**
      * [file] with groups nested inside its top group until its deepest element is [depth] levels deep (KeePassFile
      * being the first; review M7), deeper than the app reads too: the writer has no limit. The innermost group's id too.

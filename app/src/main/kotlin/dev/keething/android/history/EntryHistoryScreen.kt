@@ -38,6 +38,8 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
+import dev.keething.android.editor.savedNotice
+import dev.keething.android.editor.syncWarning
 import dev.keething.card.history.EntryVersionDiff
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.vault.session.SessionState
@@ -81,6 +83,7 @@ import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.readableInset
+import dev.keething.android.ui.Notice
 import dev.keething.android.unlock.describe
 import dev.keething.card.history.HistoryVersion
 import dev.keething.card.history.HistoryVersions
@@ -199,7 +202,7 @@ internal class EntryHistoryViewModel(
     }
 
     /** Restores the version asked about; [done] gets what to say once it is saved. */
-    fun confirm(done: (UiText) -> Unit) {
+    fun confirm(done: (Notice) -> Unit) {
         val asked = question ?: return
         val versions = read ?: return
         question = null
@@ -216,7 +219,7 @@ internal class EntryHistoryViewModel(
             val outcome = pending.await()
             restoring = null
             when (val failure = outcome.problem(database.file)) {
-                null -> done(uiText(R.string.history_restored, whenText(version.entry.lastModified)))
+                null -> done(savedNotice(uiText(R.string.history_restored, whenText(version.entry.lastModified)), outcome.syncWarning))
                 else -> {
                     problem = failure
                     // Changed elsewhere or not, the versions shown are read again.
@@ -274,7 +277,7 @@ private fun sizeText(context: Context, bytes: Int?): String =
  * version"), asked once with what it changes; [onRestored] gets what to say once it is saved.
  */
 @Composable
-internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBack: () -> Unit, onRestored: (UiText) -> Unit) {
+internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBack: () -> Unit, onRestored: (Notice) -> Unit) {
     val context = LocalContext.current.applicationContext
     val model = viewModel { EntryHistoryViewModel(database, entryId) { sizeText(context, it) } }
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()

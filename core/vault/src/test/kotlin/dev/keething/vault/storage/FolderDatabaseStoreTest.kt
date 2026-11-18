@@ -1022,19 +1022,27 @@ class FolderDatabaseStoreTest {
         folder.deliverNotices()
         assertEquals(1, changes, "replaced")
 
+        folder.writeInPlace(DATABASE, old)
+        folder.deliverNotices()
+        assertEquals(2, changes, "written in place")
+
         folder.put("Sync/Personal.sync-conflict-20261001-120000-AAAAAAA.kdbx", old)
         folder.deliverNotices()
-        assertEquals(2, changes, "a conflict copy")
+        assertEquals(3, changes, "a conflict copy")
 
         folder.remove(DATABASE)
         folder.deliverNotices()
-        assertEquals(3, changes, "deleted")
+        assertEquals(4, changes, "deleted")
+
+        folder.put(DATABASE, theirs)
+        folder.deliverNotices()
+        assertEquals(5, changes, "put back")
 
         folder.put("Sync/notes.txt", old)
         folder.deliverNotices()
         folder.put("Sync/Work.kdbx", old)
         folder.deliverNotices()
-        assertEquals(3, changes, "other files")
+        assertEquals(5, changes, "other files")
     }
 
     @Test

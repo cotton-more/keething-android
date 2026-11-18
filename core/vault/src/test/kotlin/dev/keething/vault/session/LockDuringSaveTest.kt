@@ -64,7 +64,24 @@ class LockDuringSaveTest {
             }
         }
 
+        /** Holds the first listing of the conflict copies after a read of the file: a reload's, the file opened. */
+        fun holdTheNextCopies() {
+            var read = false
+            var held = false
+            store.beforeRead = { read = true }
+            store.beforeCopies = {
+                if (read && !held) {
+                    held = true
+                    reached.countDown()
+                    release.await(10, TimeUnit.SECONDS)
+                }
+            }
+        }
+
         fun awaitHeld() = assertTrue(reached.await(10, TimeUnit.SECONDS), "the save reached its check")
+
+        /** Whether the read held has been reached, waiting a little for it. */
+        fun held(): Boolean = reached.await(10, TimeUnit.MILLISECONDS)
 
         fun release() = release.countDown()
 
@@ -113,6 +130,32 @@ class LockDuringSaveTest {
         assertEquals(FieldValue.Plain("kept"), f.notes(entry.id))
         assertEquals(UnlockOutcome.Opened, f.session.unlock(Secret.of("pw"))!!.await())
         assertEquals(emptyList(), (f.session.state.value as SessionState.Unlocked).unsaved, "nothing to say: it was saved")
+    }
+
+    // spec: kdbx.external-changes/AC7
+    @Test
+    fun aReloadThatEndsAfterALockIsDiscardedAndTheSessionStaysLocked() = runTest {
+        val f = unlocked()
+        val vault = f.vault
+        // Held after the file is read and opened, before the reload looks whether a lock came meanwhile.
+        f.holdTheNextCopies()
+        f.store.change(fixtureBytes("kdbx4-aes-aeskdf"))
+        advanceTimeBy(2.seconds)
+        // The reload goes to the file's thread and back: the session's side is run meanwhile.
+        repeat(500) { if (!f.held()) runCurrent() }
+        f.awaitHeld()
+
+        f.session.lock()
+        f.release()
+        // Until the file work on its thread is over and the session has seen how the reload ended.
+        repeat(3) {
+            io.submit {}.get(10, TimeUnit.SECONDS)
+            runCurrent()
+        }
+
+        assertEquals(SessionState.Locked(LockReason.Manual), f.session.state.value)
+        assertTrue(vault.entries.all { it.password.isWiped })
+        assertEquals(0, f.store.watching, "no longer watched")
     }
 
     // spec: kdbx.hardening/AC3

@@ -80,7 +80,11 @@ public data class VaultSummary(val entries: Int, val lastChanged: Instant?) {
 
 /** What a conflict copy holds, read with the database's key (keething-spec kdbx.conflict-copies AC6). */
 public sealed interface CopyContents {
-    public data class Read(val summary: VaultSummary) : CopyContents
+    /**
+     * [kdbx3]: the copy is KDBX 3.1, so the database taking it is viewed only until it is upgraded (keething-spec
+     * kdbx.conflict-copies, Android notes).
+     */
+    public data class Read(val summary: VaultSummary, val kdbx3: Boolean = false) : CopyContents
 
     /** It does not open with the database's key, or at all ([failure]); gone is [OpenFailure.Missing]. */
     public data class NotOpened(val failure: OpenFailure) : CopyContents
@@ -93,8 +97,15 @@ public sealed interface SaveOutcome {
      * as they were (the empty ones a move left, innermost first, or the empty group deleted; keething-spec
      * groups.entry-group AC7). [keptCopy]: an upgrade's, the name its KDBX 3.1 file was kept under beside it.
      * [copyLeft]: a conflict copy taken in the database's place, still there: it could not be deleted afterwards.
+     * [mayNotSync]: the new file's time came out less than 2 s from the replaced one's, so a sync app may not send it
+     * until the next save (keething-spec databases.saf AC6).
      */
-    public data class Saved(val deletedGroups: List<VaultGroup> = emptyList(), val keptCopy: String? = null, val copyLeft: String? = null) : SaveOutcome
+    public data class Saved(
+        val deletedGroups: List<VaultGroup> = emptyList(),
+        val keptCopy: String? = null,
+        val copyLeft: String? = null,
+        val mayNotSync: Boolean = false,
+    ) : SaveOutcome
 
     public data class Failed(val failure: SaveFailure) : SaveOutcome
 
@@ -110,9 +121,10 @@ public sealed interface RestoreOutcome {
     /**
      * The file is the backup's bytes. [beforeRestoring]: the backup the file as it was is in, which Undo restores.
      * [olderKey]: the database was open and the backup does not open with its key, so it locked
-     * ([LockReason.RestoredOlderKey]); open with it, the vault is the backup read back.
+     * ([LockReason.RestoredOlderKey]); open with it, the vault is the backup read back. [mayNotSync]: as
+     * [SaveOutcome.Saved.mayNotSync].
      */
-    public data class Restored(val beforeRestoring: String, val olderKey: Boolean) : RestoreOutcome
+    public data class Restored(val beforeRestoring: String, val olderKey: Boolean, val mayNotSync: Boolean = false) : RestoreOutcome
 
     /** Nothing was replaced and no backup added; why. */
     public data class Failed(val failure: SaveFailure) : RestoreOutcome

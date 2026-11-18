@@ -78,6 +78,7 @@ import dev.keething.vault.databases.EntryRef
 import dev.keething.android.databases.DatabaseDot
 import dev.keething.android.databases.databaseColors
 import dev.keething.android.editor.NewEntryDatabase
+import dev.keething.android.editor.MAY_NOT_SYNC
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.ButtonLabel
@@ -540,5 +541,9 @@ private fun Saved(saved: ReceivedModel.Saving.Saved, fromRequest: Boolean) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        if (saved.mayNotSync) {
+            Spacer(Modifier.height(8.dp))
+            Text(MAY_NOT_SYNC.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+        }
     }
 }

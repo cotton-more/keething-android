@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.keething.android.R
 import dev.keething.android.editor.problem
+import dev.keething.android.editor.syncWarning
 import dev.keething.android.ui.UiText
 import dev.keething.android.ui.uiText
 import dev.keething.android.unlock.describe
@@ -162,6 +163,10 @@ internal class ChangeMasterKeyModel(
     var keyFileAfter: String? by mutableStateOf(null)
         private set
     var passwordAfter: Boolean by mutableStateOf(true)
+        private set
+
+    /** Once changed: the new file's time came out too close for a sync app (databases.saf AC6). */
+    var mayNotSync: Boolean by mutableStateOf(false)
         private set
 
     /** The key typed at the first step, while the form is open: the password kept, when it is kept. */
@@ -353,6 +358,7 @@ internal class ChangeMasterKeyModel(
                     return@launch
                 }
                 fingerprintProblem = result.fingerprintProblem
+                mayNotSync = result.outcome.syncWarning
                 keyFileAfter = location?.fileName
                 passwordAfter = password != null
                 fields.clear()

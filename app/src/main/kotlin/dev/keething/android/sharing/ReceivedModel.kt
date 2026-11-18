@@ -21,6 +21,7 @@ import dev.keething.vault.databases.EntryRef
 import dev.keething.android.editor.NewEntryDatabase
 import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.editor.NewEntryPlaces
+import dev.keething.android.editor.syncWarning
 import dev.keething.android.ui.Notice
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.GroupDestination
@@ -82,8 +83,11 @@ internal class ReceivedModel(
 
         data class Busy(val done: Int, val of: Int) : Saving
 
-        /** All saved, the request closed; [refs] of the new entries. */
-        data class Saved(val refs: List<EntryRef>, val group: UiText) : Saving
+        /**
+         * All saved, the request closed; [refs] of the new entries. [mayNotSync]: the last save's file may not be synced
+         * (databases.saf AC6), said under it.
+         */
+        data class Saved(val refs: List<EntryRef>, val group: UiText, val mayNotSync: Boolean = false) : Saving
 
         /** Stopped at [saved] of them: the rest is not saved, the request kept. */
         data class Failed(val saved: Int, val problem: UiText) : Saving
@@ -297,6 +301,7 @@ internal class ReceivedModel(
         if (saving is Saving.Busy || saving is Saving.Saved) return
         val entries = opened.payload.entries
         viewModelScope.launch {
+            var mayNotSync = false
             for (index in savedIds.size until entries.size) {
                 // Its database locked since: the rest wait for it (they never go into another one).
                 val database = places.session(place.id)?.takeIf { NewEntryDatabases.isOpen(place.id, it.number, open) }
@@ -321,7 +326,10 @@ internal class ReceivedModel(
                     return@launch
                 }
                 pending.invokeOnCompletion { edit.fields.wipe() }
-                val problem = pending.await().problem(database.file)
+                val outcome = pending.await()
+                val problem = outcome.problem(database.file)
+                // Only the last save's file counts: a later save replaces it with a time of its own.
+                mayNotSync = outcome.syncWarning
                 if (problem != null) {
                     Log.i(TAG, "saving a received entry failed")
                     saving = Saving.Failed(index, problem)
@@ -331,7 +339,11 @@ internal class ReceivedModel(
             }
             opened.request?.let { requests.delete(it.request.id) } ?: envelope?.let(requests::saved)
             places.created(place.id)
-            saving = Saving.Saved(savedIds.map { EntryRef(place.id, it) }, groupName(place, GroupChoice(destination.groupId, destination.newGroups.map { it.name })))
+            saving = Saving.Saved(
+                savedIds.map { EntryRef(place.id, it) },
+                groupName(place, GroupChoice(destination.groupId, destination.newGroups.map { it.name })),
+                mayNotSync,
+            )
         }
     }
 

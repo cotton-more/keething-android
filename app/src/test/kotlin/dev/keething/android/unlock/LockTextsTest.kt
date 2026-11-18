@@ -25,6 +25,13 @@ class LockTextsTest {
                 "KeePass or KeePassXC, and it opens here.",
             OpenFailure.Unsupported("KDBX 2.0", Kind.OLD_FORMAT).describe("db.kdbx").english(),
         )
+        val keepass1 = OpenFailure.Unsupported("KeePass 1.x (.kdb)", Kind.KEEPASS1)
+        assertEquals(
+            "This is a KeePass 1.x database (.kdb), a format Keething does not read. Import it in KeePassXC (Database › " +
+                "Import) or KeePass 2 (File › Import) and save it there: the new .kdbx file opens here.",
+            keepass1.describe("db.kdbx").english(),
+        )
+        assertEquals("KeePass 1.x (.kdb)", keepass1.named().english())
         assertEquals(
             "This database is in a newer KeePass format (KDBX 5.0) than this Keething reads. An update of Keething may open it.",
             OpenFailure.Unsupported("KDBX 5.0", Kind.NEWER_FORMAT).describe("db.kdbx").english(),

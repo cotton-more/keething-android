@@ -696,7 +696,7 @@ public class VaultSession(
                                 }
                                 result.olderKey -> lock(LockReason.RestoredOlderKey)
                             }
-                            RestoreOutcome.Restored(result.beforeRestoring, olderKey = result.olderKey)
+                            RestoreOutcome.Restored(result.beforeRestoring, olderKey = result.olderKey, mayNotSync = result.mayNotSync)
                         }
                     }
                 }
@@ -745,7 +745,7 @@ public class VaultSession(
                             key = adopting ?: attempt
                             running.keyTaken = true
                             adopt(OpenResult.Opened(result.opened), copies)
-                            outcome.complete(SaveOutcome.Saved(result.deletedGroups, result.keptCopy, result.copyLeft))
+                            outcome.complete(SaveOutcome.Saved(result.deletedGroups, result.keptCopy, result.copyLeft, result.mayNotSync))
                         }
                         is SaveResult.Failed -> {
                             outcome.complete(SaveOutcome.Failed(result.failure))

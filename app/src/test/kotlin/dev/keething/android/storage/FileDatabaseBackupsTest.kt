@@ -269,7 +269,7 @@ class FileDatabaseBackupsTest {
         assertFalse(backups.holds(sha256(byteArrayOf(1))))
     }
 
-    // spec: kdbx.backups/AC3
+    // spec: databases.backups/AC3
     @Test
     fun aTimeZoneChangeDoesNotPushTheNewestBackupOut() {
         // L11: ten saves in Berlin, one more three hours later in New York, whose local time sorts first by name.

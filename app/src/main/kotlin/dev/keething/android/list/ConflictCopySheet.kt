@@ -66,6 +66,7 @@ internal fun ConflictCopySheet(model: ConflictCopyModel, onDismiss: () -> Unit) 
         ConfirmChoiceDialog(
             choice,
             fileName = model.file.name,
+            kdbx3 = (model.other as? Other.Read)?.kdbx3 == true,
             onConfirm = {
                 asking = null
                 when (choice) {
@@ -106,6 +107,7 @@ internal fun ConflictCopySheet(model: ConflictCopyModel, onDismiss: () -> Unit) 
                 )
             }
             val usable = model.other !is Other.NotOpened && model.replaceRefused == null
+            val kdbx3 = (model.other as? Other.Read)?.kdbx3 == true
             Column {
                 ChoiceRow(
                     label = stringResource(R.string.list_conflict_keep),
@@ -119,7 +121,10 @@ internal fun ConflictCopySheet(model: ConflictCopyModel, onDismiss: () -> Unit) 
                 ChoiceRow(
                     label = stringResource(R.string.list_conflict_use),
                     detail = if (usable) {
-                        stringResource(R.string.list_conflict_use_detail, model.file.name)
+                        listOfNotNull(
+                            stringResource(R.string.list_conflict_use_detail, model.file.name),
+                            stringResource(R.string.list_conflict_use_kdbx3).takeIf { kdbx3 },
+                        ).joinToString(" ")
                     } else {
                         model.replaceRefused?.resolve() ?: stringResource(R.string.list_conflict_use_not_opened)
                     },
@@ -176,7 +181,7 @@ private fun ChoiceRow(label: String, detail: String, icon: ImageVector, working:
 
 /** Keep the open one or Use the other one, asked once more: what goes, and that it is backed up first. */
 @Composable
-private fun ConfirmChoiceDialog(choice: Choice, fileName: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun ConfirmChoiceDialog(choice: Choice, fileName: String, kdbx3: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -191,7 +196,10 @@ private fun ConfirmChoiceDialog(choice: Choice, fileName: String, onConfirm: () 
             Text(
                 when (choice) {
                     Choice.KEEP_OPEN -> stringResource(R.string.list_conflict_confirm_keep_text)
-                    Choice.USE_OTHER -> stringResource(R.string.list_conflict_confirm_use_text)
+                    Choice.USE_OTHER -> listOfNotNull(
+                        stringResource(R.string.list_conflict_confirm_use_text),
+                        stringResource(R.string.list_conflict_use_kdbx3).takeIf { kdbx3 },
+                    ).joinToString(" ")
                 },
             )
         },

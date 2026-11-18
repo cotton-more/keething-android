@@ -231,7 +231,7 @@ private fun Editor(container: AppContainer, editor: Showing.Editor, model: Quick
         groupId = null,
         generator = container::passwordGenerator,
         onClose = model::editorClosed,
-        onSaved = { ref, _ -> model.saved((session.session.state.value as? SessionState.Unlocked)?.vault, ref.entry) },
+        onSaved = { saved -> model.saved((session.session.state.value as? SessionState.Unlocked)?.vault, saved.ref.entry, saved.mayNotSync) },
         note = editor.note,
         copySecret = { container.clipboard.copy(it, sensitive = true) },
     )

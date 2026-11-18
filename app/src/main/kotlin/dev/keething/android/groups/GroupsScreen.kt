@@ -30,6 +30,8 @@ import dev.keething.android.editor.NewEntryDatabase
 import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.SaveIntoSheet
 import dev.keething.android.editor.problem
+import dev.keething.android.editor.savedNotice
+import dev.keething.android.editor.syncWarning
 import androidx.annotation.StringRes
 import dev.keething.android.R
 import dev.keething.android.ui.NoLearningKeyboard
@@ -345,12 +347,13 @@ internal class GroupsViewModel(
         }
         saving = GroupRef(database.mark.id, row)
         viewModelScope.launch {
-            val problem = pending.await().problem(database.database.file)
+            val outcome = pending.await()
+            val problem = outcome.problem(database.database.file)
             saving = null
             when {
                 problem == null -> {
                     if (inDialog) closeDialog()
-                    mutableNotices.trySend(Notice(done))
+                    mutableNotices.trySend(savedNotice(done, outcome.syncWarning))
                 }
                 inDialog && dialog != null -> dialogProblem = problem
                 else -> notice(problem)

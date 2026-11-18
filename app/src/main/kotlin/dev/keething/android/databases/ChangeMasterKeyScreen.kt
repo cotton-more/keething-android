@@ -74,6 +74,7 @@ import dev.keething.android.databases.ChangeMasterKeyModel.PasswordChoice
 import androidx.compose.ui.res.stringResource
 import dev.keething.android.R
 import dev.keething.android.ui.resolve
+import dev.keething.android.editor.MAY_NOT_SYNC
 
 /**
  * Change master key… (SPEC §6.2; keething-spec databases.change-master-key; agreed on the canvas "Database name, colour
@@ -350,6 +351,7 @@ private fun Changed(model: ChangeMasterKeyModel, onClose: () -> Unit) {
     model.fingerprintProblem?.let {
         Text(stringResource(R.string.databases_change_key_fingerprint_problem, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
     }
+    if (model.mayNotSync) Text(MAY_NOT_SYNC.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
     Text(
         stringResource(R.string.databases_change_key_other_devices),
         style = MaterialTheme.typography.bodyLarge,

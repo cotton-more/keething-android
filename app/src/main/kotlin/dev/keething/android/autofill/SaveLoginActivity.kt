@@ -50,6 +50,7 @@ import dev.keething.android.KeethingApplication
 import dev.keething.android.R
 import dev.keething.android.editor.EntryEditorScreen
 import dev.keething.android.editor.deletedGroupsNote
+import dev.keething.android.editor.savedSaying
 import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.session.OpenDatabase
 import dev.keething.android.ui.UiText
@@ -157,10 +158,13 @@ private fun SaveLoginScreen(
                 generator = container::passwordGenerator,
                 copySecret = { container.clipboard.copy(it, sensitive = true) },
                 onClose = onClose,
-                onSaved = { _, deleted ->
+                onSaved = { saved ->
                     onDone(
-                        deletedGroupsNote(deleted)?.let { uiText(R.string.autofill_save_password_updated_groups_deleted, it) }
-                            ?: uiText(R.string.autofill_save_password_updated),
+                        savedSaying(
+                            deletedGroupsNote(saved.deletedGroups)?.let { uiText(R.string.autofill_save_password_updated_groups_deleted, it) }
+                                ?: uiText(R.string.autofill_save_password_updated),
+                            saved.mayNotSync,
+                        ),
                     )
                 },
                 prefill = { it.copy(password = password) },
@@ -179,7 +183,7 @@ private fun SaveLoginScreen(
                 generator = container::passwordGenerator,
                 copySecret = { container.clipboard.copy(it, sensitive = true) },
                 onClose = onClose,
-                onSaved = { _, _ -> onDone(uiText(R.string.autofill_save_saved)) },
+                onSaved = { saved -> onDone(savedSaying(uiText(R.string.autofill_save_saved), saved.mayNotSync)) },
                 prefill = { it.copy(title = plan.title, url = plan.url, username = save.username.ifEmpty { it.username }, password = password) },
                 banner = { Banner(stringResource(R.string.autofill_save_new_title, label), stringResource(R.string.autofill_save_new_text)) },
                 places = remember { container.newEntryPlaces() },

@@ -54,7 +54,8 @@ internal sealed interface SavePhase {
     data object Saving : SavePhase
 
     /** [ref]: the entry in its database (a new one's id); [deletedGroups]: the empty groups a move deleted. */
-    data class Saved(val ref: EntryRef, val deletedGroups: List<VaultGroup> = emptyList()) : SavePhase
+    /** [mayNotSync]: saved with its file's time too close for a sync app, said with the warning (databases.saf AC6). */
+    data class Saved(val ref: EntryRef, val deletedGroups: List<VaultGroup> = emptyList(), val mayNotSync: Boolean = false) : SavePhase
 
     data class Failed(val problem: UiText) : SavePhase
 }
@@ -325,7 +326,7 @@ internal class EntryEditorViewModel(
             val problem = outcome.problem(database.file)
             if (problem == null && editor.isNew) places?.created?.invoke(database.id)
             phase = problem?.let(SavePhase::Failed)
-                ?: SavePhase.Saved(EntryRef(database.id, editor.entryId), (outcome as? SaveOutcome.Saved)?.deletedGroups.orEmpty())
+                ?: SavePhase.Saved(EntryRef(database.id, editor.entryId), (outcome as? SaveOutcome.Saved)?.deletedGroups.orEmpty(), outcome.syncWarning)
         }
     }
 

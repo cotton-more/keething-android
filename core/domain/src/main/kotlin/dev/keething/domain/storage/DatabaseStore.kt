@@ -83,6 +83,6 @@ public class DatabaseChangedException(message: String) : IOException(message)
 
 /**
  * [DatabaseStore.replace] replaced the database, but could not make sure of what a sync app needs of the new file (its
- * time): the save is not reported as done, yet the file is the new one, and the copy kept before it is its backup.
+ * time): the file is the new one, and the copy kept before it is its backup. A save says so as a warning.
  */
 public class DatabaseReplacedException(message: String) : IOException(message)

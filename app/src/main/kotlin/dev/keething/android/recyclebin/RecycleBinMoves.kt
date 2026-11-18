@@ -3,6 +3,8 @@ package dev.keething.android.recyclebin
 import dev.keething.android.session.file
 import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
+import dev.keething.android.editor.savedNotice
+import dev.keething.android.editor.syncWarning
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.EntryRef
 import dev.keething.android.R
@@ -46,35 +48,38 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
         val title = entry.displayTitle
         val ref = EntryRef(database.id, entry.id).text
         mutableLeaving.update { it + ref }
-        save(database, VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified)) { problem ->
+        save(database, VaultEdit.MoveToRecycleBin(entry.id, entry.lastModified)) { problem, warn ->
             if (problem != null) mutableLeaving.update { it - ref }
             mutableNotices.trySend(
                 if (problem != null) {
                     Notice(problem, isProblem = true)
                 } else {
-                    Notice(uiText(R.string.recyclebin_moved, title), undo = { restore(database, entry.id) })
+                    savedNotice(uiText(R.string.recyclebin_moved, title), warn, undo = { restore(database, entry.id) })
                 },
             )
         }
     }
 
-    /** Back out of the bin, into the group it came from; [entryId] is its own in [database]; [done] gets the problem, or null. */
-    fun restore(database: DatabaseSession, entryId: String, done: (problem: UiText?) -> Unit = ::restored) {
+    /**
+     * Back out of the bin, into the group it came from; [entryId] is its own in [database]; [done] gets the problem, or
+     * null, and whether the file may not be synced ([savedNotice]).
+     */
+    fun restore(database: DatabaseSession, entryId: String, done: (problem: UiText?, warn: Boolean) -> Unit = ::restored) {
         mutableLeaving.update { it - EntryRef(database.id, entryId).text }
         val vault = (database.session.state.value as? SessionState.Unlocked)?.vault ?: return
         val entry = vault.recycleBin.firstOrNull { it.id == entryId }
-            ?: return done(uiText(R.string.recyclebin_restore_gone))
+            ?: return done(uiText(R.string.recyclebin_restore_gone), false)
         save(database, VaultEdit.Restore(entry.id, entry.lastModified), done)
     }
 
     /** Restore from a row's quick actions: as on the card, the list then saying where it went ("Restored to …"). */
     fun restoreSaying(database: DatabaseSession, entryId: String) {
-        restore(database, entryId) { problem ->
+        restore(database, entryId) { problem, warn ->
             val vault = (database.session.state.value as? SessionState.Unlocked)?.vault
             val group = vault?.entries?.firstOrNull { it.id == entryId }?.groupPath.orEmpty()
             mutableNotices.trySend(
                 problem?.let { Notice(it, isProblem = true) }
-                    ?: Notice(restoredTo(group)),
+                    ?: savedNotice(restoredTo(group), warn),
             )
         }
     }
@@ -84,9 +89,9 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
         val title = entry.displayTitle
         val ref = EntryRef(database.id, entry.id).text
         mutableLeaving.update { it + ref }
-        save(database, VaultEdit.DeleteForGood(entry.id, entry.lastModified)) { problem ->
+        save(database, VaultEdit.DeleteForGood(entry.id, entry.lastModified)) { problem, warn ->
             if (problem != null) mutableLeaving.update { it - ref }
-            mutableNotices.trySend(Notice(problem ?: uiText(R.string.recyclebin_deleted_for_good, title), isProblem = problem != null))
+            mutableNotices.trySend(problem?.let { Notice(it, isProblem = true) } ?: savedNotice(uiText(R.string.recyclebin_deleted_for_good, title), warn))
         }
     }
 
@@ -101,13 +106,17 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
         while (mutableNotices.tryReceive().isSuccess) Unit
     }
 
-    private fun restored(problem: UiText?) {
+    private fun restored(problem: UiText?, warn: Boolean) {
         if (problem != null) mutableNotices.trySend(Notice(problem, isProblem = true))
+        if (problem == null && warn) mutableNotices.trySend(savedNotice(uiText(R.string.editor_saved), true))
     }
 
-    private fun save(database: DatabaseSession, edit: VaultEdit.EntryEdit, done: (problem: UiText?) -> Unit) {
-        val pending = database.session.save(edit) ?: return done(SAVE_LOCKED)
-        scope.launch { done(pending.await().problem(database.file)) }
+    private fun save(database: DatabaseSession, edit: VaultEdit.EntryEdit, done: (problem: UiText?, warn: Boolean) -> Unit) {
+        val pending = database.session.save(edit) ?: return done(SAVE_LOCKED, false)
+        scope.launch {
+            val outcome = pending.await()
+            done(outcome.problem(database.file), outcome.syncWarning)
+        }
     }
 
     companion object {

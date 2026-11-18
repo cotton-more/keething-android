@@ -61,6 +61,18 @@ class Kdbx3ReaderTest {
         assertEquals("block 0 hash", failure.detail)
     }
 
+    // spec: kdbx.kdbx3/AC1
+    @Test
+    fun aFileCutShortIsDamagedAndNeverAWrongPassword() {
+        val file = keepassdx
+        // Inside the last AES block (its padding), a whole block, more than one, half the file, and all but the start.
+        for (cut in listOf(1, 16, 37, file.size / 2, file.size - Header3.parse(file).end - 20)) {
+            assertFailsWith<KdbxException.Corrupt>("cut by $cut") { KdbxReader.open(file.copyOf(file.size - cut), key()) }
+        }
+        // A wrong key still fails on the stream start bytes, cut or not.
+        assertFailsWith<KdbxException.WrongPassword> { KdbxReader.open(file.copyOf(file.size - 37), key("wrong")) }
+    }
+
     // spec: kdbx.kdbx3/AC2
     @Test
     fun protectedValuesAreDecryptedWithSalsa20InDocumentOrderHistoryIncluded() {

@@ -47,7 +47,7 @@ public sealed interface OpenFailure {
 
     /** A database the app does not read (KDBX 2, Twofish…): [what] names it, [kind] says which, for the words. */
     public data class Unsupported(val what: String, val kind: Kind) : OpenFailure {
-        public enum class Kind { NOT_KEEPASS, OLD_FORMAT, NEWER_FORMAT, TWOFISH, CIPHER, KEY_DERIVATION, MEMORY, INNER_STREAM }
+        public enum class Kind { NOT_KEEPASS, KEEPASS1, OLD_FORMAT, NEWER_FORMAT, TWOFISH, CIPHER, KEY_DERIVATION, MEMORY, INNER_STREAM }
     }
 
     /** Truncated or altered: [detail]. A file caught half-written by a sync is this (SPEC §3.2). */
@@ -137,7 +137,7 @@ public open class VaultOpener {
         var vault: Vault? = null
         try {
             vault = VaultAssembler.assemble(database.document, sizes)
-            return CopyContents.Read(VaultSummary.of(vault))
+            return CopyContents.Read(VaultSummary.of(vault), kdbx3 = database.format.version.startsWith("3."))
         } finally {
             vault?.wipe()
             (database.document.entries + database.document.history).forEach { entry ->
@@ -232,6 +232,7 @@ internal fun KdbxException.toOpenFailure(): OpenFailure = when (this) {
     is KdbxException.WrongPassword -> OpenFailure.WrongPassword
     is KdbxException.Corrupt -> OpenFailure.Damaged(detail)
     is KdbxException.NotKdbx -> unsupported(OpenFailure.Unsupported.Kind.NOT_KEEPASS)
+    is KdbxException.KeePass1 -> unsupported(OpenFailure.Unsupported.Kind.KEEPASS1)
     is KdbxException.UnsupportedVersion ->
         unsupported(if (major > 4) OpenFailure.Unsupported.Kind.NEWER_FORMAT else OpenFailure.Unsupported.Kind.OLD_FORMAT)
     is KdbxException.UnsupportedCipher ->

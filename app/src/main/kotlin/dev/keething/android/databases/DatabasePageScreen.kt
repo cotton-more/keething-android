@@ -22,6 +22,8 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import dev.keething.android.editor.problem
+import dev.keething.android.editor.savedSaying
+import dev.keething.android.editor.syncWarning
 import dev.keething.android.session.file
 import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.vault.databases.DatabaseSession
@@ -487,10 +489,11 @@ private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unloc
                 }
                 saving = true
                 scope.launch {
-                    val problem = pending.await().problem(database.file)
+                    val outcome = pending.await()
+                    val problem = outcome.problem(database.file)
                     saving = false
-                    failed = problem != null
-                    said = problem?.resolve(resources) ?: resources.getString(R.string.databases_page_saved_into, database.file.name)
+                    failed = problem != null || outcome.syncWarning
+                    said = (problem ?: savedSaying(uiText(R.string.databases_page_saved_into, database.file.name), outcome.syncWarning)).resolve(resources)
                 }
             },
             enabled = edit != null && !saving,

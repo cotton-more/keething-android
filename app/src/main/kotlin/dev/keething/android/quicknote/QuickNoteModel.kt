@@ -3,6 +3,7 @@ package dev.keething.android.quicknote
 import androidx.lifecycle.ViewModel
 import dev.keething.android.R
 import dev.keething.android.editor.NewNote
+import dev.keething.android.editor.savedSaying
 import dev.keething.android.quicknote.QuickNoteRun.Source
 import dev.keething.android.quicknote.QuickNoteRun.State
 import dev.keething.android.ui.UiText
@@ -184,11 +185,14 @@ internal class QuickNoteModel(
     /** The editor closed without saving: its X or Back, the draft discarded. */
     fun editorClosed() = finish(null)
 
-    /** The note saved as [entryId]: "Saved to Inbox", the group it went to by [vault] as read after the save. */
-    fun saved(vault: Vault?, entryId: String) {
+    /**
+     * The note saved as [entryId]: "Saved to Inbox", the group it went to by [vault] as read after the save; with the
+     * warning when the file [mayNotSync].
+     */
+    fun saved(vault: Vault?, entryId: String, mayNotSync: Boolean = false) {
         val entry = vault?.entries?.firstOrNull { it.id == entryId }
         val group = entry?.let { it.groupPath.lastOrNull() ?: vault.groups.firstOrNull { group -> group.isRoot }?.name }
-        finish(group?.let { uiText(R.string.quicknote_saved_to, it) } ?: uiText(R.string.quicknote_saved))
+        finish(savedSaying(group?.let { uiText(R.string.quicknote_saved_to, it) } ?: uiText(R.string.quicknote_saved), mayNotSync))
     }
 
     /** Its screen gone for good without going through [finish]: nothing of the text stays, nothing waits. */

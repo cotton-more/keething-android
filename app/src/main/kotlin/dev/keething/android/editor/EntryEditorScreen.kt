@@ -230,7 +230,7 @@ internal fun EntryEditorScreen(
     generator: () -> PasswordGeneratorState,
     onClose: () -> Unit,
     /** The entry saved, in its database (a new one's may have moved: Save into), and the empty groups a move deleted. */
-    onSaved: (EntryRef, List<VaultGroup>) -> Unit,
+    onSaved: (SavePhase.Saved) -> Unit,
     prefill: ((EntryDraft) -> EntryDraft)? = null,
     /** What the editor is for, above the fields (the save offer of autofill). */
     banner: (@Composable () -> Unit)? = null,
@@ -253,7 +253,7 @@ internal fun EntryEditorScreen(
     if (editor == null) return
     val draft = model.draft
     val phase = model.phase
-    LaunchedEffect(phase) { if (phase is SavePhase.Saved) onSaved(phase.ref, phase.deletedGroups) }
+    LaunchedEffect(phase) { if (phase is SavePhase.Saved) onSaved(phase) }
     var confirmingDiscard by rememberSaveable { mutableStateOf(false) }
     val close = { if (editor.isDirty(draft)) confirmingDiscard = true else onClose() }
     BackHandler {

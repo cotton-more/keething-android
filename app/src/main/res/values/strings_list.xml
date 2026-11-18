@@ -196,6 +196,7 @@
     <string name="list_conflict_use">Use the other one</string>
     <!-- %1$s: the database's file name -->
     <string name="list_conflict_use_detail">Replaces %1$s with the other version, whose file then goes. The open one is kept in Keething\'s backups first. Changes made only in the open one are lost from the database.</string>
+    <string name="list_conflict_use_kdbx3">The other version is KDBX 3.1: once it is used, the database is viewed only until it is upgraded to KDBX 4.</string>
     <string name="list_conflict_use_not_opened">It cannot be used: it does not open here.</string>
     <string name="list_conflict_confirm_keep_title">Delete the other version?</string>
     <!-- %1$s: the database's file name -->

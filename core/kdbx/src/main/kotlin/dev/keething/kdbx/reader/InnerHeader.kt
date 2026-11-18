@@ -28,6 +28,9 @@ internal class InnerHeader(
         streamKey.fill(0)
     }
 
+    /** A copy of the stream's key, for a test to compare (keething-spec kdbx.round-trip AC2). */
+    fun keyCopy(): ByteArray = streamKey.copyOf()
+
     companion object {
         /**
          * Reads the inner header from the start of the payload; [input] is left where the XML starts. With [expected]

@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.keething.android.editor.describe
 import dev.keething.android.editor.problem
+import dev.keething.android.editor.savedNotice
+import dev.keething.android.editor.savedSaying
 import dev.keething.android.R
 import dev.keething.android.ui.Notice
 import dev.keething.android.ui.UiText
@@ -45,7 +47,8 @@ internal class ConflictCopyModel(
     sealed interface Other {
         data object Reading : Other
 
-        data class Read(val summary: VaultSummary) : Other
+        /** [kdbx3]: the copy is KDBX 3.1, and Use the other one says what that does. */
+        data class Read(val summary: VaultSummary, val kdbx3: Boolean = false) : Other
 
         /** It does not open with the database's key, or at all: [why]. It can only be deleted here. */
         data class NotOpened(val why: UiText) : Other
@@ -70,7 +73,7 @@ internal class ConflictCopyModel(
     init {
         scope.launch {
             other = when (val read = contents()) {
-                is CopyContents.Read -> Other.Read(read.summary)
+                is CopyContents.Read -> Other.Read(read.summary, read.kdbx3)
                 is CopyContents.NotOpened -> Other.NotOpened(
                     if (read.failure.isWrongKey) {
                         uiText(R.string.list_conflict_wrong_key)
@@ -109,9 +112,9 @@ internal class ConflictCopyModel(
             working = null
             when {
                 outcome is SaveOutcome.Saved && outcome.copyLeft != null -> onDone(
-                    Notice(uiText(R.string.list_conflict_used_copy_left, file.name), isProblem = true),
+                    Notice(savedSaying(uiText(R.string.list_conflict_used_copy_left, file.name), outcome.mayNotSync), isProblem = true, lasting = outcome.mayNotSync),
                 )
-                outcome is SaveOutcome.Saved -> onDone(Notice(uiText(R.string.list_conflict_used, file.name)))
+                outcome is SaveOutcome.Saved -> onDone(savedNotice(uiText(R.string.list_conflict_used, file.name), outcome.mayNotSync))
                 outcome == SaveOutcome.Interrupted -> onDone(Notice(outcome.problem(file)!!, isProblem = true))
                 else -> problem = outcome.problem(file)
             }

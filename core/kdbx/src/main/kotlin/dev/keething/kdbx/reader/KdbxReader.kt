@@ -65,6 +65,8 @@ public object KdbxReader {
             return true
         } catch (_: KdbxException.UnsupportedVersion) {
             return false
+        } catch (_: KdbxException.KeePass1) {
+            return false
         }
         val r = ByteReader(file, 12)
         while (true) {
@@ -95,6 +97,14 @@ public object KdbxReader {
     }
 
     internal class ReadBack(val database: KdbxDatabase, val binariesDiffer: Boolean)
+
+    /** The inner stream's key of a KDBX 4 file, for a test to tell that each write draws a new one (kdbx.round-trip AC2). */
+    internal fun innerStreamKey(file: ByteArray, key: DatabaseKey): ByteArray =
+        decryptPayload(file, { header -> key.transformed(header.kdf) }) { _, payload, _ ->
+            val inner = InnerHeader.read(payload.input)
+            inner.binaries.forEach(Secret::wipe)
+            inner.keyCopy().also { inner.wipeKey() }
+        }
 
     /**
      * [expected]: a save's read-back, the attachments compared as they are read ([InnerHeader.read]); never wiped here,
@@ -238,6 +248,8 @@ public object KdbxReader {
      * Decrypts a KDBX 3.1 file and hands its XML to [read]; the XML is wiped afterwards. The payload is decrypted, its
      * stream start bytes checked (anything else there is a wrong key: KDBX 3.1 has no header HMAC, so a damaged start
      * reads as one too, as in KeePass), then taken out of the HashedBlockStream with each block's hash, and gunzipped.
+     * AES is decrypted without padding so that the start bytes come first: a payload cut short or with bad padding is
+     * a damaged file, never a wrong key (keething-spec kdbx.kdbx3 AC1).
      */
     private fun <T> decryptPayload3(
         file: ByteArray,
@@ -254,14 +266,27 @@ public object KdbxReader {
             } finally {
                 transformed.fill(0)
             }
+            val aes = header.format.cipher == KdbxFormat.Cipher.AES256
+            val encrypted = file.size - header.end
             val plain = try {
-                decrypt(file.copyOfRange(header.end, file.size), header.format.cipher, cipherKey, header.iv) { KdbxException.WrongPassword() }
+                if (encrypted < header.streamStartBytes.size) throw KdbxException.Corrupt("payload truncated")
+                if (aes) {
+                    aesBlocks(file, header.end, encrypted - encrypted % 16, cipherKey, header.iv)
+                } else {
+                    chaCha20(file.copyOfRange(header.end, file.size), cipherKey, header.iv)
+                }
             } finally {
                 cipherKey.fill(0)
             }
             var payload = try {
                 if (!startsWith(plain, header.streamStartBytes)) throw KdbxException.WrongPassword()
-                hashedBlocks(plain, header.streamStartBytes.size)
+                val end = if (aes) {
+                    if (plain.size != encrypted) throw KdbxException.Corrupt("payload truncated")
+                    plain.size - (padding(plain) ?: throw KdbxException.Corrupt("payload padding"))
+                } else {
+                    plain.size
+                }
+                hashedBlocks(plain, header.streamStartBytes.size, end)
             } finally {
                 plain.fill(0)
             }
@@ -283,6 +308,26 @@ public object KdbxReader {
         }
     }
 
+    /** [size] bytes of [data] from [from], whole AES blocks, decrypted in CBC mode with no padding removed. */
+    private fun aesBlocks(data: ByteArray, from: Int, size: Int, key: ByteArray, iv: ByteArray): ByteArray {
+        if (iv.size != 16) throw KdbxException.Corrupt("AES IV")
+        return try {
+            Cipher.getInstance("AES/CBC/NoPadding")
+                .apply { init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv)) }
+                .doFinal(data, from, size)
+        } catch (_: GeneralSecurityException) {
+            throw KdbxException.Corrupt("AES decryption")
+        }
+    }
+
+    /** The PKCS#7 padding's length at the end of [data]; null when it is not valid padding. */
+    private fun padding(data: ByteArray): Int? {
+        if (data.isEmpty()) return null
+        val count = data.last().toInt() and 0xFF
+        if (count !in 1..16 || count > data.size) return null
+        return count.takeIf { (data.size - count until data.size).all { data[it].toInt() and 0xFF == count } }
+    }
+
     private fun startsWith(data: ByteArray, prefix: ByteArray): Boolean {
         if (data.size < prefix.size) return false
         var difference = 0
@@ -291,12 +336,12 @@ public object KdbxReader {
     }
 
     /**
-     * KDBX 3.1's HashedBlockStream from [start]: blocks of an index, the SHA-256 of the data and its size, in order,
+     * KDBX 3.1's HashedBlockStream from [start] to [end]: blocks of an index, the SHA-256 of the data and its size, in order,
      * up to an empty block with a zero hash. Every block is verified before any of it is used.
      */
-    private fun hashedBlocks(data: ByteArray, start: Int): ByteArray {
+    private fun hashedBlocks(data: ByteArray, start: Int, end: Int): ByteArray {
         val blocks = mutableListOf<IntRange>()
-        val r = ByteReader(data, start)
+        val r = ByteReader(data, start, end)
         var index = 0
         while (true) {
             val stored = r.int32()
@@ -393,34 +438,14 @@ public object KdbxReader {
         return out
     }
 
-    /** [badPadding]: what AES's padding not checking out means (in KDBX 3.1, with no HMAC before it, a wrong key). */
-    private fun decrypt(
-        data: ByteArray,
-        cipher: KdbxFormat.Cipher,
-        key: ByteArray,
-        iv: ByteArray,
-        badPadding: () -> KdbxException = { KdbxException.Corrupt("AES decryption") },
-    ): ByteArray =
-        when (cipher) {
-            KdbxFormat.Cipher.CHACHA20 -> {
-                if (iv.size != 12) throw KdbxException.Corrupt("ChaCha20 IV")
-                val stream = ChaCha20(key, iv)
-                stream.apply(data)
-                stream.wipe()
-                data
-            }
-            KdbxFormat.Cipher.AES256 -> {
-                if (iv.size != 16) throw KdbxException.Corrupt("AES IV")
-                try {
-                    Cipher.getInstance("AES/CBC/PKCS5Padding")
-                        .apply { init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv)) }
-                        .doFinal(data)
-                } catch (_: GeneralSecurityException) {
-                    throw badPadding()
-                }
-            }
-            KdbxFormat.Cipher.TWOFISH -> throw KdbxException.UnsupportedCipher("Twofish")
-        }
+    /** [data] decrypted with ChaCha20 in place. */
+    private fun chaCha20(data: ByteArray, key: ByteArray, iv: ByteArray): ByteArray {
+        if (iv.size != 12) throw KdbxException.Corrupt("ChaCha20 IV")
+        val stream = ChaCha20(key, iv)
+        stream.apply(data)
+        stream.wipe()
+        return data
+    }
 
     /** One allocation of the size the gzip trailer gives, so that no stray copies of the XML are left. */
     internal fun gunzip(data: ByteArray): ByteArray {

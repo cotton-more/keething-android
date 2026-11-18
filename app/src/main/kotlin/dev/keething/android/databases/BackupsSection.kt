@@ -65,6 +65,7 @@ import androidx.compose.ui.res.stringResource
 import dev.keething.android.AppContainer
 import dev.keething.android.R
 import dev.keething.android.editor.describe
+import dev.keething.android.editor.savedNotice
 import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.android.ui.ButtonLabel
 import dev.keething.android.ui.Notice
@@ -291,9 +292,9 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
                     if (outcome.olderKey) info = BackupTexts.olderKey(name, date)
                     onNotice(
                         if (undo) {
-                            Notice(BackupTexts.undone(name))
+                            savedNotice(BackupTexts.undone(name), outcome.mayNotSync)
                         } else {
-                            Notice(BackupTexts.restored(date ?: uiPlain("")), undo = { restore(outcome.beforeRestoring, date = null, undo = true) })
+                            savedNotice(BackupTexts.restored(date ?: uiPlain("")), outcome.mayNotSync, undo = { restore(outcome.beforeRestoring, date = null, undo = true) })
                         },
                     )
                 }

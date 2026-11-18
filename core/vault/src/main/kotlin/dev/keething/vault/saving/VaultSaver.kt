@@ -90,7 +90,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 }
                 kept = original
             }
-            if (result is SaveResult.Saved) SaveResult.Saved(result.opened, keptCopy = keptAs) else result
+            if (result is SaveResult.Saved) SaveResult.Saved(result.opened, keptCopy = keptAs, mayNotSync = result.mayNotSync) else result
         }
     }
 
@@ -121,7 +121,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         } catch (_: Exception) {
             false
         }
-        return if (deleted) result else SaveResult.Saved(result.opened, copyLeft = copyName)
+        return if (deleted) result else SaveResult.Saved(result.opened, copyLeft = copyName, mayNotSync = result.mayNotSync)
     }
 
     /**
@@ -189,16 +189,15 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 val version = backUp(first, now, stopped = { false }, copy = held == null) { input ->
                     kept = backups.keepBeforeRestoring(input, store.fileName, now)
                 } ?: return@repeat
+                var mayNotSync = false
                 try {
                     store.replace(bytes, version)
                 } catch (_: DatabaseChangedException) {
                     if (held == null) backups.notSaved()
                     return@repeat
-                } catch (failure: DatabaseReplacedException) {
-                    // Replaced all the same, its new time not made sure of: the copy is the replaced file's backup.
-                    if (held == null) backups.restored(name)
-                    wrote(session, bytes, ours = false)
-                    throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
+                } catch (_: DatabaseReplacedException) {
+                    // Replaced all the same, its new time not made sure of: restored, said with a warning (databases.saf AC6).
+                    mayNotSync = true
                 } catch (failure: Exception) {
                     if (held == null) backups.notSaved()
                     throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
@@ -208,7 +207,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 val saved = store.version() ?: throw Refused(SaveFailure.WriteFailed("the new file is gone")) // English detail
                 val opened = made?.let { it.reread.toOpenedVault(saved, bytes.size.toLong(), it.vault) }
                 made = null
-                return RestoreResult.Restored(opened, olderKey, beforeRestoring = checkNotNull(kept ?: held))
+                return RestoreResult.Restored(opened, olderKey, beforeRestoring = checkNotNull(kept ?: held), mayNotSync = mayNotSync)
             }
             throw Refused(SaveFailure.FileKeepsChanging)
         } catch (refused: Refused) {
@@ -288,6 +287,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 made.discard()
                 return@repeat
             }
+            var mayNotSync = false
             try {
                 if (stopped()) throw Refused(SaveFailure.Locked)
                 store.replace(made.file, version)
@@ -300,12 +300,9 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 made.discard()
                 if (copy) backups.notSaved()
                 throw refused
-            } catch (failure: DatabaseReplacedException) {
-                // Replaced all the same, its new time not made sure of: the copy is the replaced file's backup.
-                made.discard()
-                if (copy) backups.saved()
-                wrote(session, made.file, ours)
-                throw Refused(SaveFailure.WriteFailed(failure.message ?: failure.javaClass.simpleName))
+            } catch (_: DatabaseReplacedException) {
+                // Replaced all the same, its new time not made sure of: saved, said with a warning (databases.saf AC6).
+                mayNotSync = true
             } catch (failure: Exception) {
                 made.discard()
                 if (copy) backups.notSaved()
@@ -318,7 +315,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 made.discard()
                 throw Refused(SaveFailure.WriteFailed("the new file is gone")) // English detail
             }
-            return SaveResult.Saved(made.reread.toOpenedVault(saved, made.file.size.toLong(), made.vault), made.deletedGroups)
+            return SaveResult.Saved(made.reread.toOpenedVault(saved, made.file.size.toLong(), made.vault), made.deletedGroups, mayNotSync = mayNotSync)
         }
         throw Refused(SaveFailure.FileKeepsChanging)
     }
@@ -671,7 +668,10 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
     /** Every group of the file in file order, the recycle bin's own too. */
     private fun groups(document: KdbxDocument): List<VaultGroup> = document.groups.map { VaultGroup(it.uuid, it.name, it.path) }
 
-    /** The entry must be in the file as it was loaded: a different `LastModificationTime` means changed elsewhere. */
+    /**
+     * The entry must be in the file as it was loaded, and the only one with its id: a different `LastModificationTime`
+     * means changed elsewhere.
+     */
     private fun checkAsLoaded(document: KdbxDocument, edit: VaultEdit) {
         if (edit !is VaultEdit.EntryEdit) return
         val existing = document.entries.firstOrNull { it.uuid == edit.entryId }
@@ -687,6 +687,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             is VaultEdit.RestoreVersion -> edit.loadedModified
         }
         if (existing == null) throw Refused(SaveFailure.EntryNotFound)
+        if (document.entries.count { it.uuid == edit.entryId } > 1) throw Refused(SaveFailure.DuplicateId)
         if (!sameTime(loaded, existing.lastModified)) throw Refused(SaveFailure.ChangedElsewhere)
         // The version as it was read, not another one in its place.
         if (edit is VaultEdit.RestoreVersion) {
@@ -695,9 +696,12 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         }
     }
 
-    /** Within a second, as KeePass's times are kept; a time not known matches any. */
+    /**
+     * Within a second, as KeePass's times are kept. A time not known matches only another not known: a time on one side
+     * alone means the entry changed elsewhere (keething-spec kdbx.save AC2).
+     */
     private fun sameTime(loaded: Instant?, inFile: Instant?): Boolean =
-        loaded == null || inFile == null || Duration.between(loaded, inFile).abs() < Duration.ofSeconds(1)
+        if (loaded == null || inFile == null) loaded == inFile else Duration.between(loaded, inFile).abs() < Duration.ofSeconds(1)
 
     private fun EditException.toSaveFailure(): SaveFailure = when (this) {
         is EditException.EntryNotFound -> SaveFailure.EntryNotFound

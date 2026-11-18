@@ -115,6 +115,7 @@ private fun wrongKey(wrongInARow: Int, @StringRes first: Int, @StringRes again: 
 /** What it is and, where something can be done, what to do (keething-spec app.first-start AC3, AC4). */
 private fun OpenFailure.Unsupported.describe(): UiText = when (kind) {
     OpenFailure.Unsupported.Kind.NOT_KEEPASS -> uiText(R.string.unlock_unsupported_not_keepass)
+    OpenFailure.Unsupported.Kind.KEEPASS1 -> uiText(R.string.unlock_unsupported_keepass1)
     OpenFailure.Unsupported.Kind.OLD_FORMAT -> uiText(R.string.unlock_unsupported_old_format, what)
     OpenFailure.Unsupported.Kind.NEWER_FORMAT -> uiText(R.string.unlock_unsupported_newer_format, what)
     OpenFailure.Unsupported.Kind.TWOFISH -> uiText(R.string.unlock_unsupported_twofish)
@@ -127,6 +128,7 @@ private fun OpenFailure.Unsupported.describe(): UiText = when (kind) {
 /** The same in a few words, for a row of the chooser ("Cannot be read: …"). */
 internal fun OpenFailure.Unsupported.named(): UiText = when (kind) {
     OpenFailure.Unsupported.Kind.NOT_KEEPASS -> uiText(R.string.unlock_unsupported_named_not_keepass)
+    OpenFailure.Unsupported.Kind.KEEPASS1 -> uiText(R.string.unlock_unsupported_named_keepass1)
     OpenFailure.Unsupported.Kind.OLD_FORMAT -> uiText(R.string.unlock_unsupported_named_old_format, what)
     OpenFailure.Unsupported.Kind.NEWER_FORMAT -> uiText(R.string.unlock_unsupported_named_newer_format, what)
     OpenFailure.Unsupported.Kind.TWOFISH -> uiText(R.string.unlock_unsupported_named_twofish)

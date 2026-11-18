@@ -31,6 +31,8 @@ import dev.keething.android.attachment.SaveRequest
 import dev.keething.android.clipboard.SensitiveClipboard
 import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
+import dev.keething.android.editor.savedNotice
+import dev.keething.android.editor.syncWarning
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.recyclebin.RecycleBinMoves
 import dev.keething.vault.databases.DatabaseSession
@@ -178,11 +180,12 @@ internal class EntryCardViewModel(
         val pending = database.session.save(VaultEdit.Update(entry.id, entry.lastModified, suggestion.changes(entry))) ?: return problem(SAVE_LOCKED)
         suggesting = true
         viewModelScope.launch {
-            val failure = pending.await().problem(database.file)
+            val outcome = pending.await()
+            val failure = outcome.problem(database.file)
             suggesting = false
             mutableNotices.trySend(
                 failure?.let { Notice(it, isProblem = true) }
-                    ?: Notice(
+                    ?: savedNotice(
                         uiText(
                             when (suggestion.kind) {
                                 TypeSuggestion.Kind.PAYMENT_CARD -> R.string.entry_saved_card
@@ -190,6 +193,7 @@ internal class EntryCardViewModel(
                                 else -> R.string.entry_saved
                             },
                         ),
+                        outcome.syncWarning,
                     ),
             )
         }
@@ -354,8 +358,8 @@ internal class EntryCardViewModel(
             mutableNotices.trySend(
                 when {
                     failure != null -> Notice(failure, isProblem = true)
-                    used -> Notice(uiText(R.string.entry_code_marked_used, row.noticeLabel.ui()), undo = { setUsed(row, false) })
-                    else -> Notice(uiText(R.string.entry_code_marked_not_used, row.noticeLabel.ui()), undo = { setUsed(row, true) })
+                    used -> savedNotice(uiText(R.string.entry_code_marked_used, row.noticeLabel.ui()), outcome.syncWarning, undo = { setUsed(row, false) })
+                    else -> savedNotice(uiText(R.string.entry_code_marked_not_used, row.noticeLabel.ui()), outcome.syncWarning, undo = { setUsed(row, true) })
                 },
             )
         }
@@ -442,7 +446,7 @@ internal class EntryCardViewModel(
             val failure = outcome.problem(database.file)
             mutableNotices.trySend(
                 failure?.let { Notice(it, isProblem = true) }
-                    ?: Notice(GroupTexts.entryMoved(tree, choice, (outcome as? SaveOutcome.Saved)?.deletedGroups.orEmpty())),
+                    ?: savedNotice(GroupTexts.entryMoved(tree, choice, (outcome as? SaveOutcome.Saved)?.deletedGroups.orEmpty()), outcome.syncWarning),
             )
         }
     }
@@ -475,14 +479,15 @@ internal class EntryCardViewModel(
     fun restore() {
         if (restoring) return
         restoring = true
-        recycleBin.restore(database, entryId) { problem ->
+        recycleBin.restore(database, entryId) { problem, warn ->
             restoring = false
             val group = unlockedVault()?.entries?.firstOrNull { it.id == entryId }?.groupPath.orEmpty()
             mutableNotices.trySend(
                 problem?.let { Notice(it, isProblem = true) }
-                    ?: Notice(
+                    ?: savedNotice(
                         GroupPathFormatter.text(group).takeIf { it.isNotEmpty() }?.let { uiText(R.string.entry_restored_to, it) }
                             ?: uiText(R.string.entry_restored_to_top),
+                        warn,
                     ),
             )
         }

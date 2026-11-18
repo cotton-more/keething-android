@@ -2,6 +2,7 @@ package dev.keething.android.editor
 
 import dev.keething.android.R
 import dev.keething.android.session.SizeTexts
+import dev.keething.android.ui.Notice
 import dev.keething.android.ui.UiText
 import dev.keething.android.ui.afterColon
 import dev.keething.android.ui.uiListed
@@ -22,6 +23,7 @@ import java.io.File
 internal fun SaveFailure.describe(file: File): UiText = when (this) {
     SaveFailure.ChangedElsewhere -> uiText(R.string.editor_save_failure_changed_elsewhere)
     SaveFailure.EntryNotFound -> uiText(R.string.editor_save_failure_entry_not_found)
+    SaveFailure.DuplicateId -> uiText(R.string.editor_save_failure_duplicate_id)
     SaveFailure.GroupNotFound -> uiText(R.string.editor_save_failure_group_not_found)
     SaveFailure.RecycleBinDisabled -> uiText(R.string.editor_save_failure_recycle_bin_disabled)
     SaveFailure.WrongPlace -> uiText(R.string.editor_save_failure_wrong_place)
@@ -56,6 +58,22 @@ internal fun SaveFailure.describe(file: File): UiText = when (this) {
 /** Why the file did not open, as the second half of a sentence. It comes from the unlock screen's texts. */
 private fun openFailureInSentence(failure: OpenFailure, file: File): UiText =
     failure.describe(file.path).afterColon()
+
+/**
+ * Whether a save went through with its new file's time too close to the replaced one's for a sync app to tell them
+ * apart (keething-spec databases.saf AC6): said with [savedSaying] on every screen.
+ */
+internal val SaveOutcome.syncWarning: Boolean get() = this is SaveOutcome.Saved && mayNotSync
+
+/** [text], what a save that went through says, with the warning under it when [warn]: the file may not be synced. */
+internal fun savedSaying(text: UiText, warn: Boolean): UiText = if (warn) uiText(R.string.editor_saved_may_not_sync, text, MAY_NOT_SYNC) else text
+
+/** The warning alone, for a screen that says a save its own way. */
+internal val MAY_NOT_SYNC: UiText = uiText(R.string.editor_may_not_sync)
+
+/** [savedSaying] as a notice: with the warning, shown as a problem and long enough to be read. */
+internal fun savedNotice(text: UiText, warn: Boolean, undo: (() -> Unit)? = null): Notice =
+    if (warn) Notice(savedSaying(text, true), isProblem = true, undo = undo, lasting = true) else Notice(text, undo = undo)
 
 /** A save that did not happen, said the same way on every screen; null when it saved. */
 internal fun SaveOutcome.problem(file: File): UiText? = when (this) {
@@ -135,6 +153,9 @@ internal val SAVE_LOCKED: UiText = uiText(R.string.editor_save_locked)
  */
 internal fun savedText(deleted: List<VaultGroup>): UiText =
     deletedGroupsNote(deleted)?.let { uiText(R.string.editor_saved_with_note, it) } ?: uiText(R.string.editor_saved)
+
+/** [savedText] as the card says it, with the warning when the file may not be synced ([savedNotice]). */
+internal fun savedNotice(deleted: List<VaultGroup>, warn: Boolean): Notice = savedNotice(savedText(deleted), warn)
 
 /** "The empty group “Work › Old” was deleted.", by their paths in the order given; null for none. */
 internal fun deletedGroupsNote(deleted: List<VaultGroup>): UiText? {

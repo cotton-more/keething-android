@@ -38,6 +38,7 @@
 
     <!-- A database Keething does not read: what it is and what to do (unlock/LockTexts.kt) -->
     <string name="unlock_unsupported_not_keepass">This file is not a KeePass database.</string>
+    <string name="unlock_unsupported_keepass1">This is a KeePass 1.x database (.kdb), a format Keething does not read. Import it in KeePassXC (Database › Import) or KeePass 2 (File › Import) and save it there: the new .kdbx file opens here.</string>
     <!-- %1$s: the format ("KDBX 2.0") -->
     <string name="unlock_unsupported_old_format">This database is in an old KeePass format (%1$s), which Keething does not read. Save it again in KeePass or KeePassXC, and it opens here.</string>
     <!-- %1$s: the format ("KDBX 5.0") -->
@@ -54,6 +55,7 @@
 
     <!-- The same in a few words, for a row of the chooser ("Cannot be read: …") -->
     <string name="unlock_unsupported_named_not_keepass">not a KeePass database</string>
+    <string name="unlock_unsupported_named_keepass1">KeePass 1.x (.kdb)</string>
     <!-- %1$s: the format -->
     <string name="unlock_unsupported_named_old_format">an old KeePass format (%1$s)</string>
     <!-- %1$s: the format -->

@@ -30,6 +30,7 @@
     <string name="unlock_failure_locked">База заблокировалась, пока открывалась.</string>
 
     <string name="unlock_unsupported_not_keepass">Этот файл — не база KeePass.</string>
+    <string name="unlock_unsupported_keepass1">Это база KeePass 1.x (.kdb) — формат, который Keething не читает. Импортируйте её в KeePassXC (База данных › Импорт) или KeePass 2 (Файл › Импорт) и сохраните там: новый файл .kdbx откроется здесь.</string>
     <string name="unlock_unsupported_old_format">Эта база в старом формате KeePass (%1$s), который Keething не читает. Сохраните её заново в KeePass или KeePassXC, и она откроется здесь.</string>
     <string name="unlock_unsupported_newer_format">Эта база в более новом формате KeePass (%1$s), чем читает эта версия Keething. Возможно, её откроет обновление Keething.</string>
     <string name="unlock_unsupported_twofish">Эта база зашифрована Twofish, который Keething не читает. В KeePassXC (База данных › Безопасность базы данных › Параметры шифрования) или в KeePass выберите AES-256 или ChaCha20 и сохраните — тогда она откроется здесь.</string>
@@ -39,6 +40,7 @@
     <string name="unlock_unsupported_inner_stream">Эта база защищает значения способом, которого Keething не знает (%1$s).</string>
 
     <string name="unlock_unsupported_named_not_keepass">не база KeePass</string>
+    <string name="unlock_unsupported_named_keepass1">KeePass 1.x (.kdb)</string>
     <string name="unlock_unsupported_named_old_format">старый формат KeePass (%1$s)</string>
     <string name="unlock_unsupported_named_newer_format">более новый формат KeePass (%1$s)</string>
     <string name="unlock_unsupported_named_twofish">зашифрована Twofish</string>

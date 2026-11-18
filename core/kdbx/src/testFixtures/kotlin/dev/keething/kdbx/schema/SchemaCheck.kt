@@ -17,6 +17,7 @@ public class SchemaCheck : BeforeEachCallback, AfterEachCallback {
         synchronized(lock) {
             problems.clear()
             allowed = false
+            entryTwice = false
         }
         WrittenDocuments.observer = ::check
     }
@@ -33,6 +34,7 @@ public class SchemaCheck : BeforeEachCallback, AfterEachCallback {
         private val lock = Any()
         private val problems = mutableListOf<String>()
         private var allowed = false
+        private var entryTwice = false
 
         /** How many documents were checked, over all tests. */
         @Volatile
@@ -44,6 +46,17 @@ public class SchemaCheck : BeforeEachCallback, AfterEachCallback {
             synchronized(lock) { allowed = true }
         }
 
+        /**
+         * The running test writes a file with two entries of one UUID on purpose: the JDK's validator misses that part of
+         * `KUuid` (KdbxSchemaTest), so the two disagree on it alone and that is not a failure.
+         */
+        public fun allowEntryUuidTwice() {
+            synchronized(lock) {
+                allowed = true
+                entryTwice = true
+            }
+        }
+
         /** The validator's errors and the app's violations for one document. */
         public fun validate(xml: ByteArray, violations: Set<SchemaViolation>): Pair<List<String>, List<SchemaViolation>> =
             XsdValidator.errors(xml) to violations.sorted()
@@ -52,7 +65,8 @@ public class SchemaCheck : BeforeEachCallback, AfterEachCallback {
             val (xsd, own) = validate(xml, violations)
             synchronized(lock) {
                 checked++
-                if (xsd.isEmpty() != own.isEmpty()) {
+                val knownMiss = entryTwice && xsd.isEmpty() && own.all { it.problem == "used more than once" }
+                if (xsd.isEmpty() != own.isEmpty() && !knownMiss) {
                     problems += "KdbxSchema and KDBX_XML.xsd disagree on a written file — XSD: " +
                         (if (xsd.isEmpty()) "valid" else xsd.take(3).joinToString(" | ")) + "; KdbxSchema: " +
                         (if (own.isEmpty()) "valid" else own.take(3).joinToString(" | "))
