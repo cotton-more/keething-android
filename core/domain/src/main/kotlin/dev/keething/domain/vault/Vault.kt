@@ -45,7 +45,7 @@ public data class Vault(
 
     public companion object {
         /** The title of the entry that holds the Mac app's settings (outer spaces ignored). */
-        public const val SETTINGS_TITLE: String = "Keething"
+        public const val SETTINGS_TITLE: String = "Keething" // not user text
     }
 }
 

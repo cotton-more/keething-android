@@ -41,10 +41,14 @@ composable reads it with `stringResource`; a view model or a plain function retu
 English with `english()` (`app/src/test/kotlin/dev/keething/android/ui/EnglishTexts.kt`), so the expected texts stay
 the words on the screen.
 
-    task texts:check            # texts still written into the code of app/ and the core modules done (tools/check-texts.py); must print nothing
+    task texts:check            # texts still written into the code of app/ and the core (tools/check-texts.py); must print nothing
 
-A literal that is not a text the user sees (a key, a tag, a MIME type) carries `// not user text` on its line; a whole
-file is left out in `tools/texts-allowed.txt`, with why.
+A literal that is not a text the user sees (a key, a tag, a MIME type, a name written into the file as the Mac writes
+it) carries `// not user text` on its line; a failure's technical detail, said in English after a message that is
+translated ("The file is damaged … (block 3 hash)"), carries `// English detail`. A whole file or folder is left out in
+`tools/texts-allowed.txt`, with why (`core/kdbx`: the format's names and its failures' detail; the failures' kinds are
+types that `app/` names). The check sees a text by its words: a lone lowercase word ("closed") passes it unseen, so a
+new one is looked at by eye.
 
 The core modules are plain JVM and have no resources: a text one makes is a `UserText`
 (`core/domain/src/main/kotlin/dev/keething/domain/text/UserText.kt`), a key and its arguments, never the words. Each
@@ -52,9 +56,12 @@ module keeps its keys in one enum (`CardText`, `TotpText`); a key's resource is 
 `app/src/main/res/values/strings_<module>.xml`, and `app/src/main/kotlin/dev/keething/android/ui/CoreTexts.kt` maps every
 key to it (`ui()` gives the `UiText`, `resolve()` the words). A new key goes into all three; `CoreTextsTest` fails on a
 key mapped to another resource. A core test reads a `UserText` in English with `english()` (core:domain's test
-fixtures, from the app's `res/values`). A name written into the file (a new field's, an attachment's) stays English, as
-the Mac writes it. So far `core/card` and `core/totp` (keething-spec plans/android-release-1.0.md T13b); the other core
-modules' texts are still English Strings, and `tools/check-texts.py` checks only the modules done (`DEFAULT_DIRS`).
+fixtures, from the app's `res/values`). A name written into the file (a new field's, an attachment's, a protected
+note's "Note", the quick notes' "Inbox") stays English, as the Mac writes it; so do the sharing pictures' names
+(keething-spec sharing.pictures AC1) and a country's (types.identity-document AC3). A `UserText` given as an argument
+to `uiText` is resolved with it; given to `stringResource` or put into `"$x"` it is not (it shows `Of(key=…)`), so
+there it is `resolve()`d first. An entry's title as shown is `Entry.displayTitle` (a `UserText`: "(Untitled)" follows
+the phone's language); it is ordered, matched and its monogram drawn by `Entry.sortTitle`.
 
 ## Building the APK
 

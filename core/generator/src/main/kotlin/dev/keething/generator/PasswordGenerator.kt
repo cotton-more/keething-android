@@ -137,7 +137,7 @@ public data class GeneratorOptions(
  * drawing again, so every valid password stays equally likely.
  */
 public object PasswordGenerator {
-    internal const val LOOK_ALIKES: String = "0Oo1lI|"
+    internal const val LOOK_ALIKES: String = "0Oo1lI|" // not user text
 
     /** The memorable kind's symbols: on every keyboard layout, and harmless in URLs, shells and forms. */
     internal const val MEMORABLE_SYMBOLS: String = "!#$%&*+-=?@"

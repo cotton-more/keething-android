@@ -43,7 +43,7 @@ public interface DatabaseStore {
      * that name is taken: never over a file there (keething-spec kdbx.kdbx3 AC7). Returns the name it got; throws an
      * [IOException] when nothing was kept.
      */
-    public fun keepBeside(bytes: ByteArray, name: String): String = throw IOException("no folder to keep $name in")
+    public fun keepBeside(bytes: ByteArray, name: String): String = throw IOException("no folder to keep $name in") // English detail
 
     /** Syncthing's conflict copies of the database in its folder, newest first. */
     public fun conflictCopies(): List<ConflictCopy>
@@ -52,14 +52,14 @@ public interface DatabaseStore {
      * The bytes of the conflict copy named [name] beside the database (keething-spec kdbx.conflict-copies AC6), or null when
      * it is not there; an [IOException] when it could not be read, or [name] names no conflict copy of the database.
      */
-    public fun readConflictCopy(name: String): ByteArray? = throw IOException("no folder to read $name from")
+    public fun readConflictCopy(name: String): ByteArray? = throw IOException("no folder to read $name from") // English detail
 
     /**
      * Deletes the conflict copy named [name] beside the database (keething-spec kdbx.conflict-copies AC6): nothing else is
      * ever deleted so. One not there is no failure; an [IOException] when it is still there, or [name] names no conflict
      * copy of the database.
      */
-    public fun deleteConflictCopy(name: String): Unit = throw IOException("no folder to delete $name from")
+    public fun deleteConflictCopy(name: String): Unit = throw IOException("no folder to delete $name from") // English detail
 
     /**
      * Calls [onChange] on a background thread when the database file (its [version]) or the set of its

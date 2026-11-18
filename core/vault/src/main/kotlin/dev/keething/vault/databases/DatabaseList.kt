@@ -276,7 +276,7 @@ public class DatabaseList(
         public const val VERSION: Int = 1
 
         /** When the list kept before was set aside, unreadable; gone once a database joins the list. */
-        private const val SET_ASIDE_KEY = "$STORE_KEY.setAside"
+        private const val SET_ASIDE_KEY = "$STORE_KEY.setAside" // not user text
 
         /**
          * A database's file or key file: by path as before databases.saf (`"path"`, `"keyFilePath"`: the list of before

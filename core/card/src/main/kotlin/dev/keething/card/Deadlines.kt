@@ -16,6 +16,7 @@ public data class Deadline(
     val id: String,
     val source: Source,
     val entryId: String,
+    /** What deadlines of one day are ordered by: the entry's [dev.keething.domain.vault.Entry.sortTitle]. */
     val entryTitle: String,
     val groupPath: List<String>,
     /** The field ("VERTRAG › Ende Mindestlaufzeit"), or "Entry expires" for KeePass's own expiry. */
@@ -71,7 +72,7 @@ public object DeadlineList {
         if (entry.expires && expiry != null) {
             entryExpiryDate(expiry)?.let { date ->
                 out += Deadline(
-                    "${entry.id}/expiry", Deadline.Source.EntryExpiry, entry.id, entry.displayTitle, entry.groupPath,
+                    "${entry.id}/expiry", Deadline.Source.EntryExpiry, entry.id, entry.sortTitle, entry.groupPath,
                     UserText.of(CardText.ENTRY_EXPIRES), date, entryExpiryHint(date, entry.isExpired(now), now),
                 )
             }
@@ -80,7 +81,7 @@ public object DeadlineList {
             val (date, ends) = interpreter.date(field) ?: continue
             if (!ends) continue
             out += Deadline(
-                "${entry.id}/$i", Deadline.Source.Field(i), entry.id, entry.displayTitle, entry.groupPath,
+                "${entry.id}/$i", Deadline.Source.Field(i), entry.id, entry.sortTitle, entry.groupPath,
                 ImportedFieldName.displayName(field.name), date.date, date.expiry(now),
             )
         }

@@ -3,6 +3,7 @@ package dev.keething.vault.session
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.DatabaseBackups
 import dev.keething.domain.storage.DatabaseStore
+import dev.keething.domain.text.english
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.kdbx.key.DatabaseKey
@@ -122,7 +123,7 @@ class KeyFileUnlockTest {
         denied.keyFile!!.denied = true
         denied.unlock("pw")
         runCurrent()
-        assertEquals(OpenFailure.KeyFileUnusable("Keething may not read work.keyx any more: choose it again"), denied.failure)
+        assertEquals("Keething may not read work.keyx any more: choose it again", assertIs<OpenFailure.KeyFileUnusable>(denied.failure).why.english())
         assertEquals(0, denied.store.reads)
 
         val failing = Fixture(this, FakeStore(keyfileDatabase()), object : FakeKeyFile(null) {
@@ -130,21 +131,21 @@ class KeyFileUnlockTest {
         })
         failing.unlock("pw")
         runCurrent()
-        assertEquals(OpenFailure.KeyFileUnusable("work.keyx could not be read"), failing.failure, "not stuck in Unlocking")
+        assertEquals("work.keyx could not be read", assertIs<OpenFailure.KeyFileUnusable>(failing.failure).why.english(), "not stuck in Unlocking")
 
         val broken = fixture(keyfileDatabase())
         broken.keyFile!!.content = keyFileBytes("keyx.keyx").decodeToString().replace("38D4B997", "00000000").encodeToByteArray()
         broken.unlock("pw")
         runCurrent()
         val failure = assertIs<OpenFailure.KeyFileUnusable>(broken.failure)
-        assertEquals("a key file whose key does not match its checksum (changed or damaged)", failure.why)
+        assertEquals("a key file whose key does not match its checksum (changed or damaged)", failure.why.english())
         assertEquals(0, broken.store.reads)
 
         val empty = fixture(keyfileDatabase())
         empty.keyFile!!.content = ByteArray(0)
         empty.unlock("")
         runCurrent()
-        assertEquals(OpenFailure.KeyFileUnusable("the file is empty"), empty.failure)
+        assertEquals("the file is empty", assertIs<OpenFailure.KeyFileUnusable>(empty.failure).why.english())
     }
 
     @Test

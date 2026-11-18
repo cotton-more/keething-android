@@ -30,7 +30,7 @@ public object UsedCode {
     }
 
     /** [value] marked used on [day]; a value marked already keeps its mark. */
-    public fun mark(value: String, day: LocalDate): String = if (parse(value) != null) value else "used $day · $value"
+    public fun mark(value: String, day: LocalDate): String = if (parse(value) != null) value else "used $day · $value" // not user text
 
     /** [value] without its mark: the code as it was. */
     public fun unmark(value: String): String = parse(value)?.code ?: value

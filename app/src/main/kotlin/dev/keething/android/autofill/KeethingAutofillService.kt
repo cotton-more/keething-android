@@ -71,7 +71,7 @@ class KeethingAutofillService : AutofillService() {
 
     private fun AutofillForm.describe(): String =
         (if (target is FillTarget.WebPage) "web page" else "app") + // not user text
-            ", ${usernames.size} username, ${passwords.size} password, ${codes.size} code"
+            ", ${usernames.size} username, ${passwords.size} password, ${codes.size} code" // not user text
 
     private companion object {
         const val TAG = "Autofill" // not user text

@@ -3,6 +3,8 @@ package dev.keething.vault.biometric
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
+import dev.keething.vault.VaultText
 import dev.keething.vault.creating.DerivedKey
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
@@ -113,7 +115,7 @@ public sealed interface FingerprintOutcome {
     /** Another unlock runs, or the vault is open: nothing was asked. */
     public data object InProgress : FingerprintOutcome
 
-    public data class NotAvailable(val reason: String) : FingerprintOutcome
+    public data class NotAvailable(val reason: UserText) : FingerprintOutcome
 
     public data object NothingStored : FingerprintOutcome
 
@@ -386,8 +388,8 @@ public class BiometricUnlock(
         if (session.isClosed) return FingerprintOutcome.Cancelled
         if (prompting || setup.asking || session.state.value !is SessionState.Locked) return FingerprintOutcome.InProgress
         val record = list.record(id) ?: return FingerprintOutcome.Cancelled
-        if (!setup.state.value.enabled) return FingerprintOutcome.NotAvailable("it is turned off in Settings")
-        if (!record.useBiometric) return FingerprintOutcome.NotAvailable("it is turned off for this database")
+        if (!setup.state.value.enabled) return FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_IN_SETTINGS))
+        if (!record.useBiometric) return FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE))
         // It could not open: asking for a finger only to fail is noise (keething-spec unlock.key-file AC3).
         if (!fileExists(record.file)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
         record.keyFile?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }
@@ -400,7 +402,7 @@ public class BiometricUnlock(
         val appLocked = appLocks()
         try {
             val availability = setup.availability()
-            if (availability is BiometricAvailability.Unavailable) return FingerprintOutcome.NotAvailable(availability.reason)
+            if (availability is BiometricAvailability.Unavailable) return FingerprintOutcome.NotAvailable(UserText.plain(availability.reason))
             if (!record.isPasswordless && !setup.hasPassword(id)) return nothingStored()
             val recognised = {
                 opening = true

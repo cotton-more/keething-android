@@ -205,7 +205,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
                 }
                 if (held == null) backups.restored(name)
                 wrote(session, bytes, ours = false)
-                val saved = store.version() ?: throw Refused(SaveFailure.WriteFailed("the new file is gone"))
+                val saved = store.version() ?: throw Refused(SaveFailure.WriteFailed("the new file is gone")) // English detail
                 val opened = made?.let { it.reread.toOpenedVault(saved, bytes.size.toLong(), it.vault) }
                 made = null
                 return RestoreResult.Restored(opened, olderKey, beforeRestoring = checkNotNull(kept ?: held))
@@ -316,7 +316,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             val saved = store.version()
             if (saved == null) {
                 made.discard()
-                throw Refused(SaveFailure.WriteFailed("the new file is gone"))
+                throw Refused(SaveFailure.WriteFailed("the new file is gone")) // English detail
             }
             return SaveResult.Saved(made.reread.toOpenedVault(saved, made.file.size.toLong(), made.vault), made.deletedGroups)
         }
@@ -479,7 +479,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             val notes = SaveCheck.NewNotes(
                 editable.protectsNotes,
                 (edit as? VaultEdit.Update)?.entryId?.takeIf { id ->
-                    editable.document.entries.firstOrNull { it.uuid == id }?.fields?.none { it.key == "Notes" } == true
+                    editable.document.entries.firstOrNull { it.uuid == id }?.fields?.none { it.key == "Notes" } == true // not user text
                 },
             )
             val applied = try {
@@ -502,7 +502,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             val reread = try {
                 editable.readBack(written)
             } catch (_: KdbxException) {
-                throw Refused(SaveFailure.VerificationFailed("the new file does not open"))
+                throw Refused(SaveFailure.VerificationFailed("the new file does not open")) // English detail
             } catch (failure: EditException) {
                 throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
             }
@@ -566,13 +566,13 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             val reread = try {
                 editable.readBack(written)
             } catch (_: KdbxException) {
-                throw Refused(SaveFailure.VerificationFailed("the new file does not open"))
+                throw Refused(SaveFailure.VerificationFailed("the new file does not open")) // English detail
             } catch (failure: EditException) {
                 throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
             }
             var after: Vault? = null
             try {
-                if (!reread.format.version.startsWith("4.")) throw Refused(SaveFailure.VerificationFailed("the new file is not KDBX 4"))
+                if (!reread.format.version.startsWith("4.")) throw Refused(SaveFailure.VerificationFailed("the new file is not KDBX 4")) // English detail
                 after = VaultAssembler.assemble(reread.document, reread.binaries.map(Secret::size))
                 try {
                     SaveCheck.verifyUnchanged(before, after, groups(editable.document), groups(reread.document))
@@ -605,7 +605,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             try {
                 editable.changeKey(newKey, now)
             } catch (failure: KdbxException) {
-                throw Refused(SaveFailure.VerificationFailed(failure.message ?: "the new key derivation"))
+                throw Refused(SaveFailure.VerificationFailed(failure.message ?: "the new key derivation")) // English detail
             }
             val written = try {
                 editable.writeLast()
@@ -617,7 +617,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
             val reread = try {
                 editable.readBack(written)
             } catch (_: KdbxException) {
-                throw Refused(SaveFailure.VerificationFailed("the new file does not open with the new key"))
+                throw Refused(SaveFailure.VerificationFailed("the new file does not open with the new key")) // English detail
             } catch (failure: EditException) {
                 throw Refused(SaveFailure.VerificationFailed(failure.message ?: "attachments"))
             }
@@ -677,7 +677,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         val existing = document.entries.firstOrNull { it.uuid == edit.entryId }
         val loaded = when (edit) {
             is VaultEdit.Create -> {
-                if (existing != null) throw Refused(SaveFailure.VerificationFailed("the new entry's id is taken"))
+                if (existing != null) throw Refused(SaveFailure.VerificationFailed("the new entry's id is taken")) // English detail
                 return
             }
             is VaultEdit.Update -> edit.loadedModified
@@ -704,8 +704,8 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         is EditException.GroupNotFound -> SaveFailure.GroupNotFound
         is EditException.RecycleBinDisabled -> SaveFailure.RecycleBinDisabled
         is EditException.AlreadyInRecycleBin, is EditException.NotInRecycleBin -> SaveFailure.WrongPlace
-        is EditException.EntryExists -> SaveFailure.VerificationFailed("the new entry's id is taken")
-        is EditException.MalformedLinks -> SaveFailure.VerificationFailed("the recycle bin's groups point to each other in a circle")
+        is EditException.EntryExists -> SaveFailure.VerificationFailed("the new entry's id is taken") // English detail
+        is EditException.MalformedLinks -> SaveFailure.VerificationFailed("the recycle bin's groups point to each other in a circle") // English detail
         is EditException.Malformed -> SaveFailure.VerificationFailed(message ?: "malformed")
         is EditException.BreaksFormat -> SaveFailure.BreaksFormat(what)
         is EditException.InvalidName -> SaveFailure.InvalidName
@@ -713,7 +713,7 @@ internal class VaultSaver(private val store: DatabaseStore, private val backups:
         is EditException.GroupNotChangeable -> SaveFailure.GroupNotChangeable
         is EditException.GroupNotEmpty -> SaveFailure.GroupNotEmpty
         // The entry as loaded had it, or the save would have been refused as changed elsewhere.
-        is EditException.AttachmentNotFound -> SaveFailure.VerificationFailed("an attachment to keep is gone")
+        is EditException.AttachmentNotFound -> SaveFailure.VerificationFailed("an attachment to keep is gone") // English detail
         is EditException.VersionNotFound -> SaveFailure.VersionGone
     }
 

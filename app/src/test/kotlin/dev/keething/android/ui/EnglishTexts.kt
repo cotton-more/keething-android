@@ -1,6 +1,7 @@
 package dev.keething.android.ui
 
 import dev.keething.android.R
+import dev.keething.domain.text.UserText
 import java.io.File
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
@@ -26,7 +27,11 @@ internal fun UiText.english(): String = when (this) {
 }
 
 private fun String.formatted(args: List<Any>): String =
-    if (args.isEmpty()) this else String.format(Locale.US, this, *args.map { if (it is UiText) it.english() else it }.toTypedArray())
+    if (args.isEmpty()) {
+        this
+    } else {
+        String.format(Locale.US, this, *args.map { if (it is UiText) it.english() else if (it is UserText) it.ui().english() else it }.toTypedArray())
+    }
 
 private object EnglishTexts {
     private val strings = mutableMapOf<String, String>()

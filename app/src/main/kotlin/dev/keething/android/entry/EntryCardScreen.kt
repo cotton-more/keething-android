@@ -228,7 +228,7 @@ internal fun EntryCardScreen(
     var deletingForGood by rememberSaveable { mutableStateOf(false) }
     if (deletingForGood) {
         DeleteForGoodDialog(
-            title = content.card.title,
+            title = content.card.title.resolve(),
             onDelete = {
                 deletingForGood = false
                 if (model.deleteForGood()) onBack()
@@ -239,7 +239,7 @@ internal fun EntryCardScreen(
     if (sending) {
         SendToRequestSheet(
             container = container,
-            title = content.card.title,
+            title = content.card.title.resolve(),
             onPick = { their ->
                 sending = false
                 onSendTo(their)
@@ -339,7 +339,7 @@ internal fun EntryCardScreen(
                     AnimatedVisibility(titleInBar, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut() + slideOutVertically { it / 2 }) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             EntryMark(content.card.avatar, content.icon, content.face, 32.dp)
-                            Text(content.card.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(content.card.title.resolve(), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 },
@@ -488,7 +488,7 @@ private fun Header(content: CardContent, mark: DatabaseMark?, readOnly: Boolean,
         EntryMark(card.avatar, content.icon, content.face, 56.dp, Modifier.sharedIcon(sharedKey))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                card.title,
+                card.title.resolve(),
                 Modifier.sharedTitle(sharedKey).onGloballyPositioned { onTitlePlaced(it.boundsInRoot().bottom) },
                 style = MaterialTheme.typography.headlineMedium,
             )

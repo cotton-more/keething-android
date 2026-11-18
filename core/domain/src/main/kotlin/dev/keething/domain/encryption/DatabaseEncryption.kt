@@ -15,11 +15,11 @@ public data class DatabaseEncryption(
     /** How long opening the database should take on this phone. */
     val seconds: Double,
 ) {
-    public enum class Cipher(public val label: String) { AES256("AES-256"), CHACHA20("ChaCha20") }
+    public enum class Cipher(public val label: String) { AES256("AES-256"), CHACHA20("ChaCha20") } // not user text
 
     public enum class KeyDerivation(public val label: String) {
-        ARGON2D("Argon2d"),
-        ARGON2ID("Argon2id"),
+        ARGON2D("Argon2d"), // not user text
+        ARGON2ID("Argon2id"), // not user text
         AES_KDF("AES-KDF"),
         ;
 

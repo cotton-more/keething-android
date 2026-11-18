@@ -1,8 +1,11 @@
 package dev.keething.vault.databases
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
+import dev.keething.domain.text.english
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.reader.KdbxReader
+import dev.keething.vault.VaultText
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.biometric.FakePasswordStores
@@ -106,12 +109,12 @@ class UnlockRunTest {
 
         val run = f.run(personal, work, family, crypto)
         assertEquals(personal.id, run.current)
-        assertEquals("Unlocking 1 of 4", run.step)
+        assertEquals("Unlocking 1 of 4", run.step.english())
         assertEquals(listOf(UnlockRun.Segment.CURRENT, UnlockRun.Segment.WAITING, UnlockRun.Segment.WAITING, UnlockRun.Segment.WAITING), run.segments)
 
         type(run, "pw")
         assertEquals(work.id, run.current)
-        assertEquals("Unlocking 2 of 4", run.step)
+        assertEquals("Unlocking 2 of 4", run.step.english())
         assertEquals(listOf(personal.id), run.opened)
         type(run, "typo")
         assertEquals(work.id, run.current, "a wrong password stays to be typed again")
@@ -130,8 +133,8 @@ class UnlockRunTest {
         val result = assertNotNull(f.ends.single())
         assertEquals(listOf(personal.id, work.id), result.opened)
         assertEquals(listOf(family.id), result.skipped)
-        assertEquals(listOf(UnlockRun.Problem(crypto.id, "not found")), result.notOpened)
-        assertEquals("2 of 4 open · Family Shared: skipped · Crypto: not found", result.notice(f::label))
+        assertEquals(listOf(UnlockRun.Problem(crypto.id, UserText.of(VaultText.WHY_NOT_FOUND))), result.notOpened)
+        assertEquals("2 of 4 open · Family Shared: skipped · Crypto: not found", result.notice(f::label).english())
         assertEquals(listOf(personal.id, work.id), f.sessions.openIds)
         assertEquals(SessionState.Locked(LockReason.Initial), f.state(club), "not checked: not asked")
     }
@@ -195,7 +198,7 @@ class UnlockRunTest {
 
         val result = assertNotNull(f.ends.single())
         assertEquals(listOf(work.id, family.id), result.opened)
-        assertEquals("2 of 3 open · Club: closed", result.notice(f::label))
+        assertEquals("2 of 3 open · Club: closed", result.notice(f::label).english())
     }
 
     @Test
@@ -211,7 +214,7 @@ class UnlockRunTest {
         assertEquals(work.id, run.current, "not found by the try: skipped by itself")
         type(run, "pw")
         val result = assertNotNull(f.ends.single())
-        assertEquals("1 of 2 open · Personal: not found", result.notice(f::label))
+        assertEquals("1 of 2 open · Personal: not found", result.notice(f::label).english())
     }
 
     @Test
@@ -229,7 +232,7 @@ class UnlockRunTest {
 
         assertEquals(listOf("pw"), f.passwords.saves)
         assertEquals(listOf(work.id.fileName), f.passwords.savedFor)
-        assertEquals("1 of 1 open", assertNotNull(f.ends.single()).notice(f::label))
+        assertEquals("1 of 1 open", assertNotNull(f.ends.single()).notice(f::label).english())
         assertEquals(SessionState.Locked(LockReason.Initial), f.state(personal))
     }
 

@@ -124,7 +124,7 @@ class VaultAssemblerTest {
         val e = sample().entries.single { it.id == "UNTITLED-UUID-00000000==" }
 
         assertEquals("", e.title)
-        assertEquals("www.example.org", e.displayTitle)
+        assertEquals("www.example.org", e.sortTitle)
     }
 
     @Test

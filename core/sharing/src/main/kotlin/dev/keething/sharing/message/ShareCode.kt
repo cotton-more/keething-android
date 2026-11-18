@@ -41,15 +41,15 @@ public object ShareCode {
     }
 
     public fun read(message: ByteArray): Read {
-        if (message.size < 2) throw MalformedShareException("cut short")
-        if (message[0].toInt() != Format.VERSION) throw MalformedShareException("a version this app does not know")
+        if (message.size < 2) throw MalformedShareException("cut short") // English detail
+        if (message[0].toInt() != Format.VERSION) throw MalformedShareException("a version this app does not know") // English detail
         return try {
             when (message[1].toInt()) {
                 Format.KIND_REQUEST -> Read.Request(ShareRequest.decode(message))
                 Format.KIND_ANSWER -> Read.Answer(ShareAnswer.decode(message))
                 Format.KIND_PART -> Read.Part(CodePart.decode(message))
                 Format.KIND_ENVELOPE -> Read.Envelope(ShareEnvelope.decode(message))
-                else -> throw MalformedShareException("another kind of code")
+                else -> throw MalformedShareException("another kind of code") // English detail
             }
         } catch (failure: RuntimeException) {
             // Whatever a crafted code makes the platform throw, it is a code that cannot be read.
@@ -93,7 +93,7 @@ public object ShareCode {
         if (message.size <= maxBytes) return listOf(text(message))
         val piece = maxBytes - PART_HEADER
         val count = (message.size + piece - 1) / piece
-        if (count > MAX_PARTS) throw IllegalArgumentException("too large for QR codes: $count parts")
+        if (count > MAX_PARTS) throw IllegalArgumentException("too large for QR codes: $count parts") // English detail
         val id = messageId(message)
         return (0 until count).map { index ->
             val writer = WireWriter(maxBytes)
@@ -128,7 +128,7 @@ public class CodePart private constructor(
             val index = reader.byte()
             val count = reader.byte()
             if (count !in 2..ShareCode.MAX_PARTS || index >= count || reader.remaining == 0) {
-                throw MalformedShareException("a part out of range")
+                throw MalformedShareException("a part out of range") // English detail
             }
             return CodePart(id, index, count, reader.bytes(reader.remaining))
         }
@@ -161,7 +161,7 @@ public class PartCollector {
         if (pieces.size < count) return Progress.Waiting(pieces.size, count)
         val whole = pieces.values.fold(ByteArray(0)) { all, piece -> all + piece }
         clear()
-        if (!ShareCode.messageId(whole).contentEquals(part.messageId)) throw MalformedShareException("parts that do not belong together")
+        if (!ShareCode.messageId(whole).contentEquals(part.messageId)) throw MalformedShareException("parts that do not belong together") // English detail
         return Progress.Complete(whole)
     }
 

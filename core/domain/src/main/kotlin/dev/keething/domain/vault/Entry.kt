@@ -1,6 +1,8 @@
 package dev.keething.domain.vault
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.DomainText
+import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.totp.TotpFormat
 import java.nio.ByteBuffer
@@ -51,8 +53,11 @@ public data class Entry(
     /** UUID of the database's custom icon (a downloaded favicon) the entry shows, if any. */
     val customIconId: String? = null,
 ) {
-    /** Title for display: the title, else the URL's host, else "(Untitled)". */
-    val displayTitle: String get() = title.ifEmpty { urlHost ?: "(Untitled)" }
+    /** Title for display: the title, else the URL's host, else "(Untitled)" in the phone's language. */
+    val displayTitle: UserText get() = UserText.plain(title.ifEmpty { urlHost ?: return UserText.of(DomainText.UNTITLED) })
+
+    /** What the entry is ordered and matched by, and its monogram drawn from: the title, else the URL's host, else "". */
+    val sortTitle: String get() = title.ifEmpty { urlHost.orEmpty() }
 
     /** The host of the entry's URL, for showing (title fallback, Open Website's label). */
     val urlHost: String? get() = UrlHost.of(url)

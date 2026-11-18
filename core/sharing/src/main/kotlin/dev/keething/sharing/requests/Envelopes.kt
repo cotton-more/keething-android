@@ -26,7 +26,7 @@ import javax.crypto.spec.SecretKeySpec
  * Argon2id. Slow on purpose, about 0.3 s: call it off the main thread.
  */
 internal object Envelopes {
-    private val INFO = "Keething envelope v1".encodeToByteArray()
+    private val INFO = "Keething envelope v1".encodeToByteArray() // not user text
 
     fun seal(payload: AnswerPayload, pictures: List<Int>, created: Instant, validFor: Duration, random: SecureRandom): ShareEnvelope =
         seal(payload, pictures, created, validFor, ByteArray(ShareEnvelope.SALT_SIZE).also(random::nextBytes))
@@ -52,7 +52,7 @@ internal object Envelopes {
         val plain = try {
             aead(Cipher.DECRYPT_MODE, pictures, envelope.salt, envelope.header, envelope.ciphertext)
         } catch (_: GeneralSecurityException) {
-            throw SealFailure("not these pictures, or changed on the way")
+            throw SealFailure("not these pictures, or changed on the way") // English detail
         }
         try {
             val payload = AnswerPayload.decode(plain)
@@ -73,7 +73,7 @@ internal object Envelopes {
         val prk = Hkdf.extract(ByteArray(0), stretched)
         val okm = Hkdf.expand(prk, INFO, KEY_SIZE + NONCE_SIZE)
         try {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding") // not user text
             cipher.init(mode, SecretKeySpec(okm, 0, KEY_SIZE, "AES"), GCMParameterSpec(128, okm, KEY_SIZE, NONCE_SIZE))
             cipher.updateAAD(aad)
             return cipher.doFinal(input)

@@ -191,6 +191,12 @@ public enum class CardText : TextKey {
     CHANGE_ATTACHMENT,
     BYTES,
     SIZE_UNKNOWN,
+
+    // A masked value as a screen reader says it: the part in clear stays, the dots are "hidden"
+    SPOKEN_HIDDEN,
+    SPOKEN_HIDDEN_ENDING,
+    SPOKEN_SHOWN_HIDDEN,
+    SPOKEN_SHOWN_HIDDEN_ENDING,
     ;
 
     override val resource: String get() = "card_" + name.lowercase()

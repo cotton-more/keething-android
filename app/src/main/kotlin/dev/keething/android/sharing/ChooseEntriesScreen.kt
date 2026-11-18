@@ -65,6 +65,7 @@ import dev.keething.android.list.title
 import dev.keething.android.list.listingOf
 import dev.keething.android.list.sameListing
 import dev.keething.android.session.OpenDatabase
+import dev.keething.android.ui.resolve
 import dev.keething.search.EntrySearch
 import dev.keething.vault.databases.EntryRef
 import kotlinx.coroutines.launch
@@ -225,7 +226,7 @@ private fun ChoosableRow(row: EntryRow, shape: RoundedCornerShape, icons: Custom
         EntryIcon(row.avatar, icons?.get(row.customIconId), 44.dp)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            Text(row.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(row.title.resolve(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             RowSubtitle(row)
         }
         Checkbox(checked = chosen, onCheckedChange = null)

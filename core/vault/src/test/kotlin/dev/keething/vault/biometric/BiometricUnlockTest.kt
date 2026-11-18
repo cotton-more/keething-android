@@ -1,5 +1,7 @@
 package dev.keething.vault.biometric
 
+import dev.keething.domain.text.UserText
+import dev.keething.vault.VaultText
 import dev.keething.vault.databases.add
 import dev.keething.vault.databases.path
 import dev.keething.domain.biometric.BiometricAvailability
@@ -602,7 +604,7 @@ class BiometricUnlockTest {
         val f = storedPassword("pw")
         f.stores.availability = BiometricAvailability.Unavailable("no fingerprint enrolled")
 
-        assertEquals(FingerprintOutcome.NotAvailable("no fingerprint enrolled"), f.biometric.unlockWithFingerprint())
+        assertEquals(FingerprintOutcome.NotAvailable(UserText.plain("no fingerprint enrolled")), f.biometric.unlockWithFingerprint())
 
         assertEquals(0, f.stores.prompts)
     }
@@ -1079,7 +1081,7 @@ class BiometricUnlockTest {
         assertEquals("pw", f.stored(work.id)?.reveal())
         assertNull(f.settings.string(BiometricSetup.lastTypedKey(f.id)), "its days go too")
         assertFalse(state(f).enabled)
-        assertEquals(FingerprintOutcome.NotAvailable("it is turned off for this database"), f.biometric.unlockWithFingerprint())
+        assertEquals(FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE)), f.biometric.unlockWithFingerprint())
         assertEquals(0, f.stores.prompts)
         f.typed("pw")
         runCurrent()
@@ -1144,7 +1146,7 @@ class BiometricUnlockTest {
 
         f.session.lock()
         f.setup.setUseBiometric(f.id, false)
-        assertEquals(FingerprintOutcome.NotAvailable("it is turned off for this database"), f.biometric.unlockWithFingerprint())
+        assertEquals(FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE)), f.biometric.unlockWithFingerprint())
         assertEquals(1, f.stores.confirms)
     }
 

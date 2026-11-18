@@ -14,7 +14,7 @@ import java.security.SecureRandom
  * digest: an answer opens only for the very request it was made for, name, reason and validity included.
  */
 internal object Answers {
-    private val INFO = "Keething answer v1".encodeToByteArray()
+    private val INFO = "Keething answer v1".encodeToByteArray() // not user text
 
     fun seal(request: ShareRequest, payload: AnswerPayload, random: SecureRandom): ShareAnswer {
         val ephemeral = X25519.newPrivateKey(random)
@@ -42,7 +42,7 @@ internal object Answers {
         val plain = try {
             mine.privateKey.useBytes { Hpke.SHARING.open(answer.enc, it, INFO + mine.request.digest, answer.header, answer.ciphertext) }
         } catch (_: SealFailure) {
-            throw MalformedShareException("changed on the way, or not for this request")
+            throw MalformedShareException("changed on the way, or not for this request") // English detail
         } catch (failure: RuntimeException) {
             throw MalformedShareException(failure.javaClass.simpleName)
         }

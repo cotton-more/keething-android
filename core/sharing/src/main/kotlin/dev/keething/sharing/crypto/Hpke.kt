@@ -47,7 +47,7 @@ internal class Hpke private constructor(private val aeadId: Int, private val key
         try {
             return key.aead(Cipher.DECRYPT_MODE, aad, ciphertext)
         } catch (_: GeneralSecurityException) {
-            throw SealFailure("the message was changed or is not for this key")
+            throw SealFailure("the message was changed or is not for this key") // English detail
         } finally {
             dh.fill(0)
             key.wipe()
@@ -67,7 +67,7 @@ internal class Hpke private constructor(private val aeadId: Int, private val key
     private class Key(val key: ByteArray, val nonce: ByteArray) {
         /** Sequence number 0, the only one: the nonce is the base nonce. */
         fun aead(mode: Int, aad: ByteArray, input: ByteArray): ByteArray =
-            Cipher.getInstance("AES/GCM/NoPadding").run {
+            Cipher.getInstance("AES/GCM/NoPadding").run { // not user text
                 init(mode, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, nonce))
                 updateAAD(aad)
                 doFinal(input)

@@ -153,6 +153,7 @@ private fun CodeTileView(
     val left = secondsLeft(display.secondsRemaining)
     val copyCode = stringResource(R.string.list_copy_code)
     val separator = stringResource(R.string.list_separator)
+    val title = tile.title.resolve()
     Box(modifier.fillMaxWidth().clip(shape).background(MaterialTheme.extraColors.row)) {
         Column(
             Modifier
@@ -161,7 +162,7 @@ private fun CodeTileView(
                 // The code and its seconds too: the description is all a screen reader says of the tile (keething-spec
                 // app.accessibility AC4).
                 .semantics {
-                    contentDescription = listOf(tile.title, tile.subtitle, display.formatted, left)
+                    contentDescription = listOf(title, tile.subtitle, display.formatted, left)
                         .filter { it.isNotBlank() }.joinToString(separator)
                 }
                 .padding(start = 16.dp, end = 56.dp, top = 14.dp, bottom = 14.dp),
@@ -170,7 +171,7 @@ private fun CodeTileView(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 EntryIcon(tile.avatar, icons?.get(tile.customIconId), 40.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(tile.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     CodeSubtitle(tile)
                     GroupLine(tile.database, tile.group)
                 }
@@ -178,7 +179,7 @@ private fun CodeTileView(
             Box(Modifier.padding(start = 54.dp)) { CodeValue(display, onCopyNext, fontSize = 30.sp) }
         }
         IconButton(onClick = onMore, modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.list_more_for, tile.title), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.list_more_for, tile.title.resolve()), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -214,15 +215,15 @@ internal fun CodeSheet(
     val delete = when {
         deletesEntry -> SheetItem(
             stringResource(R.string.list_code_move_entry), Icons.Rounded.Delete,
-            stringResource(R.string.list_code_move_entry_detail, tile.title), danger = true, act = onDelete,
+            stringResource(R.string.list_code_move_entry_detail, tile.title.resolve()), danger = true, act = onDelete,
         )
         tile.further -> SheetItem(
             stringResource(R.string.list_code_delete), Icons.Rounded.Delete,
-            stringResource(R.string.list_code_delete_field_detail, tile.subtitle, tile.title), danger = true, act = onDelete,
+            stringResource(R.string.list_code_delete_field_detail, tile.subtitle, tile.title.resolve()), danger = true, act = onDelete,
         )
         else -> SheetItem(
             stringResource(R.string.list_code_delete), Icons.Rounded.Delete,
-            stringResource(R.string.list_code_delete_detail, tile.title), danger = true, act = onDelete,
+            stringResource(R.string.list_code_delete_detail, tile.title.resolve()), danger = true, act = onDelete,
         )
     }
     val actions = listOf(
@@ -240,7 +241,7 @@ internal fun CodeSheet(
             Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 EntryIcon(tile.avatar, icons?.get(tile.customIconId), 40.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(tile.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(tile.title.resolve(), style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     CodeSubtitle(tile)
                 }
                 Text(display.formatted, fontFamily = MonospaceFamily, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)

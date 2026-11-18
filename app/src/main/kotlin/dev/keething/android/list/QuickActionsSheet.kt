@@ -43,6 +43,7 @@ import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.EntryMark
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.TotpDisplay
 import java.time.Instant
@@ -119,7 +120,7 @@ internal fun QuickActionsSheet(
             Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 EntryMark(row.avatar, icons?.get(row.customIconId), row.face, 44.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(row.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(row.title.resolve(), style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     RowSubtitle(row)
                 }
             }

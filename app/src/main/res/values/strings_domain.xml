@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The texts core/domain makes: DomainText -->
+    <!-- An entry with no title and no web address -->
+    <string name="domain_untitled">(Untitled)</string>
+</resources>

@@ -65,6 +65,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import dev.keething.android.sharing.ShareSheet
 import dev.keething.android.clipboard.SensitiveClipboard
+import dev.keething.android.ui.resolve
 import dev.keething.card.AddressCheck
 import dev.keething.card.CryptoAddress
 import dev.keething.card.CryptoNetwork
@@ -119,7 +120,7 @@ internal fun PasswordScreen(database: DatabaseSession, entryId: String, view: Pa
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { Text(entry.displayTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(entry.displayTitle.resolve(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.entry_full_close)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )

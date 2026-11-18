@@ -218,7 +218,7 @@ private fun CardFront(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Re
             Spacer(Modifier.weight(1f))
             BrandMark(card.network, card.brand, 28.dp)
         }
-        val spokenNumber = stringResource(R.string.entry_card_face_number, RevealState.spoken(card.maskedNumber).lowercase())
+        val spokenNumber = stringResource(R.string.entry_card_face_number, RevealState.spoken(card.maskedNumber).resolve().lowercase())
         Box(
             Modifier
                 .fillMaxWidth()

@@ -43,7 +43,7 @@ class EntryCardTest {
     fun rowsAreUsernamePasswordUrlCodeNotesCustomFieldsAttachments() {
         val card = build(richEntry())
 
-        assertEquals("GitHub", card.title)
+        assertEquals("GitHub", card.title.english())
         assertEquals(listOf("Work", "Git"), card.groupPath)
         assertEquals("Git", card.groupName)
         assertEquals(

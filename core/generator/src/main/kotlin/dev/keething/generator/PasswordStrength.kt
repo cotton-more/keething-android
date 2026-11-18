@@ -1,5 +1,6 @@
 package dev.keething.generator
 
+import dev.keething.domain.text.UserText
 import kotlin.math.log2
 
 /**
@@ -13,7 +14,7 @@ public data class PasswordStrength(
     val bits: Double,
     val verdict: Strength,
     /** Why it is weak or fair ("shorter than 8 characters", "a keyboard pattern"); empty for a strong one. */
-    val reasons: List<String>,
+    val reasons: List<UserText>,
 ) {
     public companion object {
         internal const val MINIMUM_LENGTH: Int = 8
@@ -23,51 +24,51 @@ public data class PasswordStrength(
         /** [context]: words a guesser would try first (the username, the title, the site's or the database's name). */
         public fun estimate(password: String, context: List<String> = emptyList()): PasswordStrength {
             val chars = password.codePoints().toArray()
-            if (chars.isEmpty()) return PasswordStrength(0.0, Strength.WEAK, listOf("empty"))
+            if (chars.isEmpty()) return PasswordStrength(0.0, Strength.WEAK, listOf(UserText.of(GeneratorText.REASON_EMPTY)))
             val lower = password.lowercase()
-            if (lower in CommonPasswords.all) return PasswordStrength(10.0, Strength.WEAK, listOf("one of the most common passwords"))
+            if (lower in CommonPasswords.all) return PasswordStrength(10.0, Strength.WEAK, listOf(UserText.of(GeneratorText.REASON_COMMON_PASSWORD)))
 
-            val reasons = mutableListOf<String>()
+            val reasons = mutableListOf<UserText>()
             val covered = BooleanArray(chars.size)
             var patternCount = 0
-            fun cover(range: IntRange, reason: String) {
+            fun cover(range: IntRange, reason: GeneratorText) {
                 if (range.isEmpty() || range.any { covered[it] }) return
                 range.forEach { covered[it] = true }
                 patternCount++
-                if (reason !in reasons) reasons += reason
+                UserText.of(reason).let { if (it !in reasons) reasons += it }
             }
 
             val folded = chars.map(::lowerCodePoint).toIntArray()
             val leet = folded.map { LEET[it] ?: it }.toIntArray()
             // Longest patterns first, so that "password2024" is one word and one year.
-            for (token in contextTokens(context)) for (r in ranges(token, folded)) cover(r, "contains the username or the site's name")
-            for (word in CommonPasswords.wordCodes) for (r in ranges(word, leet)) cover(r, "a common word")
+            for (token in contextTokens(context)) for (r in ranges(token, folded)) cover(r, GeneratorText.REASON_CONTEXT)
+            for (word in CommonPasswords.wordCodes) for (r in ranges(word, leet)) cover(r, GeneratorText.REASON_COMMON_WORD)
             // Keyboard rows: from each position, the longest piece (4+) of a row, either direction.
             if (folded.size >= 4) {
                 for (i in 0..folded.size - 4) {
                     for (j in minOf(folded.size, i + LONGEST_ROW) downTo i + 4) {
                         if (String(folded, i, j - i) in KEYBOARD_PIECES) {
-                            cover(i until j, "a keyboard pattern")
+                            cover(i until j, GeneratorText.REASON_KEYBOARD_PATTERN)
                             break
                         }
                     }
                 }
             }
-            for (r in years(chars)) cover(r, "a year")
-            for (r in runs(folded, 0)) cover(r, "repeated characters")
-            for (r in runs(folded, 1) + runs(folded, -1)) cover(r, "a sequence")
+            for (r in years(chars)) cover(r, GeneratorText.REASON_YEAR)
+            for (r in runs(folded, 0)) cover(r, GeneratorText.REASON_REPEATED)
+            for (r in runs(folded, 1) + runs(folded, -1)) cover(r, GeneratorText.REASON_SEQUENCE)
 
             val effectiveLength = (covered.count { !it } + patternCount).toDouble()
             val bits = effectiveLength * log2(poolSize(chars).toDouble())
             // Not the exact length: the text must not tell more about a password than its mask does.
-            if (chars.size < MINIMUM_LENGTH) reasons.add(0, "shorter than $MINIMUM_LENGTH characters")
-            if (chars.all { Character.isDigit(it) }) reasons += "digits only"
+            if (chars.size < MINIMUM_LENGTH) reasons.add(0, UserText.counted(GeneratorText.REASON_SHORTER_THAN, MINIMUM_LENGTH))
+            if (chars.all { Character.isDigit(it) }) reasons += UserText.of(GeneratorText.REASON_DIGITS_ONLY)
             val verdict = when {
                 chars.size < MINIMUM_LENGTH || bits < WEAK_BITS -> Strength.WEAK
                 bits < FAIR_BITS -> Strength.FAIR
                 else -> Strength.STRONG
             }
-            if (verdict != Strength.STRONG && reasons.isEmpty()) reasons += if (verdict == Strength.WEAK) "too short for its characters" else "could be longer"
+            if (verdict != Strength.STRONG && reasons.isEmpty()) reasons += UserText.of(if (verdict == Strength.WEAK) GeneratorText.REASON_TOO_SHORT else GeneratorText.REASON_COULD_BE_LONGER)
             return PasswordStrength(bits, verdict, if (verdict == Strength.STRONG) emptyList() else reasons)
         }
 

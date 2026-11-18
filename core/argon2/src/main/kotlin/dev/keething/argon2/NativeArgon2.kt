@@ -13,7 +13,7 @@ public class NativeArgon2 private constructor(private val freeMemory: () -> Long
     /** Half of what the device has free (AC3): the rest of the phone keeps room, and the app is not the one killed. */
     override fun most(): Long = freeMemory() / 2
 
-    override val mostSaid: String = "this phone can spare now, half of its free memory"
+    override val mostSaid: String = "this phone can spare now, half of its free memory" // English detail
 
     override fun hash(
         password: ByteArray,
@@ -29,7 +29,7 @@ public class NativeArgon2 private constructor(private val freeMemory: () -> Long
         val job = Bridge.start(
             password, salt, variant(p.variant), p.iterations.toInt(), p.memoryKiB, p.parallelism, threads, length,
         )
-        if (job == 0L) throw OutOfMemoryError("Argon2 could not start")
+        if (job == 0L) throw OutOfMemoryError("Argon2 could not start") // English detail
         val out = ByteArray(length)
         var stoppedBy: Throwable? = null
         val result: Int
@@ -50,8 +50,8 @@ public class NativeArgon2 private constructor(private val freeMemory: () -> Long
         stoppedBy?.let { throw it } // finish wrote nothing
         return when (result) {
             OK -> out
-            MEMORY_ALLOCATION_ERROR -> throw OutOfMemoryError("Argon2 memory of ${p.memoryKiB} KiB")
-            else -> throw IllegalArgumentException("Argon2 failed: $result")
+            MEMORY_ALLOCATION_ERROR -> throw OutOfMemoryError("Argon2 memory of ${p.memoryKiB} KiB") // English detail
+            else -> throw IllegalArgumentException("Argon2 failed: $result") // English detail
         }
     }
 
@@ -62,7 +62,7 @@ public class NativeArgon2 private constructor(private val freeMemory: () -> Long
     }
 
     public companion object {
-        private const val TAG = "Argon2"
+        private const val TAG = "Argon2" // not user text
         private const val WAIT_MILLIS = 1
         private const val OK = 0
         private const val MEMORY_ALLOCATION_ERROR = -22

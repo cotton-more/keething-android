@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -63,6 +64,7 @@ import dev.keething.android.ui.UiText
 import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.ui.resolve
 import dev.keething.android.ui.spokenMasked
+import dev.keething.android.ui.ui
 import dev.keething.android.ui.uiPlain
 import dev.keething.android.ui.uiText
 import kotlinx.coroutines.flow.StateFlow
@@ -136,7 +138,7 @@ internal class ReviewModel(
      * Seals the entries as they are in the vault now. For a request [onMade] gets the answer, the request is then gone;
      * else [onSent] gets the new envelope's id, for [recipient] (kept on this phone only).
      */
-    fun seal(from: String, recipient: String, onMade: (MadeAnswer) -> Unit, onSent: (envelopeId: String) -> Unit) {
+    fun seal(from: String, recipient: String, title: (Entry) -> String, onMade: (MadeAnswer) -> Unit, onSent: (envelopeId: String) -> Unit) {
         if (open.value.isEmpty()) return
         val their = id?.let { id -> requests.book.value?.theirs?.firstOrNull { it.request.id == id } ?: return }
         val entries = open.value.entries(entryIds)
@@ -148,7 +150,7 @@ internal class ReviewModel(
         problem = null
         viewModelScope.launch {
             if (their == null) {
-                sendEnvelope(from, recipient, entries, onSent)
+                sendEnvelope(from, recipient, entries.map(title), entries, onSent)
                 return@launch
             }
             val answer = withContext(Dispatchers.Default) {
@@ -171,12 +173,12 @@ internal class ReviewModel(
         }
     }
 
-    private suspend fun sendEnvelope(from: String, recipient: String, entries: List<Entry>, onSent: (String) -> Unit) {
+    private suspend fun sendEnvelope(from: String, recipient: String, titles: List<String>, entries: List<Entry>, onSent: (String) -> Unit) {
         val started = TimeSource.Monotonic.markNow()
         val sent = withContext(Dispatchers.Default) {
             val payload = AnswerPayload(from.trim(), entries.map { Sending.shared(it, leftOut[it.id].orEmpty()) })
             try {
-                runCatching { requests.send(payload, recipient.trim(), entries.map { it.displayTitle }, validity) }
+                runCatching { requests.send(payload, recipient.trim(), titles, validity) }
             } finally {
                 payload.wipe()
             }
@@ -210,6 +212,7 @@ internal fun ReviewScreen(
     onSent: (envelopeId: String) -> Unit,
 ) {
     val validity = Duration.ofDays(container.settings.requestValidity.value.inWholeDays)
+    val resources = LocalResources.current
     val model = viewModel { ReviewModel(container.sessions.open, container.shareRequests, id, entryIds, validity) }
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
     val open by container.sessions.open.collectAsStateWithLifecycle()
@@ -248,7 +251,7 @@ internal fun ReviewScreen(
                     Button(
                         onClick = {
                             container.settings.requestName = from
-                            model.seal(from, recipient, onMade, onSent)
+                            model.seal(from, recipient, { it.displayTitle.ui().resolve(resources) }, onMade, onSent)
                         },
                         enabled = ready && !model.sealing,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -319,9 +322,9 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String?, onT
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            EntryIcon(EntryAvatar.of(entry.displayTitle), null, 44.dp)
+            EntryIcon(EntryAvatar.of(entry.sortTitle), null, 44.dp)
             Column(Modifier.weight(1f)) {
-                Text(entry.displayTitle, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(entry.displayTitle.resolve(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     stringResource(R.string.sharing_review_title_goes, entry.groupPath.joinToString(" › ").ifEmpty { stringResource(R.string.sharing_top_level) }),
                     style = MaterialTheme.typography.bodyMedium,

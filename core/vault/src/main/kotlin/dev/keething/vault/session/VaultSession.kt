@@ -8,6 +8,7 @@ import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.storage.KeyFileRead
 import dev.keething.domain.storage.KeyFileSource
+import dev.keething.domain.text.UserText
 import dev.keething.domain.time.Clock
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
@@ -17,6 +18,7 @@ import dev.keething.kdbx.key.KeyFileException
 import dev.keething.kdbx.key.WipedKeyException
 import dev.keething.kdbx.reader.KdbxException
 import dev.keething.kdbx.reader.KdbxReader
+import dev.keething.vault.VaultText
 import dev.keething.vault.opening.AttachmentContents
 import dev.keething.vault.opening.DatabaseSize
 import dev.keething.vault.opening.HistoryResult
@@ -236,14 +238,14 @@ public class VaultSession(
         val read = try {
             source.read()
         } catch (_: IOException) {
-            return OpenFailure.KeyFileUnusable("${source.fileName} could not be read")
+            return OpenFailure.KeyFileUnusable(UserText.of(VaultText.KEY_FILE_NOT_READ, source.fileName))
         } catch (_: OutOfMemoryError) {
-            return OpenFailure.KeyFileUnusable("${source.fileName} is too large to read")
+            return OpenFailure.KeyFileUnusable(UserText.of(VaultText.KEY_FILE_TOO_LARGE, source.fileName))
         }
         val bytes = when (read) {
             is KeyFileRead.Found -> read.bytes
             KeyFileRead.Missing -> return OpenFailure.KeyFileMissing(source.fileName)
-            KeyFileRead.AccessDenied -> return OpenFailure.KeyFileUnusable("Keething may not read ${source.fileName} any more: choose it again")
+            KeyFileRead.AccessDenied -> return OpenFailure.KeyFileUnusable(UserText.of(VaultText.KEY_FILE_NO_ACCESS, source.fileName))
         }
         val fileKey = try {
             KeyFile.key(bytes)
@@ -868,9 +870,10 @@ public class VaultSession(
 }
 
 /** Why a key file cannot be used, as the lock screen says it (the Mac's `KeyFileLoader.reason`). */
-internal fun KeyFileException.reason(): String = when (this) {
-    is KeyFileException.Empty -> "the file is empty"
-    is KeyFileException.UnsupportedVersion -> "a key file of version $version, which KeePass does not write"
-    is KeyFileException.Malformed -> "a key file whose key cannot be read ($why)"
-    is KeyFileException.HashMismatch -> "a key file whose key does not match its checksum (changed or damaged)"
+internal fun KeyFileException.reason(): UserText = when (this) {
+    is KeyFileException.Empty -> UserText.of(VaultText.KEY_FILE_EMPTY)
+    is KeyFileException.UnsupportedVersion -> UserText.of(VaultText.KEY_FILE_VERSION, version)
+    // The key file's own detail stays English, as an exception's message (keething-spec plans T13b).
+    is KeyFileException.Malformed -> UserText.of(VaultText.KEY_FILE_MALFORMED, why)
+    is KeyFileException.HashMismatch -> UserText.of(VaultText.KEY_FILE_HASH_MISMATCH)
 }

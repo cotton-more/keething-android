@@ -203,4 +203,12 @@
         <item quantity="other">%d bytes</item>
     </plurals>
     <string name="card_size_unknown">size unknown</string>
+
+    <!-- A masked value as a screen reader says it: the part in clear stays, the dots are "hidden" -->
+    <string name="card_spoken_hidden">Hidden</string>
+    <!-- %1$s: the end shown in clear ("1111") -->
+    <string name="card_spoken_hidden_ending">Hidden, ending %1$s</string>
+    <!-- %1$s: the start shown in clear ("Visa") -->
+    <string name="card_spoken_shown_hidden">%1$s, hidden</string>
+    <string name="card_spoken_shown_hidden_ending">%1$s, hidden, ending %2$s</string>
 </resources>

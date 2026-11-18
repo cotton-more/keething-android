@@ -4,6 +4,8 @@ import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.SeveralOpening
 import dev.keething.domain.biometric.StoredPasswordOpening
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
+import dev.keething.vault.VaultText
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
 import dev.keething.vault.databases.DatabaseRecord
@@ -71,8 +73,8 @@ public class WindowFingerprint(
      */
     public suspend fun unlock(among: Collection<DatabaseId>? = null): WindowFingerprintResult {
         if (setup.asking) return WindowFingerprintResult(FingerprintOutcome.InProgress, emptyMap())
-        if (!setup.state.value.enabled) return WindowFingerprintResult(FingerprintOutcome.NotAvailable("it is turned off in Settings"), emptyMap())
-        if (list.window.isEmpty()) return WindowFingerprintResult(FingerprintOutcome.NotAvailable("there is no database"), emptyMap())
+        if (!setup.state.value.enabled) return WindowFingerprintResult(FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_IN_SETTINGS)), emptyMap())
+        if (list.window.isEmpty()) return WindowFingerprintResult(FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_NO_DATABASE)), emptyMap())
         val looked = locked(among)
         // Nothing left to open.
         if (looked.isEmpty()) return WindowFingerprintResult(FingerprintOutcome.Unlocked, emptyMap())
@@ -100,7 +102,7 @@ public class WindowFingerprint(
         if (candidates.isEmpty()) return null
         val availability = setup.availability()
         if (availability is BiometricAvailability.Unavailable) {
-            candidates.forEach { each[it.id] = FingerprintOutcome.NotAvailable(availability.reason) }
+            candidates.forEach { each[it.id] = FingerprintOutcome.NotAvailable(UserText.plain(availability.reason)) }
             return null
         }
         val asked = candidates.filter { record ->
@@ -203,7 +205,7 @@ public class WindowFingerprint(
 
     /** Why the fingerprint is not asked for [record]; null: it may be (with a sensor and its stored password). */
     private fun whyNot(record: DatabaseRecord): FingerprintOutcome? {
-        if (!record.useBiometric) return FingerprintOutcome.NotAvailable("it is turned off for this database")
+        if (!record.useBiometric) return FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE))
         // It could not open: asking for a finger only to fail is noise (keething-spec unlock.key-file AC3).
         if (!fileExists(record.file)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
         record.keyFile?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }

@@ -5,6 +5,7 @@ import dev.keething.domain.storage.DatabaseRead
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.domain.storage.FileVersion
 import dev.keething.domain.storage.StoppedSave
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.Vault
@@ -36,7 +37,7 @@ public sealed interface OpenFailure {
     public data class KeyFileMissing(val name: String) : OpenFailure
 
     /** The key file cannot be used: [why]. Said before the database is read. */
-    public data class KeyFileUnusable(val why: String) : OpenFailure
+    public data class KeyFileUnusable(val why: UserText) : OpenFailure
 
     /** No file at the place (Syncthing may be replacing it, SPEC §3.2). */
     public data object Missing : OpenFailure
@@ -234,7 +235,7 @@ internal fun KdbxException.toOpenFailure(): OpenFailure = when (this) {
     is KdbxException.UnsupportedVersion ->
         unsupported(if (major > 4) OpenFailure.Unsupported.Kind.NEWER_FORMAT else OpenFailure.Unsupported.Kind.OLD_FORMAT)
     is KdbxException.UnsupportedCipher ->
-        unsupported(if (cipher == "Twofish") OpenFailure.Unsupported.Kind.TWOFISH else OpenFailure.Unsupported.Kind.CIPHER)
+        unsupported(if (cipher == "Twofish") OpenFailure.Unsupported.Kind.TWOFISH else OpenFailure.Unsupported.Kind.CIPHER) // not user text
     is KdbxException.NotEnoughMemory -> unsupported(OpenFailure.Unsupported.Kind.MEMORY)
     is KdbxException.UnsupportedKdf -> unsupported(OpenFailure.Unsupported.Kind.KEY_DERIVATION)
     is KdbxException.UnsupportedInnerStream -> unsupported(OpenFailure.Unsupported.Kind.INNER_STREAM)

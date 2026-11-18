@@ -108,7 +108,7 @@ class VaultListingTest {
         val listing = VaultListing(Vault(entries = listOf(microsoft, github, bahn, hetzner, broken)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
 
         val tiles = listing.codes("")
-        assertEquals(listOf("GitHub", "Hetzner", "Microsoft", "Microsoft", "Microsoft"), tiles.map { it.title })
+        assertEquals(listOf("GitHub", "Hetzner", "Microsoft", "Microsoft", "Microsoft"), tiles.map { it.title.english() })
         assertEquals(listOf(null, "Robot", null, "One-time code 2", "Work account"), tiles.map { it.fieldName }, "own code first, then field order")
         assertEquals(listOf("gh", "hz", "ms", "ms", "ms"), tiles.map { it.entryId })
         assertEquals(tiles.size, tiles.map { it.key }.toSet().size, "each tile its own key")
@@ -172,7 +172,7 @@ class VaultListingTest {
         val atRoot = Entry(id = "rt", title = "Root", totp = secret)
         val tiles = VaultListing(Vault(entries = listOf(nested, atRoot)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE).codes("")
 
-        assertEquals(listOf("Root", "Sparkasse"), tiles.map { it.title })
+        assertEquals(listOf("Root", "Sparkasse"), tiles.map { it.title.english() })
         assertEquals(listOf(emptyList(), listOf("Finanzen", "Banken")), tiles.map { it.group }, "the root group: no line")
         assertTrue(tiles.all { it.database == null })
     }
@@ -182,7 +182,7 @@ class VaultListingTest {
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
 
         val gh = rows.getValue("gh")
-        assertEquals("GitHub", gh.title)
+        assertEquals("GitHub", gh.title.english())
         assertEquals("octocat", gh.subtitle.english(), "the username alone, the site only without one")
         assertTrue(gh.hasAttachments)
         assertEquals(1, gh.codes.size)

@@ -62,7 +62,7 @@ public sealed interface EntryExpiry {
 
 public data class EntryCard(
     val id: String,
-    val title: String,
+    val title: UserText,
     /** The group's path from the top-level group; empty in the root group. */
     val groupPath: List<String>,
     /** The innermost group (what the group chip filters by); empty in the root group. */
@@ -129,7 +129,7 @@ public object EntryCardBuilder {
         fun row(id: String, kind: FieldRow.Kind, label: CardText, value: FieldValue) = FieldRow(id, kind, UserText.of(label), value)
         val context = CardContext(
             entry.customFields.withIndex().toList(), FieldInterpreter(entry), now, locale,
-            title = entry.displayTitle, username = entry.username, attachments = entry.attachments,
+            title = entry.sortTitle, username = entry.username, attachments = entry.attachments,
         )
 
         val credentials = mutableListOf<FieldRow>()
@@ -189,7 +189,7 @@ public object EntryCardBuilder {
             rows = sections.flatMap { it.rows },
             sections = sections,
             entryExpiry = expiry,
-            avatar = EntryAvatar.of(entry.displayTitle),
+            avatar = EntryAvatar.of(entry.sortTitle),
             deadline = pressing.minByOrNull { it.date },
             lastModified = entry.lastModified,
             created = entry.created,

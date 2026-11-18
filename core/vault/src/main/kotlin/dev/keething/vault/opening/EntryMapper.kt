@@ -98,10 +98,10 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
     }
 
     private companion object {
-        const val TITLE = "Title"
-        const val USERNAME = "UserName"
-        const val PASSWORD = "Password"
+        const val TITLE = "Title" // not user text
+        const val USERNAME = "UserName" // not user text
+        const val PASSWORD = "Password" // not user text
         const val URL = "URL"
-        const val NOTES = "Notes"
+        const val NOTES = "Notes" // not user text
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalResources
 import dev.keething.android.R
+import dev.keething.domain.text.UserText
 import java.util.Locale
 
 /**
@@ -77,4 +78,10 @@ internal fun UiText.Inside.inside(said: String, locale: Locale): String =
 internal fun UiText.resolve(): String = resolve(LocalResources.current)
 
 private fun List<Any>.resolved(resources: Resources): Array<Any> =
-    map { if (it is UiText) it.resolve(resources) else it }.toTypedArray()
+    map {
+        when (it) {
+            is UiText -> it.resolve(resources)
+            is UserText -> it.ui().resolve(resources)
+            else -> it
+        }
+    }.toTypedArray()

@@ -38,7 +38,7 @@ public class ShareRequest private constructor(
 
     override fun hashCode(): Int = bytes.contentHashCode()
 
-    override fun toString(): String = "ShareRequest($id)"
+    override fun toString(): String = "ShareRequest($id)" // not user text
 
     public companion object {
         internal const val ID_SIZE = 16
@@ -71,12 +71,12 @@ public class ShareRequest private constructor(
             val reason = reader.text(MAX_REASON_LENGTH * 4)
             reader.end()
             if (!expires.isAfter(created) || Duration.between(created, expires) > MAX_VALIDITY) {
-                throw MalformedShareException("a validity out of range")
+                throw MalformedShareException("a validity out of range") // English detail
             }
             if (!isLine(name, MAX_NAME_LENGTH) || !isLine(reason, MAX_REASON_LENGTH)) {
-                throw MalformedShareException("a name or reason out of range")
+                throw MalformedShareException("a name or reason out of range") // English detail
             }
-            if (!X25519.isUsable(publicKey)) throw MalformedShareException("a public key of small order")
+            if (!X25519.isUsable(publicKey)) throw MalformedShareException("a public key of small order") // English detail
             return ShareRequest(name, reason, created, expires, publicKey, bytes.copyOf())
         }
 
@@ -99,7 +99,7 @@ internal object Format {
     const val KIND_ENVELOPE = 4
 
     fun header(reader: WireReader, kind: Int) {
-        if (reader.byte() != VERSION) throw MalformedShareException("a version this app does not know")
-        if (reader.byte() != kind) throw MalformedShareException("another kind of code")
+        if (reader.byte() != VERSION) throw MalformedShareException("a version this app does not know") // English detail
+        if (reader.byte() != kind) throw MalformedShareException("another kind of code") // English detail
     }
 }

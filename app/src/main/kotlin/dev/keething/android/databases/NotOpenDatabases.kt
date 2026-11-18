@@ -2,7 +2,7 @@ package dev.keething.android.databases
 
 import dev.keething.android.R
 import dev.keething.android.ui.UiText
-import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.ui
 import dev.keething.android.ui.uiText
 import dev.keething.android.unlock.named
 import dev.keething.domain.biometric.BiometricAvailability
@@ -152,7 +152,7 @@ internal object NotOpenDatabases {
         val reason = (session as? SessionState.Locked)?.reason
         val failure = (reason as? LockReason.UnlockFailed)?.failure
         when (failure) {
-            is OpenFailure.KeyFileUnusable -> return NotOpenState.NeedsKeyFile(line.keyFile?.name.orEmpty(), uiPlain(failure.why))
+            is OpenFailure.KeyFileUnusable -> return NotOpenState.NeedsKeyFile(line.keyFile?.name.orEmpty(), failure.why.ui())
             is OpenFailure.Unsupported, is OpenFailure.Damaged, OpenFailure.AccessDenied, OpenFailure.OutOfMemory ->
                 return NotOpenState.CannotBeRead(failure)
             else -> {}

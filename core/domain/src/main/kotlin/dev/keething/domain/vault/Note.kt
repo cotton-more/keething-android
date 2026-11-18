@@ -12,7 +12,7 @@ public enum class EntryType(public val stored: String) {
     NOTE("note");
 
     public companion object {
-        public const val CUSTOM_DATA_KEY: String = "Keething.EntryType"
+        public const val CUSTOM_DATA_KEY: String = "Keething.EntryType" // not user text
 
         /** The kind a stored value names, ignoring case and outer spaces; null for one this version does not know. */
         public fun of(stored: String): EntryType? {
@@ -68,7 +68,7 @@ public object NoteTitle {
     public const val MAX_LENGTH: Int = 60
 
     /** The title of a protected text, so nothing of it goes into the unprotected Title. */
-    public const val PROTECTED: String = "Note"
+    public const val PROTECTED: String = "Note" // not user text: written into the file, English as the Mac writes it
 
     /**
      * The text's first line that is not blank, outer spaces trimmed, cut to [MAX_LENGTH] characters followed by `…`;
@@ -126,5 +126,5 @@ public object NoteText {
 /** A quick note (SPEC §6.4, keething-spec app.quick-note; Mac `QuickNote`): a new note made from text received, in the Inbox. */
 public object QuickNote {
     /** The top-level group quick notes go into (the first of the name, in any case), made with the note when there is none. */
-    public const val INBOX: String = "Inbox"
+    public const val INBOX: String = "Inbox" // not user text: written into the file, English as the Mac writes it
 }

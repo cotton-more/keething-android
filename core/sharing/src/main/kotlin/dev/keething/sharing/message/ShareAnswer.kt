@@ -19,7 +19,7 @@ public class ShareAnswer private constructor(
 
     public fun encoded(): ByteArray = header + enc + ciphertext
 
-    override fun toString(): String = "ShareAnswer(for $requestId)"
+    override fun toString(): String = "ShareAnswer(for $requestId)" // not user text
 
     public companion object {
         /** The AEAD's tag; a ciphertext is at least that long. */
@@ -36,7 +36,7 @@ public class ShareAnswer private constructor(
             Format.header(reader, Format.KIND_ANSWER)
             val id = reader.bytes(ShareRequest.ID_SIZE)
             val enc = reader.bytes(32)
-            if (reader.remaining < TAG_SIZE) throw MalformedShareException("cut short")
+            if (reader.remaining < TAG_SIZE) throw MalformedShareException("cut short") // English detail
             return ShareAnswer(id, enc, reader.bytes(reader.remaining))
         }
     }

@@ -1297,7 +1297,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   a face at most 440 dp, its buttons under it; the lock screen at most 480 dp. A narrower window keeps one pane
   (AndroidX `material3-adaptive-navigation3`, its list-detail scene).
 - Entry icons: the database's custom icons (KeePassXC stores downloaded favicons) when present, otherwise a
-  monogram with a colour derived from the title, the same as on the Mac. Nothing is fetched (no network).
+  monogram with a colour derived from the title, the same as on the Mac. An entry with no title and no web address
+  ("(Untitled)" in the phone's language) has a dot in the quiet colour. Nothing is fetched (no network).
 - Motion: the list row grows into the card (shared element transition); a one-time code's fill drains
   smoothly; copying gives a light haptic tick and a short confirmation.
 - Passwords in a monospaced font with digits and symbols coloured, as in 1Password. The font is Google

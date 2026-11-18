@@ -95,11 +95,12 @@ class SpecialFieldsTest {
         val number = card.rows.first { it.id == card.paymentCard?.numberRowId }
         val cvc = card.rows.first { it.type == FieldType.CARD_CVC }
 
-        assertEquals("Hidden, ending 1111", RevealState.spoken(RevealState().displayValue(number)))
-        assertEquals("Hidden", RevealState.spoken(RevealState().displayValue(cvc)), "a protected value: nothing of it")
-        assertEquals("4111 1111 1111 1111", RevealState.spoken(RevealState().toggle(number.id).displayValue(number)), "shown: as text")
-        assertEquals("Visa, hidden, ending 1111", RevealState.spoken("Visa •• 1111"))
-        assertFalse(RevealState.spoken(RevealState.MASK).contains('•'))
+        assertEquals("Hidden, ending 1111", RevealState.spoken(RevealState().displayValue(number)).english())
+        assertEquals("Hidden", RevealState.spoken(RevealState().displayValue(cvc)).english(), "a protected value: nothing of it")
+        assertEquals("4111 1111 1111 1111", RevealState.spoken(RevealState().toggle(number.id).displayValue(number)).english(), "shown: as text")
+        assertEquals("Visa, hidden, ending 1111", RevealState.spoken("Visa •• 1111").english())
+        assertEquals("Visa, hidden", RevealState.spoken("visa ••").english(), "the part in clear starts the sentence")
+        assertFalse(RevealState.spoken(RevealState.MASK).english().contains('•'))
     }
 
     @Test

@@ -27,7 +27,7 @@ public class SiteAddress private constructor(
 
     override fun hashCode(): Int = (host.hashCode() * 31 + (port ?: 0)) * 31 + isSecure.hashCode()
 
-    override fun toString(): String = "SiteAddress(${if (isSecure) "https" else "http"}://$host${port?.let { ":$it" }.orEmpty()})"
+    override fun toString(): String = "SiteAddress(${if (isSecure) "https" else "http"}://$host${port?.let { ":$it" }.orEmpty()})" // not user text
 
     public companion object {
         /**

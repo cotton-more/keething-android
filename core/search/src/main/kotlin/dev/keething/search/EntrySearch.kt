@@ -49,7 +49,7 @@ public class SearchIndex internal constructor(
                 groups = entry.groupPath.map(SearchNormalizer::normalize),
                 tags = entry.tags.map(SearchNormalizer::normalize),
                 attachments = entry.attachments.map { SearchNormalizer.normalize(it.name) },
-                titleKey = collator.getCollationKey(entry.displayTitle),
+                titleKey = collator.getCollationKey(entry.sortTitle),
                 database = database,
                 normalizedDatabase = normalizedDatabase,
             )

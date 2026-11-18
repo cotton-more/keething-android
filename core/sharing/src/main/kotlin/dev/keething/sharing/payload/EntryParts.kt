@@ -52,7 +52,7 @@ public object Sending {
     public fun isWalletKey(entry: Entry, part: EntryPart): Boolean =
         part is EntryPart.Field && FieldTypes(entry).type(part.name) == FieldType.CRYPTO_XPUB
 
-    private val CODE_FIELD_PREFIXES = listOf("TimeOtp-", "HmacOtp-")
+    private val CODE_FIELD_PREFIXES = listOf("TimeOtp-", "HmacOtp-") // not user text
 
     /**
      * The parts of [entry] that never go, whatever the sender turns on (SPEC §10.1): a wallet's recovery phrase, its

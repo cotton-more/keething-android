@@ -31,7 +31,7 @@ public class ShareEnvelope private constructor(
 
     override fun hashCode(): Int = bytes.contentHashCode()
 
-    override fun toString(): String = "ShareEnvelope($id)"
+    override fun toString(): String = "ShareEnvelope($id)" // not user text
 
     public companion object {
         internal const val SALT_SIZE = 16
@@ -59,9 +59,9 @@ public class ShareEnvelope private constructor(
             val created = reader.instant()
             val expires = reader.instant()
             val salt = reader.bytes(SALT_SIZE)
-            if (reader.remaining < TAG_SIZE) throw MalformedShareException("cut short")
+            if (reader.remaining < TAG_SIZE) throw MalformedShareException("cut short") // English detail
             if (!expires.isAfter(created) || Duration.between(created, expires) > ShareRequest.MAX_VALIDITY) {
-                throw MalformedShareException("a validity out of range")
+                throw MalformedShareException("a validity out of range") // English detail
             }
             return ShareEnvelope(created, expires, salt, reader.bytes(reader.remaining), bytes.copyOf())
         }

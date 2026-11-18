@@ -38,6 +38,6 @@ public data class ConflictCopy(
         private const val MARK = """\.sync-conflict-(\d{8}-\d{6})-([A-Z2-7]{7})"""
         private val CONFLICT_MARK = Regex(MARK)
         private val CONFLICT_MARKS = Regex("(?:$MARK)+")
-        private val SYNCTHING_TIME = DateTimeFormatter.ofPattern("uuuuMMdd-HHmmss")
+        private val SYNCTHING_TIME = DateTimeFormatter.ofPattern("uuuuMMdd-HHmmss") // not user text
     }
 }

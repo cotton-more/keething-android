@@ -1,6 +1,7 @@
 package dev.keething.vault.databases
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.englishOrNull
 import dev.keething.vault.creating.DerivedKey
 
 // The list's forms by path, for the tests: their databases and key files are records kept by path before
@@ -13,7 +14,8 @@ internal fun DatabaseList.add(path: String, useBiometric: Boolean = false): Data
 
 internal fun CurrentDatabase.open(path: String): DatabaseId = open(byPath(path))
 
-internal fun CurrentDatabase.locate(id: DatabaseId, path: String): String? = locate(id, byPath(path))
+/** Why [path] is not taken, in the app's English; null when it is. */
+internal fun CurrentDatabase.locate(id: DatabaseId, path: String): String? = locate(id, byPath(path)).englishOrNull()
 
 internal fun CurrentDatabase.setKeyFile(id: DatabaseId, path: String) {
     setKeyFile(id, byPath(path))

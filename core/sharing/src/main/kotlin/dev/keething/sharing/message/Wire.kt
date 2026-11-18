@@ -93,7 +93,7 @@ internal class WireReader(private val bytes: ByteArray, private var at: Int = 0)
     /** Seconds since 1970 within the years 1 to 9999, the range KeePass's dates have; else malformed. */
     fun instant(): Instant {
         val seconds = long()
-        if (seconds !in FIRST_SECOND..LAST_SECOND) throw MalformedShareException("a date out of range")
+        if (seconds !in FIRST_SECOND..LAST_SECOND) throw MalformedShareException("a date out of range") // English detail
         return Instant.ofEpochSecond(seconds)
     }
 
@@ -105,13 +105,13 @@ internal class WireReader(private val bytes: ByteArray, private var at: Int = 0)
             val b = byte()
             value = value or ((b and 0x7F).toLong() shl shift)
             if (b and 0x80 == 0) {
-                if (b == 0 && shift > 0) throw MalformedShareException("an overlong number")
+                if (b == 0 && shift > 0) throw MalformedShareException("an overlong number") // English detail
                 break
             }
             shift += 7
-            if (shift > 28) throw MalformedShareException("a number too large")
+            if (shift > 28) throw MalformedShareException("a number too large") // English detail
         }
-        if (value > max) throw MalformedShareException("a number too large")
+        if (value > max) throw MalformedShareException("a number too large") // English detail
         return value.toInt()
     }
 
@@ -120,7 +120,7 @@ internal class WireReader(private val bytes: ByteArray, private var at: Int = 0)
     fun text(maxBytes: Int): String = try {
         field(maxBytes).decodeToString(throwOnInvalidSequence = true)
     } catch (_: CharacterCodingException) {
-        throw MalformedShareException("text that is not UTF-8")
+        throw MalformedShareException("text that is not UTF-8") // English detail
     }
 
     fun secret(maxBytes: Int): Secret {
@@ -130,11 +130,11 @@ internal class WireReader(private val bytes: ByteArray, private var at: Int = 0)
     }
 
     fun end() {
-        if (at != bytes.size) throw MalformedShareException("bytes left over")
+        if (at != bytes.size) throw MalformedShareException("bytes left over") // English detail
     }
 
     private fun need(count: Int) {
-        if (count < 0 || count > bytes.size - at) throw MalformedShareException("cut short")
+        if (count < 0 || count > bytes.size - at) throw MalformedShareException("cut short") // English detail
     }
 
     private companion object {

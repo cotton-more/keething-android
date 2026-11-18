@@ -66,7 +66,7 @@ public data class EntryChanges(
 
     public companion object {
         /** The standard fields' keys in the file. */
-        public val STANDARD_KEYS: List<String> = listOf("Title", "UserName", "Password", "URL", "Notes")
+        public val STANDARD_KEYS: List<String> = listOf("Title", "UserName", "Password", "URL", "Notes") // not user text
 
         /** The fields a one-time code is kept in, in every format ([TotpFormat]). */
         public val TOTP_FIELD_NAMES: Set<String> = TotpFormat.FIELD_NAMES
@@ -89,7 +89,7 @@ public sealed interface AttachmentChange {
      * secret although the file it came from lies unencrypted on the phone: once in the database it is one of its attachments.
      */
     public data class Add(override val name: String, val content: Secret) : AttachmentChange {
-        override fun toString(): String = "Add($name, ${content.size} bytes)"
+        override fun toString(): String = "Add($name, ${content.size} bytes)" // not user text
     }
 }
 
@@ -98,7 +98,7 @@ public sealed interface TotpChange {
     /** [config] is the code (the save's check compares it); [uri] is what goes into `otp` when it is written as a link. */
     public data class Set(val config: TotpConfig, val uri: String) : TotpChange {
         // The link holds the key: never in a log.
-        override fun toString(): String = "Set(•••)"
+        override fun toString(): String = "Set(•••)" // not user text
     }
 
     public data object Remove : TotpChange
@@ -108,6 +108,6 @@ public sealed interface TotpChange {
      * code (keething-spec app.codes-view AC5). Each is a code field's ([TotpFormat.FIELD_NAMES]); others are ignored.
      */
     public data class Fields(val fields: List<CustomField>) : TotpChange {
-        override fun toString(): String = "Fields(${fields.map { it.name }})"
+        override fun toString(): String = "Fields(${fields.map { it.name }})" // not user text
     }
 }

@@ -320,12 +320,12 @@ public class BiometricSetup(
         private const val OLD_KEY_FILE_CHANGED = "biometricKeyFileChanged"
 
         /** When a typed unlock last opened the database, in milliseconds since 1970 (not a secret). */
-        public fun lastTypedKey(id: DatabaseId): String = "lastTypedUnlock.${id.value}"
+        public fun lastTypedKey(id: DatabaseId): String = "lastTypedUnlock.${id.value}" // not user text
 
         /** When the reminder's question was last left without an answer, in milliseconds since 1970 (not a secret). */
-        public fun reminderPutOffKey(id: DatabaseId): String = "reminderPutOff.${id.value}"
+        public fun reminderPutOffKey(id: DatabaseId): String = "reminderPutOff.${id.value}" // not user text
 
         /** Set while the database's key file was chosen, changed or forgotten and nothing has opened it since. */
-        public fun keyFileChangedKey(id: DatabaseId): String = "biometricKeyFileChanged.${id.value}"
+        public fun keyFileChangedKey(id: DatabaseId): String = "biometricKeyFileChanged.${id.value}" // not user text
     }
 }

@@ -147,6 +147,7 @@ import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.ui.DIMMED
+import dev.keething.android.ui.UiText
 import dev.keething.android.ui.codeFill
 import androidx.compose.ui.draw.alpha
 import dev.keething.android.ui.CodesIcon
@@ -398,10 +399,10 @@ internal fun EntryListScreen(
     // The quick actions of a long-pressed row, with the section it was in (Remove from Recent is only for a recent row).
     var quick by remember { mutableStateOf<Pair<QuickActions, ListSection.Kind>?>(null) }
     // A row in the bin whose Delete for good… was tapped: the dialog asks first (its id and title).
-    var deletingForGood by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var deletingForGood by remember { mutableStateOf<Pair<String, UiText>?>(null) }
     deletingForGood?.let { (id, title) ->
         DeleteForGoodDialog(
-            title = title,
+            title = title.resolve(),
             onDelete = {
                 deletingForGood = null
                 model.deleteForGood(id)
@@ -846,7 +847,7 @@ internal fun EntryRowView(
         Column(Modifier.weight(1f).heightIn(min = ROW_FIRST_LINES), verticalArrangement = Arrangement.Center) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    row.title,
+                    row.title.resolve(),
                     Modifier.weight(1f, fill = false).sharedTitle(sharedKey),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,

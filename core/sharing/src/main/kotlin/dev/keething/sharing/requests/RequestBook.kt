@@ -74,7 +74,7 @@ public class RequestBook internal constructor(
 
         /** Version 1 had no envelopes; it is still read. */
         private const val VERSION = 2
-        private val AAD = "Keething requests".encodeToByteArray()
+        private val AAD = "Keething requests".encodeToByteArray() // not user text
 
         /**
          * The file: version 1, a random 12-byte nonce, then the book sealed with AES-256-GCM under [key]. The book:
@@ -182,7 +182,7 @@ public class RequestBook internal constructor(
         }
 
         private fun cipher(mode: Int, key: Secret, nonce: ByteArray): Cipher =
-            Cipher.getInstance("AES/GCM/NoPadding").apply {
+            Cipher.getInstance("AES/GCM/NoPadding").apply { // not user text
                 key.useBytes { init(mode, SecretKeySpec(it, "AES"), GCMParameterSpec(128, nonce)) }
                 updateAAD(AAD)
             }

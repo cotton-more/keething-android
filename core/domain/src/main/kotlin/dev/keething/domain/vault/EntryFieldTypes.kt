@@ -7,7 +7,7 @@ package dev.keething.domain.vault
  * show them as they are.
  */
 public object EntryFieldTypes {
-    public const val CUSTOM_DATA_KEY: String = "Keething.FieldTypes"
+    public const val CUSTOM_DATA_KEY: String = "Keething.FieldTypes" // not user text
 
     /** Null when [text] is not a JSON object of strings. */
     public fun decode(text: String): Map<String, String>? = JsonStrings(text).objectOfStrings()

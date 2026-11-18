@@ -8,7 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.keething.android.R
 import dev.keething.android.ui.UiText
-import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.ui
 import dev.keething.android.ui.uiPlural
 import dev.keething.android.ui.uiText
 import dev.keething.generator.PasswordGenerator
@@ -66,10 +66,10 @@ internal class MasterPasswordFields(private val random: RandomSource, private va
             return when (estimate.verdict) {
                 Strength.WEAK -> StrengthLine(
                     1,
-                    uiText(R.string.databases_strength_weak, estimate.reasons.firstOrNull()?.let(::uiPlain) ?: uiText(R.string.databases_strength_weak_reason)),
+                    uiText(R.string.databases_strength_weak, estimate.reasons.firstOrNull()?.ui() ?: uiText(R.string.databases_strength_weak_reason)),
                     Strength.WEAK,
                 )
-                Strength.FAIR -> StrengthLine(2, uiText(R.string.databases_strength_fair, estimate.reasons.firstOrNull()?.let(::uiPlain) ?: uiText(R.string.databases_strength_fair_reason)), Strength.FAIR)
+                Strength.FAIR -> StrengthLine(2, uiText(R.string.databases_strength_fair, estimate.reasons.firstOrNull()?.ui() ?: uiText(R.string.databases_strength_fair_reason)), Strength.FAIR)
                 Strength.STRONG -> StrengthLine(if (estimate.bits >= 80) 4 else 3, uiText(R.string.databases_strength_strong), Strength.STRONG)
             }
         }

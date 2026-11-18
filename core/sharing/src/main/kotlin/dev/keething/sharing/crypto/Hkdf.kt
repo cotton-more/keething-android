@@ -31,8 +31,8 @@ internal object Hkdf {
     }
 
     fun hmac(key: ByteArray, message: ByteArray): ByteArray =
-        Mac.getInstance("HmacSHA256").run {
-            init(SecretKeySpec(key, "HmacSHA256"))
+        Mac.getInstance("HmacSHA256").run { // not user text
+            init(SecretKeySpec(key, "HmacSHA256")) // not user text
             doFinal(message)
         }
 }

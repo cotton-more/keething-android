@@ -1,6 +1,7 @@
 package dev.keething.domain.vault
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.english
 import dev.keething.domain.totp.TotpConfig
 import java.time.Instant
 import java.util.Base64
@@ -14,9 +15,16 @@ import kotlin.test.assertTrue
 class EntryTest {
     @Test
     fun displayTitleIsTheTitleElseTheHostElseUntitled() {
-        assertEquals("GitHub", Entry("e", title = "GitHub", url = "https://github.com").displayTitle)
-        assertEquals("www.example.org", Entry("e", url = "https://www.example.org/path").displayTitle)
-        assertEquals("(Untitled)", Entry("e").displayTitle)
+        assertEquals("GitHub", Entry("e", title = "GitHub", url = "https://github.com").displayTitle.english())
+        assertEquals("www.example.org", Entry("e", url = "https://www.example.org/path").displayTitle.english())
+        assertEquals("(Untitled)", Entry("e").displayTitle.english())
+    }
+
+    @Test
+    fun sortTitleIsTheTitleElseTheHostElseNothing() {
+        assertEquals("GitHub", Entry("e", title = "GitHub", url = "https://github.com").sortTitle)
+        assertEquals("www.example.org", Entry("e", url = "https://www.example.org/path").sortTitle)
+        assertEquals("", Entry("e").sortTitle)
     }
 
     @Test

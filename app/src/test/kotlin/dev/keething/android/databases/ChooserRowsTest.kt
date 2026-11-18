@@ -2,7 +2,9 @@ package dev.keething.android.databases
 
 import dev.keething.android.ui.english
 import dev.keething.domain.biometric.BiometricAvailability
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.Vault
+import dev.keething.vault.VaultText
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.biometric.SetUpAgain
@@ -96,7 +98,7 @@ class ChooserRowsTest {
     fun aDatabaseThatFailedSoTypingCannotOpenItCannotBeChecked() {
         assertEquals("Cannot be read", row(failed(OpenFailure.Damaged("truncated"))).opensWith.english())
         assertFalse(row(failed(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT))).canCheck)
-        val unusable = row(failed(OpenFailure.KeyFileUnusable("it is empty")), line("Work", keyFile = "work.keyx"))
+        val unusable = row(failed(OpenFailure.KeyFileUnusable(UserText.plain("it is empty"))), line("Work", keyFile = "work.keyx"))
         assertEquals("work.keyx cannot be used", unusable.opensWith.english())
         assertFalse(unusable.canCheck)
         assertEquals("Password", row(failed(OpenFailure.WrongPassword)).opensWith.english(), "a typo is typed again")
@@ -135,7 +137,7 @@ class ChooserRowsTest {
         // Each database's row says its own: its fingerprint off, its password rejected, nothing stored.
         for (outcome in listOf(
             FingerprintOutcome.Unlocked, FingerprintOutcome.InProgress, FingerprintOutcome.NothingStored,
-            FingerprintOutcome.StoredPasswordRejected, FingerprintOutcome.NotAvailable("it is turned off for this database"),
+            FingerprintOutcome.StoredPasswordRejected, FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE)),
             FingerprintOutcome.UnlockFailed(OpenFailure.Missing),
         )) assertNull(ChooserRows.note(outcome), outcome.toString())
     }

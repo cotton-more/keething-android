@@ -357,7 +357,7 @@ internal class Sessions(
                 Log.i(TAG, "app: " + when (it) {
                     is SessionsState.NothingOpen -> "nothing open, " + SessionState.Locked(it.reason).describe() // not user text
                     SessionsState.Opening -> "opening"
-                    is SessionsState.Open -> "${it.vaults.size} open"
+                    is SessionsState.Open -> "${it.vaults.size} open" // not user text
                 })
             }
         }

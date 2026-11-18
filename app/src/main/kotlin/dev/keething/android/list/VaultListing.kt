@@ -31,7 +31,7 @@ import java.time.Instant
 internal data class EntryRow(
     /** The entry's ref ([EntryRef.text]): the same UUID in two databases is two rows. */
     val id: String,
-    val title: String,
+    val title: UiText,
     /** `username · host`, either part left out when empty. */
     val subtitle: UiText,
     /** The group's path, `Finanzen`, `Banken` (inside the recycle bin for an entry in it); empty for the root group. */
@@ -63,7 +63,7 @@ internal data class CodeTile(
     val key: String,
     /** The entry's ref ([EntryRef.text]). */
     val entryId: String,
-    val title: String,
+    val title: UiText,
     /** The username under the entry's own code, the field's name under a further one. */
     val subtitle: String,
     /** The custom field a further code is kept in; null for the entry's own. */
@@ -221,7 +221,7 @@ internal class VaultListing(
                 // A further code is found by its field's name, which its tile's subtitle is.
                 val fields = if (tile.further) listOf(CustomField.plain(tile.subtitle, "")) else emptyList()
                 searched += Entry(
-                    id = tile.key, title = tile.title, username = entry.username, groupPath = entry.groupPath, tags = entry.tags,
+                    id = tile.key, title = entry.sortTitle, username = entry.username, groupPath = entry.groupPath, tags = entry.tags,
                     customFields = fields, attachments = entry.attachments,
                 )
             }
@@ -231,8 +231,8 @@ internal class VaultListing(
 
     /** [entry]'s codes, its own first, then its further ones in field order; a code that cannot be read is not one. */
     private fun tilesOf(entry: Entry): List<CodeTile> {
-        val title = entry.displayTitle
-        val avatar = EntryAvatar.of(title)
+        val title = entry.displayTitle.ui()
+        val avatar = EntryAvatar.of(entry.sortTitle)
         val icon = entry.customIconId?.takeIf { it in vault.customIcons }
         val mark = marks[entry.id]
         val tiles = ArrayList<CodeTile>()
@@ -334,11 +334,11 @@ internal class VaultListing(
 
     private fun row(entry: Entry) = EntryRow(
         id = entry.id,
-        title = entry.displayTitle,
+        title = entry.displayTitle.ui(),
         // A card or a network says which it is ("Visa •• 4242 · 12/26"), a note its line; other entries their username and site.
         subtitle = faces[entry.id]?.subtitle?.ui() ?: uiPlain(entry.username.ifEmpty { entry.webHost.orEmpty() }),
         group = if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1),
-        avatar = EntryAvatar.of(entry.displayTitle),
+        avatar = EntryAvatar.of(entry.sortTitle),
         customIconId = entry.customIconId?.takeIf { it in vault.customIcons },
         hasAttachments = entry.attachments.isNotEmpty(),
         hasUsername = entry.username.isNotEmpty(),

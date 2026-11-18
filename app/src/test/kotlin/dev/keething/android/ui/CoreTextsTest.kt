@@ -2,8 +2,11 @@ package dev.keething.android.ui
 
 import dev.keething.android.R
 import dev.keething.card.CardText
+import dev.keething.domain.text.DomainText
 import dev.keething.domain.text.UserText
+import dev.keething.generator.GeneratorText
 import dev.keething.totp.TotpText
+import dev.keething.vault.VaultText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -13,7 +16,7 @@ class CoreTextsTest {
 
     @Test
     fun everyCoreTextMapsToTheResourceItsKeyNames() {
-        for (key in CardText.entries + TotpText.entries) assertEquals(key.resource, names[resourceOf(key)], key.toString())
+        for (key in CardText.entries + TotpText.entries + DomainText.entries + GeneratorText.entries + VaultText.entries) assertEquals(key.resource, names[resourceOf(key)], key.toString())
     }
 
     @Test

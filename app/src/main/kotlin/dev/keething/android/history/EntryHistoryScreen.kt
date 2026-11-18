@@ -100,7 +100,7 @@ internal sealed interface HistoryState {
     data object Loading : HistoryState
 
     /** Newest first; [title] is the entry's title as the file has it now. */
-    data class Loaded(val title: String, val versions: List<HistoryVersion>) : HistoryState
+    data class Loaded(val title: UserText, val versions: List<HistoryVersion>) : HistoryState
 
     data class Failed(val problem: UiText) : HistoryState
 }
@@ -284,7 +284,7 @@ internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBa
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { BarTitle(stringResource(R.string.history_title), (state as? HistoryState.Loaded)?.title) },
+                title = { BarTitle(stringResource(R.string.history_title), (state as? HistoryState.Loaded)?.title?.resolve()) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.history_back)) }
                 },
@@ -345,7 +345,7 @@ internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBa
     model.question?.let { question ->
         RestoreDialog(
             question,
-            title = (state as? HistoryState.Loaded)?.title ?: stringResource(R.string.history_the_entry),
+            title = (state as? HistoryState.Loaded)?.title?.resolve() ?: stringResource(R.string.history_the_entry),
             isRevealed = { "ask/$it" in model.revealed }, // not user text
             onToggle = { model.toggle("ask/$it") }, // not user text
             onConfirm = { model.confirm(onRestored) },

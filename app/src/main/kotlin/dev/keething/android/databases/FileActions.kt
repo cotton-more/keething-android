@@ -12,6 +12,8 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import dev.keething.android.AppContainer
 import dev.keething.android.R
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.ui
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.FileLocation
 
@@ -98,11 +100,11 @@ internal fun rememberFileActions(
                     title = stringResource(if (old) R.string.databases_locate_folder_title else R.string.databases_locate_title, record.fileName),
                     pickAt = record.file.place?.parent,
                     pickAtOnce = sheet.pickNow || old,
-                    onChosen = { file -> problem(databases.locate(sheet.id, file)) },
+                    onChosen = { file -> problem(databases.locate(sheet.id, file)?.ui()?.resolve(resources)) },
                     onDismiss = { shown = null },
                     onFolderPicked = if (old) {
                         { folder ->
-                            databases.folderGranted(sheet.id, folder.id, folder.place)?.let { resources.getString(R.string.databases_locate_choose_below, it) }
+                            databases.folderGranted(sheet.id, folder.id, folder.place)?.let { resources.getString(R.string.databases_locate_choose_below, it.ui().resolve(resources)) }
                         }
                     } else {
                         null

@@ -122,7 +122,7 @@ internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpCon
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(R.string.list_edit_code_title), style = MaterialTheme.typography.headlineSmall)
-                Text("${tile.title} · ${tile.subtitle}".trimEnd(' ', '·'), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${tile.title.resolve()} · ${tile.subtitle}".trimEnd(' ', '·'), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             LiveCode(draft, now)
             if (tile.further) {
@@ -263,14 +263,14 @@ private fun WhereTheCodeGoes(
     if (match != null) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val already = if (places.size >= 2) {
-                stringResource(R.string.list_add_code_already_in, match.displayTitle, database.mark.label.full)
+                stringResource(R.string.list_add_code_already_in, match.displayTitle.resolve(), database.mark.label.full)
             } else {
-                stringResource(R.string.list_add_code_already_in_database, match.displayTitle)
+                stringResource(R.string.list_add_code_already_in_database, match.displayTitle.resolve())
             }
             Text(already, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val into = stringResource(if (match.totp == null) R.string.list_add_code_no_code_yet else R.string.list_add_code_as_next)
             val detail = if (match.username.isEmpty()) into else stringResource(R.string.list_add_code_detail, match.username, into)
-            Choice(stringResource(R.string.list_add_code_to, match.displayTitle), detail, selected = !newEntry) { newEntry = false }
+            Choice(stringResource(R.string.list_add_code_to, match.displayTitle.resolve()), detail, selected = !newEntry) { newEntry = false }
             Choice(stringResource(R.string.list_add_code_new_entry), stringResource(R.string.list_add_code_new_entry_detail), selected = newEntry) { newEntry = true }
         }
     }

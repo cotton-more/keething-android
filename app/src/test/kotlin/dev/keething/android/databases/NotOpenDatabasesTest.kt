@@ -3,6 +3,7 @@ package dev.keething.android.databases
 import dev.keething.android.ui.english
 import dev.keething.android.ui.uiPlain
 import dev.keething.domain.biometric.BiometricAvailability
+import dev.keething.domain.text.UserText
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.SetUpAgain
 import dev.keething.vault.databases.DatabaseId
@@ -110,7 +111,7 @@ class NotOpenDatabasesTest {
             NotOpenState.NeedsKeyFile("work.keyx", null),
             state(failed(OpenFailure.WrongPassword), line("Work", keyFile = "work.keyx", keyMissing = true)),
         )
-        val unusable = state(failed(OpenFailure.KeyFileUnusable("it is empty")), line("Work", keyFile = "work.keyx"))
+        val unusable = state(failed(OpenFailure.KeyFileUnusable(UserText.plain("it is empty"))), line("Work", keyFile = "work.keyx"))
         assertEquals(NotOpenState.NeedsKeyFile("work.keyx", uiPlain("it is empty")), unusable)
         val damaged = state(failed(OpenFailure.Damaged("a block's hash")), fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.FINGERPRINTS_CHANGED))
         assertEquals(NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash")), damaged, "what typing cannot fix before the fingerprint's verdict")

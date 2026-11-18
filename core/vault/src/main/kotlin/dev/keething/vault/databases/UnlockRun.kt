@@ -1,6 +1,8 @@
 package dev.keething.vault.databases
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
+import dev.keething.vault.VaultText
 import dev.keething.vault.opening.OpenFailure
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 public class UnlockRun(
     public val ids: List<DatabaseId>,
-    private val cannotOpen: (DatabaseId) -> String?,
+    private val cannotOpen: (DatabaseId) -> UserText?,
     private val isOpen: (DatabaseId) -> Boolean,
     private val tryUnlock: suspend (DatabaseId, Secret) -> Attempt,
 ) {
@@ -29,7 +31,7 @@ public class UnlockRun(
         public data class Failed(val failure: OpenFailure) : Attempt
 
         /** Typing cannot open it now (it left the window): skipped by itself, with [why]. */
-        public data class CannotOpen(val why: String) : Attempt
+        public data class CannotOpen(val why: UserText) : Attempt
 
         /** A lock meanwhile: the run ends. */
         public data object Stopped : Attempt
@@ -39,14 +41,17 @@ public class UnlockRun(
     public enum class Segment { OPENED, SKIPPED, CURRENT, WAITING }
 
     /** A database skipped by itself, and why ("not found", "work.keyx not there", "cannot be read", "closed"). */
-    public data class Problem(val id: DatabaseId, val why: String)
+    public data class Problem(val id: DatabaseId, val why: UserText)
 
     /** What the run did. */
     public class Result(public val opened: List<DatabaseId>, public val skipped: List<DatabaseId>, public val notOpened: List<Problem>, private val count: Int) {
         /** The list's notice: "2 of 3 open · Family Shared: skipped · Crypto: not found". */
-        public fun notice(label: (DatabaseId) -> String): String =
-            (listOf("${opened.size} of $count open") + skipped.map { "${label(it)}: skipped" } + notOpened.map { "${label(it.id)}: ${it.why}" })
-                .joinToString(" · ")
+        public fun notice(label: (DatabaseId) -> String): UserText = UserText.Joined(
+            listOf(UserText.counted(VaultText.RUN_OPEN, opened.size, opened.size, count)) +
+                skipped.map { UserText.of(VaultText.RUN_SKIPPED, label(it)) } +
+                notOpened.map { UserText.of(VaultText.RUN_NOT_OPENED, label(it.id), it.why) },
+            " · ",
+        )
     }
 
     /** The run as the screen shows it: the database asked, why its last password did not open it, a try going on. */
@@ -66,7 +71,7 @@ public class UnlockRun(
     public val current: DatabaseId? get() = state.value.takeUnless { it.ended }?.index?.let(ids::getOrNull)
 
     /** "Unlocking 2 of 3". */
-    public val step: String get() = "Unlocking ${minOf(state.value.index, ids.size - 1) + 1} of ${ids.size}"
+    public val step: UserText get() = UserText.of(VaultText.RUN_STEP, minOf(state.value.index, ids.size - 1) + 1, ids.size)
 
     /** Those opened so far, in the run's order. */
     public val opened: List<DatabaseId> get() = openedIds.toList()
@@ -174,11 +179,11 @@ public class UnlockRun(
     }
 
     private companion object {
-        fun why(failure: OpenFailure): String = when (failure) {
-            OpenFailure.Missing -> "not found"
-            is OpenFailure.KeyFileMissing -> "${failure.name} not there"
-            is OpenFailure.KeyFileUnusable -> "its key file cannot be used"
-            else -> "cannot be read"
+        fun why(failure: OpenFailure): UserText = when (failure) {
+            OpenFailure.Missing -> UserText.of(VaultText.WHY_NOT_FOUND)
+            is OpenFailure.KeyFileMissing -> UserText.of(VaultText.WHY_KEY_FILE_NOT_THERE, failure.name)
+            is OpenFailure.KeyFileUnusable -> UserText.of(VaultText.WHY_KEY_FILE_UNUSABLE)
+            else -> UserText.of(VaultText.WHY_CANNOT_BE_READ)
         }
     }
 }

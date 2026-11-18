@@ -45,7 +45,7 @@ public class Secret private constructor(private val bytes: ByteArray) {
     // Constant: a hash would tell something about the bytes.
     override fun hashCode(): Int = 0
 
-    override fun toString(): String = "Secret(${if (wiped) "wiped" else "•••"})"
+    override fun toString(): String = "Secret(${if (wiped) "wiped" else "•••"})" // not user text
 
     public companion object {
         /** The UTF-8 bytes of [text]. The `String` itself cannot be wiped: the caller drops it soon. */

@@ -42,4 +42,8 @@ private const val WORD_JOINER = '\u2060'
  * A masked value as a screen reader says it: "Hidden", with only the part in clear (a card's last digits), never the
  * dots (keething-spec app.accessibility AC2).
  */
-internal fun Modifier.spokenMasked(text: String): Modifier = semantics { contentDescription = RevealState.spoken(text) }
+@Composable
+internal fun Modifier.spokenMasked(text: String): Modifier {
+    val said = RevealState.spoken(text).resolve()
+    return semantics { contentDescription = said }
+}

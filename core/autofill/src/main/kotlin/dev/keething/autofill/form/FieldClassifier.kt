@@ -150,7 +150,7 @@ internal class Words private constructor(private val text: String) {
             return Words(" $text ")
         }
 
-        private val CAMEL = Regex("([\\p{Ll}\\d])(\\p{Lu})")
+        private val CAMEL = Regex("([\\p{Ll}\\d])(\\p{Lu})") // not user text
         private val SEPARATORS = Regex("[^\\p{L}\\d]+")
 
         /**
@@ -174,7 +174,7 @@ internal class Words private constructor(private val text: String) {
         )
         private val PASSWORD = words(
             "password", "passwort", "passwd", "kennwort", "passcode", "\\bpass\\b", "\\bpwd\\b", "\\bpw\\b", "\\bpin\\b",
-            "пароль", "contraseña", "mot de passe",
+            "пароль", "contraseña", "mot de passe", // not user text
         )
         private val NEW = words(
             "\\bnew\\b", "\\bneu", "confirm", "repeat", "retype", "re ?enter", "wiederhol", "bestätig", "\\bнов", "повтор",

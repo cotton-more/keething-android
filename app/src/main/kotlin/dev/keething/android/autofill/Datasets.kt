@@ -11,6 +11,8 @@ import android.view.autofill.AutofillValue
 import android.view.inputmethod.InlineSuggestionsRequest
 import dev.keething.android.R
 import dev.keething.android.session.Sessions
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.ui
 import dev.keething.autofill.form.AutofillForm
 import dev.keething.domain.vault.Entry
 
@@ -63,7 +65,7 @@ internal class FillResponses(private val context: Context, private val sessions:
         var shown = 0
         for (candidate in candidates) {
             val entry = candidate.entry
-            val presentation = presentations.entry(shown, entry.displayTitle, entry.username.ifEmpty { null })
+            val presentation = presentations.entry(shown, entry.displayTitle.ui().resolve(context.resources), entry.username.ifEmpty { null })
             // An entry with a code makes it when tapped: for the code field, or for the clipboard after a login.
             val dataset = if (entry.totp != null) {
                 authenticated(AutofillRequest(AutofillMode.CODE, form, ids, entry.id), form.fields, presentation)

@@ -1,5 +1,7 @@
 package dev.keething.vault.biometric
 
+import dev.keething.domain.text.UserText
+import dev.keething.vault.VaultText
 import dev.keething.vault.databases.add
 import dev.keething.vault.databases.path
 import dev.keething.vault.databases.file
@@ -178,7 +180,7 @@ class WindowFingerprintTest {
         assertEquals(FingerprintOutcome.Unlocked, result.each[due.id], "a reminder due holds none back (unlock.reminder-not-a-lock AC1)")
         assertTrue(assertNotNull(f.sessions.session(due.id)).biometric.state.value.reminder, "asked once open")
         assertFalse(assertNotNull(f.sessions.session(personal.id)).biometric.state.value.reminder)
-        assertEquals(FingerprintOutcome.NotAvailable("it is turned off for this database"), result.each[off.id])
+        assertEquals(FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE)), result.each[off.id])
         assertEquals(FingerprintOutcome.UnlockFailed(OpenFailure.Missing), result.each[gone.id])
         assertEquals(FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing("taxes.keyx")), result.each[noKey.id])
         assertEquals(FingerprintOutcome.NothingStored, result.each[empty.id])
@@ -219,7 +221,7 @@ class WindowFingerprintTest {
         val result = f.fingerprint.unlock()
 
         assertEquals(FingerprintOutcome.Cancelled, result.outcome, "not Personal's fingerprint off")
-        assertEquals(mapOf(personal.id to FingerprintOutcome.NotAvailable("it is turned off for this database"), work.id to FingerprintOutcome.Cancelled), result.each)
+        assertEquals(mapOf(personal.id to FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE)), work.id to FingerprintOutcome.Cancelled), result.each)
         assertEquals("pw", f.stored(work))
         assertEquals(emptyList(), f.sessions.openIds)
 

@@ -166,7 +166,7 @@ private fun SaveLoginScreen(
                 prefill = { it.copy(password = password) },
                 banner = {
                     Banner(
-                        stringResource(R.string.autofill_save_update_title, plan.entry.displayTitle),
+                        stringResource(R.string.autofill_save_update_title, plan.entry.displayTitle.resolve()),
                         stringResource(R.string.autofill_save_update_text, label),
                         action = stringResource(R.string.autofill_save_as_new) to { model.asNew = true },
                     )

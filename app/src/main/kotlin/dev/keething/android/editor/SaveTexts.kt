@@ -72,7 +72,7 @@ internal fun unsavedText(changes: List<UnsavedChange>, vault: Vault): UiText? {
     if (changes.isEmpty()) return null
     val entries = (vault.entries + vault.recycleBin).associateBy { it.id }
     val groups = vault.groups.associateBy { it.id }
-    fun entry(id: String) = entries[id]?.let { quoted(it.displayTitle) } ?: uiText(R.string.editor_unsaved_an_entry)
+    fun entry(id: String) = entries[id]?.let { uiText(R.string.editor_quoted, it.displayTitle) } ?: uiText(R.string.editor_unsaved_an_entry)
     fun group(id: String) = groups[id]?.let { if (it.isRoot) uiText(R.string.editor_unsaved_top_level) else quoted(GroupPathFormatter.text(it.path)) }
         ?: uiText(R.string.editor_unsaved_a_group)
     // Each change once, by what it is and what it names; the first one starts the sentence.

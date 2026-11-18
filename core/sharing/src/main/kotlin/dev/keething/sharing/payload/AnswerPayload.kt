@@ -77,7 +77,7 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
             bytes.useBytes { decode(it) }.wipe()
         } catch (refused: MalformedShareException) {
             bytes.wipe()
-            throw IllegalArgumentException("the answer would not be read: ${refused.message}")
+            throw IllegalArgumentException("the answer would not be read: ${refused.message}") // English detail
         }
         return bytes
     }
@@ -154,12 +154,12 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
             try {
                 val r = WireReader(bytes)
                 val version = r.byte()
-                if (version != VERSION && version != VERSION_NOTES) throw MalformedShareException("a version this app does not know")
+                if (version != VERSION && version != VERSION_NOTES) throw MalformedShareException("a version this app does not know") // English detail
                 val from = r.text(MAX_TEXT)
                 repeat(r.count(MAX_ENTRIES)) { taken += entry(r, version) }
                 if (r.field(PADDING).any { it != 0.toByte() }) throw MalformedShareException("padding")
                 r.end()
-                if (taken.isEmpty()) throw MalformedShareException("no entries")
+                if (taken.isEmpty()) throw MalformedShareException("no entries") // English detail
                 return AnswerPayload(from, taken.toList())
             } catch (failure: MalformedShareException) {
                 taken.forEach(SharedEntry::wipe)
@@ -184,7 +184,7 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
                     notesProtected = when (r.byte()) {
                         0 -> false
                         1 -> true
-                        else -> throw MalformedShareException("Notes' protection")
+                        else -> throw MalformedShareException("Notes' protection") // English detail
                     }
                     entryType = when (r.byte()) {
                         0 -> null
@@ -196,7 +196,7 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
                 val expires = when (r.byte()) {
                     0 -> null
                     1 -> r.instant()
-                    else -> throw MalformedShareException("an expiry")
+                    else -> throw MalformedShareException("an expiry") // English detail
                 }
                 val fields = List(r.count(MAX_FIELDS)) {
                     val name = r.xmlText()
@@ -225,11 +225,11 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
                         val period = r.count(24 * 3600)
                         val algorithm = TotpConfig.Algorithm.entries.getOrNull(r.byte())
                         if (key.isEmpty() || digits !in 1..10 || period < 1 || algorithm == null) {
-                            throw MalformedShareException("a one-time code")
+                            throw MalformedShareException("a one-time code") // English detail
                         }
                         TotpConfig(key, digits, period, algorithm)
                     }
-                    else -> throw MalformedShareException("a one-time code")
+                    else -> throw MalformedShareException("a one-time code") // English detail
                 }
                 return SharedEntry(title, username, password, url, notes, fields, types, tags, expires, totp, notesProtected, entryType)
             } catch (failure: Exception) {
@@ -243,14 +243,14 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
          * Refused here, not by the save's check after the user chose to save.
          */
         private fun WireReader.xmlText(): String = text(MAX_TEXT).also { text ->
-            if (text.any { it < ' ' && it !in "\t\n\r" || it == '\uFFFE' || it == '\uFFFF' }) throw MalformedShareException("a control character")
+            if (text.any { it < ' ' && it !in "\t\n\r" || it == '\uFFFE' || it == '\uFFFF' }) throw MalformedShareException("a control character") // English detail
         }
 
         private fun WireReader.xmlSecret(): Secret = secret(MAX_TEXT).also { secret ->
             val bad = secret.useBytes { bytes -> bytes.any { it in 0..0x1F && it != 0x09.toByte() && it != 0x0A.toByte() && it != 0x0D.toByte() } }
             if (bad) {
                 secret.wipe()
-                throw MalformedShareException("a control character")
+                throw MalformedShareException("a control character") // English detail
             }
         }
     }

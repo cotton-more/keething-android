@@ -16,7 +16,9 @@ import dev.keething.android.R
 import dev.keething.android.generator.GeneratorUse
 import dev.keething.android.generator.PasswordGeneratorSheet
 import dev.keething.android.theme.KeethingTheme
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.secureWindow
+import dev.keething.android.ui.ui
 import dev.keething.domain.vault.Entry
 import dev.keething.totp.TotpGenerator
 import java.time.Instant
@@ -89,7 +91,7 @@ class AutofillActivity : ComponentActivity() {
     private fun fill(entry: Entry): Boolean {
         val code = entry.totp?.let { TotpGenerator.code(it, Instant.now()) }
         val codeField = request.form.codes.isNotEmpty()
-        val presentation = AutofillPresentations(this, inline = null).entry(0, entry.displayTitle, entry.username.ifEmpty { null })
+        val presentation = AutofillPresentations(this, inline = null).entry(0, entry.displayTitle.ui().resolve(resources), entry.username.ifEmpty { null })
         val dataset = filledDataset(request.form, request.ids, entry, code.takeIf { codeField }, presentation) ?: return false
         if (code != null && !codeField) container.clipboard.copy(code, sensitive = true)
         setResult(RESULT_OK, Intent().putExtra(AutofillManager.EXTRA_AUTHENTICATION_RESULT, dataset))

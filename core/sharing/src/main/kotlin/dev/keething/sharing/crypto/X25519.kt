@@ -43,7 +43,7 @@ internal object X25519 {
             agreement.init(factory.generatePrivate(PKCS8EncodedKeySpec(pkcs8)))
             agreement.doPhase(factory.generatePublic(X509EncodedKeySpec(PUBLIC_PREFIX + publicKey)), true)
             val secret = agreement.generateSecret()
-            if (secret.all { it == 0.toByte() }) throw SealFailure("a public key of small order")
+            if (secret.all { it == 0.toByte() }) throw SealFailure("a public key of small order") // English detail
             return secret
         } catch (failure: GeneralSecurityException) {
             throw SealFailure(failure.message ?: "X25519")

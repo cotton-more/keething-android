@@ -32,7 +32,7 @@ public class SiteMatcher(entries: List<Entry>, collator: Collator = Collator.get
 
     private val titleOrder: Comparator<Entry> = run {
         val copy = (collator.clone() as Collator).apply { strength = Collator.SECONDARY }
-        Comparator { a, b -> copy.compare(a.displayTitle, b.displayTitle) }
+        Comparator { a, b -> copy.compare(a.sortTitle, b.sortTitle) }
     }
 
     /**

@@ -44,4 +44,22 @@
     <string name="generator_passphrase_hint">Lowercase words only: easy to type on a phone or a TV, good for a master password.</string>
     <string name="generator_fewer">Fewer</string>
     <string name="generator_more">More</string>
+
+    <!-- The texts core/generator makes: GeneratorText -->
+    <!-- Why a typed password is weak or fair, said after "Weak:" or "Fair:" -->
+    <string name="generator_reason_empty">empty</string>
+    <string name="generator_reason_common_password">one of the most common passwords</string>
+    <string name="generator_reason_context">contains the username or the site\'s name</string>
+    <string name="generator_reason_common_word">a common word</string>
+    <string name="generator_reason_keyboard_pattern">a keyboard pattern</string>
+    <string name="generator_reason_year">a year</string>
+    <string name="generator_reason_repeated">repeated characters</string>
+    <string name="generator_reason_sequence">a sequence</string>
+    <plurals name="generator_reason_shorter_than">
+        <item quantity="one">shorter than %1$d character</item>
+        <item quantity="other">shorter than %1$d characters</item>
+    </plurals>
+    <string name="generator_reason_digits_only">digits only</string>
+    <string name="generator_reason_too_short">too short for its characters</string>
+    <string name="generator_reason_could_be_longer">could be longer</string>
 </resources>

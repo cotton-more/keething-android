@@ -4,3 +4,11 @@ app/src/main/kotlin/dev/keething/android/storageprobe/GrantProbe.kt         the 
 app/src/main/kotlin/dev/keething/android/storageprobe/StorageProbeScreen.kt the debug build's probe
 app/src/main/kotlin/dev/keething/android/storageprobe/StorageProbeViewModel.kt the debug build's probe
 core/card/src/main/kotlin/dev/keething/card/TypeSuggestion.kt               the names a field is recognised by, in several languages; never shown
+core/kdbx/src/main/kotlin/                                                  the KDBX format's names, and a failure's technical detail, English (plans T13b); the failures' kinds are types app/ names
+core/vault/src/main/kotlin/dev/keething/vault/saving/SaveCheck.kt           the save check's reasons: a technical detail, English (plans T13b)
+core/vault/src/main/kotlin/dev/keething/vault/storage/FolderDatabaseStore.kt a write's technical detail, English (plans T13b)
+core/vault/src/main/kotlin/dev/keething/vault/storage/SaveNotes.kt          the save notes' keys, and a technical detail, English (plans T13b)
+core/vault/src/main/kotlin/dev/keething/vault/databases/Json.kt             what is wrong in a JSON list: a technical detail, English (plans T13b)
+core/vault/src/main/kotlin/dev/keething/vault/creating/CreationNote.kt      a technical detail, English (plans T13b)
+core/vault/src/main/kotlin/dev/keething/vault/creating/DatabaseCreator.kt   CreateFailure's kinds are types app/ names; their detail is English (plans T13b)
+core/sharing/src/main/kotlin/dev/keething/sharing/pictures/Pictures.kt      the pictures' names are Matrix's English ones (keething-spec sharing.pictures AC1); whether they follow the phone's language is for T14

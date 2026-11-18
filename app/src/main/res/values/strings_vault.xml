@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The texts core/vault makes: VaultText -->
+    <!-- Locate…: why the file or folder chosen is not taken. %1$s: the database's name in the list -->
+    <string name="vault_locate_in_list_already">That file is already in the list as “%1$s”.</string>
+    <string name="vault_locate_database_gone">That database is not in the list any more.</string>
+    <!-- %1$s: the database's file name -->
+    <string name="vault_locate_not_on_storage">%1$s is not on the phone\'s storage.</string>
+    <string name="vault_locate_folder_lacks_file">That folder does not hold %1$s.</string>
+
+    <!-- The chooser's run over the checked databases: "Unlocking 2 of 3" -->
+    <string name="vault_run_step">Unlocking %1$d of %2$d</string>
+    <!-- The run's notice, its parts set with " · " between: "2 of 3 open · Family: skipped · Crypto: not found" -->
+    <plurals name="vault_run_open">
+        <item quantity="one">%1$d of %2$d open</item>
+        <item quantity="other">%1$d of %2$d open</item>
+    </plurals>
+    <!-- %1$s: the database's label -->
+    <string name="vault_run_skipped">%1$s: skipped</string>
+    <!-- %1$s: the database's label, %2$s: why (one of vault_why_…) -->
+    <string name="vault_run_not_opened">%1$s: %2$s</string>
+    <!-- Why the run skipped a database by itself, said after its name and a colon -->
+    <string name="vault_why_not_in_list">not in the list</string>
+    <string name="vault_why_closed">closed</string>
+    <string name="vault_why_opening">opening</string>
+    <string name="vault_why_not_found">not found</string>
+    <!-- %1$s: the key file's name -->
+    <string name="vault_why_key_file_not_there">%1$s not there</string>
+    <string name="vault_why_key_file_unusable">its key file cannot be used</string>
+    <string name="vault_why_cannot_be_read">cannot be read</string>
+
+    <!-- Why the fingerprint is not asked for, said after a colon -->
+    <string name="vault_fingerprint_off_in_settings">it is turned off in Settings</string>
+    <string name="vault_fingerprint_off_for_database">it is turned off for this database</string>
+    <string name="vault_fingerprint_no_database">there is no database</string>
+
+    <!-- Why a key file cannot be used, said after "The key file cannot be used:". %1$s: the key file's name -->
+    <string name="vault_key_file_not_read">%1$s could not be read</string>
+    <string name="vault_key_file_too_large">%1$s is too large to read</string>
+    <string name="vault_key_file_no_access">Keething may not read %1$s any more: choose it again</string>
+    <string name="vault_key_file_empty">the file is empty</string>
+    <!-- %1$s: the version the file says ("3.0") -->
+    <string name="vault_key_file_version">a key file of version %1$s, which KeePass does not write</string>
+    <!-- %1$s: what is wrong, in English (a technical detail) -->
+    <string name="vault_key_file_malformed">a key file whose key cannot be read (%1$s)</string>
+    <string name="vault_key_file_hash_mismatch">a key file whose key does not match its checksum (changed or damaged)</string>
+</resources>

@@ -40,7 +40,7 @@ public enum class TotpFormat {
             null
         } else {
             listOf(
-                "TimeOtp-Secret-Base32" to FieldValue.Protected(Secret.of(config.secret.useBytes(Base32::encode))),
+                "TimeOtp-Secret-Base32" to FieldValue.Protected(Secret.of(config.secret.useBytes(Base32::encode))), // not user text
                 KEEPASS_LENGTH_FIELD to FieldValue.Plain(config.digits.toString()),
                 KEEPASS_PERIOD_FIELD to FieldValue.Plain(config.period.toString()),
                 KEEPASS_ALGORITHM_FIELD to FieldValue.Plain(keePassAlgorithm(config.algorithm)),
@@ -50,18 +50,18 @@ public enum class TotpFormat {
 
     public companion object {
         public const val LINK_FIELD: String = "otp"
-        public const val SEED_FIELD: String = "TOTP Seed"
-        public const val SEED_SETTINGS_FIELD: String = "TOTP Settings"
+        public const val SEED_FIELD: String = "TOTP Seed" // not user text
+        public const val SEED_SETTINGS_FIELD: String = "TOTP Settings" // not user text
 
         /**
          * KeePass's secret in its four encodings, in the order KeePass reads them (`EntryUtil.GetOtpSecret`): UTF-8
          * text, hex, Base32, Base64.
          */
         public val KEEPASS_SECRET_FIELDS: List<String> =
-            listOf("TimeOtp-Secret", "TimeOtp-Secret-Hex", "TimeOtp-Secret-Base32", "TimeOtp-Secret-Base64")
-        public const val KEEPASS_LENGTH_FIELD: String = "TimeOtp-Length"
-        public const val KEEPASS_PERIOD_FIELD: String = "TimeOtp-Period"
-        public const val KEEPASS_ALGORITHM_FIELD: String = "TimeOtp-Algorithm"
+            listOf("TimeOtp-Secret", "TimeOtp-Secret-Hex", "TimeOtp-Secret-Base32", "TimeOtp-Secret-Base64") // not user text
+        public const val KEEPASS_LENGTH_FIELD: String = "TimeOtp-Length" // not user text
+        public const val KEEPASS_PERIOD_FIELD: String = "TimeOtp-Period" // not user text
+        public const val KEEPASS_ALGORITHM_FIELD: String = "TimeOtp-Algorithm" // not user text
 
         /** KeePass makes no code of more digits (`HmacOtp.Generate`). */
         public const val KEEPASS_MAXIMUM_DIGITS: Int = 8

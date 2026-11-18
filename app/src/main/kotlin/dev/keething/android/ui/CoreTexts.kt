@@ -4,9 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import dev.keething.android.R
 import dev.keething.card.CardText
+import dev.keething.domain.text.DomainText
 import dev.keething.domain.text.TextKey
 import dev.keething.domain.text.UserText
+import dev.keething.generator.GeneratorText
 import dev.keething.totp.TotpText
+import dev.keething.vault.VaultText
 
 /**
  * A text the core made ([UserText], keething-spec plans T13b) as the app's own [UiText]: each core module's keys are
@@ -32,6 +35,9 @@ private fun argument(value: Any): Any = if (value is UserText) value.ui() else v
 internal fun resourceOf(key: TextKey): Int = when (key) {
     is CardText -> card(key)
     is TotpText -> totp(key)
+    is DomainText -> domain(key)
+    is GeneratorText -> generator(key)
+    is VaultText -> vault(key)
     else -> error("no resources for ${key::class.simpleName}")
 }
 
@@ -213,9 +219,60 @@ private fun card(key: CardText): Int = when (key) {
     CardText.CHANGE_ATTACHMENT -> R.string.card_change_attachment
     CardText.BYTES -> R.plurals.card_bytes
     CardText.SIZE_UNKNOWN -> R.string.card_size_unknown
+    CardText.SPOKEN_HIDDEN -> R.string.card_spoken_hidden
+    CardText.SPOKEN_HIDDEN_ENDING -> R.string.card_spoken_hidden_ending
+    CardText.SPOKEN_SHOWN_HIDDEN -> R.string.card_spoken_shown_hidden
+    CardText.SPOKEN_SHOWN_HIDDEN_ENDING -> R.string.card_spoken_shown_hidden_ending
 }
 
 private fun totp(key: TotpText): Int = when (key) {
     TotpText.UNSUPPORTED_NOT_TOTP -> R.string.totp_unsupported_not_totp
     TotpText.UNSUPPORTED_GOOGLE_EXPORT -> R.string.totp_unsupported_google_export
+}
+
+private fun domain(key: DomainText): Int = when (key) {
+    DomainText.UNTITLED -> R.string.domain_untitled
+}
+
+private fun generator(key: GeneratorText): Int = when (key) {
+    GeneratorText.REASON_EMPTY -> R.string.generator_reason_empty
+    GeneratorText.REASON_COMMON_PASSWORD -> R.string.generator_reason_common_password
+    GeneratorText.REASON_CONTEXT -> R.string.generator_reason_context
+    GeneratorText.REASON_COMMON_WORD -> R.string.generator_reason_common_word
+    GeneratorText.REASON_KEYBOARD_PATTERN -> R.string.generator_reason_keyboard_pattern
+    GeneratorText.REASON_YEAR -> R.string.generator_reason_year
+    GeneratorText.REASON_REPEATED -> R.string.generator_reason_repeated
+    GeneratorText.REASON_SEQUENCE -> R.string.generator_reason_sequence
+    GeneratorText.REASON_SHORTER_THAN -> R.plurals.generator_reason_shorter_than
+    GeneratorText.REASON_DIGITS_ONLY -> R.string.generator_reason_digits_only
+    GeneratorText.REASON_TOO_SHORT -> R.string.generator_reason_too_short
+    GeneratorText.REASON_COULD_BE_LONGER -> R.string.generator_reason_could_be_longer
+}
+
+private fun vault(key: VaultText): Int = when (key) {
+    VaultText.LOCATE_IN_LIST_ALREADY -> R.string.vault_locate_in_list_already
+    VaultText.LOCATE_DATABASE_GONE -> R.string.vault_locate_database_gone
+    VaultText.LOCATE_NOT_ON_STORAGE -> R.string.vault_locate_not_on_storage
+    VaultText.LOCATE_FOLDER_LACKS_FILE -> R.string.vault_locate_folder_lacks_file
+    VaultText.RUN_STEP -> R.string.vault_run_step
+    VaultText.RUN_OPEN -> R.plurals.vault_run_open
+    VaultText.RUN_SKIPPED -> R.string.vault_run_skipped
+    VaultText.RUN_NOT_OPENED -> R.string.vault_run_not_opened
+    VaultText.WHY_NOT_IN_LIST -> R.string.vault_why_not_in_list
+    VaultText.WHY_CLOSED -> R.string.vault_why_closed
+    VaultText.WHY_OPENING -> R.string.vault_why_opening
+    VaultText.WHY_NOT_FOUND -> R.string.vault_why_not_found
+    VaultText.WHY_KEY_FILE_NOT_THERE -> R.string.vault_why_key_file_not_there
+    VaultText.WHY_KEY_FILE_UNUSABLE -> R.string.vault_why_key_file_unusable
+    VaultText.WHY_CANNOT_BE_READ -> R.string.vault_why_cannot_be_read
+    VaultText.FINGERPRINT_OFF_IN_SETTINGS -> R.string.vault_fingerprint_off_in_settings
+    VaultText.FINGERPRINT_OFF_FOR_DATABASE -> R.string.vault_fingerprint_off_for_database
+    VaultText.FINGERPRINT_NO_DATABASE -> R.string.vault_fingerprint_no_database
+    VaultText.KEY_FILE_NOT_READ -> R.string.vault_key_file_not_read
+    VaultText.KEY_FILE_TOO_LARGE -> R.string.vault_key_file_too_large
+    VaultText.KEY_FILE_NO_ACCESS -> R.string.vault_key_file_no_access
+    VaultText.KEY_FILE_EMPTY -> R.string.vault_key_file_empty
+    VaultText.KEY_FILE_VERSION -> R.string.vault_key_file_version
+    VaultText.KEY_FILE_MALFORMED -> R.string.vault_key_file_malformed
+    VaultText.KEY_FILE_HASH_MISMATCH -> R.string.vault_key_file_hash_mismatch
 }

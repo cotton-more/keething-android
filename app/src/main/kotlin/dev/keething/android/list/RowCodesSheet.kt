@@ -38,6 +38,7 @@ import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.EntryMark
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.secondsLeft
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.TotpDisplay
@@ -69,7 +70,7 @@ internal fun RowCodesSheet(
                 EntryMark(row.avatar, icons?.get(row.customIconId), row.face, 44.dp)
                 Column(Modifier.weight(1f)) {
                     Text(
-                        row.title,
+                        row.title.resolve(),
                         Modifier.semantics { heading() },
                         style = MaterialTheme.typography.titleLarge,
                         maxLines = 2,

@@ -7,6 +7,7 @@ import dev.keething.domain.encryption.MeasuredEncryption
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.NewFile
 import dev.keething.domain.storage.NewFilePlace
+import dev.keething.domain.text.englishOrNull
 import dev.keething.kdbx.key.DatabaseKey
 import dev.keething.kdbx.key.KeyFile
 import dev.keething.kdbx.reader.KdbxReader
@@ -891,11 +892,11 @@ class CurrentDatabaseTest {
         assertEquals(old.id, f.shown.id)
         val before = f.list.record(old.id)!!
 
-        assertEquals("That folder does not hold Personal.kdbx.", f.databases.folderGranted(old.id, "grant-download", StoragePlace("primary", "Download")))
+        assertEquals("That folder does not hold Personal.kdbx.", f.databases.folderGranted(old.id, "grant-download", StoragePlace("primary", "Download")).englishOrNull())
         assertEquals(before, f.list.record(old.id), "nothing changed")
         assertEquals(
             "That folder does not hold Personal.kdbx.",
-            f.databases.folderGranted(old.id, "grant-keepass", StoragePlace("primary", "Sync/KeePass/Personal.kdbx")),
+            f.databases.folderGranted(old.id, "grant-keepass", StoragePlace("primary", "Sync/KeePass/Personal.kdbx")).englishOrNull(),
             "the file itself is no folder",
         )
 
@@ -988,7 +989,7 @@ class CurrentDatabaseTest {
     fun anOldRecordOffThePhonesStorageCannotBeGivenAFolder() = runTest {
         val f = Fixture(this)
         val odd = f.add("/a/Personal.kdbx")
-        assertEquals("Personal.kdbx is not on the phone's storage.", f.databases.folderGranted(odd.id, "grant-sync", sync))
+        assertEquals("Personal.kdbx is not on the phone's storage.", f.databases.folderGranted(odd.id, "grant-sync", sync).englishOrNull())
         assertEquals(FileLocation.ByPath("/a/Personal.kdbx"), f.list.record(odd.id)?.file)
     }
 
@@ -1002,7 +1003,7 @@ class CurrentDatabaseTest {
         assertEquals(2, f.list.records.size)
         assertEquals(
             "That file is already in the list as “Personal”.",
-            f.databases.locate(crypto.id, FileLocation.InFolder("grant-top", StoragePlace("primary", ""), "Sync/KeePass/Personal.kdbx")),
+            f.databases.locate(crypto.id, FileLocation.InFolder("grant-top", StoragePlace("primary", ""), "Sync/KeePass/Personal.kdbx")).englishOrNull(),
         )
         assertEquals(listOf("grant-keepass", "grant-top"), f.offered, "neither taken: both given back")
     }

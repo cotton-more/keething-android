@@ -1,6 +1,8 @@
 package dev.keething.vault.databases
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
+import dev.keething.vault.VaultText
 import dev.keething.vault.biometric.BiometricSetup
 import dev.keething.vault.biometric.BiometricUnlock
 import dev.keething.vault.creating.DerivedKey
@@ -101,10 +103,10 @@ public class CurrentDatabase(
      * new file's: open, it locks first (its vault was the old file's); locked, the old file's reason goes. Why not, when
      * that file is another database of the list.
      */
-    public fun locate(id: DatabaseId, file: FileLocation): String? {
+    public fun locate(id: DatabaseId, file: FileLocation): UserText? {
         file.grant?.let(offered)
         val other = list.records.firstOrNull { it.id != id && it.file.isSameFile(file) }
-        if (other != null) return "That file is already in the list as “${other.displayName}”."
+        if (other != null) return UserText.of(VaultText.LOCATE_IN_LIST_ALREADY, other.displayName)
         list.update(id) { it.copy(file = file) }
         adoptOldRecords()
         return null
@@ -164,12 +166,12 @@ public class CurrentDatabase(
      * folder of the list holds that one too. Every other old record the folder holds follows ([adoptOldRecords]). Its
      * session follows, as at [locate]. Why not, or null.
      */
-    public fun folderGranted(id: DatabaseId, grant: String, folder: StoragePlace): String? {
+    public fun folderGranted(id: DatabaseId, grant: String, folder: StoragePlace): UserText? {
         offered(grant)
-        val record = list.record(id) ?: return "That database is not in the list any more."
+        val record = list.record(id) ?: return UserText.of(VaultText.LOCATE_DATABASE_GONE)
         val before = record.file as? FileLocation.ByPath ?: return null
-        val place = before.place ?: return "${record.fileName} is not on the phone's storage."
-        val path = place.inside(folder)?.takeIf { it.isNotEmpty() } ?: return "That folder does not hold ${record.fileName}."
+        val place = before.place ?: return UserText.of(VaultText.LOCATE_NOT_ON_STORAGE, record.fileName)
+        val path = place.inside(folder)?.takeIf { it.isNotEmpty() } ?: return UserText.of(VaultText.LOCATE_FOLDER_LACKS_FILE, record.fileName)
         val file = FileLocation.InFolder(grant, folder, path)
         val keyFile = when (val key = record.keyFile) {
             is FileLocation.ByPath -> key.place?.let { list.inGrantedFolder(it, prefer = file) } ?: key
@@ -281,15 +283,15 @@ public class CurrentDatabase(
             isOpen = { id -> sessions.session(id)?.session?.state?.value is SessionState.Unlocked },
         ) { id, password ->
             if (locks() != began) return@UnlockRun UnlockRun.Attempt.Stopped
-            val database = sessions.session(id) ?: return@UnlockRun UnlockRun.Attempt.CannotOpen("closed")
+            val database = sessions.session(id) ?: return@UnlockRun UnlockRun.Attempt.CannotOpen(UserText.of(VaultText.WHY_CLOSED))
             // The session keeps its own copy: the typed one goes at once, not after the key derivation.
             // The chooser shows the list after it: a database never asked about the fingerprint is asked over it.
             val outcome = unlock(database, password, askFingerprint = true).also { password.wipe() }
-                ?: return@UnlockRun if (database.session.state.value is SessionState.Unlocked) UnlockRun.Attempt.Opened else UnlockRun.Attempt.CannotOpen("opening")
+                ?: return@UnlockRun if (database.session.state.value is SessionState.Unlocked) UnlockRun.Attempt.Opened else UnlockRun.Attempt.CannotOpen(UserText.of(VaultText.WHY_OPENING))
             val ended = outcome.await()
             when {
                 locks() != began -> UnlockRun.Attempt.Stopped
-                sessions.session(id) !== database -> UnlockRun.Attempt.CannotOpen("closed")
+                sessions.session(id) !== database -> UnlockRun.Attempt.CannotOpen(UserText.of(VaultText.WHY_CLOSED))
                 ended == UnlockOutcome.Opened -> UnlockRun.Attempt.Opened
                 ended is UnlockOutcome.Failed -> UnlockRun.Attempt.Failed(ended.failure)
                 else -> UnlockRun.Attempt.Stopped
@@ -298,12 +300,12 @@ public class CurrentDatabase(
     }
 
     /** Why typing cannot open [id] now: it is skipped by itself in the run; null: it can be asked. */
-    private fun whyTypingCannotOpen(id: DatabaseId, fileExists: (FileLocation) -> Boolean): String? {
-        val record = list.record(id) ?: return "not in the list"
-        if (!record.inWindow) return "closed"
-        if (sessions.session(id)?.session?.state?.value == SessionState.Unlocking) return "opening"
-        if (!fileExists(record.file)) return "not found"
-        record.keyFile?.takeUnless(fileExists)?.let { return "${it.fileName} not there" }
+    private fun whyTypingCannotOpen(id: DatabaseId, fileExists: (FileLocation) -> Boolean): UserText? {
+        val record = list.record(id) ?: return UserText.of(VaultText.WHY_NOT_IN_LIST)
+        if (!record.inWindow) return UserText.of(VaultText.WHY_CLOSED)
+        if (sessions.session(id)?.session?.state?.value == SessionState.Unlocking) return UserText.of(VaultText.WHY_OPENING)
+        if (!fileExists(record.file)) return UserText.of(VaultText.WHY_NOT_FOUND)
+        record.keyFile?.takeUnless(fileExists)?.let { return UserText.of(VaultText.WHY_KEY_FILE_NOT_THERE, it.fileName) }
         return null
     }
 }

@@ -96,7 +96,7 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
             val user = free.firstOrNull { name(it) in SSH_USER && !it.plainText.isNullOrBlank() }
             // A host alone could be a website's: an SSH login says so, by a port, a user, a key or "SSH" in its names.
             val says = port != null || user != null || SshKeyLocation.hasSettings(entry.attachments) ||
-                "ssh" in name(host) || SearchNormalizer.normalize(entry.displayTitle).contains("ssh")
+                "ssh" in name(host) || SearchNormalizer.normalize(entry.sortTitle).contains("ssh")
             if (!says) return null
             val types = linkedMapOf(host.name to FieldType.SSH_HOST)
             port?.let { types[it.name] = FieldType.SSH_PORT }

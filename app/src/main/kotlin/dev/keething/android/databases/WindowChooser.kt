@@ -2,7 +2,7 @@ package dev.keething.android.databases
 
 import dev.keething.android.session.Visit
 import dev.keething.android.ui.UiText
-import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.ui
 import dev.keething.domain.secret.Secret
 import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.biometric.WindowFingerprintResult
@@ -228,7 +228,7 @@ internal class WindowChooser(
         }
         mutableSkipped.value = result.skipped.toSet()
         skippedStates = result.skipped.associateWith(sessionState)
-        val notice = uiPlain(result.notice(label)) // core's words (T13b)
+        val notice = result.notice(label).ui()
         if (result.opened.isEmpty()) {
             mutableNote.value = notice
         } else {

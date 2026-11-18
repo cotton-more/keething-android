@@ -158,13 +158,17 @@ public data class RevealState(val revealed: Set<String> = emptySet()) {
          * "•••• •••• •••• 1111" "Hidden, ending 1111", "Visa •• 1111" "Visa, hidden, ending 1111". A text without a
          * dot is itself.
          */
-        public fun spoken(text: String): String {
+        public fun spoken(text: String): UserText {
             val first = text.indexOf('•')
-            if (first < 0) return text
-            val before = text.substring(0, first).trim()
+            if (first < 0) return UserText.plain(text)
+            val before = text.substring(0, first).trim().replaceFirstChar(Char::uppercase)
             val after = text.substring(text.lastIndexOf('•') + 1).trim()
-            val parts = listOfNotNull(before.ifEmpty { null }, "hidden", after.ifEmpty { null }?.let { "ending $it" })
-            return parts.joinToString(", ").replaceFirstChar(Char::uppercase)
+            return when {
+                before.isEmpty() && after.isEmpty() -> UserText.of(CardText.SPOKEN_HIDDEN)
+                before.isEmpty() -> UserText.of(CardText.SPOKEN_HIDDEN_ENDING, after)
+                after.isEmpty() -> UserText.of(CardText.SPOKEN_SHOWN_HIDDEN, before)
+                else -> UserText.of(CardText.SPOKEN_SHOWN_HIDDEN_ENDING, before, after)
+            }
         }
     }
 }

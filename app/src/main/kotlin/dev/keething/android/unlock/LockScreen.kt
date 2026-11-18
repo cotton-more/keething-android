@@ -409,7 +409,7 @@ internal fun LockScreen(
             val labels = screens?.lines.orEmpty().associate { it.id to it.label.full }
             val separator = stringResource(R.string.list_separator)
             RunBar(
-                step = run.step,
+                step = run.step.resolve(),
                 opened = run.opened.takeIf { it.isNotEmpty() }?.joinToString(separator) { labels[it].orEmpty() }
                     ?.let { stringResource(R.string.unlock_run_opened, it) },
                 segments = run.segments,
