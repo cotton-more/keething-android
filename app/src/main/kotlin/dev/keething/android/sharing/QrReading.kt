@@ -46,7 +46,7 @@ internal object QrReading {
      */
     fun texts(resolver: ContentResolver, uri: Uri): List<String> {
         val bytes = resolver.openInputStream(uri)?.use { it.readNBytes(MAX_BYTES + 1) } ?: error("no content")
-        require(bytes.size <= MAX_BYTES) { "too large" }
+        require(bytes.size <= MAX_BYTES) { "too large" } // not user text
         val bitmap = if (isSvg(bytes)) svgBitmap(bytes) else decoded(bytes)
         return try {
             texts(bitmap)

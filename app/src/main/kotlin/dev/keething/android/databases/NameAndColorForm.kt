@@ -1,5 +1,8 @@
 package dev.keething.android.databases
 
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.vault.databases.DatabaseRecord
 
@@ -24,25 +27,35 @@ internal data class NameAndColorForm(val fileName: String, val fileColor: String
     }
 
     /** Under the name: what it is called by (keething-spec databases.name-colour AC1). */
-    fun nameNote(name: String): String {
+    fun nameNote(name: String): UiText {
         val stem = databaseFile.substringBeforeLast('.').ifEmpty { databaseFile }
         return when {
-            name.isBlank() -> "Empty: it is called by its file name, $stem."
-            DatabaseRecord.nameFromFile(name) == null -> "“${name.trim()}” counts as no name: it is called by its file name, $stem."
-            else -> "Its file stays $databaseFile."
+            name.isBlank() -> uiText(R.string.databases_name_note_empty, stem)
+            DatabaseRecord.nameFromFile(name) == null -> uiText(R.string.databases_name_note_no_name, name.trim(), stem)
+            else -> uiText(R.string.databases_name_note_file, databaseFile)
         }
     }
 
     /** Under the colours. */
-    fun colorNote(color: Int?): String = when {
-        color == null -> "None: it takes a colour no other database has."
+    fun colorNote(color: Int?): UiText = when {
+        color == null -> uiText(R.string.databases_color_note_none)
         color == fileColorIndex && DatabaseRecord.colorFromFile(fileColor) != "#%06X".format(DatabasePalette.shades[color].dotLight) ->
-            "Its file's own colour, shown as the nearest of these; it stays as it is until another is chosen."
-        else -> "KeePassXC shows it beside the name."
+            uiText(R.string.databases_color_note_file)
+        else -> uiText(R.string.databases_color_note_shown)
     }
 
     companion object {
         /** The palette's colours by name, in its order, for a screen reader. */
-        val NAMES: List<String> = listOf("Teal", "Orange", "Green", "Purple", "Pink", "Indigo", "Brown", "Red", "Grey")
+        val NAMES: List<UiText> = listOf(
+            R.string.databases_color_teal,
+            R.string.databases_color_orange,
+            R.string.databases_color_green,
+            R.string.databases_color_purple,
+            R.string.databases_color_pink,
+            R.string.databases_color_indigo,
+            R.string.databases_color_brown,
+            R.string.databases_color_red,
+            R.string.databases_color_grey,
+        ).map { uiText(it) }
     }
 }

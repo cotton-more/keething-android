@@ -45,14 +45,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.ButtonLabel
@@ -88,7 +90,7 @@ internal fun PasswordGeneratorSheet(state: PasswordGeneratorState, use: Generato
                 .padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("Password generator", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.generator_title), style = MaterialTheme.typography.headlineSmall)
             KindChoice(state.options.kind) { state.change(state.options.copy(kind = it)) }
             Text(
                 colouredSecret(state.password),
@@ -113,26 +115,28 @@ internal fun PasswordGeneratorSheet(state: PasswordGeneratorState, use: Generato
 /** New password and the main button: side by side while both labels fit whole, else one above the other. */
 @Composable
 private fun Buttons(state: PasswordGeneratorState, use: GeneratorUse) {
-    val main = if (use is GeneratorUse.Copy) "Copy" else "Use this password"
+    val main = stringResource(if (use is GeneratorUse.Copy) R.string.generator_copy else R.string.generator_use)
+    val newLabel = stringResource(R.string.generator_new)
+    val useShort = stringResource(R.string.generator_use_short)
     val style = MaterialTheme.typography.labelLarge
     val measurer = rememberTextMeasurer()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         // Half the row, less the gap, the button's padding (24 dp a side) and an icon with its gap where there is one.
         val half = (maxWidth - 12.dp) / 2 - 48.dp
         val density = LocalDensity.current
-        val besideEachOther = listOf("New password" to true, main to (use is GeneratorUse.Copy)).all { (label, withIcon) ->
+        val besideEachOther = listOf(newLabel to true, main to (use is GeneratorUse.Copy)).all { (label, withIcon) ->
             val room = with(density) { (if (withIcon) half - 26.dp else half).toPx() }
             measurer.measure(label, style, maxLines = 1, softWrap = false).size.width <= room
         }
         val newButton = @Composable { modifier: Modifier ->
             OutlinedButton(onClick = state::regenerate, modifier) {
-                ButtonLabel("New password", Icons.Rounded.Refresh, iconSize = 18.dp, gap = 8.dp)
+                ButtonLabel(newLabel, Icons.Rounded.Refresh, iconSize = 18.dp, gap = 8.dp)
             }
         }
         val mainButton = @Composable { modifier: Modifier ->
             when (use) {
                 is GeneratorUse.IntoEntry -> Button(onClick = { use.use(state.password) }, modifier) {
-                    ButtonLabel(main, short = "Use it")
+                    ButtonLabel(main, short = useShort)
                 }
                 is GeneratorUse.Copy -> Button(onClick = { use.copy(state.password) }, modifier) {
                     ButtonLabel(main, Icons.Rounded.ContentCopy, iconSize = 18.dp, gap = 8.dp)
@@ -163,26 +167,26 @@ private fun KindChoice(kind: PasswordKind, onChoose: (PasswordKind) -> Unit) {
                 onClick = { onChoose(each) },
                 shape = SegmentedButtonDefaults.itemShape(i, kinds.size),
                 icon = {},
-                label = { FitText(each.title) },
+                label = { FitText(stringResource(each.title)) },
             )
         }
     }
 }
 
-private val PasswordKind.title: String
+private val PasswordKind.title: Int
     get() = when (this) {
-        PasswordKind.PIN -> "PIN"
-        PasswordKind.STRONG -> "Strong"
-        PasswordKind.MEMORABLE -> "Words"
-        PasswordKind.PASSPHRASE -> "Phrase"
+        PasswordKind.PIN -> R.string.generator_kind_pin
+        PasswordKind.STRONG -> R.string.generator_kind_strong
+        PasswordKind.MEMORABLE -> R.string.generator_kind_memorable
+        PasswordKind.PASSPHRASE -> R.string.generator_kind_passphrase
     }
 
 @Composable
 private fun StrengthLine(state: PasswordGeneratorState) {
     val (label, color) = when (state.strength) {
-        Strength.WEAK -> "weak" to MaterialTheme.colorScheme.error
-        Strength.FAIR -> "fair" to MaterialTheme.extraColors.warn
-        Strength.STRONG -> "strong" to MaterialTheme.colorScheme.primary
+        Strength.WEAK -> R.string.generator_strength_weak to MaterialTheme.colorScheme.error
+        Strength.FAIR -> R.string.generator_strength_fair to MaterialTheme.extraColors.warn
+        Strength.STRONG -> R.string.generator_strength_strong to MaterialTheme.colorScheme.primary
     }
     // With a large font the length goes to a line of its own rather than being broken up.
     FlowRow(
@@ -198,9 +202,11 @@ private fun StrengthLine(state: PasswordGeneratorState) {
         )
         val style = MaterialTheme.typography.bodySmall
         val muted = MaterialTheme.colorScheme.onSurfaceVariant
-        Text("${state.bits.roundToInt()} bits · $label", style = style, color = muted, maxLines = 1)
+        val bits = state.bits.roundToInt()
+        Text(pluralStringResource(R.plurals.generator_strength_bits, bits, bits, stringResource(label)), style = style, color = muted, maxLines = 1)
         Spacer(Modifier.weight(1f))
-        Text("${state.password.length} characters", style = style, color = muted, maxLines = 1)
+        val length = state.password.length
+        Text(pluralStringResource(R.plurals.generator_length_characters, length, length), style = style, color = muted, maxLines = 1)
     }
 }
 
@@ -211,11 +217,11 @@ private fun Options(state: PasswordGeneratorState) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (o.kind) {
             PasswordKind.PIN -> {
-                LengthSlider("Length", o.pinLength, GeneratorOptions.PIN_LENGTHS) { change(o.copy(pinLength = it)) }
-                Hint("For a device or a card that locks after a few wrong tries; too weak for anything else.")
+                LengthSlider(stringResource(R.string.generator_length), o.pinLength, GeneratorOptions.PIN_LENGTHS) { change(o.copy(pinLength = it)) }
+                Hint(stringResource(R.string.generator_pin_hint))
             }
             PasswordKind.STRONG -> {
-                LengthSlider("Length", o.strongLength, GeneratorOptions.STRONG_LENGTHS) { change(o.copy(strongLength = it)) }
+                LengthSlider(stringResource(R.string.generator_length), o.strongLength, GeneratorOptions.STRONG_LENGTHS) { change(o.copy(strongLength = it)) }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (cls in CharacterClass.entries) {
                         FilterChip(
@@ -234,26 +240,29 @@ private fun Options(state: PasswordGeneratorState) {
                 ) {
                     Checkbox(checked = o.excludeLookAlikes, onCheckedChange = null, modifier = Modifier.padding(12.dp))
                     // One paragraph, so a large font wraps it as words; the look-alikes stay together on one line.
+                    val lookAlikes = "0 O o 1 l I |".replace(' ', '\u00A0')
+                    val line = stringResource(R.string.generator_leave_out_look_alikes, lookAlikes)
+                    val at = line.indexOf(lookAlikes)
                     Text(
                         buildAnnotatedString {
-                            append("Leave out look-alikes ")
-                            withStyle(SpanStyle(fontFamily = MonospaceFamily)) { append("0 O o 1 l I |".replace(' ', '\u00A0')) }
+                            append(line)
+                            if (at >= 0) addStyle(SpanStyle(fontFamily = MonospaceFamily), at, at + lookAlikes.length)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }
             PasswordKind.MEMORABLE -> {
-                Stepper("Words", o.memorableWords, GeneratorOptions.MEMORABLE_WORDS) { change(o.copy(memorableWords = it)) }
-                Stepper("Digits", o.memorableDigits, GeneratorOptions.MEMORABLE_EXTRAS) { change(o.copy(memorableDigits = it)) }
-                Stepper("Symbols", o.memorableSymbols, GeneratorOptions.MEMORABLE_EXTRAS) { change(o.copy(memorableSymbols = it)) }
-                Hint("Each word in Capitals or in CAPITALS, joined by digits and symbols.")
+                Stepper(stringResource(R.string.generator_words), o.memorableWords, GeneratorOptions.MEMORABLE_WORDS) { change(o.copy(memorableWords = it)) }
+                Stepper(stringResource(R.string.generator_digits), o.memorableDigits, GeneratorOptions.MEMORABLE_EXTRAS) { change(o.copy(memorableDigits = it)) }
+                Stepper(stringResource(R.string.generator_symbols), o.memorableSymbols, GeneratorOptions.MEMORABLE_EXTRAS) { change(o.copy(memorableSymbols = it)) }
+                Hint(stringResource(R.string.generator_memorable_hint))
             }
             PasswordKind.PASSPHRASE -> {
-                Stepper("Words", o.passphraseWords, GeneratorOptions.PASSPHRASE_WORDS) { change(o.copy(passphraseWords = it)) }
+                Stepper(stringResource(R.string.generator_words), o.passphraseWords, GeneratorOptions.PASSPHRASE_WORDS) { change(o.copy(passphraseWords = it)) }
                 // The label above the choice, so that "space" has room with a large font.
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Between words", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.generator_between_words), style = MaterialTheme.typography.bodyLarge)
                     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                         GeneratorOptions.SEPARATORS.forEachIndexed { i, separator ->
                             SegmentedButton(
@@ -261,12 +270,12 @@ private fun Options(state: PasswordGeneratorState) {
                                 onClick = { change(o.copy(separator = separator)) },
                                 shape = SegmentedButtonDefaults.itemShape(i, GeneratorOptions.SEPARATORS.size),
                                 icon = {},
-                                label = { FitText(if (separator == " ") "space" else separator) },
+                                label = { FitText(if (separator == " ") stringResource(R.string.generator_separator_space) else separator) },
                             )
                         }
                     }
                 }
-                Hint("Lowercase words only: easy to type on a phone or a TV, good for a master password.")
+                Hint(stringResource(R.string.generator_passphrase_hint))
             }
         }
     }
@@ -300,11 +309,11 @@ private fun Stepper(label: String, value: Int, range: IntRange, onChange: (Int) 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         IconButton(onClick = { onChange(value - 1) }, enabled = value > range.first) {
-            Icon(Icons.Rounded.Remove, contentDescription = "Fewer")
+            Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.generator_fewer))
         }
         Text("$value", Modifier.widthIn(min = 28.dp), style = MaterialTheme.typography.titleMedium, fontFamily = MonospaceFamily, textAlign = TextAlign.Center)
         IconButton(onClick = { onChange(value + 1) }, enabled = value < range.last) {
-            Icon(Icons.Rounded.Add, contentDescription = "More")
+            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.generator_more))
         }
     }
 }

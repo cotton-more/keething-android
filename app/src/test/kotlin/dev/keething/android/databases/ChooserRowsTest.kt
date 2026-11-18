@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.english
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.vault.Vault
 import dev.keething.vault.biometric.BiometricState
@@ -66,7 +67,7 @@ class ChooserRowsTest {
         assertEquals(listOf("Personal", "Work", "Solo", "Family", "Crypto", "Taxes", "Club"), rows.map { it.line.name }, "the window's, in its order")
         assertEquals(
             listOf("Fingerprint", "Password + work.keyx", "Key file solo.keyx", "Fingerprint to set up", "Not found", "taxes.keyx not there", "Password"),
-            rows.map { it.opensWith },
+            rows.map { it.opensWith.english() },
         )
         assertEquals(
             listOf(ChooserRow.Tone.READY, ChooserRow.Tone.PLAIN, ChooserRow.Tone.PLAIN, ChooserRow.Tone.WARNING, ChooserRow.Tone.PROBLEM, ChooserRow.Tone.PROBLEM, ChooserRow.Tone.PLAIN),
@@ -76,16 +77,16 @@ class ChooserRowsTest {
         assertEquals(listOf(true, true, true, true, false, false, false), rows.map { it.isChecked }, "checked unless unchecked; not what cannot be")
         assertEquals(listOf(false, false, false, false, true, false, false), rows.map { it.offersLocate })
         assertTrue(ChooserRows.offersFingerprint(rows))
-        assertEquals("Unlock 4 databases", ChooserRows.unlockTitle(rows))
+        assertEquals("Unlock 4 databases", ChooserRows.unlockTitle(rows).english())
         assertEquals(listOf("Personal", "Work", "Solo", "Family"), ChooserRows.checked(rows).map { it.value })
-        assertEquals("7 databases · scroll for the rest", ChooserRows.countText(rows))
+        assertEquals("7 databases · scroll for the rest", ChooserRows.countText(rows)?.english())
     }
 
     @Test
     fun theUnlockButtonSaysHowManyAndTheListScrollsPastFive() {
         val one = listOf(row(checked = true), row(line = line("Club"), checked = false))
-        assertEquals("Unlock 1 database", ChooserRows.unlockTitle(one))
-        assertEquals("Unlock", ChooserRows.unlockTitle(listOf(row(checked = false))))
+        assertEquals("Unlock 1 database", ChooserRows.unlockTitle(one).english())
+        assertEquals("Unlock", ChooserRows.unlockTitle(listOf(row(checked = false))).english())
         assertNull(ChooserRows.countText(List(5) { row(line = line("D$it")) }), "five show whole")
         assertFalse(ChooserRows.offersFingerprint(one), "no fingerprint opens either")
     }
@@ -93,44 +94,44 @@ class ChooserRowsTest {
     // spec: databases.chooser/AC4
     @Test
     fun aDatabaseThatFailedSoTypingCannotOpenItCannotBeChecked() {
-        assertEquals("Cannot be read", row(failed(OpenFailure.Damaged("truncated"))).opensWith)
+        assertEquals("Cannot be read", row(failed(OpenFailure.Damaged("truncated"))).opensWith.english())
         assertFalse(row(failed(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT))).canCheck)
         val unusable = row(failed(OpenFailure.KeyFileUnusable("it is empty")), line("Work", keyFile = "work.keyx"))
-        assertEquals("work.keyx cannot be used", unusable.opensWith)
+        assertEquals("work.keyx cannot be used", unusable.opensWith.english())
         assertFalse(unusable.canCheck)
-        assertEquals("Password", row(failed(OpenFailure.WrongPassword)).opensWith, "a typo is typed again")
+        assertEquals("Password", row(failed(OpenFailure.WrongPassword)).opensWith.english(), "a typo is typed again")
     }
 
     // spec: databases.chooser/AC3
     @Test
     fun theFingerprintsStatesOpenAndOpeningOnes() {
-        assertEquals("Fingerprint to set up again", row(fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.PASSWORD_REJECTED)).opensWith)
-        assertEquals("Fingerprint to set up again", row(fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.FINGERPRINTS_CHANGED)).opensWith)
-        assertEquals("Fingerprint to set up", row(fingerprint = on.copy(stored = false)).opensWith)
+        assertEquals("Fingerprint to set up again", row(fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.PASSWORD_REJECTED)).opensWith.english())
+        assertEquals("Fingerprint to set up again", row(fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.FINGERPRINTS_CHANGED)).opensWith.english())
+        assertEquals("Fingerprint to set up", row(fingerprint = on.copy(stored = false)).opensWith.english())
         assertEquals(ChooserRow.Tone.WARNING, row(fingerprint = on.copy(stored = false)).tone)
-        assertEquals("Fingerprint", row(fingerprint = on.copy(stored = false, passwordless = true), line = line("Solo", keyFile = "solo.keyx")).opensWith)
-        assertEquals("Password", row(fingerprint = on.copy(availability = BiometricAvailability.Unavailable("no sensor"))).opensWith, "the phone cannot")
-        assertEquals("Password", row(fingerprint = on.copy(appEnabled = false)).opensWith, "the app's switch off")
+        assertEquals("Fingerprint", row(fingerprint = on.copy(stored = false, passwordless = true), line = line("Solo", keyFile = "solo.keyx")).opensWith.english())
+        assertEquals("Password", row(fingerprint = on.copy(availability = BiometricAvailability.Unavailable("no sensor"))).opensWith.english(), "the phone cannot")
+        assertEquals("Password", row(fingerprint = on.copy(appEnabled = false)).opensWith.english(), "the app's switch off")
 
         val opening = row(SessionState.Unlocking, checked = true)
-        assertEquals("Opening…", opening.opensWith)
+        assertEquals("Opening…", opening.opensWith.english())
         assertFalse(opening.canCheck || opening.isChecked, "opening already: not offered")
         val open = row(SessionState.Unlocked(Vault(emptyList())))
-        assertEquals("Open", open.opensWith)
+        assertEquals("Open", open.opensWith.english())
         assertFalse(open.canCheck)
     }
 
     // spec: databases.chooser/AC2
     @Test
     fun whatTheChooserSaysWhenTheFingerprintOpenedNone() {
-        assertEquals("The fingerprint was cancelled.", ChooserRows.note(FingerprintOutcome.Cancelled))
-        assertEquals("The fingerprint failed: Too many attempts. Try again later.", ChooserRows.note(FingerprintOutcome.AuthenticationFailed("Too many attempts. Try again later.")))
-        assertEquals("The fingerprint failed: sensor error.", ChooserRows.note(FingerprintOutcome.AuthenticationFailed("sensor error")))
+        assertEquals("The fingerprint was cancelled.", ChooserRows.note(FingerprintOutcome.Cancelled)?.english())
+        assertEquals("The fingerprint failed: Too many attempts. Try again later.", ChooserRows.note(FingerprintOutcome.AuthenticationFailed("Too many attempts. Try again later."))?.english())
+        assertEquals("The fingerprint failed: sensor error.", ChooserRows.note(FingerprintOutcome.AuthenticationFailed("sensor error"))?.english())
         assertEquals(
             "The fingerprints on this phone changed: type the passwords to set up the fingerprint again.",
-            ChooserRows.note(FingerprintOutcome.KeyInvalidated),
+            ChooserRows.note(FingerprintOutcome.KeyInvalidated)?.english(),
         )
-        assertEquals("Could not read the stored passwords: the Keystore did not open the keyring.", ChooserRows.note(FingerprintOutcome.StorageError("the Keystore did not open the keyring")))
+        assertEquals("Could not read the stored passwords: the Keystore did not open the keyring.", ChooserRows.note(FingerprintOutcome.StorageError("the Keystore did not open the keyring"))?.english())
         // Each database's row says its own: its fingerprint off, its password rejected, nothing stored.
         for (outcome in listOf(
             FingerprintOutcome.Unlocked, FingerprintOutcome.InProgress, FingerprintOutcome.NothingStored,

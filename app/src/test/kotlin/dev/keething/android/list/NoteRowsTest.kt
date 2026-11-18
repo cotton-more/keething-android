@@ -29,7 +29,7 @@ class NoteRowsTest {
         Entry("i", title = "Imported", notes = "Dune\nArrival"),
         Entry("o", title = "Ordinary", username = "octocat", notes = "Films"),
     )
-    private val listing = VaultListing(Vault(entries = entries), Instant.parse("2026-11-01T08:00:00Z"), Collator.getInstance(Locale.ENGLISH))
+    private val listing = VaultListing(Vault(entries = entries), Instant.parse("2026-11-01T08:00:00Z"), Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
 
     private fun row(id: String) = listing.sections("", recentIds = emptyList()).flatMap { it.rows }.single { it.id == id }
 

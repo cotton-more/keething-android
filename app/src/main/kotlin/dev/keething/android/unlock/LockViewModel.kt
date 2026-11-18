@@ -146,6 +146,6 @@ internal class LockViewModel(
     }
 
     private companion object {
-        const val TAG = "Lock"
+        const val TAG = "Lock" // not user text
     }
 }

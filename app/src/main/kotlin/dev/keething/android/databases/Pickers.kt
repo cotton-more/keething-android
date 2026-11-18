@@ -18,11 +18,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import dev.keething.android.storage.PersistedGrants
 import dev.keething.android.storage.ProviderFolder
 import dev.keething.android.storage.StoragePlaces
 import dev.keething.domain.storage.StoragePlace
 import dev.keething.vault.databases.FileLocation
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 
 /**
  * The system's folder picker, opening at a place (keething-spec databases.saf AC2): the folder chosen is granted for good
@@ -33,6 +36,7 @@ import dev.keething.vault.databases.FileLocation
 @Composable
 internal fun rememberFolderPicker(onCancelled: () -> Unit = {}, onPicked: (ProviderFolder) -> Unit): (start: StoragePlace?) -> Unit {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val picked = rememberUpdatedState(onPicked)
     val cancelled = rememberUpdatedState(onCancelled)
     var said by rememberSaveable { mutableStateOf<String?>(null) }
@@ -40,7 +44,7 @@ internal fun rememberFolderPicker(onCancelled: () -> Unit = {}, onPicked: (Provi
         if (uri == null) return@rememberLauncherForActivityResult cancelled.value()
         val folder = ProviderFolder.of(context.contentResolver, uri.toString())
         if (folder == null) {
-            said = NOT_THE_PHONES_STORAGE
+            said = resources.getString(R.string.databases_picker_not_phone_storage)
             return@rememberLauncherForActivityResult
         }
         said = context.take(uri, write = true)
@@ -58,13 +62,14 @@ internal fun rememberFolderPicker(onCancelled: () -> Unit = {}, onPicked: (Provi
 @Composable
 internal fun rememberKeyFilePicker(onPicked: (FileLocation.Granted) -> Unit): (start: StoragePlace?) -> Unit {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val picked = rememberUpdatedState(onPicked)
     var said by rememberSaveable { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(PickFile) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val place = StoragePlaces.ofDocument(uri)
         if (place == null) {
-            said = NOT_THE_PHONES_STORAGE
+            said = resources.getString(R.string.databases_picker_not_phone_storage)
             return@rememberLauncherForActivityResult
         }
         said = context.take(uri, write = false)
@@ -74,18 +79,13 @@ internal fun rememberKeyFilePicker(onPicked: (FileLocation.Granted) -> Unit): (s
     return { start -> launcher.launch(start) }
 }
 
-/** What Keething opens, said when a picker gave another app's folder or file (keething-spec databases.saf AC12). */
-private const val NOT_THE_PHONES_STORAGE =
-    "Keething opens files on this phone's storage and its card only. Keep the database in a folder that Syncthing, " +
-        "FolderSync or the cloud app's own offline folder keeps in sync, and choose that."
-
 /** What a picker's choice came to, in full until OK: a toast is cut at two lines. */
 @Composable
 private fun PickerSaid(text: String, onOk: () -> Unit) {
     AlertDialog(
         onDismissRequest = onOk,
         text = { Text(text) },
-        confirmButton = { TextButton(onClick = onOk) { Text("OK") } },
+        confirmButton = { TextButton(onClick = onOk) { Text(stringResource(R.string.databases_ok)) } },
     )
 }
 
@@ -95,7 +95,7 @@ private fun Context.take(uri: Uri, write: Boolean): String? = try {
     null
 } catch (failure: SecurityException) {
     Log.w("Grants", "a grant could not be kept: ${failure.javaClass.simpleName}")
-    "Android did not let Keething keep its access to that place. Choose it again."
+    getString(R.string.databases_picker_not_kept)
 }
 
 /** Open document tree, starting at a place. */

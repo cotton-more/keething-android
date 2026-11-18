@@ -75,14 +75,14 @@ internal class FileDatabaseBackups(
 
     @Synchronized
     private fun write(fileName: String, at: Instant, beforeRestoring: Boolean = false, writing: (DigestOutputStream) -> Unit): File {
-        if (!folder.isDirectory && !folder.mkdirs()) throw IOException("backup folder")
+        if (!folder.isDirectory && !folder.mkdirs()) throw IOException("backup folder") // not user text
         val stem = fileName.substringBeforeLast('.')
         val stamp = STAMP.format(at.atZone(zone))
         // Two saves within a second (a new entry, then deleting it): "_2", "_3"… sort after the first. After the last one
         // there is, not in a gap the pruning left: that name would sort first and go at once. Marked or not, one number.
         val numbers = listOf("") + (2..99).map { "_$it" }
         val taken = numbers.indexOfLast { File(folder, "$stem $stamp$it.kdbx").exists() || File(folder, "$stem $stamp$it$MARK.kdbx").exists() }
-        val number = numbers.getOrNull(taken + 1) ?: throw IOException("backup: too many saves within a second")
+        val number = numbers.getOrNull(taken + 1) ?: throw IOException("backup: too many saves within a second") // not user text
         val target = File(folder, "$stem $stamp$number${if (beforeRestoring) MARK else ""}.kdbx")
         kept = target
         keptDigest = null
@@ -176,7 +176,7 @@ internal class FileDatabaseBackups(
             digests()[name] = Digest(bytes.size.toLong(), sha256)
             writeDigests()
         } else if (known.size != bytes.size.toLong() || !MessageDigest.isEqual(known.sha256, sha256)) {
-            throw BackupDamagedException("$name is not the copy kept")
+            throw BackupDamagedException("$name is not the copy kept") // not user text
         }
         return bytes
     }
@@ -280,10 +280,10 @@ internal class FileDatabaseBackups(
         internal const val DIGESTS = ".sha256"
 
         /** What a copy's name ends with before `.kdbx` when it is the file before a restore. */
-        private const val MARK = " (before restoring)"
+        private const val MARK = " (before restoring)" // not user text
 
         private val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH-mm-ss")
-        private val BACKUP = Regex(".* ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2})(?:_([2-9]|[1-9][0-9]))?( \\(before restoring\\))?\\.kdbx")
+        private val BACKUP = Regex(".* ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2})(?:_([2-9]|[1-9][0-9]))?( \\(before restoring\\))?\\.kdbx") // not user text
 
         /**
          * A backup's name, `<name> 2026-10-26T14-03-22.kdbx` or `…_2.kdbx`, either with ` (before restoring)` before

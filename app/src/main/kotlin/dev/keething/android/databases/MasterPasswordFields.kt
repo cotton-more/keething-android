@@ -6,6 +6,11 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.generator.PasswordGenerator
 import dev.keething.generator.PasswordStrength
 import dev.keething.generator.RandomSource
@@ -21,7 +26,7 @@ internal class MasterPasswordFields(private val random: RandomSource, private va
     enum class Match { MATCHES, DIFFERS }
 
     /** The strength line: 0–4 segments lit, the words, and the verdict. */
-    data class StrengthLine(val level: Int, val text: String, val verdict: Strength)
+    data class StrengthLine(val level: Int, val text: UiText, val verdict: Strength)
 
     val password = TextFieldState()
     val again = TextFieldState()
@@ -55,25 +60,25 @@ internal class MasterPasswordFields(private val random: RandomSource, private va
             if (typed.isEmpty()) return null
             if (used != null && used == typed) {
                 val bits = PasswordGenerator.masterPassphraseEntropy(usedWords)
-                return StrengthLine(if (bits >= 80) 4 else 3, "Strong · $usedWords words, about ${bits.toInt()} bits", Strength.STRONG)
+                return StrengthLine(if (bits >= 80) 4 else 3, uiPlural(R.plurals.databases_strength_passphrase, usedWords, usedWords, bits.toInt()), Strength.STRONG)
             }
             val estimate = PasswordStrength.estimate(typed, context())
             return when (estimate.verdict) {
                 Strength.WEAK -> StrengthLine(
                     1,
-                    "Weak: ${estimate.reasons.firstOrNull() ?: "easy to guess"}. Anyone with the file can try passwords against it.",
+                    uiText(R.string.databases_strength_weak, estimate.reasons.firstOrNull()?.let(::uiPlain) ?: uiText(R.string.databases_strength_weak_reason)),
                     Strength.WEAK,
                 )
-                Strength.FAIR -> StrengthLine(2, "Fair: ${estimate.reasons.firstOrNull() ?: "could be longer"}", Strength.FAIR)
-                Strength.STRONG -> StrengthLine(if (estimate.bits >= 80) 4 else 3, "Strong", Strength.STRONG)
+                Strength.FAIR -> StrengthLine(2, uiText(R.string.databases_strength_fair, estimate.reasons.firstOrNull()?.let(::uiPlain) ?: uiText(R.string.databases_strength_fair_reason)), Strength.FAIR)
+                Strength.STRONG -> StrengthLine(if (estimate.bits >= 80) 4 else 3, uiText(R.string.databases_strength_strong), Strength.STRONG)
             }
         }
 
     /** Why the two fields cannot be taken yet; null when they can. */
-    val blocker: String?
+    val blocker: UiText?
         get() = when {
-            password.text.isEmpty() -> "Type a master password."
-            match != Match.MATCHES -> if (again.text.isEmpty()) "Type the password again." else "The two passwords differ."
+            password.text.isEmpty() -> uiText(R.string.databases_password_blocker_empty)
+            match != Match.MATCHES -> uiText(if (again.text.isEmpty()) R.string.databases_password_blocker_again else R.string.databases_password_blocker_differ)
             else -> null
         }
 

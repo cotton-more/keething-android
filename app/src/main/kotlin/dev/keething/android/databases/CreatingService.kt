@@ -24,10 +24,10 @@ internal class CreatingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Creating a database", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.databases_creating_channel), NotificationManager.IMPORTANCE_LOW))
         val notification = Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
-            .setContentTitle("Creating a database…")
+            .setContentTitle(getString(R.string.databases_creating_title))
             .setOngoing(true)
             .build()
         try {
@@ -56,7 +56,7 @@ internal class CreatingService : Service() {
     }
 
     companion object {
-        private const val TAG = "Creating"
+        private const val TAG = "Creating" // not user text
         private const val CHANNEL = "creating"
         private const val ID = 7
 

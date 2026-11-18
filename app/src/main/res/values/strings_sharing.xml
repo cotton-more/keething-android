@@ -1,0 +1,432 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Said on several sharing screens -->
+    <string name="sharing_close">Close</string>
+    <string name="sharing_back">Back</string>
+    <string name="sharing_done">Done</string>
+    <string name="sharing_ok">OK</string>
+    <string name="sharing_delete">Delete</string>
+    <string name="sharing_keep_it">Keep it</string>
+    <string name="sharing_not_now">Not now</string>
+    <string name="sharing_paste">Paste</string>
+    <string name="sharing_copy">Copy</string>
+    <string name="sharing_search">Search</string>
+    <string name="sharing_ask_for_entry">Ask for an entry</string>
+    <string name="sharing_read_a_code">Read a code</string>
+    <string name="sharing_choose_entries">Choose entries</string>
+    <string name="sharing_delete_request">Delete the request</string>
+    <string name="sharing_tap_again">Tap them again</string>
+    <string name="sharing_top_level">Top level</string>
+    <!-- %1$s: a person's name, as they gave it -->
+    <string name="sharing_for">For %1$s</string>
+    <!-- %1$s: a person's name, as they gave it -->
+    <string name="sharing_from">From %1$s</string>
+    <!-- Two parts of a row's line: %1$s a name or the entries' titles, %2$s when it expires ("expires in 2 days") -->
+    <string name="sharing_two_parts">%1$s · %2$s</string>
+    <string name="sharing_no_app">No app can take it</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="sharing_picture_not_made">Could not make the picture: %1$s</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="sharing_picture_not_saved">Could not save the picture: %1$s</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="sharing_pictures_not_saved">Could not save the pictures: %1$s</string>
+    <string name="sharing_saved_to_pictures">Saved to Pictures › Keething</string>
+    <string name="sharing_send_picture">Send the picture</string>
+    <plurals name="sharing_send_pictures">
+        <item quantity="one">Send the picture</item>
+        <item quantity="other">Send the %1$d pictures</item>
+    </plurals>
+    <string name="sharing_send_as_text">Send as text</string>
+    <string name="sharing_send_as_text_short">As text</string>
+    <string name="sharing_save_picture">Save picture</string>
+    <plurals name="sharing_save_pictures">
+        <item quantity="one">Save picture</item>
+        <item quantity="other">Save pictures</item>
+    </plurals>
+    <string name="sharing_save_short">Save</string>
+    <string name="sharing_too_large_title">Too large for QR codes</string>
+    <string name="sharing_too_large_text">Send it as text: a messenger or mail carries it whole.</string>
+    <string name="sharing_previous_code">Previous code</string>
+    <string name="sharing_next_code">Next code</string>
+    <!-- %1$d: the code shown, %2$d: how many there are -->
+    <string name="sharing_code_of">Code %1$d of %2$d</string>
+    <!-- %1$s: the names of the pictures, in order -->
+    <string name="sharing_pictures_description">The pictures: %1$s</string>
+    <string name="sharing_checked">Checked</string>
+    <string name="sharing_check_first">Check first</string>
+    <string name="sharing_not_here_title">Not for a request on this phone</string>
+    <string name="sharing_not_here_text">It answers a request that was closed, expired, or made on another phone. Ask again.</string>
+    <string name="sharing_own_entries_title">These are your own</string>
+    <string name="sharing_own_entries_text">This phone sent these entries. Send the code to the one they are for.</string>
+    <string name="sharing_expired_entries_title">These entries have expired</string>
+    <string name="sharing_bad_dates_title">The dates are wrong</string>
+    <string name="sharing_bad_dates_text">It says it was made later than now, or lasts longer than a week. Check both phones\' clocks, or ask for it again.</string>
+    <string name="sharing_saved_already_title">Saved already</string>
+
+    <!-- What a request, an answer or an envelope says when it is sent (SharingTexts) -->
+    <!-- %1$s: the asker's name, %2$s: what for, %3$s: the code itself -->
+    <string name="sharing_message_request">%1$s asks for “%2$s” with Keething. To answer: Keething › Sharing › Read a code › Paste, then ask %1$s by a call which six pictures the request shows.\n\n%3$s</string>
+    <!-- %1$s: what the request was for, %2$s: the code itself -->
+    <string name="sharing_message_answer">An answer to your Keething request “%1$s”: Keething › Sharing › Read a code › Paste.\n\n%2$s</string>
+    <!-- %1$s: the sender's name, %2$s: the code itself -->
+    <string name="sharing_message_envelope">%1$s sent you entries with Keething. To open them: Keething › Sharing › Read a code › Paste, then tap the ten pictures %1$s gives you another way.\n\n%2$s</string>
+    <!-- %1$s: the first five pictures, %2$s: the last five (emoji and name each) -->
+    <string name="sharing_message_pictures">The ten pictures that open the Keething entries I sent you:\n%1$s\n%2$s\nIn Keething, after reading the code: Paste the pictures.</string>
+    <!-- Under a code's picture. %1$s: the asker's name -->
+    <string name="sharing_caption_request">Keething · %1$s asks for</string>
+    <!-- %1$s: what the request was for -->
+    <string name="sharing_caption_answer">Keething · answer to “%1$s”</string>
+    <string name="sharing_caption_answer_single">Only the asking phone opens it</string>
+    <!-- %1$s: the sender's name -->
+    <string name="sharing_caption_envelope">Keething · entries from %1$s</string>
+    <!-- %1$s: the sender's name -->
+    <string name="sharing_caption_envelope_single">Opens with the ten pictures %1$s gives you</string>
+    <!-- %1$d: this code, %2$d: how many there are -->
+    <string name="sharing_caption_part">Code %1$d of %2$d: all are needed</string>
+    <string name="sharing_titles_none">Entries</string>
+    <!-- %1$s: the first entry's title, %2$d: how many more -->
+    <plurals name="sharing_titles_more">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
+    <string name="sharing_expired">expired</string>
+    <plurals name="sharing_expires_minutes">
+        <item quantity="one">expires in %1$d min</item>
+        <item quantity="other">expires in %1$d min</item>
+    </plurals>
+    <plurals name="sharing_expires_hours">
+        <item quantity="one">expires in %1$d h</item>
+        <item quantity="other">expires in %1$d h</item>
+    </plurals>
+    <plurals name="sharing_expires_days">
+        <item quantity="one">expires in %1$d day</item>
+        <item quantity="other">expires in %1$d days</item>
+    </plurals>
+    <!-- %1$s: the time, as the phone writes it -->
+    <string name="sharing_today">today %1$s</string>
+    <!-- %1$s: the time, as the phone writes it -->
+    <string name="sharing_yesterday">yesterday %1$s</string>
+
+    <!-- Sharing (SharingScreen) -->
+    <string name="sharing_title">Sharing</string>
+    <plurals name="sharing_subtitle">
+        <item quantity="one">Encrypted for one phone · requests last %1$d day</item>
+        <item quantity="other">Encrypted for one phone · requests last %1$d days</item>
+    </plurals>
+    <string name="sharing_back_to_list">Back to the list</string>
+    <string name="sharing_send_without">Send entries without a request</string>
+    <string name="sharing_ask_short">Ask</string>
+    <string name="sharing_lost_title">Saved requests could not be read</string>
+    <string name="sharing_lost_text">This phone started its requests and envelopes again. If you were waiting for an answer, ask for it again.</string>
+    <string name="sharing_to_answer">To answer</string>
+    <string name="sharing_waiting">Waiting for an answer</string>
+    <string name="sharing_sent_kept">Sent, pictures kept</string>
+    <!-- %1$s: when it was asked ("today 11:40"), %2$s: when it expires ("expires in 2 days") -->
+    <string name="sharing_row_asked">Asked %1$s · %2$s</string>
+    <!-- %1$s: whom for, %2$s: when it was sent ("today 11:40"), %3$s: when it expires ("expires in 2 days") -->
+    <string name="sharing_row_sent_for">For %1$s · sent %2$s · %3$s</string>
+    <!-- %1$s: when it was sent ("today 11:40"), %2$s: when it expires ("expires in 2 days") -->
+    <string name="sharing_row_sent">Sent %1$s · %2$s</string>
+    <string name="sharing_empty_title">Nothing to answer, nothing waiting</string>
+    <string name="sharing_empty_text">To get an entry, ask for it: the answer comes back as a code only this phone can open. To give one, read the code of someone\'s request, or send it without one: it opens with ten pictures you give another way.</string>
+
+    <!-- Ask for an entry (AskScreen) -->
+    <!-- %1$s: why, as the system says it -->
+    <string name="sharing_ask_not_kept">The request could not be kept on this phone: %1$s.</string>
+    <string name="sharing_ask_create">Create the request</string>
+    <string name="sharing_ask_subtitle">The one you ask answers with a code that only this phone can open.</string>
+    <string name="sharing_ask_name">Your name</string>
+    <string name="sharing_ask_name_hint">As they know you</string>
+    <string name="sharing_ask_reason">What for</string>
+    <string name="sharing_ask_reason_hint">e.g. Netflix for the TV</string>
+    <string name="sharing_ask_public">Both go with the request as they are: whoever carries it can read them. Keep secrets out of them.</string>
+    <plurals name="sharing_ask_valid">
+        <item quantity="one">Valid for %1$d day, then this phone forgets its key and the answer can no longer be opened. Settings › Sharing changes how long.</item>
+        <item quantity="other">Valid for %1$d days, then this phone forgets its key and the answer can no longer be opened. Settings › Sharing changes how long.</item>
+    </plurals>
+
+    <!-- Your request (MyRequestScreen) -->
+    <string name="sharing_my_delete_title">Delete the request?</string>
+    <string name="sharing_my_delete_text">This phone forgets its key: an answer to it can no longer be opened.</string>
+    <string name="sharing_my_title">Your request</string>
+    <string name="sharing_my_qr">QR code of the request</string>
+    <!-- %1$s: when it expires, as the phone writes a day and time -->
+    <string name="sharing_my_in_person">In person: let them scan this screen · expires %1$s</string>
+    <string name="sharing_my_pictures">Your pictures</string>
+    <string name="sharing_my_pictures_text">Whoever answers will ask you to read these out, in this order, and taps them on their phone. Tell them by a call or in person, never in the chat that carries the code: if they do not match there, the code was swapped on the way.</string>
+
+    <!-- A request someone sent (TheirRequestScreen) -->
+    <string name="sharing_their_differ">They really differ · delete it</string>
+    <!-- %1$s: when it was read ("today 11:40"), %2$s: when it expires ("expires in 2 days") -->
+    <string name="sharing_their_read">Read %1$s · %2$s</string>
+    <!-- %1$s: the asker's name -->
+    <string name="sharing_their_asks">%1$s asks for</string>
+    <string name="sharing_their_check">Check the pictures</string>
+    <!-- %1$s: the asker's name -->
+    <string name="sharing_their_checked">The six %1$s read out are this request\'s own.</string>
+    <!-- %1$s: the asker's name -->
+    <string name="sharing_their_call">Call %1$s or ask in person, not in the chat the code came through. Ask them to read out the six pictures their phone shows, and tap them below in that order. In person: tap what their screen shows.</string>
+    <string name="sharing_their_mismatch">These are not this request\'s pictures. A picture misheard? Tap them again. If they really differ, the request was swapped on the way: delete it.</string>
+    <string name="sharing_take_back">Take the last picture back</string>
+    <!-- %1$d: the place, from 1 -->
+    <string name="sharing_place_empty">Picture %1$d, not tapped yet</string>
+
+    <!-- Choose entries (ChooseEntriesScreen) -->
+    <plurals name="sharing_choose_full">
+        <item quantity="one">One code holds at most %1$d entries. Send the rest in another one.</item>
+        <item quantity="other">One code holds at most %1$d entries. Send the rest in another one.</item>
+    </plurals>
+    <!-- %1$s: the asker's name, %2$s: what for -->
+    <string name="sharing_choose_for">for %1$s · %2$s</string>
+    <string name="sharing_choose_without">to send without a request</string>
+    <string name="sharing_next">Next</string>
+    <plurals name="sharing_next_count">
+        <item quantity="one">Next · %1$d</item>
+        <item quantity="other">Next · %1$d</item>
+    </plurals>
+    <string name="sharing_choose_nothing_title">Nothing matches</string>
+    <string name="sharing_choose_nothing_text">Search for another title, user name or site.</string>
+
+    <!-- What to send (ReviewScreen) -->
+    <string name="sharing_review_no_entries">The entries are no longer in the database.</string>
+    <string name="sharing_review_request_gone">The request has expired or was deleted. Ask for a new one.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="sharing_review_not_made">The answer could not be made: %1$s.</string>
+    <string name="sharing_review_locked">The phone was locked. Unlock it and try again.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="sharing_review_not_sealed">The entries could not be sealed: %1$s.</string>
+    <!-- %1$s: the asker's name -->
+    <string name="sharing_review_send_to">Send to %1$s</string>
+    <string name="sharing_review_send_without">Send without a request</string>
+    <string name="sharing_review_without_subtitle">It opens with ten pictures you give another way</string>
+    <!-- %1$s: the asker's name -->
+    <string name="sharing_review_encrypt_for">Encrypt for %1$s</string>
+    <string name="sharing_review_seal">Seal with ten pictures</string>
+    <string name="sharing_review_for">For</string>
+    <string name="sharing_review_for_hint">Whom it is for: only this phone keeps it</string>
+    <string name="sharing_review_from">From</string>
+    <!-- %1$s: the asker's name -->
+    <string name="sharing_review_from_hint_request">Your name, as %1$s knows you</string>
+    <string name="sharing_review_from_hint">Your name, as they know you</string>
+    <string name="sharing_review_info">Tags and the expiry date go along. Attachments and earlier versions never do.</string>
+    <!-- %1$s: the entry's group path, or "Top level" -->
+    <string name="sharing_review_title_goes">%1$s · the title always goes</string>
+    <!-- %1$s: the asker's name, or whom the envelope is for -->
+    <string name="sharing_review_second_step">With it, %1$s can sign in without you: the second step is no longer yours alone.</string>
+    <string name="sharing_review_second_step_anyone">With it, whoever opens it can sign in without you: the second step is no longer yours alone.</string>
+    <!-- %1$s: the asker's name, or whom the envelope is for -->
+    <string name="sharing_review_wallet_key">With it, %1$s sees every address and balance of the wallet, past and future, and one leaked key of any of its addresses opens them all.</string>
+    <string name="sharing_review_wallet_key_anyone">With it, whoever opens it sees every address and balance of the wallet, past and future, and one leaked key of any of its addresses opens them all.</string>
+    <string name="sharing_review_phrase">Recovery phrase · stays on this phone</string>
+    <string name="sharing_review_phrase_why">Whoever has these words has the wallet, on every network. To give someone coins, send them to their address.</string>
+    <string name="sharing_review_passphrase">Passphrase · stays on this phone</string>
+    <string name="sharing_review_passphrase_why">With the recovery phrase it opens the wallet.</string>
+    <string name="sharing_review_private_key">Private key · stays on this phone</string>
+    <string name="sharing_review_private_key_why">Whoever has it can spend the wallet\'s coins. To give someone coins, send them to their address.</string>
+    <string name="sharing_review_never_sent">Never sent</string>
+    <plurals name="sharing_review_attachments">
+        <item quantity="one">%1$d attachment stays on this phone</item>
+        <item quantity="other">%1$d attachments stay on this phone</item>
+    </plurals>
+    <string name="sharing_review_otp_preview">The key that makes the sign-in codes</string>
+    <string name="sharing_field_username">Username</string>
+    <string name="sharing_field_password">Password</string>
+    <string name="sharing_field_website">Website</string>
+    <string name="sharing_field_note">Note</string>
+    <string name="sharing_field_notes">Notes</string>
+    <string name="sharing_field_one_time_code">One-time code</string>
+
+    <!-- An answer made (AnswerScreen) -->
+    <!-- %1$d: how many entries, %2$s: what the request was for -->
+    <plurals name="sharing_answer_subtitle">
+        <item quantity="one">%2$s · %1$d entry</item>
+        <item quantity="other">%2$s · %1$d entries</item>
+    </plurals>
+    <!-- %1$d: the code shown, %2$d: how many there are -->
+    <string name="sharing_answer_qr">QR code of the answer, %1$d of %2$d</string>
+    <string name="sharing_answer_both">Too much for one code: both are needed, in any order.</string>
+    <plurals name="sharing_answer_all">
+        <item quantity="one">Too much for one code: all %1$d are needed, in any order.</item>
+        <item quantity="other">Too much for one code: all %1$d are needed, in any order.</item>
+    </plurals>
+    <!-- %1$s: the asker's name -->
+    <string name="sharing_answer_info">Only the phone that made %1$s\'s request can open it, so it may travel any way. The request is closed now: nothing more can be sent to it.</string>
+
+    <!-- An envelope sent (SentScreen) -->
+    <string name="sharing_sent_forget_title">Forget the pictures?</string>
+    <string name="sharing_sent_forget_text">Until they are given, nobody can open the code then, not even this phone. If you gave them already, this changes nothing.</string>
+    <string name="sharing_sent_forget_them">Forget them</string>
+    <string name="sharing_sent_keep_them">Keep them</string>
+    <string name="sharing_sent_without">Sent without a request</string>
+    <string name="sharing_sent_forget">Forget the pictures</string>
+    <string name="sharing_sent_send_pictures">Send the pictures</string>
+    <!-- What was copied, in "… copied · clears in 30 s" -->
+    <string name="sharing_sent_pictures_copied">Pictures</string>
+    <plurals name="sharing_sent_send_codes">
+        <item quantity="one">Send the code</item>
+        <item quantity="other">Send the %1$d codes</item>
+    </plurals>
+    <string name="sharing_sent_tab_code">The code</string>
+    <string name="sharing_sent_tab_pictures">The pictures</string>
+    <string name="sharing_sent_pictures_text">They open the code: give them another way than the code. Read them out by a call, or send them through another app. Whoever has both opens the entries.</string>
+    <!-- %1$d: the code shown, %2$d: how many there are -->
+    <string name="sharing_sent_qr">QR code of the entries, %1$d of %2$d</string>
+    <plurals name="sharing_sent_in_person">
+        <item quantity="one">In person: let them scan this screen</item>
+        <item quantity="other">In person: let them scan this screen, all %1$d codes in any order</item>
+    </plurals>
+    <string name="sharing_sent_never_both">The pictures are never shown with the code: one photo of the screen would hold both.</string>
+    <!-- %1$s: the app's name -->
+    <string name="sharing_sent_left_out_code">%1$s is left out of the share sheet: the code went that way.</string>
+    <!-- %1$s: the app's name -->
+    <string name="sharing_sent_left_out_pictures">%1$s is left out of the share sheet: the pictures went that way.</string>
+    <string name="sharing_sent_left_out_code_unnamed">The app is left out of the share sheet: the code went that way.</string>
+    <string name="sharing_sent_left_out_pictures_unnamed">The app is left out of the share sheet: the pictures went that way.</string>
+
+    <!-- Read a code (ReadCodeScreen, ReadCodeModel) -->
+    <string name="sharing_read_unreadable_title">The picture could not be read</string>
+    <string name="sharing_read_unreadable_text">Choose another one.</string>
+    <string name="sharing_read_no_qr_title">No QR code in the picture</string>
+    <string name="sharing_read_no_qr_text">Choose the picture of a Keething code, or paste its text.</string>
+    <string name="sharing_read_nothing_title">Nothing to paste</string>
+    <string name="sharing_read_nothing_text">Copy the message with the code first, then paste it here.</string>
+    <string name="sharing_read_point">Point at a Keething code</string>
+    <string name="sharing_read_no_camera">The camera is not allowed: read a picture or paste the text instead.</string>
+    <string name="sharing_read_allow_camera">Allow the camera</string>
+    <string name="sharing_read_from_picture">From a picture</string>
+    <string name="sharing_read_nothing_shared_title">No code in what was shared</string>
+    <string name="sharing_read_nothing_shared_text">Share the picture or the text of a Keething code, or read it here.</string>
+    <string name="sharing_read_cut_title">The code is cut short</string>
+    <string name="sharing_read_cut_text">Part of it is missing or was changed. Read it again, or ask for it once more.</string>
+    <string name="sharing_read_not_keething_title">Not a Keething code</string>
+    <string name="sharing_read_not_keething_text">This one is something else. Read the code of a request, an answer or entries sent to you.</string>
+    <string name="sharing_read_unknown_title">Not a code this app can read</string>
+    <string name="sharing_read_unknown_text">It may come from a newer Keething, or it was changed on the way.</string>
+    <string name="sharing_read_mixed_title">These codes do not belong together</string>
+    <string name="sharing_read_mixed_text">Read all the codes of one answer, or of the same entries.</string>
+    <!-- %1$d: how many codes were read, %2$d: how many there are -->
+    <string name="sharing_read_part_title">Code %1$d of %2$d read</string>
+    <plurals name="sharing_read_part_rest">
+        <item quantity="one">Now the other one.</item>
+        <item quantity="other">Now the other %1$d, in any order.</item>
+    </plurals>
+    <!-- %1$s: when they expired, as the phone writes a day and time -->
+    <string name="sharing_read_expired_entries_text">They ran out on %1$s. Ask the sender to send them again.</string>
+    <string name="sharing_read_saved_already_text">These entries were saved on this phone.</string>
+    <string name="sharing_read_not_kept_title">The request could not be kept</string>
+    <string name="sharing_read_own_request_title">This is your own request</string>
+    <string name="sharing_read_own_request_text">Send it to the one who should answer it.</string>
+    <string name="sharing_read_request_expired_title">This request has expired</string>
+    <!-- %1$s: when it expired, as the phone writes a day and time; %2$s: the asker's name -->
+    <string name="sharing_read_request_expired_text">It ran out on %1$s. Ask %2$s to send a new one.</string>
+    <string name="sharing_read_request_bad_dates_title">This request\'s dates are wrong</string>
+    <string name="sharing_read_request_bad_dates_text">It says it was made later than now, or lasts longer than a week. Check both phones\' clocks, or ask for a new one.</string>
+    <string name="sharing_read_answered_title">Answered already</string>
+    <!-- %1$s: the asker's name -->
+    <string name="sharing_read_answered_text">This phone answered this request. For more, ask %1$s for a new one.</string>
+
+    <!-- Entries received (ReceivedScreen, ReceivedModel) -->
+    <!-- %1$s: the database that locked, %2$s: the one the entries go into now -->
+    <string name="sharing_received_locked_moved">%1$s locked: the entries go into %2$s now</string>
+    <string name="sharing_received_paste_none">No pictures in what was copied</string>
+    <plurals name="sharing_received_paste_short">
+        <item quantity="one">Ten pictures in a row are needed; that has %1$d</item>
+        <item quantity="other">Ten pictures in a row are needed; that has %1$d</item>
+    </plurals>
+    <!-- %1$s: the database's name -->
+    <string name="sharing_received_locked">%1$s is locked. Unlock it to save the rest.</string>
+    <!-- Where the entries were saved, in "The entry is in …" -->
+    <string name="sharing_received_in_database">the database</string>
+    <string name="sharing_received_in_top_level">the top level</string>
+    <string name="sharing_received_paste_pictures">Paste the pictures</string>
+    <plurals name="sharing_received_open">
+        <item quantity="one">Open the entry</item>
+        <item quantity="other">Open the first entry</item>
+    </plurals>
+    <!-- %1$d: how many were saved, %2$d: of how many, %3$s: what went wrong -->
+    <string name="sharing_received_saved_then">Saved %1$d of %2$d; then: %3$s</string>
+    <!-- Chosen by how many there are; %1$d: the one being saved, %2$d: how many there are -->
+    <plurals name="sharing_received_saving">
+        <item quantity="one">Saving and checking…</item>
+        <item quantity="other">Saving and checking %1$d of %2$d…</item>
+    </plurals>
+    <plurals name="sharing_received_save">
+        <item quantity="one">Save to the database</item>
+        <item quantity="other">Save the %1$d entries</item>
+    </plurals>
+    <string name="sharing_received_close_request">Close the request without saving</string>
+    <string name="sharing_received_lost_title">Its request was lost</string>
+    <string name="sharing_received_lost_text">This phone could not read its saved requests and started them again, so it cannot open answers to the ones asked before. Ask for it again.</string>
+    <string name="sharing_received_broken_title">This code does not open</string>
+    <string name="sharing_received_broken_text">It was changed on the way, or it is not really for your request. Ask for it again, and check the pictures by a call.</string>
+    <string name="sharing_received_close_title">Close without saving?</string>
+    <string name="sharing_received_close_text">This phone forgets the request\'s key: the answer can no longer be opened.</string>
+    <string name="sharing_received_close_it">Close it</string>
+    <!-- %1$d: how many entries, %2$s: what the request was for -->
+    <plurals name="sharing_received_answer_subtitle">
+        <item quantity="one">Answer to “%2$s” · %1$d entry</item>
+        <item quantity="other">Answer to “%2$s” · %1$d entries</item>
+    </plurals>
+    <plurals name="sharing_received_envelope_subtitle">
+        <item quantity="one">Sent without a request · %1$d entry</item>
+        <item quantity="other">Sent without a request · %1$d entries</item>
+    </plurals>
+    <!-- %1$s: the tag saved entries get -->
+    <string name="sharing_received_answer_info">Only this phone could open it, but anyone who saw your request could have made it, and the name is theirs to choose. Save it if it is what you expected: saved entries are tagged #%1$s.</string>
+    <!-- %1$s: the tag saved entries get -->
+    <string name="sharing_received_envelope_info">Only these pictures open it, so it comes from whoever gave you them. Anyone who had both the code and the pictures could open it too. Save it if it is what you expected: saved entries are tagged #%1$s.</string>
+    <string name="sharing_received_envelope_title">Entries sent to you</string>
+    <!-- %1$s: when it was made ("today 11:40"), %2$s: when it expires ("expires in 2 days") -->
+    <string name="sharing_received_made">Made %1$s · %2$s</string>
+    <string name="sharing_received_ten_pictures">The ten pictures</string>
+    <string name="sharing_received_ten_pictures_text">The sender gives them to you another way than the code: by a call, or in another app. Tap them below in their order, or copy their message and paste it.</string>
+    <string name="sharing_received_wrong_pictures">These pictures do not open it. A picture misheard? Take the last ones back, or tap them again. Check with the sender that these pictures belong to this code.</string>
+    <string name="sharing_received_expired_text">Ask the sender to send them again.</string>
+    <!-- %1$s: the tag saved entries get -->
+    <string name="sharing_received_saved_already_text">These entries were saved on this phone: look for #%1$s.</string>
+    <string name="sharing_received_not_now_text">Unlock the database and read the code again.</string>
+    <!-- %1$s: the sender's name -->
+    <string name="sharing_received_address_note">Check it with %1$s another way before paying to it.</string>
+    <plurals name="sharing_received_fields">
+        <item quantity="one">%1$d field</item>
+        <item quantity="other">%1$d fields</item>
+    </plurals>
+    <plurals name="sharing_received_fields_code">
+        <item quantity="one">%1$d field · a one-time code</item>
+        <item quantity="other">%1$d fields · a one-time code</item>
+    </plurals>
+    <!-- %1$s: the fields ("3 fields"), %2$s: the entry's tags -->
+    <string name="sharing_received_summary_tags">%1$s · %2$s</string>
+    <string name="sharing_received_untitled">(Untitled)</string>
+    <string name="sharing_received_empty">empty</string>
+    <!-- %1$s: the field's name -->
+    <string name="sharing_received_hide">Hide %1$s</string>
+    <!-- %1$s: the field's name -->
+    <string name="sharing_received_show">Show %1$s</string>
+    <!-- %1$s: the field's name -->
+    <string name="sharing_received_copy">Copy %1$s</string>
+    <string name="sharing_received_save_into">Save into</string>
+    <string name="sharing_received_choose_group">Choose a group</string>
+    <!-- A new group's line in the group picker -->
+    <string name="sharing_received_group_made_when">made when the entries are saved</string>
+    <string name="sharing_received_chosen">Chosen</string>
+    <string name="sharing_received_saved_title">Saved and checked</string>
+    <!-- %1$d: how many entries, %2$s: the group they are in, %3$s: the tag they got -->
+    <plurals name="sharing_received_saved_request">
+        <item quantity="one">The entry is in %2$s, tagged #%3$s. The request is closed: this phone has forgotten its key, so the code can\'t be opened again.</item>
+        <item quantity="other">The %1$d entries are in %2$s, tagged #%3$s. The request is closed: this phone has forgotten its key, so the code can\'t be opened again.</item>
+    </plurals>
+    <!-- %1$d: how many entries, %2$s: the group they are in, %3$s: the tag they got -->
+    <plurals name="sharing_received_saved_envelope">
+        <item quantity="one">The entry is in %2$s, tagged #%3$s. This phone will not save it again from the same code.</item>
+        <item quantity="other">The %1$d entries are in %2$s, tagged #%3$s. This phone will not save them again from the same code.</item>
+    </plurals>
+
+    <!-- Send to a request (SendToRequestSheet) -->
+    <!-- %1$s: the entry's title -->
+    <string name="sharing_send_to_title">Send “%1$s” to</string>
+    <string name="sharing_send_to_none">No one has asked yet. Ask them for a request (Keething › Sharing › Ask for an entry), or send it without one: it opens with ten pictures you give another way.</string>
+    <string name="sharing_send_to_some">A request someone sent you: only their phone can open what you send. Or send it without one.</string>
+    <string name="sharing_send_to_read">Read a request</string>
+    <string name="sharing_send_to_without">Without one</string>
+</resources>

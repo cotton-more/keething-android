@@ -4,6 +4,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import dev.keething.android.databases.ChangeMasterKeyModel.KeyFileChoice
 import dev.keething.android.databases.ChangeMasterKeyModel.PasswordChoice
 import dev.keething.android.databases.ChangeMasterKeyModel.Step
+import dev.keething.android.ui.english
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.StoragePlace
 import dev.keething.vault.creating.CreateFailure
@@ -108,7 +109,7 @@ class ChangeMasterKeyModelTest {
         f.model.confirmCurrent()
         advanceUntilIdle()
         assertEquals(Step.CURRENT, f.model.step)
-        assertEquals("That is not its master password. Nothing changed.", f.model.problem)
+        assertEquals("That is not its master password. Nothing changed.", f.model.problem?.english())
         assertNull(f.model.changeKey(), "nothing more offered")
 
         f.model.current.setTextAndPlaceCursorAtEnd("pw")
@@ -138,9 +139,9 @@ class ChangeMasterKeyModelTest {
         advanceUntilIdle()
 
         assertEquals(PasswordChoice.NEW, f.model.passwordChoice)
-        assertEquals("Type a master password.", f.model.blockers.first())
+        assertEquals("Type a master password.", f.model.blockers.first().english())
         f.typeNew("correct horse", "correct hors")
-        assertEquals("The two passwords differ.", f.model.blockers.first())
+        assertEquals("The two passwords differ.", f.model.blockers.first().english())
         f.typeNew("1234")
         assertTrue(f.model.canChange, "a weak one is allowed")
         assertEquals(MasterPasswordFields.Match.MATCHES, f.model.fields.match)
@@ -161,7 +162,7 @@ class ChangeMasterKeyModelTest {
         advanceUntilIdle()
 
         f.model.choosePassword(PasswordChoice.KEEP)
-        assertEquals(listOf("Choose a new password or another key file."), f.model.blockers)
+        assertEquals(listOf("Choose a new password or another key file."), f.model.blockers.map { it.english() })
         assertFalse(f.model.noneAllowed)
         f.model.choosePassword(PasswordChoice.NONE)
         assertEquals(PasswordChoice.KEEP, f.model.passwordChoice, "no password and no key file is no key")
@@ -243,7 +244,7 @@ class ChangeMasterKeyModelTest {
         advanceUntilIdle()
 
         assertTrue(f.asked.isEmpty())
-        assertEquals("The key file's folder is not there any more. Nothing changed.", f.model.problem)
+        assertEquals("The key file's folder is not there any more. Nothing changed.", f.model.problem?.english())
     }
 
     private companion object {

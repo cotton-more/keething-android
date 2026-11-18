@@ -44,7 +44,7 @@ internal class FillResponses(private val context: Context, private val sessions:
         if (!form.isSignUp) addEntries(response, sessions.openNow().map { OpenVault(it.database.id, it.unlocked.vault) }, form, ids, presentations)
         if (form.newPasswords.isNotEmpty()) {
             val generate = AutofillRequest(AutofillMode.GENERATE, form, ids)
-            val presentation = presentations.action("Generate a password", "Keething", R.drawable.ic_autofill_generate, 0, pinned = false)
+            val presentation = presentations.action(context.getString(R.string.autofill_offer_generate), context.getString(R.string.app_name), R.drawable.ic_autofill_generate, 0, pinned = false)
             response.addDataset(authenticated(generate, form.newPasswords, presentation))
         }
         saveInfo(form, ids)?.let(response::setSaveInfo)
@@ -55,7 +55,7 @@ internal class FillResponses(private val context: Context, private val sessions:
         val label = entries.label(form.target)
         if (open.isEmpty()) {
             val unlock = AutofillRequest(AutofillMode.UNLOCK, form, ids)
-            response.addDataset(authenticated(unlock, form.fields, presentations.action("Unlock Keething", "to fill $label", R.drawable.ic_autofill_lock, 0, pinned = false)))
+            response.addDataset(authenticated(unlock, form.fields, presentations.action(context.getString(R.string.autofill_offer_unlock), context.getString(R.string.autofill_offer_to_fill, label), R.drawable.ic_autofill_lock, 0, pinned = false)))
             return
         }
         // Each entry by its ref: the screen a dataset opens finds it in its own database.
@@ -77,8 +77,8 @@ internal class FillResponses(private val context: Context, private val sessions:
         }
         val pick = AutofillRequest(AutofillMode.PICK, form, ids)
         // Alone it is a chip with its title: pinned, it is an icon only at the keyboard's edge, easily missed.
-        val title = if (shown == 0) "Search Keething" else "Another entry"
-        response.addDataset(authenticated(pick, form.fields, presentations.action(title, "to fill $label", R.drawable.ic_autofill_search, shown, pinned = shown > 0)))
+        val title = context.getString(if (shown == 0) R.string.autofill_offer_search else R.string.autofill_offer_another)
+        response.addDataset(authenticated(pick, form.fields, presentations.action(title, context.getString(R.string.autofill_offer_to_fill, label), R.drawable.ic_autofill_search, shown, pinned = shown > 0)))
     }
 
     /**

@@ -37,13 +37,13 @@ internal class FileSharingStore(private val file: File) : SharingStore {
     }
 
     private fun replace(target: File, bytes: ByteArray) {
-        val folder = target.parentFile ?: throw IOException("no folder for ${target.name}")
+        val folder = target.parentFile ?: throw IOException("no folder for ${target.name}") // not user text (an exception's detail)
         folder.mkdirs()
         val temporary = File(folder, target.name + ".tmp")
         temporary.writeBytes(bytes)
         if (!temporary.renameTo(target)) {
             temporary.delete()
-            throw IOException("could not replace ${target.name}")
+            throw IOException("could not replace ${target.name}") // not user text (an exception's detail)
         }
     }
 }

@@ -1,5 +1,7 @@
 package dev.keething.android.editor
 
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -62,6 +64,7 @@ internal fun TagsField(draft: EntryDraft, update: (EntryDraft) -> Unit, knownTag
     val focus = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     val suggestions = draft.tagSuggestions(knownTags)
+    val addTag = stringResource(R.string.editor_tags_add)
     Column(
         Modifier
             .fillMaxWidth()
@@ -72,24 +75,25 @@ internal fun TagsField(draft: EntryDraft, update: (EntryDraft) -> Unit, knownTag
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            "Tags",
+            stringResource(R.string.editor_tags),
             style = MaterialTheme.typography.bodySmall,
             color = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             for (tag in draft.tags) {
+                val remove = stringResource(R.string.editor_tags_remove, tag)
                 InputChip(
                     selected = false,
                     onClick = { update(draft.removeTag(tag)) },
                     label = { Text(tag) },
                     trailingIcon = { Icon(Icons.Rounded.Close, contentDescription = null, Modifier.size(InputChipDefaults.IconSize)) },
-                    modifier = Modifier.semantics { contentDescription = "Remove the tag $tag" },
+                    modifier = Modifier.semantics { contentDescription = remove },
                 )
             }
             Box(Modifier.widthIn(min = 120.dp).padding(vertical = 12.dp), contentAlignment = Alignment.CenterStart) {
                 if (draft.tagInput.isEmpty()) {
                     Text(
-                        if (draft.tags.isEmpty()) "Add a tag" else "Add another",
+                        if (draft.tags.isEmpty()) addTag else stringResource(R.string.editor_tags_add_another),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -107,7 +111,7 @@ internal fun TagsField(draft: EntryDraft, update: (EntryDraft) -> Unit, knownTag
                             if (takesLastOff) update(draft.removeLastTag())
                             takesLastOff
                         }
-                        .semantics { contentDescription = "Add a tag" },
+                        .semantics { contentDescription = addTag },
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(

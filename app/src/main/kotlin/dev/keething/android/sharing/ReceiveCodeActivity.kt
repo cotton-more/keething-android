@@ -64,6 +64,6 @@ class ReceiveCodeActivity : ComponentActivity() {
         uri.scheme == "content" && uri.authority?.startsWith(packageName) == false
 
     private companion object {
-        const val TAG = "Sharing"
+        const val TAG = "Sharing" // not user text
     }
 }

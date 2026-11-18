@@ -5,9 +5,12 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.text.format.Formatter
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import dev.keething.card.editing.EntryEditor
 import dev.keething.domain.secret.Secret
-import java.io.IOException
 import java.io.InputStream
 
 /** A file picked to be attached (keething-spec edit.attachments AC1, AC2): read, or why it is not. */
@@ -15,7 +18,7 @@ internal sealed interface PickedFile {
     /** [content] is the caller's to wipe. */
     class Read(val name: String, val content: Secret) : PickedFile
 
-    class Refused(val problem: String) : PickedFile
+    class Refused(val problem: UiText) : PickedFile
 }
 
 /** Reads the files the system's picker gives the editor, each up to [EntryEditor.MAXIMUM_ATTACHMENT_SIZE]. */
@@ -40,28 +43,30 @@ internal class NewAttachments(context: Context) {
         } catch (_: Exception) {
             // Some providers answer no query; the stream may still be read.
         }
-        val shown = name?.takeIf { it.isNotBlank() } ?: "The file"
-        if (resolver.getType(uri) == DocumentsContract.Document.MIME_TYPE_DIR) return PickedFile.Refused("$shown is a folder; only files can be attached.")
+        val shown = name?.takeIf { it.isNotBlank() }?.let(::uiPlain) ?: uiText(R.string.attachment_picked_unnamed)
+        if (resolver.getType(uri) == DocumentsContract.Document.MIME_TYPE_DIR) return PickedFile.Refused(uiText(R.string.attachment_picked_folder, shown))
         size?.let { if (it > EntryEditor.MAXIMUM_ATTACHMENT_SIZE) return tooLarge(shown, it) }
         return try {
-            val stream = resolver.openInputStream(uri) ?: throw IOException("the app holding it gave nothing")
+            val stream = resolver.openInputStream(uri) ?: return PickedFile.Refused(uiText(R.string.attachment_picked_nothing, shown))
             val bytes = stream.use { AttachmentReading.readAtMost(it, EntryEditor.MAXIMUM_ATTACHMENT_SIZE.toInt(), size) }
                 ?: return tooLarge(shown, null)
             PickedFile.Read(name.orEmpty(), Secret.adopt(bytes))
         } catch (failure: Exception) {
-            PickedFile.Refused("Could not read $shown: ${failure.message ?: failure.javaClass.simpleName}.")
+            PickedFile.Refused(uiText(R.string.attachment_picked_unreadable, shown, failure.message ?: failure.javaClass.simpleName))
         } catch (_: OutOfMemoryError) {
-            PickedFile.Refused("Could not read $shown: the phone has not enough memory for it now.")
+            PickedFile.Refused(uiText(R.string.attachment_picked_no_memory, shown))
         }
     }
 
     /** [bytes] in the system's units, as the editor's rows show a size. */
     fun sizeText(bytes: Long): String = Formatter.formatShortFileSize(context, bytes)
 
-    private fun tooLarge(name: String, size: Long?): PickedFile.Refused {
+    private fun tooLarge(name: UiText, size: Long?): PickedFile.Refused {
         val limit = Formatter.formatShortFileSize(context, EntryEditor.MAXIMUM_ATTACHMENT_SIZE)
-        val shown = size?.let { " (${Formatter.formatShortFileSize(context, it)})" }.orEmpty()
-        return PickedFile.Refused("$name is too big$shown; attachments of up to $limit can be added.")
+        return PickedFile.Refused(
+            if (size == null) uiText(R.string.attachment_picked_too_big, name, limit)
+            else uiText(R.string.attachment_picked_too_big_size, name, Formatter.formatShortFileSize(context, size), limit),
+        )
     }
 }
 

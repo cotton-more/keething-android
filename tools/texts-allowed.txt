@@ -1,0 +1,5 @@
+# Files tools/check-texts.py leaves out, each with why.
+app/src/main/kotlin/dev/keething/android/storageprobe/FingerprintProbe.kt   the debug build's probe (Settings › Debug build), never shown in a release
+app/src/main/kotlin/dev/keething/android/storageprobe/GrantProbe.kt         the debug build's probe
+app/src/main/kotlin/dev/keething/android/storageprobe/StorageProbeScreen.kt the debug build's probe
+app/src/main/kotlin/dev/keething/android/storageprobe/StorageProbeViewModel.kt the debug build's probe

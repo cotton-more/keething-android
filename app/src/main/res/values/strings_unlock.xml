@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Why the lock screen is locked, as its chip says it (unlock/LockTexts.kt) -->
+    <plurals name="unlock_locked_after_minutes">
+        <item quantity="one">Locked after %1$d minute in the background</item>
+        <item quantity="other">Locked after %1$d minutes in the background</item>
+    </plurals>
+    <string name="unlock_password_changed">The database password was changed. Enter the new one.</string>
+    <string name="unlock_restored_older_key">A backup made before its master key changed was restored. Enter the password it had then.</string>
+
+    <!-- After a fingerprint attempt (unlock/LockTexts.kt) -->
+    <!-- %1$s: why, in a few words ("no fingerprint is set up on this phone") -->
+    <string name="unlock_fingerprint_not_available">The fingerprint cannot be used: %1$s.</string>
+    <string name="unlock_fingerprint_key_invalidated">The fingerprints on this phone changed. Type the password to set up the fingerprint again.</string>
+    <string name="unlock_fingerprint_password_rejected">The database password was changed. Type the new one; the fingerprint will use it.</string>
+    <!-- %1$s: the technical reason -->
+    <string name="unlock_fingerprint_storage_error">The stored password could not be read (%1$s).</string>
+    <string name="unlock_fingerprint_set_up_by_typing">Type the password once to set up the fingerprint.</string>
+
+    <!-- Why a database did not open (unlock/LockTexts.kt OpenFailure.describe); the _hardware_key ones from the second wrong key in a row -->
+    <string name="unlock_failure_wrong_password">Wrong password — or this database needs a key file.</string>
+    <string name="unlock_failure_wrong_password_hardware_key">Wrong password — or this database needs a key file. A database that also needs a YubiKey (or another hardware key) cannot be opened in Keething.</string>
+    <string name="unlock_failure_wrong_password_or_key_file">Wrong password or key file.</string>
+    <string name="unlock_failure_wrong_password_or_key_file_hardware_key">Wrong password or key file. A database that also needs a YubiKey (or another hardware key) cannot be opened in Keething.</string>
+    <string name="unlock_failure_wrong_key_file">This key file does not open the database (or it needs a password too).</string>
+    <string name="unlock_failure_wrong_key_file_hardware_key">This key file does not open the database (or it needs a password too). A database that also needs a YubiKey (or another hardware key) cannot be opened in Keething.</string>
+    <!-- %1$s: the key file's name -->
+    <string name="unlock_failure_key_file_missing">The key file %1$s is not there.</string>
+    <!-- %1$s: why, in the file layer's words -->
+    <string name="unlock_failure_key_file_unusable">The key file cannot be used: %1$s.</string>
+    <!-- %1$s: the database's path on the phone -->
+    <string name="unlock_failure_missing">There is no database at %1$s. Syncthing may be replacing it: try again in a moment.</string>
+    <string name="unlock_failure_access_denied">Keething may not read the file any more: locate it to choose its folder again.</string>
+    <!-- %1$s: what is wrong, in the file layer's words -->
+    <string name="unlock_failure_damaged">The file is damaged or not completely synced yet (%1$s).</string>
+    <string name="unlock_failure_out_of_memory">Not enough memory to open the database.</string>
+    <string name="unlock_failure_locked">The database locked while it was being opened.</string>
+
+    <!-- A database Keething does not read: what it is and what to do (unlock/LockTexts.kt) -->
+    <string name="unlock_unsupported_not_keepass">This file is not a KeePass database.</string>
+    <!-- %1$s: the format ("KDBX 2.0") -->
+    <string name="unlock_unsupported_old_format">This database is in an old KeePass format (%1$s), which Keething does not read. Save it again in KeePass or KeePassXC, and it opens here.</string>
+    <!-- %1$s: the format ("KDBX 5.0") -->
+    <string name="unlock_unsupported_newer_format">This database is in a newer KeePass format (%1$s) than this Keething reads. An update of Keething may open it.</string>
+    <string name="unlock_unsupported_twofish">This database is encrypted with Twofish, which Keething does not read. In KeePassXC (Database › Database Security › Encryption Settings) or KeePass, choose AES-256 or ChaCha20 and save; then it opens here.</string>
+    <!-- %1$s: the cipher, in the file layer's words -->
+    <string name="unlock_unsupported_cipher">This database is encrypted with a cipher Keething does not know (%1$s).</string>
+    <!-- %1$s: the key derivation, in the file layer's words -->
+    <string name="unlock_unsupported_key_derivation">This database\'s key derivation is one Keething does not run: %1$s.</string>
+    <!-- %1$s: the key derivation's memory and the phone's, in the file layer's words -->
+    <string name="unlock_unsupported_memory">This phone does not give Keething enough memory for this database\'s key derivation (%1$s). Lower Argon2\'s memory in the database\'s settings on the computer (in KeePassXC: Database › Database Security), then it opens here.</string>
+    <!-- %1$s: the way, in the file layer's words -->
+    <string name="unlock_unsupported_inner_stream">This database protects its values in a way Keething does not know (%1$s).</string>
+
+    <!-- The same in a few words, for a row of the chooser ("Cannot be read: …") -->
+    <string name="unlock_unsupported_named_not_keepass">not a KeePass database</string>
+    <!-- %1$s: the format -->
+    <string name="unlock_unsupported_named_old_format">an old KeePass format (%1$s)</string>
+    <!-- %1$s: the format -->
+    <string name="unlock_unsupported_named_newer_format">a newer KeePass format (%1$s)</string>
+    <string name="unlock_unsupported_named_twofish">encrypted with Twofish</string>
+    <string name="unlock_unsupported_named_memory">needs more memory than this phone gives Keething</string>
+    <!-- %1$s: the cipher or the way values are protected, in the file layer's words -->
+    <string name="unlock_unsupported_named_unknown">unknown %1$s</string>
+
+    <!-- The lock screen (unlock/LockScreen.kt) -->
+    <!-- %1$s: why, in the system's words -->
+    <string name="unlock_stored_password_not_deleted">The stored password could not be deleted: %1$s.</string>
+    <!-- %1$s: the database's name -->
+    <string name="unlock_opening">Opening %1$s…</string>
+    <!-- In the chooser's run, over the field; %1$s: why it did not open, a sentence of its own -->
+    <string name="unlock_run_failure">%1$s Type it again, or skip it.</string>
+    <string name="unlock_with_fingerprint">Unlock with fingerprint</string>
+    <string name="unlock_then_set_up_fingerprint">Unlock, then set up the fingerprint</string>
+    <!-- %1$s: the database's name -->
+    <string name="unlock_run_skip">Skip %1$s</string>
+    <!-- In the run's bar; %1$s: the names of the databases opened so far -->
+    <string name="unlock_run_opened">%1$s open</string>
+    <string name="unlock_back">Back</string>
+    <string name="unlock_run_stop">Stop</string>
+    <string name="unlock_key_file_alone">It opens with its key file alone: nothing to type.</string>
+    <string name="unlock_unlock">Unlock</string>
+    <string name="unlock_key_file">Key file</string>
+    <string name="unlock_choose_another_above">or choose another database above</string>
+    <string name="unlock_choose_another">Choose another database</string>
+    <string name="unlock_hide_password">Hide password</string>
+    <string name="unlock_show_password">Show password</string>
+    <!-- %1$s: the key file's name -->
+    <string name="unlock_key_file_remove">Key file %1$s: remove</string>
+    <string name="unlock_key_file_choose">Key file…</string>
+
+    <!-- Asked once whether to use the fingerprint (unlock/LockScreen.kt FingerprintQuestion) -->
+    <!-- %1$s: the database's name -->
+    <string name="unlock_fingerprint_question_title">Use the fingerprint for “%1$s”?</string>
+    <string name="unlock_fingerprint_question_key_file">From now on your fingerprint opens it, with its key file.</string>
+    <string name="unlock_fingerprint_question_password">From now on your fingerprint opens it: the password you just typed is kept on this phone, sealed for your fingerprint.</string>
+    <string name="unlock_fingerprint_question_once">Keething asks this once. You can turn it on later on the database’s page in Settings.</string>
+    <string name="unlock_fingerprint_question_use">Use fingerprint</string>
+    <string name="unlock_fingerprint_question_no">No</string>
+
+    <!-- The KDBX 3.1 question (unlock/Kdbx3QuestionViews.kt) -->
+    <string name="unlock_kdbx3_line_upgrade">Keething changes databases only in KDBX 4: upgrade this one, or open it to view only.</string>
+    <string name="unlock_kdbx3_line_other_apps">KeePass 2.35 and later and KeePassXC 2.3 and later read KDBX 4; older apps do not. The KDBX 3.1 file is kept as a copy beside it.</string>
+    <string name="unlock_kdbx3_card_title">This database is KDBX 3.1</string>
+    <!-- %1$s: the database's name -->
+    <string name="unlock_kdbx3_dialog_title">Upgrade “%1$s” to KDBX 4?</string>
+    <string name="unlock_kdbx3_view_only">View only</string>
+    <string name="unlock_kdbx3_upgrade">Upgrade</string>
+
+    <!-- The password reminder (unlock/ReminderQuestion.kt; the canvas "Password reminder") -->
+    <string name="unlock_reminder_title_password">Do you still remember it?</string>
+    <string name="unlock_reminder_title_key_file">Is the key file safe?</string>
+    <!-- %1$d: the days; %2$s: the key file's name -->
+    <plurals name="unlock_reminder_text_key_file">
+        <item quantity="one">It has been %1$d day. Is the key file %2$s kept somewhere safe, besides this phone?</item>
+        <item quantity="other">It has been %1$d days. Is the key file %2$s kept somewhere safe, besides this phone?</item>
+    </plurals>
+    <!-- %1$d: the days; %2$s: the database's name -->
+    <plurals name="unlock_reminder_text_password">
+        <item quantity="one">It has been %1$d day since the master password of “%2$s” was typed.</item>
+        <item quantity="other">It has been %1$d days since the master password of “%2$s” was typed.</item>
+    </plurals>
+    <!-- %1$s: the key file's name -->
+    <string name="unlock_reminder_key_file_line">Keep the key file %1$s somewhere safe too: without it the password opens nothing.</string>
+    <!-- %1$s: the database's name -->
+    <string name="unlock_reminder_check_text">Type the master password of “%1$s”. If it does not match, nothing changes: %1$s stays open.</string>
+    <plurals name="unlock_reminder_wrong">
+        <item quantity="one">It does not match. %1$d try left.</item>
+        <item quantity="other">It does not match. %1$d tries left.</item>
+    </plurals>
+    <!-- %1$s: the database's name -->
+    <string name="unlock_reminder_failed">%1$s stays open, and nothing has changed. If its master password is saved in %1$s, look it up there. Or set a new one with Change master key.</string>
+    <string name="unlock_reminder_again_tomorrow">Keething asks again tomorrow.</string>
+    <!-- %1$d: the days chosen in Settings -->
+    <plurals name="unlock_reminder_again_in">
+        <item quantity="one">Keething asks again in %1$d day.</item>
+        <item quantity="other">Keething asks again in %1$d days.</item>
+    </plurals>
+    <!-- %1$d: the days chosen in Settings -->
+    <plurals name="unlock_reminder_matched_again_in">
+        <item quantity="one">It matches. Keething asks again in %1$d day.</item>
+        <item quantity="other">It matches. Keething asks again in %1$d days.</item>
+    </plurals>
+    <string name="unlock_reminder_never_again">Keething does not ask again.</string>
+    <string name="unlock_reminder_matched_never_again">It matches. Keething does not ask again.</string>
+    <string name="unlock_reminder_yes">Yes</string>
+    <string name="unlock_reminder_not_now">Not now</string>
+    <string name="unlock_reminder_check_it">Check it</string>
+    <string name="unlock_reminder_check_title">Check the master password</string>
+    <string name="unlock_reminder_checking">Checking…</string>
+    <string name="unlock_reminder_check">Check</string>
+    <string name="unlock_reminder_cancel">Cancel</string>
+    <string name="unlock_reminder_master_password">Master password</string>
+    <string name="unlock_reminder_hide_password">Hide the password</string>
+    <string name="unlock_reminder_show_password">Show the password</string>
+    <string name="unlock_reminder_not_matched_title">It does not match</string>
+    <string name="unlock_reminder_change_master_key">Change master key…</string>
+    <string name="unlock_reminder_close">Close</string>
+</resources>

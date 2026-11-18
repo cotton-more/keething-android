@@ -55,6 +55,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -68,10 +70,13 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.PathText
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.editing.GroupChoice
@@ -98,9 +103,9 @@ internal fun GroupPickerSheet(
     made: String,
     onChoose: (GroupChoice) -> Unit,
     onDismiss: () -> Unit,
-    title: String = "Group",
+    title: String = stringResource(R.string.groups_picker_title),
     subtitle: String? = null,
-    refusal: ((groupId: String) -> String?)? = null,
+    refusal: ((groupId: String) -> UiText?)? = null,
 ) {
     val canMake = refusal == null
     val picker = remember(tree) { GroupPicker(tree) }
@@ -119,16 +124,16 @@ internal fun GroupPickerSheet(
                         Text(title, style = MaterialTheme.typography.titleLarge)
                         subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
-                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, contentDescription = "Close") }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.groups_picker_close)) }
                 }
                 TextField(
                     value = field,
                     onValueChange = { field = it },
                     modifier = Modifier.keepOutOfAutofill().fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-                    placeholder = { Text(if (canMake) "Find or make a group" else "Find a group") },
+                    placeholder = { Text(stringResource(if (canMake) R.string.groups_picker_find_or_make else R.string.groups_picker_find)) },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                     trailingIcon = if (field.text.isNotEmpty()) {
-                        { IconButton(onClick = { field = TextFieldValue(); entered = null }) { Icon(Icons.Rounded.Close, contentDescription = "Clear") } }
+                        { IconButton(onClick = { field = TextFieldValue(); entered = null }) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.groups_picker_clear)) } }
                     } else {
                         null
                     },
@@ -156,13 +161,16 @@ internal fun GroupPickerSheet(
                                 entered = up.entered
                             },
                         ) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Up to ${parent?.let { GroupTexts.path(tree, it.id) } ?: GroupTexts.TOP_LEVEL}")
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.groups_picker_up_to, (parent?.let { GroupTexts.path(tree, it.id) } ?: GroupTexts.TOP_LEVEL).resolve()),
+                            )
                         }
                         PathText(level.path, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 GroupTexts.hint(view)?.let {
-                    Text(it, Modifier.padding(start = 28.dp, end = 28.dp, top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(it.resolve(), Modifier.padding(start = 28.dp, end = 28.dp, top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp)) {
                     itemsIndexed(view.rows, key = { _, row -> row.node.group.id }) { index, row ->
@@ -175,13 +183,13 @@ internal fun GroupPickerSheet(
                             row = row,
                             isLevel = view.isLevel,
                             canEnter = !group.isRoot && group.id != view.level?.id,
-                            subgroups = if (inside) GroupTexts.subgroups(row.node.subgroups) else null,
+                            subgroups = if (inside) GroupTexts.subgroups(row.node.subgroups)?.resolve() else null,
                             // From this row's group down: the levels above it are those of the row.
                             nowIn = if (holdsChosen) tree.levels(chosen!!)?.map { it.name }?.drop(maxOf(group.path.size - 1, 0)) else null,
                             chosen = chosen?.newNames?.isEmpty() == true && chosen.groupId == group.id,
-                            refused = refusal?.invoke(group.id),
+                            refused = refusal?.invoke(group.id)?.resolve(),
                             shape = segmentShape(index, view.rows.size, outer = 18.dp),
-                            enterLabel = "Go into ${GroupTexts.path(tree, row.node.group.id)}",
+                            enterLabel = stringResource(R.string.groups_picker_go_into, GroupTexts.path(tree, row.node.group.id).resolve()),
                             onChoose = { onChoose(GroupChoice(row.node.group.id)) },
                             onEnter = {
                                 val query = picker.enter(row.node.group.id)
@@ -192,11 +200,11 @@ internal fun GroupPickerSheet(
                     }
                     GroupTexts.empty(tree, view, canMake)?.let { text ->
                         item(key = "empty") {
-                            Text(text, Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text.resolve(), Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     view.offer?.takeIf { canMake }?.let { offer ->
-                        item(key = "new") { NewGroupsRow(GroupTexts.newGroups(offer.newNames), GroupTexts.newGroupsPlace(tree, offer, made)) { onChoose(offer) } }
+                        item(key = "new") { NewGroupsRow(GroupTexts.newGroups(offer.newNames).resolve(), GroupTexts.newGroupsPlace(tree, offer, made).resolve()) { onChoose(offer) } }
                     }
                 }
             }
@@ -224,6 +232,7 @@ private fun PickerRow(
 ) {
     val group = row.node.group
     val total = row.node.total
+    val entries = pluralStringResource(R.plurals.groups_entries, total, total)
     Row(
         Modifier
             .padding(bottom = SegmentGap)
@@ -237,7 +246,7 @@ private fun PickerRow(
             Modifier
                 .weight(1f)
                 .heightIn(min = 56.dp)
-                .clickable(enabled = refused == null, onClick = onChoose, onClickLabel = "Choose")
+                .clickable(enabled = refused == null, onClick = onChoose, onClickLabel = stringResource(R.string.groups_picker_choose))
                 .alpha(if (refused == null) 1f else 0.5f)
                 .padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -252,7 +261,7 @@ private fun PickerRow(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (isLevel || group.isRoot) {
                     Text(
-                        if (group.isRoot) GroupTexts.TOP_LEVEL else group.name,
+                        if (group.isRoot) GroupTexts.TOP_LEVEL.resolve() else group.name,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
                         maxLines = 2,
@@ -270,19 +279,19 @@ private fun PickerRow(
                 refused?.let { Text(it, style = supporting, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 subgroups?.let { Text(it, style = supporting, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 nowIn?.let {
-                    PathText(it, style = supporting, color = MaterialTheme.colorScheme.primary, lead = AnnotatedString("Now in "))
+                    PathText(it, style = supporting, color = MaterialTheme.colorScheme.primary, lead = AnnotatedString(stringResource(R.string.groups_picker_now_in)))
                 }
                 if (row.node.hasNamesake) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Icon(Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Another group beside it has this name", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.groups_picker_namesake), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
-            if (chosen) Icon(Icons.Rounded.Check, contentDescription = "Chosen", Modifier.padding(start = 8.dp), tint = MaterialTheme.colorScheme.primary)
+            if (chosen) Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.groups_picker_chosen), Modifier.padding(start = 8.dp), tint = MaterialTheme.colorScheme.primary)
             Text(
                 NumberFormat.getIntegerInstance().format(total),
-                Modifier.padding(start = 8.dp).semantics { contentDescription = if (total == 1) "1 entry" else "$total entries" },
+                Modifier.padding(start = 8.dp).semantics { contentDescription = entries },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

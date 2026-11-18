@@ -125,7 +125,7 @@ internal class KeyringFiles(private val folder: File, private val key: Fingerpri
     private fun privateKey(keyring: Keyring, cipher: Cipher): PrivateKey? = try {
         keyring.privateKey(cipher)
     } catch (refused: UnwrapRefusedException) {
-        throw IOException("the Keystore did not open the keyring (${refused.cause?.javaClass?.simpleName})", refused)
+        throw IOException("the Keystore did not open the keyring (${refused.cause?.javaClass?.simpleName})", refused) // not user text
     } catch (damaged: UnreadableSealException) {
         null
     }
@@ -141,14 +141,14 @@ internal class KeyringFiles(private val folder: File, private val key: Fingerpri
     fun delete(database: String): Boolean {
         val file = File(databasesFolder, database)
         if (!file.exists()) return false
-        if (!file.delete()) throw IOException("could not delete a stored password")
+        if (!file.delete()) throw IOException("could not delete a stored password") // not user text
         return true
     }
 
     /** The databases' first (a keyring of later could never open them), then the keyring, then the key. */
     fun deleteAll() {
-        databasesFolder.listFiles()?.forEach { if (!it.delete()) throw IOException("could not delete a stored password") }
-        if (keyringFile.exists() && !keyringFile.delete()) throw IOException("could not delete the keyring")
+        databasesFolder.listFiles()?.forEach { if (!it.delete()) throw IOException("could not delete a stored password") } // not user text
+        if (keyringFile.exists() && !keyringFile.delete()) throw IOException("could not delete the keyring") // not user text
         key.delete()
     }
 
@@ -181,7 +181,7 @@ internal class KeyringFiles(private val folder: File, private val key: Fingerpri
         }
         if (!temporary.renameTo(file)) {
             temporary.delete()
-            throw IOException("could not write ${file.name}")
+            throw IOException("could not write ${file.name}") // not user text
         }
     }
 }

@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared by the list's sheets and dialogs -->
+    <string name="list_cancel">Cancel</string>
+    <string name="list_save">Save</string>
+    <string name="list_ok">OK</string>
+    <string name="list_one_time_code">One-time code</string>
+    <string name="list_copy_code">Copy code</string>
+    <string name="list_copy_one_time_code">Copy one-time code</string>
+    <string name="list_add_a_code">Add a code</string>
+    <!-- %1$d: how many one-time codes the entry has -->
+    <plurals name="list_one_time_codes">
+        <item quantity="one">%1$d one-time code</item>
+        <item quantity="other">%1$d one-time codes</item>
+    </plurals>
+
+    <!-- The header (list/EntryListScreen.kt) -->
+    <string name="list_header_codes">Codes</string>
+    <!-- %1$s: the open database's name (or the open ones' joined); %2$s: how many codes, formatted -->
+    <plurals name="list_header_code_count">
+        <item quantity="one">%1$s · %2$s code</item>
+        <item quantity="other">%1$s · %2$s codes</item>
+    </plurals>
+    <!-- %1$s: the open database's name (or the open ones' joined); %2$s: how many entries, formatted -->
+    <plurals name="list_header_entry_count">
+        <item quantity="one">%1$s · %2$s entry</item>
+        <item quantity="other">%1$s · %2$s entries</item>
+    </plurals>
+    <string name="list_lock">Lock</string>
+    <string name="list_groups_and_tags">Groups and tags</string>
+    <string name="list_sharing">Sharing</string>
+    <!-- %1$d: the requests waiting for an answer -->
+    <plurals name="list_sharing_to_answer">
+        <item quantity="one">Sharing, %1$d to answer</item>
+        <item quantity="other">Sharing, %1$d to answer</item>
+    </plurals>
+    <string name="list_more">More</string>
+    <string name="list_generate_password">Generate a password</string>
+    <string name="list_databases">Databases</string>
+    <!-- %1$d: how many databases are open -->
+    <plurals name="list_databases_open">
+        <item quantity="one">%1$d open</item>
+        <item quantity="other">%1$d open</item>
+    </plurals>
+    <string name="list_settings">Settings</string>
+
+    <!-- The list's sections and rows (list/EntryListScreen.kt) -->
+    <string name="list_section_suggested">Suggested</string>
+    <string name="list_section_recent">Recent</string>
+    <string name="list_section_all">All entries</string>
+    <!-- %1$s: how many entries match, formatted -->
+    <plurals name="list_section_results">
+        <item quantity="one">%1$s entry</item>
+        <item quantity="other">%1$s entries</item>
+    </plurals>
+    <string name="list_section_recycle_bin">Recycle bin</string>
+    <string name="list_bin_empty">The recycle bin is empty.</string>
+    <!-- %1$s: what is typed in the search field -->
+    <string name="list_nothing_matches">Nothing matches “%1$s”.</string>
+    <string name="list_more_actions">More actions</string>
+    <string name="list_has_attachments">Has attachments</string>
+    <string name="list_group">Group</string>
+    <string name="list_show_codes">Show codes</string>
+    <string name="list_no_app_for_link">No app opens this link</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="list_fingerprint_failed">The fingerprint could not be set up: %1$s.</string>
+    <!-- %1$s: the database's name -->
+    <string name="list_fingerprint_on">Your fingerprint opens “%1$s” from now on.</string>
+
+    <!-- The search field, its chips and the + (list/EntryListScreen.kt, list/SearchChips.kt, list/NewChoice.kt) -->
+    <string name="list_search">Search</string>
+    <string name="list_search_entries">Search entries</string>
+    <string name="list_search_codes">Search codes</string>
+    <string name="list_clear_search">Clear the search</string>
+    <string name="list_narrow_to">Narrow to</string>
+    <string name="list_chip_group">group</string>
+    <string name="list_chip_tag">tag</string>
+    <string name="list_chip_database">database</string>
+    <string name="list_chip_file">file</string>
+    <string name="list_chip_bin">bin</string>
+    <string name="list_chip_any_file">Any file</string>
+    <!-- What a screen reader says of a chip whose entries are in two or more databases: %1$s: the chip's name; %2$s: the
+         counts per database, each list_chip_share, joined as a list -->
+    <string name="list_chip_shares">%1$s: %2$s</string>
+    <!-- %1$s: a database's label; %2$d: the chip's entries in it -->
+    <string name="list_chip_share">%1$s %2$d</string>
+    <!-- %1$s: a database's label -->
+    <string name="list_chip_database_said">Database %1$s</string>
+    <!-- %1$s: a database's label; %2$d: its entries -->
+    <string name="list_chip_database_count_said">Database %1$s, %2$d</string>
+    <string name="list_new">New</string>
+    <string name="list_new_entry">New entry</string>
+    <string name="list_new_note">New note</string>
+    <string name="list_new_note_from_clipboard">New note from clipboard</string>
+    <string name="list_new_note_from_clipboard_detail">Opens it with the copied text</string>
+
+    <!-- A row swiped (list/SwipeToCopy.kt) -->
+    <string name="list_copy_password">Copy password</string>
+    <string name="list_copy_username">Copy username</string>
+    <string name="list_no_password">No password</string>
+    <string name="list_no_username">No username</string>
+
+    <!-- A row's quick actions (list/QuickActionsSheet.kt) -->
+    <string name="list_copy_one_time_code_more">Copy one-time code…</string>
+    <!-- %1$d: how many codes the entry has (two or more) -->
+    <plurals name="list_codes_count">
+        <item quantity="one">%1$d code</item>
+        <item quantity="other">%1$d codes</item>
+    </plurals>
+    <!-- %1$s: the site's host -->
+    <string name="list_open_site">Open %1$s</string>
+    <string name="list_restore">Restore</string>
+    <string name="list_delete_for_good_more">Delete for good…</string>
+    <string name="list_edit">Edit</string>
+    <string name="list_remove_from_recent">Remove from Recent</string>
+    <string name="list_move_to_bin">Move to the recycle bin</string>
+
+    <!-- A change tried on a database too large to save (list/ReadOnlyDialog.kt) -->
+    <string name="list_read_only">Read only</string>
+
+    <!-- The Codes view and a tile's ⋯ (list/CodeTiles.kt) -->
+    <!-- %1$s: what is typed in the search field -->
+    <string name="list_codes_no_match">No code matches “%1$s”.</string>
+    <string name="list_codes_none">No entry has a one-time code.</string>
+    <!-- %1$s: the entry's title -->
+    <string name="list_more_for">More for %1$s</string>
+    <string name="list_field">Field</string>
+    <string name="list_code_open_entry">Open entry</string>
+    <string name="list_code_edit">Edit code…</string>
+    <string name="list_code_move_entry">Move entry to the recycle bin</string>
+    <!-- %1$s: the entry's title -->
+    <string name="list_code_move_entry_detail">Its one-time code is all “%1$s” holds</string>
+    <string name="list_code_delete">Delete from the entry</string>
+    <!-- %1$s: the field's name; %2$s: the entry's title -->
+    <string name="list_code_delete_field_detail">The field “%1$s” goes from %2$s</string>
+    <!-- %1$s: the entry's title -->
+    <string name="list_code_delete_detail">Its one-time code goes from %1$s</string>
+
+    <!-- Edit code and Add a code (list/CodeEditing.kt) -->
+    <string name="list_edit_code_title">Edit code</string>
+    <string name="list_code_name">Name</string>
+    <string name="list_edit_code_secret_replaced">Secret · replaced: the code above is the new one</string>
+    <string name="list_edit_code_secret_kept">Secret · kept as it is, or replaced from</string>
+    <string name="list_code_digits">Digits</string>
+    <string name="list_code_period">Period</string>
+    <!-- %1$d: the code's period in seconds -->
+    <plurals name="list_code_period_seconds">
+        <item quantity="one">%1$d s</item>
+        <item quantity="other">%1$d s</item>
+    </plurals>
+    <string name="list_code_algorithm">Algorithm</string>
+    <string name="list_add_code_hint">Scan the QR code the site shows, or paste its setup key.</string>
+    <string name="list_add_code_on_phone">Read on the phone; nothing is sent anywhere.</string>
+    <string name="list_add_code_no_name">A setup key without a name: give the entry a title.</string>
+    <!-- %1$s: the code's issuer or account, as its link names it -->
+    <string name="list_add_code_read">Read: %1$s</string>
+    <!-- %1$s: the code's issuer; %2$s: its account -->
+    <string name="list_add_code_read_both">Read: %1$s, %2$s</string>
+    <string name="list_add_code_into">Into</string>
+    <!-- %1$s: the entry's title; %2$s: its database's name -->
+    <string name="list_add_code_already_in">“%1$s” is already in %2$s</string>
+    <!-- %1$s: the entry's title -->
+    <string name="list_add_code_already_in_database">“%1$s” is already in the database</string>
+    <!-- %1$s: the entry's title -->
+    <string name="list_add_code_to">Add to “%1$s”</string>
+    <string name="list_add_code_no_code_yet">it has no code yet</string>
+    <string name="list_add_code_as_next">as its next code</string>
+    <!-- %1$s: the entry's username; %2$s: list_add_code_no_code_yet or list_add_code_as_next -->
+    <string name="list_add_code_detail">%1$s · %2$s</string>
+    <string name="list_add_code_new_entry">A new entry</string>
+    <string name="list_add_code_new_entry_detail">Title, username and this code</string>
+    <string name="list_add_code_entry_title">Title</string>
+    <string name="list_add_code_entry_username">Username</string>
+    <string name="list_add_code_button">Add code</string>
+    <string name="list_code_source_camera">Camera</string>
+    <string name="list_code_source_image">Image</string>
+    <string name="list_code_source_paste">Paste</string>
+    <string name="list_code_clipboard_empty">The clipboard holds no text or image.</string>
+    <string name="list_code_type_key_or_link">Or type the setup key or otpauth:// link</string>
+    <string name="list_code_type_secret_or_link">Or type the secret or link</string>
+    <string name="list_code_hide_secret">Hide the secret</string>
+    <string name="list_code_show_secret">Show the secret</string>
+    <string name="list_code_use">Use</string>
+
+    <!-- Resolve… of a conflict copy (list/ConflictCopySheet.kt) -->
+    <!-- %1$s: the database's file name -->
+    <string name="list_conflict_title">Two versions of %1$s</string>
+    <string name="list_conflict_text">Syncthing kept both when two devices changed the database at once. Keething does not merge them: keep one here, or merge them in KeePassXC (Database › Merge) to keep the changes of both.</string>
+    <string name="list_conflict_open_now">Open now</string>
+    <string name="list_conflict_other">The other one</string>
+    <!-- %1$s: when the copy was made; %2$s: the device's id, as Syncthing names it -->
+    <string name="list_conflict_other_from">From %1$s, device %2$s</string>
+    <string name="list_conflict_reading">Reading…</string>
+    <string name="list_conflict_keep">Keep the open one</string>
+    <string name="list_conflict_keep_detail">Deletes the other version. A copy of it is kept in Keething\'s backups of this database first. Changes made only in the other version are not in the open one.</string>
+    <string name="list_conflict_use">Use the other one</string>
+    <!-- %1$s: the database's file name -->
+    <string name="list_conflict_use_detail">Replaces %1$s with the other version, whose file then goes. The open one is kept in Keething\'s backups first. Changes made only in the open one are lost from the database.</string>
+    <string name="list_conflict_use_not_opened">It cannot be used: it does not open here.</string>
+    <string name="list_conflict_confirm_keep_title">Delete the other version?</string>
+    <!-- %1$s: the database's file name -->
+    <string name="list_conflict_confirm_use_title">Replace %1$s with the other version?</string>
+    <string name="list_conflict_confirm_keep_text">Its file is deleted; a copy of it is kept in Keething\'s backups of this database first.</string>
+    <string name="list_conflict_confirm_use_text">The open version is kept in Keething\'s backups first, then the other one takes its place and its file is deleted. Changes made only in the open one are lost from the database.</string>
+    <string name="list_conflict_confirm_keep">Delete it</string>
+    <string name="list_conflict_confirm_use">Replace</string>
+    <!-- %1$d: the version's entries -->
+    <plurals name="list_conflict_entries">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
+    <!-- %1$d: the version's entries; %2$s: when it was last changed -->
+    <plurals name="list_conflict_entries_changed">
+        <item quantity="one">%1$d entry · last change %2$s</item>
+        <item quantity="other">%1$d entries · last change %2$s</item>
+    </plurals>
+    <!-- How a choice went (list/ConflictCopyModel.kt) -->
+    <string name="list_conflict_wrong_key">It does not open with this database\'s password or key file (changed on another device?).</string>
+    <string name="list_conflict_locked">The database is locked.</string>
+    <string name="list_conflict_locked_nothing_changed">The database is locked. Nothing was changed.</string>
+    <!-- %1$s: the database's file name -->
+    <string name="list_conflict_kept">Kept %1$s. The other version was deleted (a copy is in Keething\'s backups).</string>
+    <!-- %1$s: why, its first letter small -->
+    <string name="list_conflict_still_there">The other version is still there: %1$s</string>
+    <!-- %1$s: the database's file name -->
+    <string name="list_conflict_used_copy_left">%1$s is the other version now. Its file could not be deleted: keep the open one to delete it.</string>
+    <!-- %1$s: the database's file name -->
+    <string name="list_conflict_used">%1$s is the other version now (the one before is in Keething\'s backups).</string>
+    <string name="list_conflict_refused_kdbx3">This database is KDBX 3.1, viewed only: the other version can only be deleted here.</string>
+    <string name="list_conflict_refused_too_large">This database is read only on this phone: the other version can only be deleted here.</string>
+
+    <!-- The banners over the list (list/EntryListViewModel.kt); each _named one while two or more databases are open,
+         %1$s: the database's name -->
+    <string name="list_banner_too_large">Read only: too large for this phone</string>
+    <string name="list_banner_too_large_named">%1$s: read only, too large for this phone</string>
+    <string name="list_banner_near_limit">Near this phone\'s limit</string>
+    <string name="list_banner_near_limit_named">%1$s: near this phone\'s limit</string>
+    <string name="list_banner_changeable_again">Can be changed again</string>
+    <string name="list_banner_changeable_again_named">%1$s: can be changed again</string>
+    <string name="list_banner_conflict">Syncthing found two versions</string>
+    <string name="list_banner_conflict_named">%1$s: Syncthing found two versions</string>
+    <!-- %1$s: the database's file name; %2$s: when the other version was made; %3$s: the device's id -->
+    <string name="list_banner_conflict_text">Open: %1$s. The other one is from %2$s (device %3$s). Keep one of them here, or merge them in KeePassXC (Database › Merge).</string>
+    <string name="list_banner_conflict_resolve">Resolve…</string>
+    <string name="list_banner_stopped_save">The last save was put right</string>
+    <string name="list_banner_stopped_save_named">%1$s: the last save was put right</string>
+    <!-- %1$s: the database's file name -->
+    <string name="list_banner_stopped_save_finished">Keething was closed while it saved %1$s. The save was finished: the file has the change.</string>
+    <!-- %1$s: the database's file name -->
+    <string name="list_banner_stopped_save_undone">Keething was closed while it saved %1$s. It could not be finished, so the file is as it was before (or as a sync made it since): make the change again if it is missing.</string>
+    <string name="list_banner_unsaved">Not saved</string>
+    <string name="list_banner_unsaved_named">%1$s: not saved</string>
+    <string name="list_banner_reload">Showing the version read before</string>
+    <string name="list_banner_reload_named">%1$s: showing the version read before</string>
+
+    <!-- The list's notices (list/EntryListViewModel.kt) -->
+    <!-- %1$s: the database's name -->
+    <string name="list_locked_password_changed">%1$s locked: its password was changed elsewhere</string>
+    <!-- %1$s: how long the key derivation took (list_duration_ms or list_duration_s) -->
+    <string name="list_unlocked">Unlocked · key derivation %1$s</string>
+    <!-- %1$s: the database's name; %2$s: how long the key derivation took -->
+    <string name="list_unlocked_named">%1$s unlocked · key derivation %2$s</string>
+    <!-- A duration, the unit kept with its number on a line: %1$d: milliseconds -->
+    <string name="list_duration_ms">%1$d ms</string>
+    <!-- %1$.1f: seconds -->
+    <string name="list_duration_s">%1$.1f s</string>
+    <string name="list_no_password_to_copy">No password to copy</string>
+    <string name="list_no_username_to_copy">No username to copy</string>
+    <!-- The fields a copy names in "… copied · clears in 30 s" -->
+    <string name="list_field_password">Password</string>
+    <string name="list_field_username">Username</string>
+    <!-- %1$s: the entry's title -->
+    <string name="list_code_changed">One-time code changed in %1$s</string>
+    <!-- %1$s: the code's field name; %2$s: the entry's title -->
+    <string name="list_code_field_changed">“%1$s” changed in %2$s</string>
+    <!-- %1$s: the entry's title -->
+    <string name="list_code_deleted">One-time code deleted from %1$s</string>
+    <!-- %1$s: the code's field name; %2$s: the entry's title -->
+    <string name="list_code_field_deleted">“%1$s” deleted from %2$s</string>
+    <!-- %1$s: the entry's title -->
+    <string name="list_code_added">One-time code added to %1$s</string>
+    <!-- %1$s: the code's field name; %2$s: the entry's title -->
+    <string name="list_code_field_added">“%1$s” added to %2$s</string>
+    <!-- %1$s: the new entry's title, or list_untitled -->
+    <string name="list_code_entry_added">“%1$s” added with its code</string>
+    <string name="list_untitled">(Untitled)</string>
+    <string name="list_removed_from_recent">Removed from Recent</string>
+</resources>

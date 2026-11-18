@@ -1,5 +1,11 @@
 package dev.keething.android.databases
 
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiListed
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.domain.storage.StoragePlace
 import dev.keething.search.SearchNormalizer
 import dev.keething.vault.databases.DatabaseId
@@ -72,11 +78,11 @@ internal data class KeyFileLine(val name: String, val folder: String, val path: 
     val isMissing: Boolean get() = reach == Reach.NOT_FOUND || reach == Reach.NO_ACCESS || reach == Reach.NEEDS_FOLDER
 
     /** After its name: its folder, or why it cannot be used ("not there · Keys", "no access · Keys"). */
-    val detail: String
+    val detail: UiText
         get() = when (reach) {
-            Reach.NOT_FOUND -> "not there · $folder"
-            Reach.NO_ACCESS, Reach.NEEDS_FOLDER -> "no access · $folder"
-            Reach.THERE, Reach.UNKNOWN -> folder
+            Reach.NOT_FOUND -> uiText(R.string.databases_key_file_detail_not_there, folder)
+            Reach.NO_ACCESS, Reach.NEEDS_FOLDER -> uiText(R.string.databases_key_file_detail_no_access, folder)
+            Reach.THERE, Reach.UNKNOWN -> uiPlain(folder)
         }
 }
 
@@ -89,7 +95,7 @@ internal data class DatabaseLine(
     /** "Sync/KeePass", from the shared storage's root. */
     val folder: String,
     /** After the folder: "changed 2 hours ago", "not found"; null when nothing is known. */
-    val status: String?,
+    val status: UiText?,
     /** Whether its file can be reached now: anything but there or unknown is said, with Locate… or its folder's question. */
     val reach: Reach,
     val keyFile: KeyFileLine?,
@@ -105,11 +111,20 @@ internal data class DatabaseLine(
     val isMissing: Boolean get() = reach == Reach.NOT_FOUND || reach == Reach.NO_ACCESS || reach == Reach.NEEDS_FOLDER
 
     /** What is said of a file that cannot be reached: "not found", "no access", "needs its folder". */
-    val reachWord: String?
+    val reachWord: UiText?
         get() = when (reach) {
-            Reach.NOT_FOUND -> "not found"
-            Reach.NO_ACCESS -> "no access"
-            Reach.NEEDS_FOLDER -> "needs its folder"
+            Reach.NOT_FOUND -> uiText(R.string.databases_reach_not_found)
+            Reach.NO_ACCESS -> uiText(R.string.databases_reach_no_access)
+            Reach.NEEDS_FOLDER -> uiText(R.string.databases_reach_needs_folder)
+            Reach.THERE, Reach.UNKNOWN -> null
+        }
+
+    /** The same said on its own, as a row's line: "Not found", "No access", "Needs its folder". */
+    val reachTitle: UiText?
+        get() = when (reach) {
+            Reach.NOT_FOUND -> uiText(R.string.databases_reach_not_found_title)
+            Reach.NO_ACCESS -> uiText(R.string.databases_reach_no_access_title)
+            Reach.NEEDS_FOLDER -> uiText(R.string.databases_reach_needs_folder_title)
             Reach.THERE, Reach.UNKNOWN -> null
         }
 
@@ -120,28 +135,28 @@ internal data class DatabaseLine(
     val initial: String get() = name.trim().firstOrNull()?.uppercase() ?: "?"
 
     /** Under the name on the lock screen: "Sync/KeePass · changed 2 hours ago", "Download · not found". */
-    val detail: String get() = listOfNotNull(folder, status).joinToString(" · ")
+    val detail: UiText get() = status?.let { uiText(R.string.databases_line_detail, folder, it) } ?: uiPlain(folder)
 
     /** Under its name in the lock screen's sheet: its folder, or that it is not found ("no access", "needs its folder"). */
-    val sheetDetail: String get() = reachWord ?: folder
+    val sheetDetail: UiText get() = reachWord ?: uiPlain(folder)
 
     /** Under its name in Settings: "Sync/Work", "Not found · Download". */
-    val settingsDetail: String get() = reachWord?.let { "${it.replaceFirstChar(Char::uppercaseChar)} · $folder" } ?: folder
+    val settingsDetail: UiText get() = reachTitle?.let { uiText(R.string.databases_line_settings_detail, it, folder) } ?: uiPlain(folder)
 }
 
 /** What the lock screen shows of its database (SPEC §6.2; the Mac's `LockScreenDatabase`). */
 internal data class LockScreenDatabase(
     val line: DatabaseLine,
     /** Said in red before anything is typed: its key file is not there. */
-    val problem: String?,
+    val problem: UiText?,
     /** No field for a database that opens with its key file alone, nor for one not found (Locate… instead). */
     val showsPasswordField: Boolean,
     val showsLocate: Boolean,
     /** In place of the field when the file cannot be reached. */
-    val missingText: String?,
+    val missingText: UiText?,
     /** The button in place of the field: "Locate…", or for a database kept by its path "Choose its folder…" (AC13). */
-    val locateLabel: String,
-    val passwordPlaceholder: String,
+    val locateLabel: UiText,
+    val passwordPlaceholder: UiText,
     /** Unlock needs something typed: without a key file nothing else could open it. */
     val needsPassword: Boolean,
 ) {
@@ -296,30 +311,30 @@ internal object DatabaseText {
     fun abbreviated(path: String, root: String): String {
         val base = root.trimEnd('/')
         if (base.isEmpty()) return path
-        if (path == base) return "Internal storage"
+        if (path == base) return INTERNAL_STORAGE
         return if (path.startsWith("$base/")) path.removePrefix("$base/") else path
     }
 
     /** When a file changed, as a person says it: "changed 2 hours ago", "changed yesterday", "changed in March". */
-    fun changed(date: Instant, now: Instant, zone: ZoneId): String = "changed " + ago(date, now, zone)
+    fun changed(date: Instant, now: Instant, zone: ZoneId): UiText = uiText(R.string.databases_changed_ago, ago(date, now, zone))
 
     /** "just now", "2 hours ago", "today", "yesterday", "3 days ago", "last week", "in March", "in November 2025". */
-    fun ago(date: Instant, now: Instant, zone: ZoneId): String {
+    fun ago(date: Instant, now: Instant, zone: ZoneId): UiText {
         val seconds = Duration.between(date, now).seconds
-        if (seconds < 60) return "just now"
-        if (seconds < 3600) return "${count(seconds / 60, "minute")} ago"
-        if (seconds < 12 * 3600) return "${count(seconds / 3600, "hour")} ago"
+        if (seconds < 60) return uiText(R.string.databases_ago_just_now)
+        if (seconds < 3600) return (seconds / 60).toInt().let { uiPlural(R.plurals.databases_ago_minutes, it) }
+        if (seconds < 12 * 3600) return (seconds / 3600).toInt().let { uiPlural(R.plurals.databases_ago_hours, it) }
         val day = date.atZone(zone).toLocalDate()
         val today = now.atZone(zone).toLocalDate()
         val days = ChronoUnit.DAYS.between(day, today)
         return when {
-            days == 0L -> "today"
-            days == 1L -> "yesterday"
-            days < 7 -> "$days days ago"
-            days < 14 -> "last week"
+            days == 0L -> uiText(R.string.databases_ago_today)
+            days == 1L -> uiText(R.string.databases_ago_yesterday)
+            days < 7 -> uiPlural(R.plurals.databases_ago_days, days.toInt())
+            days < 14 -> uiText(R.string.databases_ago_last_week)
             else -> {
                 val month = day.month.getDisplayName(TextStyle.FULL_STANDALONE, Locale.ENGLISH)
-                if (day.year == today.year) "in $month" else "in $month ${day.year}"
+                if (day.year == today.year) uiText(R.string.databases_ago_in_month, month) else uiText(R.string.databases_ago_in_month_year, month, day.year)
             }
         }
     }
@@ -345,10 +360,13 @@ internal object DatabaseText {
     }
 
     /** "Personal", "Personal and Work", "Personal, Work and Family Shared". */
-    fun joined(names: List<String>): String =
-        if (names.size < 2) names.joinToString("") else names.dropLast(1).joinToString(", ") + " and " + names.last()
+    fun joined(names: List<String>): UiText = uiListed(names.map(::uiPlain))
 
-    private fun count(n: Long, unit: String): String = if (n == 1L) "1 $unit" else "$n ${unit}s"
+    /**
+     * The shared storage's root in words. TODO(T14): still English; [abbreviated] gives a String used as a database's
+     * label and folder across the app, which a resource cannot reach without changing all of them.
+     */
+    private const val INTERNAL_STORAGE = "Internal storage" // not user text: see INTERNAL_STORAGE's KDoc (T14)
 }
 
 /** Every database's mark, over the whole list. */
@@ -384,9 +402,9 @@ private fun Databases.line(
         folder = DatabaseText.folder(path, root),
         status = when (look.reach) {
             Reach.THERE, Reach.UNKNOWN -> look.modified?.let { DatabaseText.changed(it, now, zone) }
-            Reach.NOT_FOUND -> "not found"
-            Reach.NO_ACCESS -> "no access"
-            Reach.NEEDS_FOLDER -> "needs its folder"
+            Reach.NOT_FOUND -> uiText(R.string.databases_reach_not_found)
+            Reach.NO_ACCESS -> uiText(R.string.databases_reach_no_access)
+            Reach.NEEDS_FOLDER -> uiText(R.string.databases_reach_needs_folder)
         },
         reach = look.reach,
         keyFile = record.keyFile?.let { keyFile ->
@@ -415,25 +433,19 @@ internal fun DatabaseRecord.lockScreen(line: DatabaseLine): LockScreenDatabase {
         line = line,
         problem = when {
             line.isMissing || key == null || !key.isMissing -> null
-            key.reach == Reach.NOT_FOUND -> "${line.name} needs its key file: ${key.name} is not in ${key.folder}."
-            else -> "Keething may not read ${key.name} any more: choose it again."
+            key.reach == Reach.NOT_FOUND -> uiText(R.string.databases_lock_key_file_not_there, line.name, key.name, key.folder)
+            else -> uiText(R.string.databases_lock_key_file_no_access, key.name)
         },
         showsPasswordField = !line.isMissing && !isPasswordless,
         showsLocate = line.isMissing,
         missingText = when (line.reach) {
             Reach.THERE, Reach.UNKNOWN -> null
-            Reach.NEEDS_FOLDER ->
-                "Keething now opens files only in folders you choose. Choose ${line.folder}, the folder of $fileName: it is asked once."
-            Reach.NO_ACCESS ->
-                "Keething can no longer reach ${line.folder}: renamed, moved or deleted on a device, or its access taken back. Locate the file to choose its folder again."
-            Reach.NOT_FOUND -> if (removable) {
-                "$fileName is not in ${line.folder}. Put the card in, or locate the file."
-            } else {
-                "$fileName is not in ${line.folder} any more. Locate the file, or choose another database."
-            }
+            Reach.NEEDS_FOLDER -> uiText(R.string.databases_lock_needs_folder, line.folder, fileName)
+            Reach.NO_ACCESS -> uiText(R.string.databases_lock_no_access, line.folder)
+            Reach.NOT_FOUND -> uiText(if (removable) R.string.databases_lock_not_on_card else R.string.databases_lock_not_found, fileName, line.folder)
         },
-        locateLabel = if (line.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…",
-        passwordPlaceholder = "Master password",
+        locateLabel = uiText(if (line.reach == Reach.NEEDS_FOLDER) R.string.databases_lock_choose_folder else R.string.databases_lock_locate),
+        passwordPlaceholder = uiText(R.string.databases_master_password),
         needsPassword = keyFile == null,
     )
 }

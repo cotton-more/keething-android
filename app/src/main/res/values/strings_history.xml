@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- An entry's history (history/EntryHistoryScreen.kt) -->
+    <string name="history_title">History</string>
+    <string name="history_back">Back to the entry</string>
+    <string name="history_in_recycle_bin">In the recycle bin: restore the entry first to go back to one of its versions.</string>
+    <string name="history_read_only">This database is read only on this phone: its versions are shown, not restored.</string>
+    <string name="history_reading">Reading the file…</string>
+    <string name="history_none">No earlier versions are kept for this entry.</string>
+    <string name="history_entry_gone">This entry is no longer in the file.</string>
+    <string name="history_password_changed">The database\'s password was changed since the unlock.</string>
+    <!-- %1$s: why it was not restored, a sentence -->
+    <string name="history_not_restored">Not restored: %1$s</string>
+    <string name="history_size_unknown">size unknown</string>
+
+    <!-- A version -->
+    <string name="history_date_not_known">Date not known</string>
+    <string name="history_current">Current</string>
+    <string name="history_oldest">The oldest version kept: nothing to compare it with.</string>
+    <string name="history_no_change_shown">Saved without a change that is shown here (an icon, a colour or auto-type, for example).</string>
+    <string name="history_restore">Go back to this version…</string>
+    <string name="history_restoring">Going back…</string>
+    <!-- %1$s: the version's date and time -->
+    <string name="history_restore_version_of">Go back to the version of %1$s</string>
+    <!-- %1$s: the field's name -->
+    <string name="history_change_added">%1$s · added</string>
+    <!-- %1$s: the field's name -->
+    <string name="history_change_removed">%1$s · removed</string>
+    <!-- %1$s: the field's name -->
+    <string name="history_change_changed">%1$s · changed</string>
+    <!-- %1$s: the field's name -->
+    <string name="history_show">Show %1$s</string>
+    <!-- %1$s: the field's name -->
+    <string name="history_hide">Hide %1$s</string>
+    <string name="history_empty">(empty)</string>
+
+    <!-- Go back to this version? -->
+    <string name="history_restore_title">Go back to this version?</string>
+    <!-- The entry's name when its title is not at hand -->
+    <string name="history_the_entry">The entry</string>
+    <!-- %1$s: the entry's title; %2$s: the version's date and time (or history_date_not_known_in_sentence) -->
+    <string name="history_restore_text">%1$s becomes as it was on %2$s, with everything changed since undone. The current version goes into the history, so you can come back to it the same way.</string>
+    <string name="history_date_not_known_in_sentence">a date not known</string>
+    <string name="history_restore_what_changes">What changes</string>
+    <string name="history_restore_nothing_shown">Nothing shown here (an icon, a colour or auto-type, for example).</string>
+    <string name="history_restore_confirm">Go back</string>
+    <string name="history_cancel">Cancel</string>
+    <!-- Said once restored. %1$s: the version's date and time (or history_date_not_known_in_sentence) -->
+    <string name="history_restored">Back to the version of %1$s</string>
+
+    <!-- What the history loses with a restore -->
+    <!-- %1$d: how many earlier versions the database keeps -->
+    <plurals name="history_trimmed_kept">
+        <item quantity="one">%1$d earlier version</item>
+        <item quantity="other">%1$d earlier versions</item>
+    </plurals>
+    <!-- %1$s: history_trimmed_kept -->
+    <string name="history_trimmed_this_one_leaves">This database keeps %1$s: this one leaves the history as it becomes the current one.</string>
+    <!-- %1$s: history_trimmed_kept; %2$s: the oldest version's date -->
+    <string name="history_trimmed_oldest_goes">This database keeps %1$s, so the oldest, from %2$s, goes.</string>
+    <!-- %1$s: history_trimmed_kept; %2$d: how many go; %3$s: the newest of them's date -->
+    <plurals name="history_trimmed_oldest_go">
+        <item quantity="one">This database keeps %1$s, so the %2$d oldest go, the newest of them from %3$s.</item>
+        <item quantity="other">This database keeps %1$s, so the %2$d oldest go, the newest of them from %3$s.</item>
+    </plurals>
+    <!-- %1$s: history_trimmed_kept; %2$d: how many go, the version restored among them; %3$s: the newest of them's date -->
+    <plurals name="history_trimmed_oldest_go_this_one_leaves">
+        <item quantity="one">This database keeps %1$s, so the %2$d oldest go, the newest of them from %3$s. This one becomes the current one.</item>
+        <item quantity="other">This database keeps %1$s, so the %2$d oldest go, the newest of them from %3$s. This one becomes the current one.</item>
+    </plurals>
+</resources>

@@ -18,7 +18,7 @@ internal class ProviderFile(private val resolver: ContentResolver, private val u
     override val id: String = uri.toString()
 
     override fun read(): ByteArray? = try {
-        resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("the provider gave no file")
+        resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("the provider gave no file") // not user text
     } catch (_: FileNotFoundException) {
         null
     } catch (failure: SecurityException) {
@@ -80,7 +80,7 @@ internal class PersistedGrants(private val resolver: ContentResolver) : Grants {
     }
 
     private companion object {
-        const val TAG = "Grants"
+        const val TAG = "Grants" // not user text
         const val READ = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
         const val WRITE = android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
     }

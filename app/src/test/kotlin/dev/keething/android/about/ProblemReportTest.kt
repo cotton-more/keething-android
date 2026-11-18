@@ -1,5 +1,6 @@
 package dev.keething.android.about
 
+import dev.keething.android.ui.english
 import java.net.URLDecoder
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -11,7 +12,7 @@ class ProblemReportTest {
     @Test
     fun theIssueSaysTheBuildAndThePhone() {
         val info = BuildInfo.parse("version=0.0.1\nversionCode=1\ncommit=becc85f\ndirty=true\n")
-        val url = ProblemReport.url(info, "16", 36, "Google Pixel 6")
+        val url = ProblemReport.url(ProblemReport.body(info, "16", 36, "Google Pixel 6").english())
 
         assertTrue(url.startsWith("https://github.com/cotton-more/keething-android/issues/new?body="))
         assertFalse(url.contains('+'), "spaces are %20, not +")
@@ -23,7 +24,7 @@ class ProblemReportTest {
     // spec: app.security-policy/AC5
     @Test
     fun aVulnerabilityIsSentToThePolicyFirst() {
-        val body = URLDecoder.decode(ProblemReport.url(BuildInfo.parse(""), "16", 36, "Google Pixel 6").substringAfter("body="), Charsets.UTF_8)
+        val body = URLDecoder.decode(ProblemReport.url(ProblemReport.body(BuildInfo.parse(""), "16", 36, "Google Pixel 6").english()).substringAfter("body="), Charsets.UTF_8)
 
         assertTrue(body.lines().first().contains("SECURITY.md"))
         assertTrue(body.indexOf("SECURITY.md") < body.indexOf("**What happened**"))

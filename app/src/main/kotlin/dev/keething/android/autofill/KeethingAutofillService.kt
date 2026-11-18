@@ -64,16 +64,16 @@ class KeethingAutofillService : AutofillService() {
             AutofillForm.parse(screen.packageName, screen.fields, packageName, signing)?.takeIf { it.target == form.target }?.usernames?.firstNotNullOfOrNull(screen::text)
         }
         // Kinds only: never a value, a domain or an app.
-        Log.i(TAG, "save request: " + (if (form.target is FillTarget.WebPage) "web page" else "app") +
-            ", username ${if (username != null) "typed" else "none"}, " + if (form.newPasswords.isNotEmpty()) "new password" else "password")
+        Log.i(TAG, "save request: " + (if (form.target is FillTarget.WebPage) "web page" else "app") + // not user text
+            ", username ${if (username != null) "typed" else "none"}, " + if (form.newPasswords.isNotEmpty()) "new password" else "password") // not user text
         return PendingSave(form.target, username.orEmpty(), Secret.of(password), current?.let(Secret::of))
     }
 
     private fun AutofillForm.describe(): String =
-        (if (target is FillTarget.WebPage) "web page" else "app") +
+        (if (target is FillTarget.WebPage) "web page" else "app") + // not user text
             ", ${usernames.size} username, ${passwords.size} password, ${codes.size} code"
 
     private companion object {
-        const val TAG = "Autofill"
+        const val TAG = "Autofill" // not user text
     }
 }

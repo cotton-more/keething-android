@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The chooser (navigation/KeethingApp.kt) -->
+    <!-- %1$s: why, as the system said it -->
+    <string name="navigation_stored_password_not_deleted">The stored password could not be deleted: %1$s.</string>
+
+    <!-- A database whose creation was cut short (navigation/KeethingApp.kt NotCreatedDialog) -->
+    <string name="navigation_not_created_title_unnamed">The new database was not created</string>
+    <!-- %1$s: the database's name -->
+    <string name="navigation_not_created_title">“%1$s” was not created</string>
+    <string name="navigation_not_created_nothing_kept">Keething was closed while writing it, so nothing of it was kept. Create it again.</string>
+    <!-- %1$s: the files left, their paths separated by commas -->
+    <string name="navigation_not_created_left">Keething was closed while writing it. This may be left of it, written in part: %1$s. Delete it if it is not yours, then create the database again.</string>
+    <string name="navigation_ok">OK</string>
+
+    <!-- Saves whose notes could not be read (navigation/KeethingApp.kt UnreadableSavesDialog) -->
+    <plurals name="navigation_unreadable_saves_title">
+        <item quantity="one">A save may not have finished</item>
+        <item quantity="other">%1$d saves may not have finished</item>
+    </plurals>
+    <plurals name="navigation_unreadable_saves_text">
+        <item quantity="one">Keething was closed while saving, and could not read its note of that save, so it could not check or put it right. Open your databases and check that the last change you made is there; make it again if it is missing.</item>
+        <item quantity="other">Keething was closed while saving, and could not read its note of those saves, so it could not check or put it right. Open your databases and check that the last change you made is there; make it again if it is missing.</item>
+    </plurals>
+
+    <!-- A database closed (navigation/KeethingApp.kt) -->
+    <!-- %1$s: the database's name -->
+    <string name="navigation_closed">Closed “%1$s”: still under ⋮ › Databases</string>
+    <string name="navigation_closed_unnamed">Closed “it”: still under ⋮ › Databases</string>
+
+    <!-- The card's pane before an entry is chosen (navigation/Panes.kt) -->
+    <string name="navigation_no_entry_chosen">Choose an entry: its card opens here.</string>
+</resources>

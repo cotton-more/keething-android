@@ -10,7 +10,9 @@ import android.security.keystore.KeyInfo
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
+import androidx.annotation.StringRes
 import android.util.Log
+import dev.keething.android.R
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
 import dev.keething.domain.biometric.SeveralOpening
@@ -54,11 +56,11 @@ internal class KeystorePasswordStores(
     override fun availability(): BiometricAvailability =
         when (context.getSystemService(BiometricManager::class.java).canAuthenticate(Authenticators.BIOMETRIC_STRONG)) {
             BiometricManager.BIOMETRIC_SUCCESS -> BiometricAvailability.Available
-            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> unavailable("no fingerprint is set up on this phone")
-            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> unavailable("this phone has no strong fingerprint sensor")
-            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> unavailable("the fingerprint sensor is not available right now")
-            BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED -> unavailable("the fingerprint sensor needs a security update")
-            else -> unavailable("biometrics are not available")
+            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> unavailable(R.string.biometric_unavailable_none_enrolled)
+            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> unavailable(R.string.biometric_unavailable_no_hardware)
+            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> unavailable(R.string.biometric_unavailable_hardware)
+            BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED -> unavailable(R.string.biometric_unavailable_security_update)
+            else -> unavailable(R.string.biometric_unavailable_other)
         }
 
     override fun hasPassword(database: String): Boolean = files.hasPassword(database)
@@ -168,7 +170,7 @@ internal class KeystorePasswordStores(
             val key = try {
                 keyStore.getKey(ALIAS, null) as? PrivateKey
             } catch (failed: UnrecoverableKeyException) {
-                throw IOException("the Keystore did not give the key (${failed.cause?.javaClass?.simpleName ?: failed.message})", failed)
+                throw IOException("the Keystore did not give the key (${failed.cause?.javaClass?.simpleName ?: failed.message})", failed) // not user text
             } ?: return null
             return try {
                 Cipher.getInstance(SealedPassword.RSA_TRANSFORMATION).apply { init(Cipher.DECRYPT_MODE, key, SealedPassword.OAEP) }
@@ -217,24 +219,24 @@ internal class KeystorePasswordStores(
         }
     }
 
-    private fun unavailable(reason: String) = BiometricAvailability.Unavailable(reason)
+    private fun unavailable(@StringRes reason: Int) = BiometricAvailability.Unavailable(context.getString(reason))
 
     /** For the log, by name: R8 renames the classes. Never the password. */
     private fun StoredPasswordOpening.describe(): String = when (this) {
         is StoredPasswordOpening.Opened -> "opened"
         StoredPasswordOpening.Cancelled -> "cancelled"
         is StoredPasswordOpening.Failed -> "failed"
-        StoredPasswordOpening.KeyInvalidated -> "key invalidated"
-        StoredPasswordOpening.CopyInvalidated -> "copy invalidated"
-        StoredPasswordOpening.NothingStored -> "nothing stored"
+        StoredPasswordOpening.KeyInvalidated -> "key invalidated" // not user text
+        StoredPasswordOpening.CopyInvalidated -> "copy invalidated" // not user text
+        StoredPasswordOpening.NothingStored -> "nothing stored" // not user text
     }
 
     private companion object {
-        const val KEYSTORE = "AndroidKeyStore"
+        const val KEYSTORE = "AndroidKeyStore" // not user text
 
         /** The Keystore key's name since before the keyring, when it sealed the one password itself. */
         const val ALIAS = "biometric-password"
         const val OLD_FILE = "biometric-password"
-        const val TAG = "Fingerprint"
+        const val TAG = "Fingerprint" // not user text
     }
 }

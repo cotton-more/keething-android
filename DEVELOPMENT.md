@@ -32,6 +32,21 @@ dev.keething.argon2.NativeArgon2Test#aFileCreatedWithItOpensWithTheKotlinOne
 dev.keething.argon2.test/androidx.test.runner.AndroidJUnitRunner`), `adb pull` the path its log line names, `keepassxc-cli
 db-info` it (password `pw`), then `adb uninstall dev.keething.argon2.test`.
 
+## Texts the user sees
+
+Every text the app shows is a string resource, in `app/src/main/res/values/strings_<package>.xml` (the app's own in
+`strings.xml`): a count is a `<plurals>`, a name goes in by a placeholder, a sentence is never joined from pieces. A
+composable reads it with `stringResource`; a view model or a plain function returns a `UiText`
+(`app/src/main/kotlin/dev/keething/android/ui/UiText.kt`), shown with `resolve()`. A unit test reads a `UiText` in
+English with `english()` (`app/src/test/kotlin/dev/keething/android/ui/EnglishTexts.kt`), so the expected texts stay
+the words on the screen.
+
+    task texts:check            # texts still written into app/'s code (tools/check-texts.py); must print nothing
+
+A literal that is not a text the user sees (a key, a tag, a MIME type) carries `// not user text` on its line; a whole
+file is left out in `tools/texts-allowed.txt`, with why. The core modules' texts are still English Strings (keething-spec
+plans/android-release-1.0.md T13b).
+
 ## Building the APK
 
     tools/build-apk.sh              # release build, signed; the keystore's password from the Keychain, else asked

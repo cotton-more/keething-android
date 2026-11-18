@@ -20,6 +20,8 @@ import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.card.TotpDisplay
@@ -75,11 +78,12 @@ internal fun CodeValue(display: TotpDisplay, onCopyNext: (() -> Unit)? = null, f
 @Composable
 private fun NextCode(display: TotpDisplay, ending: Boolean, onCopyNext: (() -> Unit)?) {
     val colour = if (ending) MaterialTheme.extraColors.onCode else MaterialTheme.colorScheme.onSurfaceVariant
-    val said = "Next code in ${secondsIn(display.secondsRemaining)}: ${display.nextFormatted}"
+    val said = pluralStringResource(R.plurals.ui_code_next_said, display.secondsRemaining, display.secondsRemaining, display.nextFormatted)
+    val copyNext = stringResource(R.string.ui_code_copy_next)
     Row(
         Modifier
             .clip(RoundedCornerShape(8.dp))
-            .then(if (onCopyNext != null) Modifier.clickable(onClickLabel = "Copy next code", onClick = onCopyNext) else Modifier)
+            .then(if (onCopyNext != null) Modifier.clickable(onClickLabel = copyNext, onClick = onCopyNext) else Modifier)
             .semantics(mergeDescendants = true) { contentDescription = said }
             .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -87,15 +91,14 @@ private fun NextCode(display: TotpDisplay, ending: Boolean, onCopyNext: (() -> U
     ) {
         // As wide at 9 s as at 29 s (figure spaces are a digit wide): the next code does not shift as the seconds count.
         val pad = " ".repeat(display.period.toString().length - display.secondsRemaining.toString().length)
-        Text("Next in ${display.secondsRemaining} s$pad",style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = colour)
+        Text(pluralStringResource(R.plurals.ui_code_next_in, display.secondsRemaining, display.secondsRemaining, pad), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = colour)
         Text(display.nextFormatted, fontFamily = MonospaceFamily, fontWeight = FontWeight.Medium, fontSize = 16.sp, letterSpacing = 0.5.sp, color = colour)
     }
 }
 
 /** A code's seconds as a screen reader says them. */
-internal fun secondsLeft(seconds: Int): String = "${secondsIn(seconds)} left"
-
-private fun secondsIn(seconds: Int): String = if (seconds == 1) "1 second" else "$seconds seconds"
+@Composable
+internal fun secondsLeft(seconds: Int): String = pluralStringResource(R.plurals.ui_code_seconds_left, seconds, seconds)
 
 /** How much a code's digits dim in its last five seconds. */
 internal const val DIMMED = 0.5f

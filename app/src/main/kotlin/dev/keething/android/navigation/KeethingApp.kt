@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import dev.keething.android.ui.resolve
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -88,6 +89,11 @@ import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.databases.WindowDatabasesModel
 import dev.keething.android.databases.WindowDatabasesScreen
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
+import dev.keething.android.R
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import dev.keething.android.session.isReadOnly
 import dev.keething.android.list.ReadOnlyDialog
 import dev.keething.android.unlock.Kdbx3QuestionDialog
@@ -96,6 +102,7 @@ import dev.keething.search.FilterKind
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import dev.keething.android.databases.ChooserScreen
 import dev.keething.android.databases.rememberFileActions
 import dev.keething.android.databases.Reach
@@ -577,6 +584,7 @@ private fun Chooser(container: AppContainer, navigation: NavigationState) {
         onPauseOrDispose {}
     }
     val context = LocalContext.current
+    val resources = LocalResources.current
     // Open other…: its lock screen in place of the chooser, Back to it. What Locate… refused is said.
     val files = rememberFileActions(
         container,
@@ -594,7 +602,7 @@ private fun Chooser(container: AppContainer, navigation: NavigationState) {
         onOpenOther = files.open,
         onNewDatabase = container.newDatabases::open,
         onRemove = { id ->
-            sessions.remove(id) { Toast.makeText(context.applicationContext, "The stored password could not be deleted: $it.", Toast.LENGTH_LONG).show() }
+            sessions.remove(id) { Toast.makeText(context.applicationContext, resources.getString(R.string.navigation_stored_password_not_deleted, it), Toast.LENGTH_LONG).show() }
         },
     )
 }
@@ -604,18 +612,26 @@ private fun Chooser(container: AppContainer, navigation: NavigationState) {
 private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (left.name.isEmpty()) "The new database was not created" else "“${left.name}” was not created") },
+        title = {
+            Text(
+                if (left.name.isEmpty()) stringResource(R.string.navigation_not_created_title_unnamed)
+                else stringResource(R.string.navigation_not_created_title, left.name),
+            )
+        },
         text = {
             Text(
                 if (left.kept.isEmpty()) {
-                    "Keething was closed while writing it, so nothing of it was kept. Create it again."
+                    stringResource(R.string.navigation_not_created_nothing_kept)
                 } else {
-                    "Keething was closed while writing it. This may be left of it, written in part: " +
-                        left.kept.joinToString(", ") { DatabaseText.pathOf(it, Environment.getExternalStorageDirectory().path) } + ". Delete it if it is not yours, then create the database again."
+                    val separator = stringResource(R.string.list_separator)
+                    stringResource(
+                        R.string.navigation_not_created_left,
+                        left.kept.joinToString(separator) { DatabaseText.pathOf(it, Environment.getExternalStorageDirectory().path) },
+                    )
                 },
             )
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.navigation_ok)) } },
     )
 }
 
@@ -627,15 +643,9 @@ private fun NotCreatedDialog(left: CreationNote.Leftover, onDismiss: () -> Unit)
 private fun UnreadableSavesDialog(count: Int, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (count == 1) "A save may not have finished" else "$count saves may not have finished") },
-        text = {
-            Text(
-                "Keething was closed while saving, and could not read its note of " + (if (count == 1) "that save" else "those saves") +
-                    ", so it could not check or put it right. Open your databases and check that the last change you made is there; " +
-                    "make it again if it is missing.",
-            )
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+        title = { Text(pluralStringResource(R.plurals.navigation_unreadable_saves_title, count, count)) },
+        text = { Text(pluralStringResource(R.plurals.navigation_unreadable_saves_text, count, count)) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.navigation_ok)) } },
     )
 }
 
@@ -673,7 +683,12 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
         val label = overview?.let { o -> (o.open.firstOrNull { it.id == id } ?: o.notOpen.firstOrNull { it.id == id }?.line)?.label?.full }
         if (databases.close(id)) {
             sessions.current.value?.takeIf { id == current.id }?.let { navigation.sessionNumber = it.number }
-            container.windowNotices.trySend(Notice("Closed “${label ?: "it"}”: still under ⋮ › Databases", undo = { databases.putBack(id) }))
+            container.windowNotices.trySend(
+                Notice(
+                    label?.let { uiText(R.string.navigation_closed, uiPlain(it)) } ?: uiText(R.string.navigation_closed_unnamed),
+                    undo = { databases.putBack(id) },
+                ),
+            )
         }
     }
     // An entry's database by its ref; null once it is not open (its screens go: NavigationState.keepOpen).
@@ -696,7 +711,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
     }
     // A change tried on a database too large to save, from any screen (keething-spec app.large-database AC3).
     val readOnlySaid by sessions.readOnlySaid.collectAsStateWithLifecycle()
-    readOnlySaid?.let { text -> ReadOnlyDialog(text, onOk = sessions::readOnlySaidOk) }
+    readOnlySaid?.let { text -> ReadOnlyDialog(text.resolve(), onOk = sessions::readOnlySaidOk) }
     // Codes another app handed over (SPEC §10) are read once the vault is open.
     val incoming by container.incomingCodes.collectAsStateWithLifecycle()
     LaunchedEffect(incoming) {

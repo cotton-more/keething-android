@@ -1,6 +1,7 @@
 package dev.keething.android.quicknote
 
 import android.app.StatusBarManager
+import dev.keething.android.ui.english
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
@@ -52,7 +53,7 @@ class QuickNoteWaysInTest {
     fun addingTheTileSaysWhatAndroidDidNotShow() {
         assertNull(QuickNoteTile.requestMessage(StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED), "Android showed the tile added")
         assertNull(QuickNoteTile.requestMessage(StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED), "the user said no in Android's question")
-        assertEquals("The Quick note tile is in Quick Settings already", QuickNoteTile.requestMessage(StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED))
+        assertEquals("The Quick note tile is in Quick Settings already", QuickNoteTile.requestMessage(StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED)?.english())
         val errors = listOf(
             StatusBarManager.TILE_ADD_REQUEST_ERROR_APP_NOT_IN_FOREGROUND,
             StatusBarManager.TILE_ADD_REQUEST_ERROR_REQUEST_IN_PROGRESS,
@@ -62,7 +63,7 @@ class QuickNoteWaysInTest {
             StatusBarManager.TILE_ADD_REQUEST_ERROR_NO_STATUS_BAR_SERVICE,
         )
         for (error in errors) {
-            assertEquals("Android did not ask. Add the tile from Quick Settings' edit button.", QuickNoteTile.requestMessage(error), "$error")
+            assertEquals("Android did not ask. Add the tile from Quick Settings' edit button.", QuickNoteTile.requestMessage(error)?.english(), "$error")
         }
         assertNull(QuickNoteTile.requestMessage(3), "a value Android does not document (its question dismissed): its question was shown")
     }

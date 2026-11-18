@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A database too large to save in the memory the phone gives Keething, or near that (session/SizeTexts.kt).
+         The _attachments variants: its attachments are half of it or more; the _entries ones: they are not. -->
+    <!-- %1$s: the file's name; %2$s: its size ("87 MiB"); %3$s: its attachments' size -->
+    <string name="session_size_too_large_attachments">This phone does not give Keething enough memory to save %1$s safely, so it is open to read only: you can read and copy from it, not change it. It is %2$s; its attachments are %3$s. To make it smaller, keep large files outside the database or split it into two databases. An attachment removed stays in its entry\'s history until KeePassXC on a computer clears that.</string>
+    <!-- %1$s: the file's name; %2$s: its size -->
+    <string name="session_size_too_large_entries">This phone does not give Keething enough memory to save %1$s safely, so it is open to read only: you can read and copy from it, not change it. It is %2$s. To make it smaller, split it into two databases, or remove old history in KeePassXC on a computer.</string>
+    <!-- %1$s: the file's name; %2$s: its size; %3$s: its attachments' size -->
+    <string name="session_size_too_large_beside_attachments">With the other open databases beside it, this phone does not give Keething enough memory to save %1$s safely, so it is open to read only: you can read and copy from it, not change it. It is %2$s; its attachments are %3$s. Lock the others to change it: it becomes changeable once a save fits.</string>
+    <!-- %1$s: the file's name; %2$s: its size -->
+    <string name="session_size_too_large_beside_entries">With the other open databases beside it, this phone does not give Keething enough memory to save %1$s safely, so it is open to read only: you can read and copy from it, not change it. It is %2$s. Lock the others to change it: it becomes changeable once a save fits.</string>
+    <!-- %1$s: the file's name -->
+    <string name="session_size_changeable_again">With the other databases locked, this phone has the memory to save %1$s: you can change it again.</string>
+    <!-- %1$s: the file's name -->
+    <string name="session_size_changeable_again_near">With the other databases locked, this phone has the memory to save %1$s: you can change it again. A save takes most of that memory, so keep the others locked while you change it.</string>
+    <!-- %1$s: the file's name; %2$s: its size; %3$s: its attachments' size -->
+    <string name="session_size_near_limit_attachments">A save of %1$s takes most of the memory this phone gives Keething. It saves now, but not much larger. It is %2$s; its attachments are %3$s. To make it smaller, keep large files outside the database or split it into two databases. An attachment removed stays in its entry\'s history until KeePassXC on a computer clears that.</string>
+    <!-- %1$s: the file's name; %2$s: its size -->
+    <string name="session_size_near_limit_entries">A save of %1$s takes most of the memory this phone gives Keething. It saves now, but not much larger. It is %2$s. To make it smaller, split it into two databases, or remove old history in KeePassXC on a computer.</string>
+    <!-- %1$s: the database's name -->
+    <string name="session_size_refused">“%1$s” is open to read only: too large for this phone to save safely.</string>
+    <!-- %1$s: the database's name -->
+    <string name="session_size_refused_beside">“%1$s” is open to read only: with the other databases open, too large for this phone to save safely. Lock them to change it.</string>
+    <string name="session_size_save_refused">This database is open to read only: too large for this phone to save safely. Nothing was saved.</string>
+    <string name="session_size_save_refused_beside">This database is open to read only: too large for this phone to save safely. Nothing was saved. Lock the other databases to change it.</string>
+    <string name="session_size_out_of_memory">Not enough memory to write the database. Nothing was saved. Lock the other open databases and try again; if it still fails, keep large files outside the database or split it into two.</string>
+    <!-- Asked before a large file is attached. %1$s: the file's name; %2$s: its size ("42 MB"); %3$s: the database's file name -->
+    <string name="session_size_attachment">%1$s is %2$s. Every unlock and every save of %3$s reads and writes all of it: large files make it slower and take memory. Keep large files outside the database, or split it into two databases.</string>
+    <string name="session_size_attachment_near">%1$s is %2$s. With it, a save of %3$s takes most of the memory this phone gives Keething: it still saves, but not much larger. Keep large files outside the database, or split it into two databases.</string>
+    <string name="session_size_attachment_too_large">%1$s is %2$s. With it, this phone does not give Keething enough memory to save %3$s safely: the save may fail, and from the next unlock it opens to read only. Keep large files outside the database, or split it into two databases.</string>
+    <string name="session_size_attachment_too_large_beside">%1$s is %2$s. With it, this phone does not give Keething enough memory to save %3$s safely beside the other open databases: lock them before you save. Keep large files outside the database, or split it into two databases.</string>
+    <!-- A size in whole MiB -->
+    <plurals name="session_size_mib">
+        <item quantity="one">%1$d MiB</item>
+        <item quantity="other">%1$d MiB</item>
+    </plurals>
+
+    <!-- How a KDBX 3.1 upgrade went (session/Kdbx3Question.kt) -->
+    <!-- %1$s: the file's name; %2$s: the name of the KDBX 3.1 copy kept -->
+    <string name="session_kdbx3_upgraded">%1$s is KDBX 4 now. The KDBX 3.1 file is kept beside it as “%2$s”.</string>
+    <string name="session_kdbx3_interrupted">The database was locked; it may not have been upgraded.</string>
+</resources>

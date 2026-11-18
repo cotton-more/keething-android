@@ -58,7 +58,7 @@ internal class RecentEntries(private val store: SettingsStore) {
     companion object {
         /** How many are listed, in all; and kept, per database. */
         const val LIMIT = 8
-        private const val KEY = "recentEntries"
+        private const val KEY = "recentEntries" // not user text
 
         /** The newest [LIMIT] of each database. */
         private fun trimmed(ids: List<String>): List<String> {

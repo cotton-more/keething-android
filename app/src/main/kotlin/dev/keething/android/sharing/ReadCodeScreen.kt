@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -63,7 +64,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.ui.ButtonLabel
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiText
 import dev.keething.sharing.message.ShareCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -124,8 +128,8 @@ internal fun ReadCodeScreen(
                 uris.map { uri -> runCatching { QrReading.texts(context.contentResolver, uri) }.getOrNull() }
             }
             when {
-                texts.all { it == null } -> model.problem("The picture could not be read", "Choose another one.")
-                texts.all { it.isNullOrEmpty() } -> model.problem("No QR code in the picture", "Choose the picture of a Keething code, or paste its text.")
+                texts.all { it == null } -> model.problem(uiText(R.string.sharing_read_unreadable_title), uiText(R.string.sharing_read_unreadable_text))
+                texts.all { it.isNullOrEmpty() } -> model.problem(uiText(R.string.sharing_read_no_qr_title), uiText(R.string.sharing_read_no_qr_text))
                 else -> model.read(texts.flatMap { it.orEmpty() })
             }
         }
@@ -133,15 +137,19 @@ internal fun ReadCodeScreen(
     val paste = {
         val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip
         val text = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
-        if (text.isNullOrBlank()) model.problem("Nothing to paste", "Copy the message with the code first, then paste it here.") else model.read(listOf(text))
+        if (text.isNullOrBlank()) {
+            model.problem(uiText(R.string.sharing_read_nothing_title), uiText(R.string.sharing_read_nothing_text))
+        } else {
+            model.read(listOf(text))
+        }
     }
 
     Box(Modifier.fillMaxSize().background(Dark)) {
         if (camera) CodeCamera(onTexts = { model.read(it, fromCamera = true) }, modifier = Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close", tint = OnDark) }
-                Text("Read a code", color = OnDark, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge)
+                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.sharing_close), tint = OnDark) }
+                Text(stringResource(R.string.sharing_read_a_code), color = OnDark, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge)
             }
             model.banner?.let { BannerView(it) }
             Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -151,7 +159,7 @@ internal fun ReadCodeScreen(
                 }
                 Spacer(Modifier.height(24.dp))
                 Text(
-                    if (camera) "Point at a Keething code" else "The camera is not allowed: read a picture or paste the text instead.",
+                    stringResource(if (camera) R.string.sharing_read_point else R.string.sharing_read_no_camera),
                     Modifier.padding(horizontal = 32.dp),
                     color = Muted,
                     textAlign = TextAlign.Center,
@@ -165,14 +173,14 @@ internal fun ReadCodeScreen(
                         } else {
                             context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
                         }
-                    }) { Text("Allow the camera") }
+                    }) { Text(stringResource(R.string.sharing_read_allow_camera)) }
                 }
             }
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DarkButton("From a picture", Icons.Rounded.Image, Modifier.weight(1f)) {
+                DarkButton(stringResource(R.string.sharing_read_from_picture), Icons.Rounded.Image, Modifier.weight(1f)) {
                     pickPictures.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }
-                DarkButton("Paste", Icons.Rounded.ContentPaste, Modifier.weight(1f), paste)
+                DarkButton(stringResource(R.string.sharing_paste), Icons.Rounded.ContentPaste, Modifier.weight(1f), paste)
             }
         }
     }
@@ -186,8 +194,8 @@ private fun BannerView(banner: ReadCodeModel.Banner) {
     ) {
         Icon(if (banner.isProblem) Icons.Rounded.ErrorOutline else Icons.Rounded.Info, contentDescription = null, tint = Color(0xFF17181A))
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(banner.title, color = Color(0xFF17181A), fontWeight = FontWeight.SemiBold)
-            Text(banner.text, color = Color(0xFF17181A), style = MaterialTheme.typography.bodyMedium)
+            Text(banner.title.resolve(), color = Color(0xFF17181A), fontWeight = FontWeight.SemiBold)
+            Text(banner.text.resolve(), color = Color(0xFF17181A), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

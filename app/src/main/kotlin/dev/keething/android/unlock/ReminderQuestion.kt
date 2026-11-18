@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -40,11 +41,16 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import dev.keething.android.databases.fieldColors
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.ui.SecretTextMenu
+import dev.keething.android.ui.UiText
 import dev.keething.android.ui.keepOutOfAutofill
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.secretToAccessibility
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.domain.secret.Secret
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.session.KeyConfirmation
@@ -74,33 +80,34 @@ internal sealed interface ReminderKind {
 
 /** The reminder's words (the canvas "Password reminder", agreed 2026-11-13). [name]: the database's. */
 internal object ReminderTexts {
-    fun title(kind: ReminderKind): String = if (kind is ReminderKind.KeyFile) "Is the key file safe?" else "Do you still remember it?"
+    fun title(kind: ReminderKind): UiText =
+        uiText(if (kind is ReminderKind.KeyFile) R.string.unlock_reminder_title_key_file else R.string.unlock_reminder_title_password)
 
-    fun text(kind: ReminderKind, name: String, days: Long): String = when (kind) {
-        is ReminderKind.KeyFile -> "It has been ${daysText(days)}. Is the key file ${kind.keyFile} kept somewhere safe, besides this phone?"
-        else -> "It has been ${daysText(days)} since the master password of “$name” was typed."
+    fun text(kind: ReminderKind, name: String, days: Long): UiText {
+        val count = days.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        return when (kind) {
+            is ReminderKind.KeyFile -> uiPlural(R.plurals.unlock_reminder_text_key_file, count, count, kind.keyFile)
+            else -> uiPlural(R.plurals.unlock_reminder_text_password, count, count, name)
+        }
     }
 
     /** The one line about the key file in the password's question (AC8). */
-    fun keyFileLine(kind: ReminderKind): String? =
-        (kind as? ReminderKind.PasswordAndKeyFile)?.let { "Keep the key file ${it.keyFile} somewhere safe too: without it the password opens nothing." }
+    fun keyFileLine(kind: ReminderKind): UiText? =
+        (kind as? ReminderKind.PasswordAndKeyFile)?.let { uiText(R.string.unlock_reminder_key_file_line, it.keyFile) }
 
-    fun check(name: String): String = "Type the master password of “$name”. If it does not match, nothing changes: $name stays open."
+    fun check(name: String): UiText = uiText(R.string.unlock_reminder_check_text, name)
 
-    fun wrong(left: Int): String = "It does not match. $left ${if (left == 1) "try" else "tries"} left."
+    fun wrong(left: Int): UiText = uiPlural(R.plurals.unlock_reminder_wrong, left)
 
-    fun failed(name: String): String =
-        "$name stays open, and nothing has changed. If its master password is saved in $name, look it up there. Or set a new one with Change master key."
+    fun failed(name: String): UiText = uiText(R.string.unlock_reminder_failed, name)
 
-    const val AGAIN_TOMORROW: String = "Keething asks again tomorrow."
+    val AGAIN_TOMORROW: UiText = uiText(R.string.unlock_reminder_again_tomorrow)
 
     /** Said at the bottom once Yes or a matching check started the days again; [interval]: the days chosen in Settings. */
-    fun answered(matched: Boolean, interval: Int?): String {
-        val again = interval?.let { "Keething asks again in $it days." } ?: "Keething does not ask again."
-        return if (matched) "It matches. $again" else again
+    fun answered(matched: Boolean, interval: Int?): UiText = when {
+        interval == null -> uiText(if (matched) R.string.unlock_reminder_matched_never_again else R.string.unlock_reminder_never_again)
+        else -> uiPlural(if (matched) R.plurals.unlock_reminder_matched_again_in else R.plurals.unlock_reminder_again_in, interval)
     }
-
-    private fun daysText(days: Long): String = if (days == 1L) "1 day" else "$days days"
 }
 
 /**
@@ -117,7 +124,7 @@ internal class ReminderQuestionModel(
     private val interval: Int?,
     private val file: String,
     private val scope: CoroutineScope,
-    private val said: (String) -> Unit,
+    private val said: (UiText) -> Unit,
     private val failed: () -> Unit,
 ) {
     enum class Step { ASK, CHECK }
@@ -130,7 +137,7 @@ internal class ReminderQuestionModel(
         private set
 
     /** Why the last try did not do: it did not match, or the file could not be read; null before one. */
-    var problem: String? by mutableStateOf(null)
+    var problem: UiText? by mutableStateOf(null)
         private set
     var tries: Int by mutableIntStateOf(0)
         private set
@@ -207,38 +214,38 @@ internal fun ReminderQuestion(model: ReminderQuestionModel) {
         ReminderQuestionModel.Step.ASK -> AlertDialog(
             onDismissRequest = model::putAway,
             icon = { Icon(Icons.Rounded.Key, contentDescription = null) },
-            title = { Text(ReminderTexts.title(model.kind), textAlign = TextAlign.Center) },
+            title = { Text(ReminderTexts.title(model.kind).resolve(), textAlign = TextAlign.Center) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(ReminderTexts.text(model.kind, model.name, model.days))
-                    ReminderTexts.keyFileLine(model.kind)?.let { Text(it) }
+                    Text(ReminderTexts.text(model.kind, model.name, model.days).resolve())
+                    ReminderTexts.keyFileLine(model.kind)?.let { Text(it.resolve()) }
                 }
             },
-            confirmButton = { TextButton(onClick = model::yes) { Text("Yes") } },
+            confirmButton = { TextButton(onClick = model::yes) { Text(stringResource(R.string.unlock_reminder_yes)) } },
             dismissButton = {
                 if (model.kind is ReminderKind.KeyFile) {
-                    TextButton(onClick = model::putAway) { Text("Not now") }
+                    TextButton(onClick = model::putAway) { Text(stringResource(R.string.unlock_reminder_not_now)) }
                 } else {
-                    TextButton(onClick = model::checkIt) { Text("Check it") }
+                    TextButton(onClick = model::checkIt) { Text(stringResource(R.string.unlock_reminder_check_it)) }
                 }
             },
         )
         ReminderQuestionModel.Step.CHECK -> AlertDialog(
             onDismissRequest = model::putAway,
             icon = { Icon(Icons.Rounded.Key, contentDescription = null) },
-            title = { Text("Check the master password", textAlign = TextAlign.Center) },
+            title = { Text(stringResource(R.string.unlock_reminder_check_title), textAlign = TextAlign.Center) },
             text = { CheckField(model) },
             confirmButton = {
                 if (model.checking) {
                     Row(Modifier.heightIn(min = 40.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text("Checking…", Modifier.padding(start = 10.dp))
+                        Text(stringResource(R.string.unlock_reminder_checking), Modifier.padding(start = 10.dp))
                     }
                 } else {
-                    TextButton(onClick = { model.check() }, enabled = model.canCheck) { Text("Check") }
+                    TextButton(onClick = { model.check() }, enabled = model.canCheck) { Text(stringResource(R.string.unlock_reminder_check)) }
                 }
             },
-            dismissButton = { TextButton(onClick = model::putAway, enabled = !model.checking) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = model::putAway, enabled = !model.checking) { Text(stringResource(R.string.unlock_reminder_cancel)) } },
         )
     }
 }
@@ -246,13 +253,13 @@ internal fun ReminderQuestion(model: ReminderQuestionModel) {
 @Composable
 private fun CheckField(model: ReminderQuestionModel) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(ReminderTexts.check(model.name))
+        Text(ReminderTexts.check(model.name).resolve())
         SecretTextMenu(copyable = false) {
             SecureTextField(
                 state = model.password,
                 modifier = Modifier.keepOutOfAutofill().secretToAccessibility(model.password.text.length, shown = model.reveals).fillMaxWidth(),
                 enabled = !model.checking,
-                label = { Text("Master password") },
+                label = { Text(stringResource(R.string.unlock_reminder_master_password)) },
                 textStyle = if (model.reveals) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
                 textObfuscationMode = if (model.reveals) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
                 isError = model.problem != null,
@@ -260,7 +267,7 @@ private fun CheckField(model: ReminderQuestionModel) {
                     IconButton(onClick = { model.reveals = !model.reveals }) {
                         Icon(
                             if (model.reveals) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                            contentDescription = if (model.reveals) "Hide the password" else "Show the password",
+                            contentDescription = stringResource(if (model.reveals) R.string.unlock_reminder_hide_password else R.string.unlock_reminder_show_password),
                         )
                     }
                 },
@@ -278,7 +285,7 @@ private fun CheckField(model: ReminderQuestionModel) {
         model.problem?.let {
             // Said once by TalkBack as it appears, as the field's error.
             Text(
-                it,
+                it.resolve(),
                 Modifier.padding(horizontal = 16.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
@@ -293,14 +300,14 @@ internal fun ReminderNotMatched(name: String, onChangeMasterKey: () -> Unit, onC
     AlertDialog(
         onDismissRequest = onClose,
         icon = { Icon(Icons.Rounded.ErrorOutline, contentDescription = null) },
-        title = { Text("It does not match", textAlign = TextAlign.Center) },
+        title = { Text(stringResource(R.string.unlock_reminder_not_matched_title), textAlign = TextAlign.Center) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(ReminderTexts.failed(name))
-                Text(ReminderTexts.AGAIN_TOMORROW)
+                Text(ReminderTexts.failed(name).resolve())
+                Text(ReminderTexts.AGAIN_TOMORROW.resolve())
             }
         },
-        confirmButton = { TextButton(onClick = onChangeMasterKey) { Text("Change master key…") } },
-        dismissButton = { TextButton(onClick = onClose) { Text("Close") } },
+        confirmButton = { TextButton(onClick = onChangeMasterKey) { Text(stringResource(R.string.unlock_reminder_change_master_key)) } },
+        dismissButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.unlock_reminder_close)) } },
     )
 }

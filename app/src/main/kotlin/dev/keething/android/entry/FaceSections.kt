@@ -72,6 +72,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BrandMark
@@ -134,7 +136,7 @@ internal fun PaymentCardSection(
                         FilledTonalButton(onClick = { actions.onToggleRows(secrets) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
                             Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text(if (shown) "Hide" else "Show")
+                            Text(stringResource(if (shown) R.string.entry_face_hide else R.string.entry_face_show))
                         }
                     }
                     if (canFlip) {
@@ -142,13 +144,13 @@ internal fun PaymentCardSection(
                             Icon(Icons.AutoMirrored.Rounded._360, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
                             // The same both ways: a label that changed would move what follows it while the card turns.
-                            Text("Turn over")
+                            Text(stringResource(R.string.entry_card_face_turn_over))
                         }
                     }
                     card.expiryHint?.takeIf { it.status != ExpiryHint.Status.VALID }?.let { ExpiryChip(it) }
                 }
                 if (card.checkDigitOk == false) {
-                    Note(Icons.Rounded.ErrorOutline, "The number fails its check digit (a typo?)", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+                    Note(Icons.Rounded.ErrorOutline, stringResource(R.string.entry_card_face_check_digit), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
                 }
             }
             val others = section.rows.filter { it.id !in card.faceRowIds }
@@ -215,13 +217,14 @@ private fun CardFront(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Re
             Spacer(Modifier.weight(1f))
             BrandMark(card.network, card.brand, 28.dp)
         }
+        val spokenNumber = stringResource(R.string.entry_card_face_number, RevealState.spoken(card.maskedNumber).lowercase())
         Box(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .then(if (number != null) Modifier.copyOnTap(number, actions) else Modifier)
                 .padding(horizontal = 6.dp, vertical = 4.dp)
-                .semantics { if (!revealed) contentDescription = "Card number, " + RevealState.spoken(card.maskedNumber).lowercase() },
+                .semantics { if (!revealed) contentDescription = spokenNumber },
         ) {
             BasicText(
                 if (revealed) card.groupedNumber ?: number?.revealedText().orEmpty() else card.maskedNumber,
@@ -232,7 +235,7 @@ private fun CardFront(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Re
         }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val holder = card.holderRowId?.let(rows::get)
-            FaceLine("CARDHOLDER", Modifier.weight(1f), holder, actions, Alignment.Start) {
+            FaceLine(stringResource(R.string.entry_card_face_holder), Modifier.weight(1f), holder, actions, Alignment.Start) {
                 Text(
                     card.holder.orEmpty().uppercase(Locale.getDefault()),
                     color = Color.White,
@@ -245,7 +248,7 @@ private fun CardFront(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Re
             }
             card.expiry?.let { expiry ->
                 val expired = card.expiryHint?.status == ExpiryHint.Status.EXPIRED
-                FaceLine("VALID THRU", Modifier, card.expiryRowId?.let(rows::get), actions, Alignment.End) {
+                FaceLine(stringResource(R.string.entry_card_face_valid_thru), Modifier, card.expiryRowId?.let(rows::get), actions, Alignment.End) {
                     Text(
                         "%02d/%02d".format(Locale.ROOT, expiry.date.month, expiry.date.year % 100),
                         color = if (expired) Color(0xFFFFB4AB) else Color.White,
@@ -301,7 +304,7 @@ private fun CardBack(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Rev
                     Modifier.clip(RoundedCornerShape(8.dp)).copyOnTap(cvc, actions).padding(2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("CVC", color = Color.White.copy(alpha = 0.8f), fontSize = 9.sp, letterSpacing = 1.2.sp)
+                    Text(stringResource(R.string.entry_card_face_cvc), color = Color.White.copy(alpha = 0.8f), fontSize = 9.sp, letterSpacing = 1.2.sp)
                     Box(
                         Modifier.heightIn(min = 40.dp).widthIn(min = 72.dp).clip(RoundedCornerShape(6.dp)).background(Color.White).padding(horizontal = 10.dp),
                         contentAlignment = Alignment.Center,
@@ -323,7 +326,7 @@ private fun CardBack(card: PaymentCard, rows: Map<String, FieldRow>, reveal: Rev
         }
         Spacer(Modifier.weight(1f))
         Row(Modifier.padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Tap the CVC to copy it", Modifier.weight(1f), color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.entry_card_face_tap_cvc), Modifier.weight(1f), color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(card.brand.orEmpty(), color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
@@ -398,16 +401,16 @@ internal fun WiFiSection(
                         ) {
                             Icon(Icons.Rounded.Wifi, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
-                        Text("WI-FI NETWORK", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = colors.stickerLabel, maxLines = 1)
+                        Text(stringResource(R.string.entry_wifi_heading), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = colors.stickerLabel, maxLines = 1)
                         SecurityChip(network)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            StickerLine("NETWORK NAME", ssid, actions) {
+                            StickerLine(stringResource(R.string.entry_wifi_name), ssid, actions) {
                                 Text(network.ssid, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                             }
                             if (key != null) {
-                                StickerLine("NETWORK KEY", key, actions) {
+                                StickerLine(stringResource(R.string.entry_wifi_key), key, actions) {
                                     if (keyShown) {
                                         Text(colouredSecret(key.revealedText()), style = MaterialTheme.typography.bodyLarge, fontFamily = MonospaceFamily)
                                     } else {
@@ -418,16 +421,16 @@ internal fun WiFiSection(
                         }
                         val qr = Modifier.size(112.dp).clip(RoundedCornerShape(14.dp)).background(Color.White)
                         if (payload != null) {
-                            Box(qr.clickable(onClickLabel = "Show the QR code full screen", onClick = actions.onWiFiFullScreen).padding(6.dp)) {
-                                QrCodeImage(payload, description = "QR code to join ${network.ssid}", modifier = Modifier.fillMaxSize())
+                            Box(qr.clickable(onClickLabel = stringResource(R.string.entry_wifi_qr_full_screen), onClick = actions.onWiFiFullScreen).padding(6.dp)) {
+                                QrCodeImage(payload, description = stringResource(R.string.entry_wifi_qr_join, network.ssid), modifier = Modifier.fillMaxSize())
                             }
                         } else if (key != null) {
                             // The code holds the key: blurred, and an empty one under the blur, until the key is shown.
-                            Box(qr.clickable(onClickLabel = "Show the key and the QR code") { actions.onToggle(key.id) }, contentAlignment = Alignment.Center) {
+                            Box(qr.clickable(onClickLabel = stringResource(R.string.entry_wifi_show_key_and_qr)) { actions.onToggle(key.id) }, contentAlignment = Alignment.Center) {
                                 QrCodeImage(network.qrPayload(""), description = "", modifier = Modifier.fillMaxSize().padding(6.dp).blur(6.dp))
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(22.dp), tint = Color(0xFF1B1B22))
-                                    Text("Show", color = Color(0xFF1B1B22), style = MaterialTheme.typography.labelLarge)
+                                    Text(stringResource(R.string.entry_face_show), color = Color(0xFF1B1B22), style = MaterialTheme.typography.labelLarge)
                                 }
                             }
                         }
@@ -436,9 +439,9 @@ internal fun WiFiSection(
                     Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             when {
-                                key == null -> "Tap a line to copy it"
-                                keyShown -> "Tap the code for full screen"
-                                else -> "The code holds the key"
+                                key == null -> stringResource(R.string.entry_face_tap_line)
+                                keyShown -> stringResource(R.string.entry_wifi_tap_code)
+                                else -> stringResource(R.string.entry_wifi_code_holds_key)
                             },
                             Modifier.weight(1f),
                             style = MaterialTheme.typography.bodySmall,
@@ -448,7 +451,7 @@ internal fun WiFiSection(
                             TextButton(onClick = { actions.onToggle(key.id) }) {
                                 Icon(if (keyShown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                                 Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                                Text(if (keyShown) "Hide" else "Show")
+                                Text(stringResource(if (keyShown) R.string.entry_face_hide else R.string.entry_face_show))
                             }
                         }
                     }
@@ -459,11 +462,11 @@ internal fun WiFiSection(
                         Button(onClick = add, Modifier.weight(1f).heightIn(min = 52.dp)) {
                             Icon(Icons.Rounded.PhoneAndroid, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text("Add to this phone", maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(stringResource(R.string.entry_wifi_add), maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     FilledTonalIconButton(onClick = actions.onWiFiFullScreen, Modifier.size(52.dp)) {
-                        Icon(Icons.Rounded.QrCode2, contentDescription = "QR code full screen")
+                        Icon(Icons.Rounded.QrCode2, contentDescription = stringResource(R.string.entry_qr_full_screen))
                     }
                 }
             }
@@ -500,6 +503,6 @@ private fun SecurityChip(network: WiFiNetwork) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Icon(if (open) Icons.Rounded.LockOpen else Icons.Rounded.Lock, contentDescription = null, Modifier.size(14.dp), tint = content)
-        Text(if (open) "Open · no password" else network.securityLabel, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
+        Text(if (open) stringResource(R.string.entry_wifi_open) else network.securityLabel, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
     }
 }

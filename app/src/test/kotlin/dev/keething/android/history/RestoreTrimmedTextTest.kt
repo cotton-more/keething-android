@@ -1,5 +1,8 @@
 package dev.keething.android.history
 
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.english
+import dev.keething.android.ui.UiText
 import dev.keething.domain.vault.Entry
 import dev.keething.vault.opening.EntryVersions
 import java.time.Instant
@@ -16,7 +19,7 @@ class RestoreTrimmedTextTest {
         maxItems = max,
     )
 
-    private val date: (Instant?) -> String = { "day ${it?.epochSecond}" }
+    private val date: (Instant?) -> UiText = { uiPlain("day ${it?.epochSecond}") }
 
     @Test
     fun nothingGoesWhileTheHistoryHasRoomOrKeepsAnyNumber() {
@@ -27,19 +30,19 @@ class RestoreTrimmedTextTest {
 
     @Test
     fun aFullHistoryLosesItsOldestOrTheVersionRestoredLeavesIt() {
-        assertEquals("This database keeps 3 earlier versions, so the oldest, from day 0, goes.", trimmedText(versions(3, 3), 2, date))
+        assertEquals("This database keeps 3 earlier versions, so the oldest, from day 0, goes.", trimmedText(versions(3, 3), 2, date)?.english())
         assertEquals(
             "This database keeps 3 earlier versions: this one leaves the history as it becomes the current one.",
-            trimmedText(versions(3, 3), 0, date),
+            trimmedText(versions(3, 3), 0, date)?.english(),
         )
     }
 
     @Test
     fun aHistoryOverItsLimitLosesSeveral() {
-        assertEquals("This database keeps 2 earlier versions, so the 3 oldest go, the newest of them from day 2.", trimmedText(versions(4, 2), 3, date))
+        assertEquals("This database keeps 2 earlier versions, so the 3 oldest go, the newest of them from day 2.", trimmedText(versions(4, 2), 3, date)?.english())
         assertEquals(
             "This database keeps 1 earlier version, so the 4 oldest go, the newest of them from day 3. This one becomes the current one.",
-            trimmedText(versions(4, 1), 1, date),
+            trimmedText(versions(4, 1), 1, date)?.english(),
         )
     }
 }

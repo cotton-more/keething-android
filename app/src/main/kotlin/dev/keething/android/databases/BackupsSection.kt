@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.withoutFullStop
 import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -59,12 +60,21 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.editor.describe
 import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.android.ui.ButtonLabel
 import dev.keething.android.ui.Notice
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.afterColon
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.android.ui.segmentShape
 import dev.keething.android.unlock.describe
 import dev.keething.vault.databases.DatabaseId
@@ -85,143 +95,130 @@ import kotlinx.coroutines.withContext
 /** What the Backups section and its questions say (the canvas "Database backups"). */
 internal object BackupTexts {
     /** The line under the switch: how many are kept and their size, or that there are none or it is off. */
-    fun lead(name: String, on: Boolean, count: Int, size: String): String = when {
-        !on -> "Off: nothing is copied before a change." + when (count) {
-            0 -> ""
-            1 -> " The one kept stays until deleted."
-            else -> " The $count kept stay until deleted."
-        }
-        count == 0 -> "None yet: the first is kept before $name’s first change after an unlock, the file as it was."
-        else -> "$count kept, $size: the file as it was before the first change of each unlock."
+    fun lead(name: String, on: Boolean, count: Int, size: String): UiText = when {
+        !on -> if (count == 0) uiText(R.string.databases_backups_lead_off) else uiPlural(R.plurals.databases_backups_lead_off_kept, count)
+        count == 0 -> uiText(R.string.databases_backups_lead_none, name)
+        else -> uiPlural(R.plurals.databases_backups_lead_kept, count, count, size)
     }
 
-    const val WHERE: String = "On this phone only, apart from other databases’: removing Keething, or its data, removes them."
+    val WHERE: UiText = uiText(R.string.databases_backups_where)
 
-    fun offTitle(name: String): String = "Stop backing up $name?"
+    fun offTitle(name: String): UiText = uiText(R.string.databases_backups_off_title, name)
 
-    fun offText(name: String, count: Int): String =
-        "$name is no longer copied before its changes. " + if (count == 1) "Its backup can stay here or go." else "Its $count backups can stay here or go."
+    fun offText(name: String, count: Int): UiText = uiPlural(R.plurals.databases_backups_off_text, count, name, count)
 
-    fun offKeep(count: Int): String = if (count == 1) "Keep it" else "Keep them"
+    fun offKeep(count: Int): UiText = uiPlural(R.plurals.databases_backups_off_keep, count)
 
-    fun offDelete(count: Int): String = if (count == 1) "Delete it" else "Delete them"
+    fun offDelete(count: Int): UiText = uiPlural(R.plurals.databases_backups_off_delete, count)
 
-    fun fewerTitle(keep: Int): String = "Keep $keep backups?"
+    fun fewerTitle(keep: Int): UiText = uiPlural(R.plurals.databases_backups_fewer_title, keep)
 
-    fun fewerText(name: String, gone: Int): String = if (gone == 1) {
-        "The oldest backup of $name is deleted from this phone now. It can’t be brought back."
-    } else {
-        "The $gone oldest backups of $name are deleted from this phone now. They can’t be brought back."
-    }
+    fun fewerText(name: String, gone: Int): UiText = uiPlural(R.plurals.databases_backups_fewer_text, gone, gone, name)
 
     /** How many of [count] go when [keep] are kept; 0: nothing to ask (more kept keeps what comes). */
     fun gone(count: Int, keep: Int): Int = (count - keep).coerceAtLeast(0)
 
     /** A backup's date and time: "Today, 14:03", "Yesterday, 21:40", "Mon 9 Nov, 08:15", "Sun 9 Nov 2025, 08:15". */
-    fun date(at: Instant, now: Instant, zone: ZoneId): String {
+    fun date(at: Instant, now: Instant, zone: ZoneId): UiText {
         val time = at.atZone(zone)
         val today = now.atZone(zone).toLocalDate()
-        val day = when (time.toLocalDate()) {
-            today -> "Today"
-            today.minusDays(1) -> "Yesterday"
-            else -> (if (time.year == today.year) DAY else DAY_YEAR).format(time)
+        return when (time.toLocalDate()) {
+            today -> uiText(R.string.databases_backups_date_today, TIME.format(time))
+            today.minusDays(1) -> uiText(R.string.databases_backups_date_yesterday, TIME.format(time))
+            else -> uiText(R.string.databases_backups_date_day, (if (time.year == today.year) DAY else DAY_YEAR).format(time), TIME.format(time))
         }
-        return "$day, ${TIME.format(time)}"
     }
 
     /**
      * How long ago, beside the date: "just now", "5 minutes ago", "17 hours ago" within a day, then the days by the
      * calendar ("3 days ago"), "5 weeks ago", "3 months ago", "2 years ago".
      */
-    fun ago(at: Instant, now: Instant, zone: ZoneId): String {
+    fun ago(at: Instant, now: Instant, zone: ZoneId): UiText {
         val seconds = Duration.between(at, now).seconds
-        if (seconds < 60) return "just now"
-        if (seconds < 3600) return "${count(seconds / 60, "minute")} ago"
-        if (seconds < 24 * 3600) return "${count(seconds / 3600, "hour")} ago"
+        if (seconds < 60) return uiText(R.string.databases_backups_just_now)
+        if (seconds < 3600) return ago(R.plurals.databases_backups_minutes_ago, seconds / 60)
+        if (seconds < 24 * 3600) return ago(R.plurals.databases_backups_hours_ago, seconds / 3600)
         val days = ChronoUnit.DAYS.between(at.atZone(zone).toLocalDate(), now.atZone(zone).toLocalDate()).coerceAtLeast(1)
         return when {
-            days < 14 -> count(days, "day")
-            days < 60 -> count(days / 7, "week")
-            days < 730 -> count(days / 30, "month")
-            else -> count(days / 365, "year")
-        } + " ago"
+            days < 14 -> ago(R.plurals.databases_backups_days_ago, days)
+            days < 60 -> ago(R.plurals.databases_backups_weeks_ago, days / 7)
+            days < 730 -> ago(R.plurals.databases_backups_months_ago, days / 30)
+            else -> ago(R.plurals.databases_backups_years_ago, days / 365)
+        }
     }
 
     /** Under a backup's date: how long ago and its size, or that it is damaged (keething-spec databases.backups-window AC5). */
-    fun detail(ago: String, size: String, damaged: Boolean): String = if (damaged) "$ago · damaged: it would not open" else "$ago · $size"
+    fun detail(ago: UiText, size: String, damaged: Boolean): UiText =
+        if (damaged) uiText(R.string.databases_backups_detail_damaged, ago) else uiText(R.string.databases_backups_detail, ago, size)
 
-    const val DAMAGED: String = "Its file is damaged: its header does not match its checksum, so it would not open. It cannot be restored."
+    val DAMAGED: UiText = uiText(R.string.databases_backups_damaged)
 
-    fun more(count: Int, expanded: Boolean): String = if (expanded) "Show fewer" else "Show all $count"
+    fun more(count: Int, expanded: Boolean): UiText =
+        if (expanded) uiText(R.string.databases_backups_show_fewer) else uiPlural(R.plurals.databases_backups_show_all, count)
 
-    const val DELETE_TITLE: String = "Delete this backup?"
+    val DELETE_TITLE: UiText = uiText(R.string.databases_backups_delete_title)
 
-    fun deleteText(date: String): String = "The backup of $date is deleted from this phone. It can’t be brought back."
+    fun deleteText(date: UiText): UiText = uiText(R.string.databases_backups_delete_text, date)
 
-    fun deleted(date: String): String = "Deleted the backup of $date"
+    fun deleted(date: UiText): UiText = uiText(R.string.databases_backups_deleted, date)
 
-    fun deleteAllTitle(count: Int): String = if (count == 1) "Delete the backup?" else "Delete all backups?"
+    fun deleteAllTitle(count: Int): UiText = uiPlural(R.plurals.databases_backups_delete_all_title, count)
 
-    fun deleteAllText(name: String, count: Int): String = if (count == 1) {
-        "The backup of $name is deleted from this phone. It can’t be brought back."
-    } else {
-        "The $count backups of $name are deleted from this phone. They can’t be brought back."
-    }
+    fun deleteAllText(name: String, count: Int): UiText = uiPlural(R.plurals.databases_backups_delete_all_text, count, count, name)
 
-    const val DELETE_ALL_NOTE: String = "Backups made before a master key change still open with the old one: this is how they go."
+    val DELETE_ALL_NOTE: UiText = uiText(R.string.databases_backups_delete_all_note)
 
     /** The mark of the file as it was before a restore (keething-spec databases.backups-window AC6). */
-    const val BEFORE_RESTORING: String = "Before restoring"
+    val BEFORE_RESTORING: UiText = uiText(R.string.databases_backups_before_restoring)
 
-    fun restoreLine(name: String): String = "$name becomes as it was then"
+    fun restoreLine(name: String): UiText = uiText(R.string.databases_backups_restore_line, name)
 
     /** Why a backup is not offered for restoring in a read-only database (AC9). */
-    fun readOnly(name: String): String = "$name is read only on this phone: its backups are listed and deleted, not restored."
+    fun readOnly(name: String): UiText = uiText(R.string.databases_backups_read_only, name)
 
-    const val RESTORE_TITLE: String = "Restore this backup?"
+    val RESTORE_TITLE: UiText = uiText(R.string.databases_backups_restore_title)
 
-    fun restoreText(name: String, date: String): String =
-        "$name becomes as it was ${onDate(date)}. Changes made since leave the database, here and on every device it syncs with."
+    fun restoreText(name: String, date: UiText): UiText = uiText(R.string.databases_backups_restore_text, name, onDate(date))
 
-    const val RESTORE_NOTE: String = "The file as it is now is kept as a backup first, so the restore can be undone."
+    val RESTORE_NOTE: UiText = uiText(R.string.databases_backups_restore_note)
 
-    fun restoring(date: String): String = "Restoring the backup of $date…"
+    fun restoring(date: UiText): UiText = uiText(R.string.databases_backups_restoring, date)
 
-    fun undoing(name: String): String = "Bringing $name back as it was before the restore…"
+    fun undoing(name: String): UiText = uiText(R.string.databases_backups_undoing, name)
 
-    fun restored(date: String): String = "Restored the backup of $date"
+    fun restored(date: UiText): UiText = uiText(R.string.databases_backups_restored, date)
 
-    fun undone(name: String): String = "Back to $name as it was before the restore"
+    fun undone(name: String): UiText = uiText(R.string.databases_backups_undone, name)
 
     /**
      * Restored over an open database whose key the backup does not open with (AC7): it locked, and the fingerprint
      * waits for the password typed. [date]: the backup's, null when not known (an Undo's).
      */
-    fun olderKey(name: String, date: String?): String =
-        "Restored. This backup opens with the master key $name had " + (date?.let(::onDate) ?: "then") +
-            ", so $name is locked: unlock it with that password. Its fingerprint stays off until then."
+    fun olderKey(name: String, date: UiText?): UiText =
+        date?.let { uiText(R.string.databases_backups_older_key, name, onDate(it)) } ?: uiText(R.string.databases_backups_older_key_then, name)
 
     /** A restore that did not happen (AC8): the file and the backups as they were, and why. [file]: the database's. */
-    fun notRestored(file: File, failure: SaveFailure): String = when (failure) {
-        is SaveFailure.WriteFailed -> "Not restored: ${file.name} could not be written (${failure.detail}). Nothing was changed, and no backup was added."
-        SaveFailure.FileKeepsChanging -> "Not restored: ${file.name} kept changing (a sync?). Nothing was changed, and no backup was added; try again in a moment."
-        SaveFailure.Locked -> "Not restored: the database locked while the backup was being opened. Nothing was changed, and no backup was added."
+    fun notRestored(file: File, failure: SaveFailure): UiText = when (failure) {
+        is SaveFailure.WriteFailed -> uiText(R.string.databases_backups_not_restored_write, file.name, failure.detail)
+        SaveFailure.FileKeepsChanging -> uiText(R.string.databases_backups_not_restored_changing, file.name)
+        SaveFailure.Locked -> uiText(R.string.databases_backups_not_restored_locked)
         is SaveFailure.CannotOpen ->
-            "Not restored: " + failure.failure.describe(file.path).replaceFirstChar(Char::lowercase) + " Nothing was changed, and no backup was added."
-        else -> "Not restored. " + failure.describe(file).removeSuffix(".") + ", and no backup was added."
+            uiText(R.string.databases_backups_not_restored_cannot_open, failure.failure.describe(file.path).afterColon())
+        else -> uiText(R.string.databases_backups_not_restored, failure.describe(file).withoutFullStop())
     }
 
     /** A backup's [date] in a sentence: "on Mon 9 Nov, 08:15", but "today, 14:03" and "yesterday, 21:40". */
-    private fun onDate(date: String): String = when {
-        date.startsWith("Today") || date.startsWith("Yesterday") -> date.replaceFirstChar(Char::lowercaseChar)
-        else -> "on $date"
+    private fun onDate(date: UiText): UiText = when {
+        date is UiText.Res && date.id == R.string.databases_backups_date_today -> UiText.Res(R.string.databases_backups_on_today, date.args)
+        date is UiText.Res && date.id == R.string.databases_backups_date_yesterday -> UiText.Res(R.string.databases_backups_on_yesterday, date.args)
+        else -> uiText(R.string.databases_backups_on_date, date)
     }
 
-    private fun count(n: Long, unit: String): String = if (n == 1L) "1 $unit" else "$n ${unit}s"
+    private fun ago(id: Int, n: Long): UiText = uiPlural(id, n.toInt())
 
     private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
     private val DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
-    private val DAY_YEAR: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM uuuu", Locale.ENGLISH)
+    private val DAY_YEAR: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM uuuu", Locale.ENGLISH) // not user text: a date pattern
 }
 
 /**
@@ -253,9 +250,9 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
     var askingDelete by remember { mutableStateOf<FileDatabaseBackups.Backup?>(null) }
     var askingDeleteAll by remember { mutableStateOf(false) }
     var askingRestore by remember { mutableStateOf<FileDatabaseBackups.Backup?>(null) }
-    var restoring by remember { mutableStateOf<String?>(null) }
-    var info by remember { mutableStateOf<String?>(null) }
-    var problem by remember { mutableStateOf<String?>(null) }
+    var restoring by remember { mutableStateOf<UiText?>(null) }
+    var info by remember { mutableStateOf<UiText?>(null) }
+    var problem by remember { mutableStateOf<UiText?>(null) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { reads++ }
     // A save from this page (its name and colour) may keep one: read again as the open database changes.
     container.sessions.state.collectAsStateWithLifecycle().value
@@ -277,9 +274,9 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
     }
 
     // [undo]: restoring the file as it was before the restore just done, said so; no Undo of an Undo.
-    fun restore(backup: String, date: String?, undo: Boolean) {
+    fun restore(backup: String, date: UiText?, undo: Boolean) {
         if (restoring != null) return
-        restoring = if (undo) BackupTexts.undoing(name) else BackupTexts.restoring(date.orEmpty())
+        restoring = if (undo) BackupTexts.undoing(name) else BackupTexts.restoring(date ?: uiPlain(""))
         info = null
         problem = null
         container.sessions.restoreBackup(id, backup) { outcome ->
@@ -293,7 +290,7 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
                         if (undo) {
                             Notice(BackupTexts.undone(name))
                         } else {
-                            Notice(BackupTexts.restored(date.orEmpty()), undo = { restore(outcome.beforeRestoring, date = null, undo = true) })
+                            Notice(BackupTexts.restored(date ?: uiPlain("")), undo = { restore(outcome.beforeRestoring, date = null, undo = true) })
                         },
                     )
                 }
@@ -306,41 +303,41 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
         val date = date(backup)
         AlertDialog(
             onDismissRequest = { askingRestore = null },
-            title = { Text(BackupTexts.RESTORE_TITLE) },
+            title = { Text(BackupTexts.RESTORE_TITLE.resolve()) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(BackupTexts.restoreText(name, date))
-                    Text(BackupTexts.RESTORE_NOTE, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(BackupTexts.restoreText(name, date).resolve())
+                    Text(BackupTexts.RESTORE_NOTE.resolve(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     askingRestore = null
                     restore(backup.name, date, undo = false)
-                }) { Text("Restore") }
+                }) { Text(stringResource(R.string.databases_backups_restore)) }
             },
-            dismissButton = { TextButton(onClick = { askingRestore = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { askingRestore = null }) { Text(stringResource(R.string.databases_cancel)) } },
         )
     }
     if (askingOff) {
         AlertDialog(
             onDismissRequest = { askingOff = false },
-            title = { Text(BackupTexts.offTitle(name)) },
-            text = { Text(BackupTexts.offText(name, count)) },
+            title = { Text(BackupTexts.offTitle(name).resolve()) },
+            text = { Text(BackupTexts.offText(name, count).resolve()) },
             confirmButton = {
                 TextButton(onClick = {
                     askingOff = false
                     list.update(id) { it.copy(backupsOn = false) }
                     change({ backups.deleteAll() })
-                }) { Text(BackupTexts.offDelete(count), color = MaterialTheme.colorScheme.error) }
+                }) { Text(BackupTexts.offDelete(count).resolve(), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = { askingOff = false }) { Text("Cancel") }
+                    TextButton(onClick = { askingOff = false }) { Text(stringResource(R.string.databases_cancel)) }
                     TextButton(onClick = {
                         askingOff = false
                         list.update(id) { it.copy(backupsOn = false) }
-                    }) { Text(BackupTexts.offKeep(count)) }
+                    }) { Text(BackupTexts.offKeep(count).resolve()) }
                 }
             },
         )
@@ -349,42 +346,42 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
         val gone = BackupTexts.gone(count, keep)
         AlertDialog(
             onDismissRequest = { askingKeep = null },
-            title = { Text(BackupTexts.fewerTitle(keep)) },
-            text = { Text(BackupTexts.fewerText(name, gone)) },
+            title = { Text(BackupTexts.fewerTitle(keep).resolve()) },
+            text = { Text(BackupTexts.fewerText(name, gone).resolve()) },
             confirmButton = {
                 TextButton(onClick = {
                     askingKeep = null
                     list.update(id) { it.copy(backupsKept = keep) }
                     change({ backups.prune(keep) })
-                }) { Text("Delete $gone", color = MaterialTheme.colorScheme.error) }
+                }) { Text(pluralStringResource(R.plurals.databases_backups_fewer_delete, gone, gone), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { askingKeep = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { askingKeep = null }) { Text(stringResource(R.string.databases_cancel)) } },
         )
     }
     askingDelete?.let { backup ->
         val date = date(backup)
         AlertDialog(
             onDismissRequest = { askingDelete = null },
-            title = { Text(BackupTexts.DELETE_TITLE) },
-            text = { Text(BackupTexts.deleteText(date)) },
+            title = { Text(BackupTexts.DELETE_TITLE.resolve()) },
+            text = { Text(BackupTexts.deleteText(date).resolve()) },
             confirmButton = {
                 TextButton(onClick = {
                     askingDelete = null
                     var gone = false
                     change({ gone = backups.delete(backup.name) }) { if (gone) onNotice(Notice(BackupTexts.deleted(date))) }
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.databases_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { askingDelete = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { askingDelete = null }) { Text(stringResource(R.string.databases_cancel)) } },
         )
     }
     if (askingDeleteAll) {
         AlertDialog(
             onDismissRequest = { askingDeleteAll = false },
-            title = { Text(BackupTexts.deleteAllTitle(count)) },
+            title = { Text(BackupTexts.deleteAllTitle(count).resolve()) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(BackupTexts.deleteAllText(name, count))
-                    Text(BackupTexts.DELETE_ALL_NOTE, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(BackupTexts.deleteAllText(name, count).resolve())
+                    Text(BackupTexts.DELETE_ALL_NOTE.resolve(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
             confirmButton = {
@@ -392,18 +389,18 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
                     askingDeleteAll = false
                     expanded = false
                     change({ backups.deleteAll() })
-                }) { Text(if (count == 1) "Delete" else "Delete all", color = MaterialTheme.colorScheme.error) }
+                }) { Text(pluralStringResource(R.plurals.databases_backups_delete_all, count), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { askingDeleteAll = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { askingDeleteAll = false }) { Text(stringResource(R.string.databases_cancel)) } },
         )
     }
     opened?.let { backup ->
         BackupSheet(
-            date = date(backup),
-            detail = "${BackupTexts.ago(backup.at, read?.now ?: Instant.now(), zone)} · ${size(backup.bytes)}",
+            date = date(backup).resolve(),
+            detail = BackupTexts.detail(BackupTexts.ago(backup.at, read?.now ?: Instant.now(), zone), size(backup.bytes), damaged = false).resolve(),
             damaged = backup.damaged,
-            restoreLine = BackupTexts.restoreLine(name),
-            readOnly = if (readOnly) BackupTexts.readOnly(name) else null,
+            restoreLine = BackupTexts.restoreLine(name).resolve(),
+            readOnly = if (readOnly) BackupTexts.readOnly(name).resolve() else null,
             restoring = restoring != null,
             onRestore = {
                 opened = null
@@ -431,12 +428,12 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
         ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Back up before changes", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.databases_backups_switch), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Switch(checked = record.backupsOn, onCheckedChange = null)
     }
     if (record.backupsOn) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Keep", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.databases_backups_keep), style = MaterialTheme.typography.bodyLarge)
             SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
                 DatabaseRecord.BACKUPS_KEPT.forEachIndexed { index, keep ->
                     SegmentedButton(
@@ -457,7 +454,7 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
     }
     read?.let { read ->
         Text(
-            BackupTexts.lead(name, record.backupsOn, count, size(read.backups.sumOf { it.bytes })),
+            BackupTexts.lead(name, record.backupsOn, count, size(read.backups.sumOf { it.bytes })).resolve(),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -470,7 +467,7 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Text(text.resolve(), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         }
     }
     val note = info ?: if (readOnly && count > 0) BackupTexts.readOnly(name) else null
@@ -480,7 +477,7 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text.resolve(), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
     problem?.let { text ->
@@ -490,25 +487,29 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+            Text(text.resolve(), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
         }
     }
     if (count > 0) {
         val shown = if (expanded) all else all.take(SHOWN)
         Column(verticalArrangement = Arrangement.spacedBy(SegmentGap)) {
             shown.forEachIndexed { index, backup ->
-                val date = date(backup)
-                val detail = BackupTexts.detail(BackupTexts.ago(backup.at, read?.now ?: Instant.now(), zone), size(backup.bytes), backup.damaged)
+                val date = date(backup).resolve()
+                val detail = BackupTexts.detail(BackupTexts.ago(backup.at, read?.now ?: Instant.now(), zone), size(backup.bytes), backup.damaged).resolve()
+                val openLabel = stringResource(R.string.databases_backups_open)
+                val description = stringResource(
+                    if (backup.beforeRestoring) R.string.databases_backups_row_before_restoring else R.string.databases_backups_row,
+                    date,
+                    detail,
+                )
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(min = 64.dp)
                         .clip(segmentShape(index, shown.size))
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .clickable(onClickLabel = "Open") { opened = backup }
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = "Backup of $date, " + (if (backup.beforeRestoring) "${BackupTexts.BEFORE_RESTORING.lowercase()}, " else "") + detail
-                        }
+                        .clickable(onClickLabel = openLabel) { opened = backup }
+                        .semantics(mergeDescendants = true) { contentDescription = description }
                         .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -518,7 +519,7 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
                             Text(date, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                             if (backup.beforeRestoring) {
                                 Text(
-                                    BackupTexts.BEFORE_RESTORING,
+                                    BackupTexts.BEFORE_RESTORING.resolve(),
                                     Modifier.clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 8.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -538,15 +539,15 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
         Column {
             if (count > SHOWN) {
                 TextButton(onClick = { expanded = !expanded }) {
-                    ButtonLabel(BackupTexts.more(count, expanded), if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, iconSize = 18.dp, gap = 8.dp)
+                    ButtonLabel(BackupTexts.more(count, expanded).resolve(), if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, iconSize = 18.dp, gap = 8.dp)
                 }
             }
             TextButton(onClick = { askingDeleteAll = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                ButtonLabel("Delete all backups…", Icons.Rounded.DeleteOutline, iconSize = 18.dp, gap = 8.dp)
+                ButtonLabel(stringResource(R.string.databases_backups_delete_all_button), Icons.Rounded.DeleteOutline, iconSize = 18.dp, gap = 8.dp)
             }
         }
     }
-    Text(BackupTexts.WHERE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(BackupTexts.WHERE.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** What the section read: the backups, newest first, and when, for how long ago each is. */
@@ -586,7 +587,7 @@ private fun BackupSheet(
             when {
                 damaged -> Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                    Text(BackupTexts.DAMAGED, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    Text(BackupTexts.DAMAGED.resolve(), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
                 readOnly != null -> Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -605,7 +606,7 @@ private fun BackupSheet(
                     val color = if (restoring) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface
                     Icon(Icons.Rounded.History, contentDescription = null, tint = color)
                     Column {
-                        Text("Restore this backup…", style = MaterialTheme.typography.bodyLarge, color = color)
+                        Text(stringResource(R.string.databases_backups_restore_this), style = MaterialTheme.typography.bodyLarge, color = color)
                         Text(restoreLine, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -621,9 +622,9 @@ private fun BackupSheet(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                Text("Delete…", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.databases_backups_delete_this), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
             }
-            TextButton(onClick = onDismiss, Modifier.align(Alignment.End)) { Text("Close") }
+            TextButton(onClick = onDismiss, Modifier.align(Alignment.End)) { Text(stringResource(R.string.databases_close)) }
         }
     }
 }

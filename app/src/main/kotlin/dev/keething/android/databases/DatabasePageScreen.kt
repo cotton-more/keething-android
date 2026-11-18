@@ -72,6 +72,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import dev.keething.android.ui.resolve
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -101,6 +103,11 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 
 /**
  * Settings › Databases (SPEC §6.2; keething-spec databases.list AC7): every database with its name, its folder or
@@ -115,7 +122,7 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
     val lines = screens?.lines.orEmpty()
     val fingerprint by container.sessions.biometric.state.collectAsStateWithLifecycle()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Databases", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text(stringResource(R.string.databases_title), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         Column {
             lines.forEachIndexed { index, line ->
                 Row(
@@ -134,7 +141,7 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
                     Column(Modifier.weight(1f)) {
                         DatabaseLabelText(line.label, MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                         Text(
-                            line.settingsDetail,
+                            line.settingsDetail.resolve(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (line.isMissing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -142,10 +149,10 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
                         )
                     }
                     if (line.keyFile != null) {
-                        Icon(Icons.Rounded.Key, contentDescription = "Key file", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Rounded.Key, contentDescription = stringResource(R.string.databases_change_key_key_file), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (fingerprint.enabled && line.usesFingerprint) {
-                        Icon(Icons.Rounded.Fingerprint, contentDescription = "Fingerprint", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Rounded.Fingerprint, contentDescription = stringResource(R.string.databases_chooser_fingerprint), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -153,10 +160,10 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
         }
         Row {
             TextButton(onClick = files.open) {
-                ButtonLabel("Open a database…", Icons.Rounded.FolderOpen, iconSize = 18.dp, gap = 8.dp)
+                ButtonLabel(stringResource(R.string.databases_welcome_open), Icons.Rounded.FolderOpen, iconSize = 18.dp, gap = 8.dp)
             }
             TextButton(onClick = container.newDatabases::open) {
-                ButtonLabel("New database…", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
+                ButtonLabel(stringResource(R.string.databases_new_database_button), Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
             }
         }
     }
@@ -179,6 +186,8 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
     if (line == null) return
 
     val context = LocalContext.current
+
+    val resources = LocalResources.current
     var removing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     val files = rememberFileActions(container, onProblem = { problem = it })
@@ -193,7 +202,7 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
             onRemove = {
                 removing = false
                 container.sessions.remove(id) {
-                    Toast.makeText(context.applicationContext, "The stored password could not be deleted: $it.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context.applicationContext, resources.getString(R.string.databases_page_stored_not_deleted, it), Toast.LENGTH_LONG).show()
                 }
             },
             onDismiss = { removing = false },
@@ -206,14 +215,14 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Row(Modifier.height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to Settings") }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.databases_page_back)) }
             }
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 DatabaseTile(line.initial, line.colorIndex, size = 64.dp)
                 Spacer(Modifier.height(8.dp))
                 DatabaseLabelText(line.label, MaterialTheme.typography.headlineSmall)
                 Text(DatabaseText.abbreviated(line.path, root), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, overflow = TextOverflow.MiddleEllipsis, maxLines = 2)
-                changedText(line)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                changedText(line)?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             problem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
             if (line.isMissing) {
@@ -224,26 +233,26 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Rounded.FindInPage, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
                         Text(
-                            container.sessions.list.record(id)?.lockScreen(line)?.missingText ?: "Not found at ${DatabaseText.abbreviated(line.path, root)}",
+                            (container.sessions.list.record(id)?.lockScreen(line)?.missingText?.resolve() ?: stringResource(R.string.databases_page_not_found_at, DatabaseText.abbreviated(line.path, root))),
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
                     }
                     FilledTonalButton(onClick = { files.locate(id, line.reach == Reach.NO_ACCESS) }) {
-                        ButtonLabel(if (line.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…", Icons.Rounded.Search, iconSize = 18.dp, gap = 8.dp)
+                        ButtonLabel(stringResource(if (line.reach == Reach.NEEDS_FOLDER) R.string.databases_lock_choose_folder else R.string.databases_lock_locate), Icons.Rounded.Search, iconSize = 18.dp, gap = 8.dp)
                     }
                 }
             }
             DatabaseChanges(container, id, line)
-            Section("Key file") {
+            Section(stringResource(R.string.databases_change_key_key_file)) {
                 val key = line.keyFile
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Icon(Icons.Rounded.Key, contentDescription = null, tint = if (key?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(Modifier.weight(1f)) {
-                        Text(key?.name ?: "None", style = MaterialTheme.typography.bodyLarge)
+                        Text(key?.name ?: stringResource(R.string.databases_page_key_file_none), style = MaterialTheme.typography.bodyLarge)
                         Text(
                             when {
-                                key == null -> "It opens with its password alone"
-                                else -> key.detail
+                                key == null -> stringResource(R.string.databases_page_key_file_none_detail)
+                                else -> key.detail.resolve()
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (key?.isMissing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -252,30 +261,30 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { files.chooseKeyFile(id) }) {
-                        Text(if (key == null) "Choose…" else "Change…")
+                        Text(stringResource(if (key == null) R.string.databases_page_choose else R.string.databases_new_change))
                     }
-                    if (key != null) TextButton(onClick = { databases.setKeyFile(id, null) }) { Text("Forget") }
+                    if (key != null) TextButton(onClick = { databases.setKeyFile(id, null) }) { Text(stringResource(R.string.databases_page_forget)) }
                 }
                 Text(
-                    "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It must be there at every unlock, the fingerprint too.",
+                    stringResource(R.string.databases_page_key_file_note),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Section("Fingerprint") {
+            Section(stringResource(R.string.databases_chooser_fingerprint)) {
                 FingerprintOfDatabase(container, id, line)
             }
-            Section("Backups") {
+            Section(stringResource(R.string.databases_page_backups)) {
                 BackupsOfDatabase(container, id, line.name, onNotice = { notices.trySend(it) }, onRestored = linesModel::refresh)
             }
             Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { removing = true }) {
                     Icon(Icons.Rounded.PlaylistRemove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.size(8.dp))
-                    Text("Remove from list…", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.databases_remove_from_list), color = MaterialTheme.colorScheme.error)
                 }
                 Text(
-                    "Forgets it on this phone, with its stored password. The file stays.",
+                    stringResource(R.string.databases_page_remove_note),
                     Modifier.padding(horizontal = 12.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -315,43 +324,43 @@ private fun FingerprintOfDatabase(container: AppContainer, id: DatabaseId, line:
         ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Use fingerprint", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.databases_page_use_fingerprint), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Switch(checked = on, onCheckedChange = null, enabled = changeable)
     }
     val record = container.sessions.list.record(id)
-    val problem = deleteFailure?.let { "Its stored password could not be deleted: $it." }
-        ?: state.setupFailures[id]?.takeIf { on }?.let { "It could not be set up: $it. It tries again at the next unlock with the password." }
+    val problem = deleteFailure?.let { stringResource(R.string.databases_page_fingerprint_not_deleted, it) }
+        ?: state.setupFailures[id]?.takeIf { on }?.let { stringResource(R.string.databases_page_fingerprint_not_set_up, it) }
     Text(
         problem ?: when {
-            unavailable != null -> "Not available: ${unavailable.reason}."
-            !state.enabled -> "Off: Unlock with the fingerprint is off in Settings. Once it is on, the fingerprint can be turned on here."
-            !on -> "Off: its password is typed every time."
-            record?.isPasswordless == true -> "The fingerprint opens it, and nothing is stored."
-            stored -> "Its password is stored, sealed by a key in ${location.describe()} that opens only after your fingerprint. " +
-                "A fingerprint added on this phone undoes it."
-            else -> "Its password is stored the next time it is unlocked with the password."
+            unavailable != null -> stringResource(R.string.databases_page_fingerprint_unavailable, unavailable.reason)
+            !state.enabled -> stringResource(R.string.databases_page_fingerprint_app_off)
+            !on -> stringResource(R.string.databases_page_fingerprint_off)
+            record?.isPasswordless == true -> stringResource(R.string.databases_page_fingerprint_passwordless)
+            stored -> stringResource(R.string.databases_page_fingerprint_stored, stringResource(location.describe()))
+            else -> stringResource(R.string.databases_page_fingerprint_next_unlock)
         },
         style = MaterialTheme.typography.bodyMedium,
         color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
-private fun KeyLocation?.describe(): String = when (this) {
-    KeyLocation.StrongBox -> "the phone's security chip (StrongBox)"
-    KeyLocation.TrustedEnvironment -> "the processor's secure area (TEE)"
-    KeyLocation.SecureHardware -> "the phone's secure hardware"
-    KeyLocation.Software -> "software (no secure hardware here)"
-    null -> "the Android Keystore"
+@StringRes
+private fun KeyLocation?.describe(): Int = when (this) {
+    KeyLocation.StrongBox -> R.string.databases_key_location_strongbox
+    KeyLocation.TrustedEnvironment -> R.string.databases_key_location_tee
+    KeyLocation.SecureHardware -> R.string.databases_key_location_secure_hardware
+    KeyLocation.Software -> R.string.databases_key_location_software
+    null -> R.string.databases_key_location_keystore
 }
 
 /** "Changed 2 hours ago"; of a file not found, "Last opened 2 weeks ago" when it was. */
-private fun changedText(line: DatabaseLine): String? {
+private fun changedText(line: DatabaseLine): UiText? {
     val now = Instant.now()
     val zone = ZoneId.systemDefault()
     return if (line.isMissing) {
-        line.lastOpened?.let { "Last opened " + DatabaseText.ago(it, now, zone) }
+        line.lastOpened?.let { uiText(R.string.databases_page_last_opened, DatabaseText.ago(it, now, zone)) }
     } else {
-        line.modified?.let { "Changed " + DatabaseText.ago(it, now, zone) }
+        line.modified?.let { uiText(R.string.databases_page_changed, DatabaseText.ago(it, now, zone)) }
     }
 }
 
@@ -380,28 +389,30 @@ private fun DatabaseChanges(container: AppContainer, id: DatabaseId, line: Datab
     val unlocked = state as? SessionState.Unlocked
     val readOnly = ReadOnlyReason.of(state)
     val record = container.sessions.list.record(id)
-    Section("Name and colour") {
+    Section(stringResource(R.string.databases_page_name_and_colour)) {
         when {
-            unlocked == null || database == null -> LockedNote("Unlock it to change its name, colour or master key: they are written into its file.")
-            readOnly != null -> LockedNote("${readOnly.say}. Its name, colour and master key can't be changed here.")
+            unlocked == null || database == null -> LockedNote(stringResource(R.string.databases_page_unlock_to_change))
+            readOnly != null -> LockedNote(stringResource(R.string.databases_page_read_only, readOnly.say.resolve()))
             else -> NameAndColor(database, unlocked, record?.file?.fileName ?: line.name)
         }
     }
-    Section("Master key") {
+    Section(stringResource(R.string.databases_page_master_key)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {
                 Text(
-                    when {
-                        record?.isPasswordless == true -> "Key file alone"
-                        line.keyFile != null -> "Password and key file"
-                        else -> "Password"
-                    },
+                    stringResource(
+                        when {
+                            record?.isPasswordless == true -> R.string.databases_page_key_file_alone
+                            line.keyFile != null -> R.string.databases_page_password_and_key_file
+                            else -> R.string.databases_chooser_password
+                        },
+                    ),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 unlocked?.vault?.masterKeyChanged?.let {
                     Text(
-                        "Changed " + DatabaseText.ago(it, Instant.now(), ZoneId.systemDefault()),
+                        stringResource(R.string.databases_page_changed, DatabaseText.ago(it, Instant.now(), ZoneId.systemDefault()).resolve()),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -409,10 +420,10 @@ private fun DatabaseChanges(container: AppContainer, id: DatabaseId, line: Datab
             }
         }
         if (unlocked != null && readOnly == null) {
-            FilledTonalButton(onClick = { container.masterKeys.open(id) }) { Text("Change master key…") }
+            FilledTonalButton(onClick = { container.masterKeys.open(id) }) { Text(stringResource(R.string.databases_page_change_master_key)) }
         }
         Text(
-            "What opens it on every device. After a leak, change it here: the others then ask for the new one.",
+            stringResource(R.string.databases_page_master_key_note),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -436,6 +447,7 @@ private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unloc
     var said by remember { mutableStateOf<String?>(null) }
     var failed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val resources = LocalResources.current
     val edit = form.edit(name, color)
 
     TextField(
@@ -445,7 +457,7 @@ private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unloc
             said = null
         },
         modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
-        label = { Text("Name") },
+        label = { Text(stringResource(R.string.databases_new_name)) },
         placeholder = { Text(databaseFile.substringBeforeLast('.')) },
         singleLine = true,
         enabled = !saving,
@@ -453,7 +465,7 @@ private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unloc
         shape = RoundedCornerShape(20.dp),
         colors = fieldColors(),
     )
-    Text(form.nameNote(name), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(form.nameNote(name).resolve(), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     val choices = DatabasePalette.shades.indices.map<Int, Int?> { it } + null
     Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         choices.chunked(5).forEach { row ->
@@ -462,14 +474,14 @@ private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unloc
             }
         }
     }
-    Text(form.colorNote(color), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(form.colorNote(color).resolve(), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(
             onClick = {
                 val asked = edit ?: return@Button
                 val pending = database.session.save(asked)
                 if (pending == null) {
-                    said = "The database locked; nothing was saved."
+                    said = resources.getString(R.string.databases_page_locked_not_saved)
                     failed = true
                     return@Button
                 }
@@ -478,11 +490,11 @@ private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unloc
                     val problem = pending.await().problem(database.file)
                     saving = false
                     failed = problem != null
-                    said = problem ?: "Saved into ${database.file.name}"
+                    said = problem?.resolve(resources) ?: resources.getString(R.string.databases_page_saved_into, database.file.name)
                 }
             },
             enabled = edit != null && !saving,
-        ) { Text(if (saving) "Saving…" else "Save") }
+        ) { Text(stringResource(if (saving) R.string.databases_page_saving else R.string.databases_page_save)) }
         said?.let {
             Text(
                 it,
@@ -493,7 +505,7 @@ private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unloc
         }
     }
     Text(
-        "Written into the file, so KeePassXC, the Mac and your other devices show the same.",
+        stringResource(R.string.databases_page_written_into_file),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -503,13 +515,14 @@ private fun NameAndColor(database: DatabaseSession, unlocked: SessionState.Unloc
 @Composable
 private fun ColorChoice(index: Int?, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val ring = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent
+    val description = index?.let { NameAndColorForm.NAMES[it].resolve() } ?: stringResource(R.string.databases_page_color_none)
     Box(
         Modifier
             .size(48.dp)
             .clip(CircleShape)
             .border(2.dp, ring, CircleShape)
             .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-            .semantics { contentDescription = index?.let { NameAndColorForm.NAMES[it] } ?: "None: a colour by its place in the list" },
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
         if (index != null) {

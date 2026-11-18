@@ -1,5 +1,7 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.english
+import dev.keething.android.ui.uiPlain
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.SetUpAgain
@@ -69,7 +71,7 @@ class NotOpenDatabasesTest {
             listOf(NotOpenState.Locked, NotOpenState.FingerprintToSetUp(null), NotOpenState.NotFound(), NotOpenState.NeedsKeyFile("taxes.keyx", null)),
             notOpen.map { it.state },
         )
-        assertEquals(listOf("Locked", "Fingerprint to set up", "Not found", "Needs its key file"), notOpen.map { it.state.word })
+        assertEquals(listOf("Locked", "Fingerprint to set up", "Not found", "Needs its key file"), notOpen.map { it.state.word.english() })
         assertEquals(
             listOf(
                 "Locked · tap to type its password",
@@ -77,7 +79,7 @@ class NotOpenDatabasesTest {
                 "Not found at Sync/Crypto.kdbx",
                 "Needs its key file: taxes.keyx is not there",
             ),
-            notOpen.map { it.say },
+            notOpen.map { it.say.english() },
         )
         assertEquals(listOf(1, 2, 3, 4), notOpen.map { it.line.colorIndex }, "its colour in the list's order")
     }
@@ -93,7 +95,7 @@ class NotOpenDatabasesTest {
         )
         assertEquals(states.size, states.map { it.glyph }.toSet().size, "one icon per state")
         assertEquals(NotOpenState.Glyph.entries.toSet(), states.map { it.glyph }.toSet(), "no icon left over")
-        assertEquals(states.size, states.map { it.word }.toSet().size, "one word per state, for what is read aloud")
+        assertEquals(states.size, states.map { it.word.english() }.toSet().size, "one word per state, for what is read aloud")
         assertEquals(NotOpenState.FingerprintToSetUp(null).glyph, NotOpenState.FingerprintToSetUp(SetUpAgain.FINGERPRINTS_CHANGED).glyph, "set up again is the same state")
     }
 
@@ -109,7 +111,7 @@ class NotOpenDatabasesTest {
             state(failed(OpenFailure.WrongPassword), line("Work", keyFile = "work.keyx", keyMissing = true)),
         )
         val unusable = state(failed(OpenFailure.KeyFileUnusable("it is empty")), line("Work", keyFile = "work.keyx"))
-        assertEquals(NotOpenState.NeedsKeyFile("work.keyx", "it is empty"), unusable)
+        assertEquals(NotOpenState.NeedsKeyFile("work.keyx", uiPlain("it is empty")), unusable)
         val damaged = state(failed(OpenFailure.Damaged("a block's hash")), fingerprint = on.copy(stored = false, setUpAgain = SetUpAgain.FINGERPRINTS_CHANGED))
         assertEquals(NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash")), damaged, "what typing cannot fix before the fingerprint's verdict")
         assertEquals(NotOpenState.CannotBeRead(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT)), state(failed(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT))))
@@ -134,12 +136,12 @@ class NotOpenDatabasesTest {
 
     @Test
     fun eachStateSaysItAll() {
-        fun say(state: NotOpenState, line: DatabaseLine = line("Work", keyFile = "work.keyx")) = NotOpenDatabase(line, state).say
+        fun say(state: NotOpenState, line: DatabaseLine = line("Work", keyFile = "work.keyx")) = NotOpenDatabase(line, state).say.english()
         assertEquals("Opening…", say(NotOpenState.Opening))
         assertEquals("Fingerprint to set up again: the fingerprints changed", say(NotOpenState.FingerprintToSetUp(SetUpAgain.FINGERPRINTS_CHANGED)))
         assertEquals("Fingerprint to set up again: the stored password was not accepted", say(NotOpenState.FingerprintToSetUp(SetUpAgain.PASSWORD_REJECTED)))
         assertEquals("Fingerprint to set up: type its password once", say(NotOpenState.FingerprintToSetUp(null)))
-        assertEquals("Its key file work.keyx cannot be used: it is empty", say(NotOpenState.NeedsKeyFile("work.keyx", "it is empty")))
+        assertEquals("Its key file work.keyx cannot be used: it is empty", say(NotOpenState.NeedsKeyFile("work.keyx", uiPlain("it is empty"))))
         assertEquals("Cannot be read: damaged or not completely synced yet (a block's hash)", say(NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash"))))
         assertEquals("Wrong password · tap to type it again", say(NotOpenState.WrongPassword))
         assertEquals("Its password was changed elsewhere · tap to type the new one", say(NotOpenState.PasswordChanged))
@@ -171,7 +173,7 @@ class NotOpenDatabasesTest {
     // spec: databases.not-open/AC2
     @Test
     fun whileASearchIsTypedEachDatabaseNotOpenIsReadAloudAsNotSearched() {
-        assertEquals("Not searched", NotOpenDatabases.readAloud(typing = true))
+        assertEquals("Not searched", NotOpenDatabases.readAloud(typing = true)?.english())
         assertNull(NotOpenDatabases.readAloud(typing = false), "its state's word alone")
     }
 

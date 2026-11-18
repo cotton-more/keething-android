@@ -1,9 +1,12 @@
 package dev.keething.android.quicknote
 
 import androidx.lifecycle.ViewModel
+import dev.keething.android.R
 import dev.keething.android.editor.NewNote
 import dev.keething.android.quicknote.QuickNoteRun.Source
 import dev.keething.android.quicknote.QuickNoteRun.State
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 import dev.keething.domain.vault.Vault
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.session.SessionState
@@ -69,7 +72,7 @@ internal class QuickNoteModel(
         data class Editor(val database: DatabaseId, val note: NewNote) : Showing
 
         /** The screen goes, saying [message] when there is one (a toast). */
-        data class Gone(val message: String?) : Showing
+        data class Gone(val message: UiText?) : Showing
     }
 
     private val mutableShowing = MutableStateFlow<Showing>(Showing.Nothing)
@@ -185,14 +188,14 @@ internal class QuickNoteModel(
     fun saved(vault: Vault?, entryId: String) {
         val entry = vault?.entries?.firstOrNull { it.id == entryId }
         val group = entry?.let { it.groupPath.lastOrNull() ?: vault.groups.firstOrNull { group -> group.isRoot }?.name }
-        finish(group?.let { "Saved to $it" } ?: "Saved")
+        finish(group?.let { uiText(R.string.quicknote_saved_to, it) } ?: uiText(R.string.quicknote_saved))
     }
 
     /** Its screen gone for good without going through [finish]: nothing of the text stays, nothing waits. */
     override fun onCleared() = finish(null)
 
     /** The screen goes; nothing of the text stays. */
-    private fun finish(message: String?) {
+    private fun finish(message: UiText?) {
         if (showing.value is Showing.Gone) return
         waitingForFocus = null
         run.giveUp()

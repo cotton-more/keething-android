@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings (settings/SettingsScreen.kt) -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">Back</string>
+    <string name="settings_chosen">Chosen</string>
+
+    <!-- Quick notes (settings/SettingsScreen.kt, settings/QuickNoteDestination.kt) -->
+    <string name="settings_quick_notes">Quick notes</string>
+    <string name="settings_quick_notes_go_to">Quick notes go to</string>
+    <string name="settings_quick_notes_current">Current database</string>
+    <!-- Under Current database. %1$s: the current database's name -->
+    <string name="settings_quick_notes_current_now">%1$s now</string>
+    <string name="settings_quick_notes_fallen_back">The database chosen before is no longer in the list: quick notes go to the current one.</string>
+    <string name="settings_quick_notes_detail">Text shared to Keething note or picked from a text\'s menu, the tile and the launcher\'s Note from clipboard open a new note in that database\'s Inbox, made with the note when there is none. Nothing is saved until you save it.</string>
+    <string name="settings_quick_note_tile_add">Add the Quick note tile</string>
+
+    <!-- Fingerprint -->
+    <string name="settings_fingerprint">Fingerprint</string>
+    <string name="settings_fingerprint_unlock">Unlock with the fingerprint</string>
+    <!-- %1$s: why, as the system said it -->
+    <string name="settings_fingerprint_not_deleted">The stored passwords could not be deleted: %1$s.</string>
+    <!-- %1$s: why, as the system said it -->
+    <string name="settings_fingerprint_unavailable">Not available: %1$s.</string>
+    <string name="settings_fingerprint_detail">Each database whose Use fingerprint is on opens with it: its lock screen offers it once, by the fingerprint beside the password, and its page in Databases turns it on or off. Turning this off deletes all their stored passwords.</string>
+    <string name="settings_reminder">Ask about each master key every</string>
+    <string name="settings_reminder_never">Never</string>
+    <string name="settings_reminder_detail">After this long without its master password typed, Keething asks once, after an unlock, whether you still remember it (or keep its key file safe). The fingerprint opens it all the same.</string>
+    <string name="settings_reminder_never_detail">Keething never asks. A forgotten master password, or a lost key file, opens its database for nobody, not even with Keething.</string>
+
+    <!-- Autofill -->
+    <string name="settings_autofill">Autofill</string>
+    <string name="settings_autofill_on">On: apps and browsers offer the matching entries. In Chrome, also choose Settings › Autofill services › Autofill using another service; Firefox needs nothing.</string>
+    <string name="settings_autofill_off">Off: another service fills, or none.</string>
+    <string name="settings_autofill_use">Use Keething for autofill</string>
+
+    <!-- Lock after this long in the background -->
+    <string name="settings_lock_timeout">Lock after this long in the background</string>
+    <!-- %1$d: minutes -->
+    <plurals name="settings_minutes">
+        <item quantity="one">%1$d min</item>
+        <item quantity="other">%1$d min</item>
+    </plurals>
+    <!-- %1$d: hours -->
+    <plurals name="settings_hours">
+        <item quantity="one">%1$d h</item>
+        <item quantity="other">%1$d h</item>
+    </plurals>
+    <string name="settings_lock_timeout_detail">Turning the screen off counts as the background. The clipboard is cleared 30 s after a copy.</string>
+
+    <!-- Theme (settings/ThemeChoice.kt) -->
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+
+    <!-- Sharing: requests and pictures last -->
+    <string name="settings_request_validity">Sharing: requests and pictures last</string>
+    <!-- How long a request lasts, how often the master key is asked about. %1$d: days -->
+    <plurals name="settings_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="settings_request_validity_detail">Then the phone that asked forgets its key, and an answer can no longer be opened; the phone that sent entries without a request forgets their pictures. New ones only.</string>
+
+    <!-- This phone -->
+    <string name="settings_this_phone">This phone</string>
+    <!-- %1$s: how long it took ("1.4 s") -->
+    <string name="settings_key_derived_in">The last unlock derived the key in %1$s.</string>
+    <string name="settings_key_reused">The last read of the file reused the derived key.</string>
+    <!-- %1$d: MiB used; %2$d: MiB the app may use -->
+    <string name="settings_memory">Memory: %1$d MiB used of %2$d MiB.</string>
+
+    <!-- About -->
+    <string name="settings_about">About</string>
+    <!-- %1$s: the version ("1.0.0 · build 1") -->
+    <string name="settings_about_version">Keething for Android %1$s.</string>
+    <string name="settings_about_typeface">Passwords and codes are set in Google Sans Code (SIL Open Font License 1.1).</string>
+    <string name="settings_about_keething">About Keething</string>
+    <string name="settings_report_problem">Report a problem</string>
+</resources>

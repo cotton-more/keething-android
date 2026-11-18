@@ -6,7 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import dev.keething.android.R
 import dev.keething.android.editor.problem
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 import dev.keething.android.unlock.describe
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.storage.GrantedFolder
@@ -142,7 +145,7 @@ internal class ChangeMasterKeyModel(
         private set
 
     /** What the last Continue or Change could not do: until something is typed or chosen again. */
-    var problem: String? by mutableStateOf(null)
+    var problem: UiText? by mutableStateOf(null)
         private set
 
     val fields = MasterPasswordFields(random) { listOf(label) }
@@ -199,10 +202,10 @@ internal class ChangeMasterKeyModel(
                         passwordChoice = if (result.withPassword) PasswordChoice.NEW else PasswordChoice.KEEP
                         step = Step.NEW
                     }
-                    KeyConfirmation.Wrong -> problem = currentKeyFile?.let { "That is not its master password with ${it.name}. Nothing changed." }
-                        ?: "That is not its master password. Nothing changed."
+                    KeyConfirmation.Wrong -> problem = currentKeyFile?.let { uiText(R.string.databases_change_key_wrong_with_file, it.name) }
+                        ?: uiText(R.string.databases_change_key_wrong)
                     is KeyConfirmation.Failed -> problem = result.failure.describe(fileText)
-                    KeyConfirmation.Locked -> problem = "The database is locked. Unlock it, then change its master key."
+                    KeyConfirmation.Locked -> problem = uiText(R.string.databases_change_key_locked)
                 }
             } finally {
                 typed.wipe()
@@ -248,27 +251,27 @@ internal class ChangeMasterKeyModel(
         }
 
     /** The chosen key file's name and where, in words; null for Keep and None. */
-    val keyFileText: String?
+    val keyFileText: UiText?
         get() = when (val choice = keyFile) {
-            is KeyFileChoice.New -> newKeyFilePath?.let { "${File(it).name} in ${shown(choice.folder)}" }
-            is KeyFileChoice.Existing -> "${File(choice.path).name} in ${shown(File(choice.path).parent ?: "/")}"
+            is KeyFileChoice.New -> newKeyFilePath?.let { uiText(R.string.databases_file_in_folder, File(it).name, shown(choice.folder)) }
+            is KeyFileChoice.Existing -> uiText(R.string.databases_file_in_folder, File(choice.path).name, shown(File(choice.path).parent ?: "/"))
             else -> null
         }
 
     /** A new key file that cannot be made there, or one to use that is not there. */
-    val keyFileProblem: String?
+    val keyFileProblem: UiText?
         get() = when (val choice = keyFile) {
             is KeyFileChoice.New -> when {
-                looked.let { look.isFolder(choice.folder) }.not() -> "The key file's folder, ${shown(choice.folder)}, is not there any more."
-                newKeyFilePath == null -> "That folder has no free name for a key file: choose another."
+                looked.let { look.isFolder(choice.folder) }.not() -> uiText(R.string.databases_change_key_folder_gone, shown(choice.folder))
+                newKeyFilePath == null -> uiText(R.string.databases_change_key_no_free_name)
                 else -> null
             }
-            is KeyFileChoice.Existing -> if (looked.let { look.exists(choice.path) }) null else "${File(choice.path).name} is not there any more."
+            is KeyFileChoice.Existing -> if (looked.let { look.exists(choice.path) }) null else uiText(R.string.databases_change_key_file_gone, File(choice.path).name)
             else -> null
         }
 
     /** A key file kept with the database protects little: whoever gets the folder gets both. */
-    val keyFileWarning: String?
+    val keyFileWarning: UiText?
         get() {
             val keyFolder = when (val choice = keyFile) {
                 is KeyFileChoice.New -> choice.folder
@@ -277,16 +280,16 @@ internal class ChangeMasterKeyModel(
             } ?: return null
             if (keyFileProblem != null) return null
             return when {
-                keyFolder == databaseFolder -> "Beside the database, whoever gets the folder gets both. Keep it apart: a folder that does not sync."
-                look.syncs(keyFolder) -> "In a folder that syncs, it goes wherever the database goes. Keep it apart: a folder that does not sync."
+                keyFolder == databaseFolder -> uiText(R.string.databases_key_file_beside)
+                look.syncs(keyFolder) -> uiText(R.string.databases_key_file_syncs)
                 else -> null
             }
         }
 
     /** What keeps Change from being tapped, the first first; empty: it can. */
-    val blockers: List<String>
+    val blockers: List<UiText>
         get() {
-            val why = mutableListOf<String>()
+            val why = mutableListOf<UiText>()
             if (passwordChoice == PasswordChoice.NEW) fields.blocker?.let { why += it }
             keyFileProblem?.let { why += it }
             val passwordAfter = when (passwordChoice) {
@@ -294,9 +297,9 @@ internal class ChangeMasterKeyModel(
                 PasswordChoice.NEW -> true
                 PasswordChoice.NONE -> false
             }
-            if (!passwordAfter && keyFile == KeyFileChoice.None) why += "Without a key file it needs a password."
+            if (!passwordAfter && keyFile == KeyFileChoice.None) why += uiText(R.string.databases_change_key_needs_password)
             if (passwordChoice == PasswordChoice.KEEP && keyFile == (if (currentKeyFile != null) KeyFileChoice.Keep else KeyFileChoice.None)) {
-                why += "Choose a new password or another key file."
+                why += uiText(R.string.databases_change_key_nothing_new)
             }
             return why
         }
@@ -340,13 +343,13 @@ internal class ChangeMasterKeyModel(
                 val pending = change(password, location, fileKey)
                 fileKey?.wipe()
                 if (pending == null) {
-                    failed(made, "The database is locked. Unlock it, then change its master key.")
+                    failed(made, uiText(R.string.databases_change_key_locked))
                     return@launch
                 }
                 val result = pending.await()
                 val failure = result.outcome.problem(File(fileText))
                 if (failure != null) {
-                    failed(made, if (result.outcome == SaveOutcome.Interrupted) "The database locked before its master key was changed. Nothing changed." else failure)
+                    failed(made, if (result.outcome == SaveOutcome.Interrupted) uiText(R.string.databases_change_key_interrupted) else failure)
                     return@launch
                 }
                 fingerprintProblem = result.fingerprintProblem
@@ -368,15 +371,15 @@ internal class ChangeMasterKeyModel(
         return started
     }
 
-    private suspend fun failed(made: String?, text: String) {
+    private suspend fun failed(made: String?, text: UiText) {
         made?.let { path -> withContext(io) { runCatching { files.removeKeyFile(path) } } }
         problem = text
     }
 
-    private fun keyFileFailure(failure: CreateFailure): String = when (failure) {
-        is CreateFailure.KeyFileUnusable -> "${failure.name} could not be read as a key file. Nothing changed."
-        is CreateFailure.FolderNotFound -> "The key file's folder is not there any more. Nothing changed."
-        else -> "The key file could not be made (${failure.message ?: failure.javaClass.simpleName}). Nothing changed."
+    private fun keyFileFailure(failure: CreateFailure): UiText = when (failure) {
+        is CreateFailure.KeyFileUnusable -> uiText(R.string.databases_change_key_file_unusable, failure.name)
+        is CreateFailure.FolderNotFound -> uiText(R.string.databases_change_key_folder_not_found)
+        else -> uiText(R.string.databases_change_key_file_not_made, failure.message ?: failure.javaClass.simpleName)
     }
 
     /** The screen closes: what was typed goes. Not while the change is written. */

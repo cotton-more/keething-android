@@ -6,6 +6,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiText
 import java.net.URLEncoder
 
 /**
@@ -15,34 +19,20 @@ import java.net.URLEncoder
 internal object ProblemReport {
     const val ISSUES = "$SOURCE/issues/new"
 
-    /** The new issue's address: a body asking what happened, then the build and the phone. */
-    fun url(info: BuildInfo, android: String, sdk: Int, device: String): String {
-        val body = """
-            |<!-- A security problem? Not here: see SECURITY.md (or About › Security) to report it privately. -->
-            |
-            |**What happened**
-            |
-            |
-            |**What you expected**
-            |
-            |
-            |**Steps to make it happen again**
-            |
-            |
-            |---
-            |Keething ${info.versionText}, commit ${info.commitText}
-            |Android $android (API $sdk)
-            |$device
-        """.trimMargin()
-        return "$ISSUES?body=" + URLEncoder.encode(body, Charsets.UTF_8).replace("+", "%20")
-    }
+    /** The new issue's body: what happened, asked, then the build and the phone. */
+    fun body(info: BuildInfo, android: String, sdk: Int, device: String): UiText =
+        uiText(R.string.about_problem_report_body, info.versionText, info.commitText, android, sdk, device)
+
+    /** The new issue's address, with [body]. */
+    fun url(body: String): String = "$ISSUES?body=" + URLEncoder.encode(body, Charsets.UTF_8).replace("+", "%20")
 
     /** "Google Pixel 6", "Samsung SM-S911B"; a model that names its maker already is left as it is. */
     fun device(manufacturer: String, model: String): String =
         if (model.startsWith(manufacturer, ignoreCase = true)) model else "${manufacturer.replaceFirstChar { it.uppercase() }} $model"
 
     fun open(context: Context) {
-        openInBrowser(context, url(BuildInfo.read(context.assets), Build.VERSION.RELEASE, Build.VERSION.SDK_INT, device(Build.MANUFACTURER, Build.MODEL)))
+        val report = body(BuildInfo.read(context.assets), Build.VERSION.RELEASE, Build.VERSION.SDK_INT, device(Build.MANUFACTURER, Build.MODEL))
+        openInBrowser(context, url(report.resolve(context.resources)))
     }
 }
 
@@ -51,6 +41,6 @@ internal fun openInBrowser(context: Context, url: String) {
     try {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "No browser opens ${url.substringBefore('?')}", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.getString(R.string.about_no_browser, url.substringBefore('?')), Toast.LENGTH_LONG).show()
     }
 }

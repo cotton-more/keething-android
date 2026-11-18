@@ -57,6 +57,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.ButtonLabel
@@ -77,6 +80,8 @@ import dev.keething.android.ui.NoticeHost
 import dev.keething.android.ui.QrCodeImage
 import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.rememberSecondsNow
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiText
 import dev.keething.sharing.message.ShareCode
 import dev.keething.sharing.pictures.Pictures
 import kotlinx.coroutines.Dispatchers
@@ -117,10 +122,10 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                     try {
                         context.startActivity(intent)
                     } catch (_: ActivityNotFoundException) {
-                        notices.send(Notice("No app can take it", isProblem = true))
+                        notices.send(Notice(uiText(R.string.sharing_no_app), isProblem = true))
                     }
                 }
-                .onFailure { notices.send(Notice("Could not make the picture: ${it.message}", isProblem = true)) }
+                .onFailure { notices.send(Notice(uiText(R.string.sharing_picture_not_made, it.message.toString()), isProblem = true)) }
         }
     }
     val codeRoute = CodePictures.Route(id, pictures = false, leaveOut = sent.picturesVia)
@@ -129,15 +134,15 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
     if (forgetting) {
         AlertDialog(
             onDismissRequest = { forgetting = false },
-            title = { Text("Forget the pictures?") },
-            text = { Text("Until they are given, nobody can open the code then, not even this phone. If you gave them already, this changes nothing.") },
+            title = { Text(stringResource(R.string.sharing_sent_forget_title)) },
+            text = { Text(stringResource(R.string.sharing_sent_forget_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     forgetting = false
                     container.shareRequests.delete(id)
-                }) { Text("Forget them") }
+                }) { Text(stringResource(R.string.sharing_sent_forget_them)) }
             },
-            dismissButton = { TextButton(onClick = { forgetting = false }) { Text("Keep them") } },
+            dismissButton = { TextButton(onClick = { forgetting = false }) { Text(stringResource(R.string.sharing_sent_keep_them)) } },
         )
     }
 
@@ -147,14 +152,14 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
             TopAppBar(
                 title = {
                     BarTitle(
-                        if (sent.recipient.isNotEmpty()) "For ${sent.recipient}" else "Sent without a request",
-                        "${SharingTexts.titles(sent.titles)} · ${SharingTexts.expires(sent.envelope.expires, now)}",
+                        if (sent.recipient.isNotEmpty()) stringResource(R.string.sharing_for, sent.recipient) else stringResource(R.string.sharing_sent_without),
+                        stringResource(R.string.sharing_two_parts, SharingTexts.titles(sent.titles).resolve(), SharingTexts.expires(sent.envelope.expires, now).resolve()),
                     )
                 },
-                navigationIcon = { IconButton(onClick = onDone) { Icon(Icons.Rounded.Close, contentDescription = "Done") } },
+                navigationIcon = { IconButton(onClick = onDone) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.sharing_done)) } },
                 actions = {
                     IconButton(onClick = { forgetting = true }) {
-                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "Forget the pictures", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.sharing_sent_forget), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -167,22 +172,23 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                         onClick = { send { container.codePictures.sendTextIntent(SharingTexts.picturesMessage(sent.pictures), picturesRoute) } },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                     ) {
-                        ButtonLabel("Send the pictures", Icons.AutoMirrored.Rounded.Send)
+                        ButtonLabel(stringResource(R.string.sharing_sent_send_pictures), Icons.AutoMirrored.Rounded.Send)
                     }
+                    val picturesCopied = stringResource(R.string.sharing_sent_pictures_copied)
                     FilledTonalButton(
                         onClick = {
                             container.clipboard.copy(SharingTexts.picturesLine(sent.pictures), sensitive = true)
-                            notices.trySend(Notice.copied("Pictures"))
+                            notices.trySend(Notice.copied(picturesCopied))
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                     ) {
-                        ButtonLabel("Copy", Icons.Rounded.ContentCopy, iconSize = 20.dp, gap = 8.dp)
+                        ButtonLabel(stringResource(R.string.sharing_copy), Icons.Rounded.ContentCopy, iconSize = 20.dp, gap = 8.dp)
                     }
                     return@BottomActions
                 }
                 if (pictures != null) {
                     Button(onClick = { send { container.codePictures.sendIntent(pictures, codeRoute) } }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                        ButtonLabel(if (pictures.size == 1) "Send the code" else "Send the ${pictures.size} codes", Icons.AutoMirrored.Rounded.Send)
+                        ButtonLabel(pluralStringResource(R.plurals.sharing_sent_send_codes, pictures.size, pictures.size), Icons.AutoMirrored.Rounded.Send)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -190,20 +196,32 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                         onClick = { send { container.codePictures.sendTextIntent(SharingTexts.envelopeMessage(sent.from, encoded), codeRoute) } },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
-                        ButtonLabel("Send as text", Icons.AutoMirrored.Rounded.TextSnippet, short = "As text", iconSize = 20.dp, gap = 8.dp)
+                        ButtonLabel(
+                            stringResource(R.string.sharing_send_as_text),
+                            Icons.AutoMirrored.Rounded.TextSnippet,
+                            short = stringResource(R.string.sharing_send_as_text_short),
+                            iconSize = 20.dp,
+                            gap = 8.dp,
+                        )
                     }
                     if (pictures != null) {
                         FilledTonalButton(
                             onClick = {
                                 scope.launch {
                                     runCatching { withContext(Dispatchers.IO) { container.codePictures.save(pictures) } }
-                                        .onSuccess { notices.send(Notice("Saved to Pictures › Keething")) }
-                                        .onFailure { notices.send(Notice("Could not save the picture: ${it.message}", isProblem = true)) }
+                                        .onSuccess { notices.send(Notice(uiText(R.string.sharing_saved_to_pictures))) }
+                                        .onFailure { notices.send(Notice(uiText(R.string.sharing_picture_not_saved, it.message.toString()), isProblem = true)) }
                                 }
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                         ) {
-                            ButtonLabel(if (pictures.size == 1) "Save picture" else "Save pictures", Icons.Rounded.Download, short = "Save", iconSize = 20.dp, gap = 8.dp)
+                            ButtonLabel(
+                                pluralStringResource(R.plurals.sharing_save_pictures, pictures.size),
+                                Icons.Rounded.Download,
+                                short = stringResource(R.string.sharing_save_short),
+                                iconSize = 20.dp,
+                                gap = 8.dp,
+                            )
                         }
                     }
                 }
@@ -217,7 +235,7 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                listOf("The code", "The pictures").forEachIndexed { index, label ->
+                listOf(stringResource(R.string.sharing_sent_tab_code), stringResource(R.string.sharing_sent_tab_pictures)).forEachIndexed { index, label ->
                     SegmentedButton(
                         selected = showPictures == (index == 1),
                         onClick = { showPictures = index == 1 },
@@ -232,56 +250,60 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
                 Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Rounded.Call, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        "They open the code: give them another way than the code. Read them out by a call, or send them " +
-                            "through another app. Whoever has both opens the entries.",
+                        stringResource(R.string.sharing_sent_pictures_text),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (sent.codeVia.isNotEmpty()) LeftOut(container, sent.codeVia, "the code went that way")
+                if (sent.codeVia.isNotEmpty()) LeftOut(container, sent.codeVia, codeWent = true)
                 return@Column
             }
             FullBrightness()
             if (codes == null) {
-                Explanation("Too large for QR codes", "Send it as text: a messenger or mail carries it whole.")
+                Explanation(stringResource(R.string.sharing_too_large_title), stringResource(R.string.sharing_too_large_text))
             } else {
                 val index = shown.coerceIn(codes.indices)
-                QrCodeImage(codes[index], "QR code of the entries, ${index + 1} of ${codes.size}", Modifier.widthIn(max = 280.dp).fillMaxWidth())
+                QrCodeImage(codes[index], stringResource(R.string.sharing_sent_qr, index + 1, codes.size), Modifier.widthIn(max = 280.dp).fillMaxWidth())
                 if (codes.size > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilledTonalIconButton(onClick = { shown = (index - 1 + codes.size) % codes.size }) {
-                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "Previous code")
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = stringResource(R.string.sharing_previous_code))
                         }
-                        Text("Code ${index + 1} of ${codes.size}", Modifier.widthIn(min = 120.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.sharing_code_of, index + 1, codes.size), Modifier.widthIn(min = 120.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall)
                         FilledTonalIconButton(onClick = { shown = (index + 1) % codes.size }) {
-                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next code")
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = stringResource(R.string.sharing_next_code))
                         }
                     }
                 }
                 Text(
-                    "In person: let them scan this screen" + if (codes.size > 1) ", all ${codes.size} codes in any order" else "",
+                    pluralStringResource(R.plurals.sharing_sent_in_person, codes.size, codes.size),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }
             Text(
-                "The pictures are never shown with the code: one photo of the screen would hold both.",
+                stringResource(R.string.sharing_sent_never_both),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            if (sent.picturesVia.isNotEmpty()) LeftOut(container, sent.picturesVia, "the pictures went that way")
+            if (sent.picturesVia.isNotEmpty()) LeftOut(container, sent.picturesVia, codeWent = false)
         }
     }
 }
 
-/** "Slack is left out of the share sheet: the code went that way." */
+/** "Slack is left out of the share sheet: the code went that way" ([codeWent]), or the pictures. */
 @Composable
-private fun LeftOut(container: AppContainer, component: String, because: String) {
-    val app = remember(component) { container.codePictures.appName(component) } ?: "The app"
+private fun LeftOut(container: AppContainer, component: String, codeWent: Boolean) {
+    val app = remember(component) { container.codePictures.appName(component) }
     Text(
-        "$app is left out of the share sheet: $because.",
+        when {
+            app == null && codeWent -> stringResource(R.string.sharing_sent_left_out_code_unnamed)
+            app == null -> stringResource(R.string.sharing_sent_left_out_pictures_unnamed)
+            codeWent -> stringResource(R.string.sharing_sent_left_out_code, app)
+            else -> stringResource(R.string.sharing_sent_left_out_pictures, app)
+        },
         Modifier.fillMaxWidth().padding(horizontal = 4.dp),
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.Medium,
@@ -294,8 +316,10 @@ private fun LeftOut(container: AppContainer, component: String, because: String)
 private fun NumberedPictures(indices: List<Int>) {
     val pictures = Pictures.named(indices)
     val half = (pictures.size + 1) / 2
+    // The pictures' names come from core, in English for now (keething-spec plans T13b).
+    val description = stringResource(R.string.sharing_pictures_description, pictures.joinToString(", ") { it.name })
     Row(
-        Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = "The pictures: " + pictures.joinToString(", ") { it.name } },
+        Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         listOf(pictures.take(half), pictures.drop(half)).forEachIndexed { column, list ->

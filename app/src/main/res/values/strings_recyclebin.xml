@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Delete for good, asked first (recyclebin/DeleteForGoodDialog.kt) -->
+    <!-- %1$s: the entry's title -->
+    <string name="recyclebin_delete_for_good_title">Delete “%1$s” for good?</string>
+    <string name="recyclebin_delete_for_good_text">It leaves the database with its history and the attachments nothing else uses. This cannot be undone; copies that sync with this file delete it too.</string>
+    <string name="recyclebin_delete_for_good_confirm">Delete for good</string>
+    <string name="recyclebin_cancel">Cancel</string>
+
+    <!-- What the list says of a move (recyclebin/RecycleBinMoves.kt) -->
+    <!-- %1$s: the entry's title -->
+    <string name="recyclebin_moved">Moved “%1$s” to the recycle bin</string>
+    <string name="recyclebin_restore_gone">This entry is not in the recycle bin any more (restored elsewhere?). Nothing was changed.</string>
+    <!-- %1$s: the group's path, as "Finanzen › Banken" -->
+    <string name="recyclebin_restored_to">Restored to %1$s</string>
+    <string name="recyclebin_restored_to_top">Restored to the top group</string>
+    <!-- %1$s: the entry's title -->
+    <string name="recyclebin_deleted_for_good">Deleted “%1$s” for good</string>
+</resources>

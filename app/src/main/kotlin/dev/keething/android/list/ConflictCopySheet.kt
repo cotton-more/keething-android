@@ -33,13 +33,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import dev.keething.android.list.ConflictCopyModel.Choice
 import dev.keething.android.list.ConflictCopyModel.Other
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.segmentShape
 import dev.keething.vault.session.VaultSummary
 import java.time.ZoneId
@@ -78,26 +82,25 @@ internal fun ConflictCopySheet(model: ConflictCopyModel, onDismiss: () -> Unit) 
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Two versions of ${model.file.name}",
+                stringResource(R.string.list_conflict_title, model.file.name),
                 Modifier.padding(horizontal = 8.dp).semantics { heading() },
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(
-                "Syncthing kept both when two devices changed the database at once. Keething does not merge them: " +
-                    "keep one here, or merge them in KeePassXC (Database › Merge) to keep the changes of both.",
+                stringResource(R.string.list_conflict_text),
                 Modifier.padding(horizontal = 8.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Column {
-                Version("Open now", model.file.name, summaryText(model.open), Modifier.padding(bottom = SegmentGap).clip(segmentShape(0, 2, outer = 16.dp)))
+                Version(stringResource(R.string.list_conflict_open_now), model.file.name, summaryText(model.open), Modifier.padding(bottom = SegmentGap).clip(segmentShape(0, 2, outer = 16.dp)))
                 Version(
-                    "The other one",
-                    "From ${model.copy.createdAt.format(TIME)}, device ${model.copy.deviceId}",
+                    stringResource(R.string.list_conflict_other),
+                    stringResource(R.string.list_conflict_other_from, model.copy.createdAt.format(TIME), model.copy.deviceId),
                     when (val other = model.other) {
-                        Other.Reading -> "Reading…"
+                        Other.Reading -> stringResource(R.string.list_conflict_reading)
                         is Other.Read -> summaryText(other.summary)
-                        is Other.NotOpened -> other.why
+                        is Other.NotOpened -> other.why.resolve()
                     },
                     Modifier.clip(segmentShape(1, 2, outer = 16.dp)),
                 )
@@ -105,9 +108,8 @@ internal fun ConflictCopySheet(model: ConflictCopyModel, onDismiss: () -> Unit) 
             val usable = model.other !is Other.NotOpened && model.replaceRefused == null
             Column {
                 ChoiceRow(
-                    label = "Keep the open one",
-                    detail = "Deletes the other version. A copy of it is kept in Keething's backups of this database first. " +
-                        "Changes made only in the other version are not in the open one.",
+                    label = stringResource(R.string.list_conflict_keep),
+                    detail = stringResource(R.string.list_conflict_keep_detail),
                     icon = Icons.Rounded.CheckCircle,
                     working = model.working == Choice.KEEP_OPEN,
                     enabled = model.working == null,
@@ -115,12 +117,11 @@ internal fun ConflictCopySheet(model: ConflictCopyModel, onDismiss: () -> Unit) 
                     modifier = Modifier.padding(bottom = SegmentGap).clip(segmentShape(0, 2, outer = 16.dp)),
                 )
                 ChoiceRow(
-                    label = "Use the other one",
+                    label = stringResource(R.string.list_conflict_use),
                     detail = if (usable) {
-                        "Replaces ${model.file.name} with the other version, whose file then goes. The open one is kept in " +
-                            "Keething's backups first. Changes made only in the open one are lost from the database."
+                        stringResource(R.string.list_conflict_use_detail, model.file.name)
                     } else {
-                        model.replaceRefused ?: "It cannot be used: it does not open here."
+                        model.replaceRefused?.resolve() ?: stringResource(R.string.list_conflict_use_not_opened)
                     },
                     icon = Icons.Rounded.SwapHoriz,
                     working = model.working == Choice.USE_OTHER,
@@ -130,7 +131,7 @@ internal fun ConflictCopySheet(model: ConflictCopyModel, onDismiss: () -> Unit) 
                 )
             }
             model.problem?.let {
-                Text(it, Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                Text(it.resolve(), Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -181,17 +182,16 @@ private fun ConfirmChoiceDialog(choice: Choice, fileName: String, onConfirm: () 
         title = {
             Text(
                 when (choice) {
-                    Choice.KEEP_OPEN -> "Delete the other version?"
-                    Choice.USE_OTHER -> "Replace $fileName with the other version?"
+                    Choice.KEEP_OPEN -> stringResource(R.string.list_conflict_confirm_keep_title)
+                    Choice.USE_OTHER -> stringResource(R.string.list_conflict_confirm_use_title, fileName)
                 },
             )
         },
         text = {
             Text(
                 when (choice) {
-                    Choice.KEEP_OPEN -> "Its file is deleted; a copy of it is kept in Keething's backups of this database first."
-                    Choice.USE_OTHER -> "The open version is kept in Keething's backups first, then the other one takes its place " +
-                        "and its file is deleted. Changes made only in the open one are lost from the database."
+                    Choice.KEEP_OPEN -> stringResource(R.string.list_conflict_confirm_keep_text)
+                    Choice.USE_OTHER -> stringResource(R.string.list_conflict_confirm_use_text)
                 },
             )
         },
@@ -199,21 +199,22 @@ private fun ConfirmChoiceDialog(choice: Choice, fileName: String, onConfirm: () 
             TextButton(onClick = onConfirm) {
                 Text(
                     when (choice) {
-                        Choice.KEEP_OPEN -> "Delete it"
-                        Choice.USE_OTHER -> "Replace"
+                        Choice.KEEP_OPEN -> stringResource(R.string.list_conflict_confirm_keep)
+                        Choice.USE_OTHER -> stringResource(R.string.list_conflict_confirm_use)
                     },
                 )
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.list_cancel)) } },
     )
 }
 
 /** "128 entries · last change 8 Nov 2026, 10:15". */
+@Composable
 private fun summaryText(summary: VaultSummary): String {
-    val entries = if (summary.entries == 1) "1 entry" else "${summary.entries} entries"
-    val changed = summary.lastChanged?.atZone(ZoneId.systemDefault())?.format(TIME) ?: return entries
-    return "$entries · last change $changed"
+    val changed = summary.lastChanged?.atZone(ZoneId.systemDefault())?.format(TIME)
+        ?: return pluralStringResource(R.plurals.list_conflict_entries, summary.entries, summary.entries)
+    return pluralStringResource(R.plurals.list_conflict_entries_changed, summary.entries, summary.entries, changed)
 }
 
 private val TIME: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)

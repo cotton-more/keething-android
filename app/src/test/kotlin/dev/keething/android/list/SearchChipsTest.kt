@@ -2,6 +2,7 @@ package dev.keething.android.list
 
 import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.ui.english
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.Entry
@@ -31,6 +32,7 @@ class SearchChipsTest {
         ),
         now,
         english,
+        unnamedCode = UNNAMED_CODE,
     )
 
     private fun chips(query: String, codesOnly: Boolean = false) = searchChips(query, listing, codesOnly).chips
@@ -58,10 +60,11 @@ class SearchChipsTest {
         listOf(ListedDatabase(personalMark.id, personal, personalMark), ListedDatabase(workMark.id, work, workMark)),
         now,
         english,
+        unnamedCode = UNNAMED_CODE,
     )
 
     /** Personal alone, as the list indexes one open database: its label, no mark. */
-    private val alone = VaultListing(listOf(ListedDatabase(personalMark.id, personal, label = "Personal")), now, english)
+    private val alone = VaultListing(listOf(ListedDatabase(personalMark.id, personal, label = "Personal")), now, english, unnamedCode = UNNAMED_CODE)
 
     private fun line(listing: VaultListing, query: String, codesOnly: Boolean = false) = searchChips(query, listing, codesOnly)
 
@@ -98,10 +101,10 @@ class SearchChipsTest {
     fun typingAGroupOffersTheGroupsInTreeOrderWithTheirPaths() {
         val chips = chips("@")
 
-        assertEquals(listOf("Family Finance", "Work", "Work › Dev"), chips.map { it.label })
+        assertEquals(listOf("Family Finance", "Work", "Work › Dev"), chips.map { it.label.english() })
         assertEquals(listOf(1, 2, 1), chips.map { it.count })
         assertEquals("@\"Family Finance\" ", chips[0].query, "a name with a space is quoted")
-        assertEquals(listOf("Work › Dev"), chips("gh @de").map { it.label })
+        assertEquals(listOf("Work › Dev"), chips("gh @de").map { it.label.english() })
         assertEquals("gh @Dev ", chips("gh @de").single().query)
     }
 
@@ -109,7 +112,7 @@ class SearchChipsTest {
     fun tagsSpelledAlikeAreOne() {
         val chips = chips("#c")
 
-        assertEquals(listOf("code"), chips.map { it.label })
+        assertEquals(listOf("code"), chips.map { it.label.english() })
         assertEquals(2, chips.single().count)
     }
 
@@ -117,14 +120,14 @@ class SearchChipsTest {
     fun aBarePlusOffersAnyFileFirst() {
         val chips = chips("+")
 
-        assertEquals(listOf("Any file", "key.txt"), chips.map { it.label })
+        assertEquals(listOf("Any file", "key.txt"), chips.map { it.label.english() })
         assertEquals("+ ", chips[0].query)
         assertEquals("+key.txt ", chips[1].query)
     }
 
     @Test
     fun inTheBinTheBinsGroupsAreOffered() {
-        assertEquals(listOf("Home"), chips("- @").map { it.label })
+        assertEquals(listOf("Home"), chips("- @").map { it.label.english() })
     }
 
     @Test
@@ -134,12 +137,12 @@ class SearchChipsTest {
 
     @Test
     fun whatIsOfferedFollowsTheOtherFiltersAlsoWithOneDatabase() {
-        assertEquals(listOf("Work", "Work › Dev"), chips("#code @").map { it.label }, "Family Finance holds no entry tagged code")
+        assertEquals(listOf("Work", "Work › Dev"), chips("#code @").map { it.label.english() }, "Family Finance holds no entry tagged code")
         assertEquals(listOf(2, 1), chips("#code @").map { it.count })
-        assertEquals(listOf("Work"), chips("#office @").map { it.label })
-        assertEquals(listOf("code", "office"), chips("@Work #").map { it.label })
+        assertEquals(listOf("Work"), chips("#office @").map { it.label.english() })
+        assertEquals(listOf("code", "office"), chips("@Work #").map { it.label.english() })
         assertEquals(emptyList(), chips("@Family #"), "Sparkasse has no tags: nothing would be left")
-        assertEquals(listOf("Finanzen", "Finanzen › Banken"), line(alone, "#bank @").chips.map { it.label }, "Media holds no bank entry")
+        assertEquals(listOf("Finanzen", "Finanzen › Banken"), line(alone, "#bank @").chips.map { it.label.english() }, "Media holds no bank entry")
     }
 
     // Several databases
@@ -149,7 +152,7 @@ class SearchChipsTest {
         val chips = line(both, "").chips
 
         assertEquals(listOf("@", "#", "!", "+", "-"), chips.map { it.query })
-        assertEquals("database", chips[2].label)
+        assertEquals("database", chips[2].label.english())
         assertEquals(listOf("@", "#", "!", "+"), line(both, "", codesOnly = true).chips.map { it.query })
     }
 
@@ -165,13 +168,13 @@ class SearchChipsTest {
     fun aBangOffersTheOpenDatabasesWithTheirCountsAndPutsTheWholeLabelIn() {
         val chips = line(both, "!").chips
 
-        assertEquals(listOf("Personal", "Work"), chips.map { it.label })
+        assertEquals(listOf("Personal", "Work"), chips.map { it.label.english() })
         assertEquals(listOf(4, 3), chips.map { it.count })
         assertEquals(listOf(personalMark, workMark), chips.map { it.database })
         assertEquals(listOf("!Personal ", "!Work "), chips.map { it.query })
-        assertEquals(listOf("Work"), line(both, "!w").chips.map { it.label })
+        assertEquals(listOf("Work"), line(both, "!w").chips.map { it.label.english() })
         assertEquals(listOf(1, 1), line(both, "@Finanzen !").chips.map { it.count }, "counted over the other filters")
-        assertEquals(listOf("Work"), line(both, "#work !").chips.map { it.label }, "only the databases holding such entries")
+        assertEquals(listOf("Work"), line(both, "#work !").chips.map { it.label.english() }, "only the databases holding such entries")
     }
 
     @Test
@@ -181,6 +184,7 @@ class SearchChipsTest {
             listOf(ListedDatabase(personalMark.id, personal, personalMark), ListedDatabase(family.id, work, family)),
             now,
             english,
+            unnamedCode = UNNAMED_CODE,
         )
 
         assertEquals("!\"Family Shared\" ", line(listing, "!fam").chips.single().query)
@@ -188,19 +192,19 @@ class SearchChipsTest {
 
     @Test
     fun aChosenDatabaseOffersItsOwnGroups() {
-        assertEquals(listOf("Engineering", "Finanzen", "Office"), line(both, "!Work @").chips.map { it.label })
+        assertEquals(listOf("Engineering", "Finanzen", "Office"), line(both, "!Work @").chips.map { it.label.english() })
         assertTrue(line(both, "!Work @").chips.all { it.shares.isEmpty() }, "one database's entries: a plain count")
     }
 
     @Test
     fun aNameInTwoDatabasesIsOneChipWithACountForEach() {
-        val groups = line(both, "@").chips.associateBy { it.label }
+        val groups = line(both, "@").chips.associateBy { it.label.english() }
 
         assertEquals(listOf(DatabaseShare(personalMark, 1), DatabaseShare(workMark, 1)), groups.getValue("Finanzen").shares)
         assertEquals(emptyList(), groups.getValue("Finanzen › Banken").shares, "Banken is Personal's alone: its count only")
         assertEquals(1, groups.getValue("Finanzen › Banken").count)
-        assertEquals(listOf("Finanzen"), line(both, "@Fin").chips.map { it.label })
-        val tags = line(both, "#").chips.associateBy { it.label }
+        assertEquals(listOf("Finanzen"), line(both, "@Fin").chips.map { it.label.english() })
+        val tags = line(both, "#").chips.associateBy { it.label.english() }
         assertEquals(listOf(DatabaseShare(personalMark, 1), DatabaseShare(workMark, 1)), tags.getValue("bank").shares)
         assertEquals(listOf(DatabaseShare(personalMark, 1), DatabaseShare(workMark, 1)), tags.getValue("dev").shares)
         assertEquals(emptyList(), tags.getValue("work").shares, "Work's alone")
@@ -214,7 +218,7 @@ class SearchChipsTest {
         val line = line(both, "fin")
 
         assertTrue(line.narrowing)
-        assertEquals(listOf("Finanzen"), line.chips.map { it.label })
+        assertEquals(listOf("Finanzen"), line.chips.map { it.label.english() })
         assertEquals('@', line.chips.single().sigil)
         assertEquals("@Finanzen ", line.chips.single().query)
         assertEquals(listOf(DatabaseShare(personalMark, 1), DatabaseShare(workMark, 1)), line.chips.single().shares)
@@ -226,27 +230,27 @@ class SearchChipsTest {
         val line = line(both, "work")
 
         assertTrue(line.narrowing)
-        assertEquals(listOf("Work", "work"), line.chips.map { it.label })
+        assertEquals(listOf("Work", "work"), line.chips.map { it.label.english() })
         assertEquals(workMark, line.chips[0].database)
         assertNull(line.chips[0].sigil)
         assertEquals("!Work ", line.chips[0].query)
         assertEquals('#', line.chips[1].sigil)
         assertEquals("#work ", line.chips[1].query)
-        assertEquals(listOf("work"), line(both, "!Work wo").chips.map { it.label }, "no database while one is chosen")
+        assertEquals(listOf("work"), line(both, "!Work wo").chips.map { it.label.english() }, "no database while one is chosen")
     }
 
     @Test
     fun withOneDatabaseNoDatabaseIsOfferedToNarrowTo() {
         assertFalse(line(alone, "pers").narrowing)
         assertEquals(listOf("pers @", "pers #", "pers +", "- pers"), line(alone, "pers").chips.map { it.query })
-        assertEquals(listOf("Finanzen"), line(alone, "fin").chips.map { it.label }, "narrowing is for one database too")
+        assertEquals(listOf("Finanzen"), line(alone, "fin").chips.map { it.label.english() }, "narrowing is for one database too")
     }
 
     @Test
     fun narrowingIsNotOfferedForOneLetterWhileSuggestionsShowInTheBinOrInTheCodesList() {
         assertFalse(line(both, "f").narrowing)
         assertFalse(line(both, "@fin").narrowing, "the suggestions have it")
-        assertEquals(listOf("Finanzen"), line(both, "@fin").chips.map { it.label })
+        assertEquals(listOf("Finanzen"), line(both, "@fin").chips.map { it.label.english() })
         assertFalse(line(both, "-fin").narrowing)
         assertTrue(line(both, "-fin").chips.last().selected, "the bin's own chips")
         assertFalse(line(both, "fin", codesOnly = true).narrowing)

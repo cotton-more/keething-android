@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The password generator sheet (generator/PasswordGeneratorSheet.kt) -->
+    <string name="generator_title">Password generator</string>
+    <string name="generator_copy">Copy</string>
+    <string name="generator_use">Use this password</string>
+    <!-- The main button's label when the whole one does not fit -->
+    <string name="generator_use_short">Use it</string>
+    <string name="generator_new">New password</string>
+
+    <!-- The kinds of password -->
+    <string name="generator_kind_pin">PIN</string>
+    <string name="generator_kind_strong">Strong</string>
+    <string name="generator_kind_memorable">Words</string>
+    <string name="generator_kind_passphrase">Phrase</string>
+
+    <!-- How strong the recipe is -->
+    <string name="generator_strength_weak">weak</string>
+    <string name="generator_strength_fair">fair</string>
+    <string name="generator_strength_strong">strong</string>
+    <!-- %1$d: the bits of the recipe; %2$s: how strong it is ("weak", "fair", "strong") -->
+    <plurals name="generator_strength_bits">
+        <item quantity="one">%1$d bits · %2$s</item>
+        <item quantity="other">%1$d bits · %2$s</item>
+    </plurals>
+    <!-- %1$d: the password's length -->
+    <plurals name="generator_length_characters">
+        <item quantity="one">%1$d characters</item>
+        <item quantity="other">%1$d characters</item>
+    </plurals>
+
+    <!-- The options -->
+    <string name="generator_length">Length</string>
+    <string name="generator_pin_hint">For a device or a card that locks after a few wrong tries; too weak for anything else.</string>
+    <!-- %1$s: the look-alike characters, shown monospaced ("0 O o 1 l I |") -->
+    <string name="generator_leave_out_look_alikes">Leave out look-alikes %1$s</string>
+    <string name="generator_words">Words</string>
+    <string name="generator_digits">Digits</string>
+    <string name="generator_symbols">Symbols</string>
+    <string name="generator_memorable_hint">Each word in Capitals or in CAPITALS, joined by digits and symbols.</string>
+    <string name="generator_between_words">Between words</string>
+    <!-- The separator " " as the choice shows it -->
+    <string name="generator_separator_space">space</string>
+    <string name="generator_passphrase_hint">Lowercase words only: easy to type on a phone or a TV, good for a master password.</string>
+    <string name="generator_fewer">Fewer</string>
+    <string name="generator_more">More</string>
+</resources>

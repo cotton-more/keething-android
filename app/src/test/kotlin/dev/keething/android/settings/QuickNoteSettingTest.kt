@@ -1,6 +1,7 @@
 package dev.keething.android.settings
 
 import dev.keething.android.databases.Reach
+import dev.keething.android.ui.english
 import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseLine
 import dev.keething.vault.databases.DatabaseId
@@ -58,12 +59,12 @@ class QuickNoteSettingTest {
     @Test
     fun currentDatabaseFirstThenTheListsWithTheirDots() {
         val destination = QuickNoteDestination(null, lines)
-        assertEquals(listOf("Current database", "Personal", "Work"), destination.choices.map { it.title })
+        assertEquals(listOf("Current database", "Personal", "Work"), destination.choices.map { it.title.english() })
         assertEquals(listOf(null, personal.id, work.id), destination.choices.map { it.id })
         assertEquals(listOf(null, 2, 0), destination.choices.map { it.colorIndex }, "each database with its dot; Current database none")
-        assertEquals(listOf("Personal now", "Personal.kdbx", "Work.kdbx"), destination.choices.map { it.detail })
+        assertEquals(listOf("Personal now", "Personal.kdbx", "Work.kdbx"), destination.choices.map { it.detail?.english() })
         assertNull(destination.selected)
-        assertEquals("Current database", destination.summary)
+        assertEquals("Current database", destination.summary.english())
         assertNull(destination.note)
     }
 
@@ -71,21 +72,21 @@ class QuickNoteSettingTest {
     fun aDatabaseSetIsTheOneSelectedTwoOfOneNameToldApart() {
         val set = QuickNoteDestination(work.id, lines)
         assertEquals(work.id, set.selected)
-        assertEquals("Work", set.summary)
+        assertEquals("Work", set.summary.english())
         assertNull(set.note)
 
         val twin = line("Work-2", 4, addition = "Work-2024.kdbx").copy(label = DatabaseLabel("Work", "Work-2024.kdbx"))
         val both = QuickNoteDestination(twin.id, lines + twin)
-        assertEquals("Work · Work-2024.kdbx", both.choices.last().title, "named as the list names it")
-        assertEquals("Work · Work-2024.kdbx", both.summary)
+        assertEquals("Work · Work-2024.kdbx", both.choices.last().title.english(), "named as the list names it")
+        assertEquals("Work · Work-2024.kdbx", both.summary.english())
     }
 
     @Test
     fun oneNoLongerInTheListFallsBackToTheCurrentAndSaysSo() {
         val gone = QuickNoteDestination(DatabaseId("removed"), lines)
         assertNull(gone.selected, "falls back to the current one")
-        assertEquals("Current database", gone.summary)
-        assertEquals("The database chosen before is no longer in the list: quick notes go to the current one.", gone.note)
+        assertEquals("Current database", gone.summary.english())
+        assertEquals("The database chosen before is no longer in the list: quick notes go to the current one.", gone.note?.english())
     }
 
     @Test
@@ -93,7 +94,7 @@ class QuickNoteSettingTest {
         val loading = QuickNoteDestination(work.id, null)
         assertNull(loading.note, "not \"no longer in the list\" before the list is known")
         assertTrue(loading.isLoading)
-        assertEquals("", loading.summary, "nothing named yet")
+        assertEquals("", loading.summary.english(), "nothing named yet")
         assertEquals(emptyList(), loading.choices, "no menu to choose from yet")
         assertFalse(QuickNoteDestination(work.id, lines).isLoading)
     }
@@ -101,7 +102,7 @@ class QuickNoteSettingTest {
     @Test
     fun noDatabaseAtAll() {
         val none = QuickNoteDestination(null, emptyList())
-        assertEquals(listOf("Current database"), none.choices.map { it.title })
+        assertEquals(listOf("Current database"), none.choices.map { it.title.english() })
         assertNull(none.choices.single().detail, "no current one to name")
     }
 }

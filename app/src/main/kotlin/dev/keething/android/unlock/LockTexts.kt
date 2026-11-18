@@ -1,5 +1,11 @@
 package dev.keething.android.unlock
 
+import androidx.annotation.StringRes
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.vault.biometric.BiometricState
 import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.biometric.SetUpAgain
@@ -11,7 +17,7 @@ import kotlin.time.Duration
  * What the lock screen says about why it is locked (SPEC §6: the reason of the last lock, as a chip). [fingerprint]: it
  * is about the fingerprint's setting up, and says so with its icon.
  */
-internal data class LockNotice(val text: String, val isProblem: Boolean, val fingerprint: Boolean = false)
+internal data class LockNotice(val text: UiText, val isProblem: Boolean, val fingerprint: Boolean = false)
 
 /**
  * Nothing to say at the start and after the lock button: the user knows. [file]: the database's path, for the words;
@@ -20,24 +26,24 @@ internal data class LockNotice(val text: String, val isProblem: Boolean, val fin
 internal fun LockReason.notice(timeout: Duration, file: String, wrongInARow: Int = 1): LockNotice? = when (this) {
     // After a quick task the reminder locked it again: nothing warns of its question ahead (unlock.reminder-not-a-lock AC1).
     LockReason.Initial, LockReason.Manual, LockReason.AfterQuickTask -> null
-    LockReason.Timeout -> LockNotice("Locked after ${timeout.minutesText()} in the background", isProblem = false)
-    LockReason.PasswordChanged -> LockNotice("The database password was changed. Enter the new one.", isProblem = true)
-    LockReason.RestoredOlderKey -> LockNotice("A backup made before its master key changed was restored. Enter the password it had then.", isProblem = true)
+    LockReason.Timeout -> timeout.inWholeMinutes.toInt().let { minutes ->
+        LockNotice(uiPlural(R.plurals.unlock_locked_after_minutes, minutes), isProblem = false)
+    }
+    LockReason.PasswordChanged -> LockNotice(uiText(R.string.unlock_password_changed), isProblem = true)
+    LockReason.RestoredOlderKey -> LockNotice(uiText(R.string.unlock_restored_older_key), isProblem = true)
     is LockReason.UnlockFailed -> LockNotice(failure.describe(file, wrongInARow), isProblem = true)
 }
 
 /** What the lock screen says after a fingerprint attempt; null when the reason chip says it, or nothing needs saying. */
 internal fun FingerprintOutcome.notice(): LockNotice? = when (this) {
     FingerprintOutcome.Unlocked, FingerprintOutcome.Cancelled, FingerprintOutcome.InProgress, is FingerprintOutcome.UnlockFailed -> null
-    is FingerprintOutcome.NotAvailable -> LockNotice("The fingerprint cannot be used: $reason.", isProblem = true)
+    is FingerprintOutcome.NotAvailable -> LockNotice(uiText(R.string.unlock_fingerprint_not_available, reason), isProblem = true)
     FingerprintOutcome.NothingStored -> setUpByTypingNotice
-    FingerprintOutcome.KeyInvalidated ->
-        LockNotice("The fingerprints on this phone changed. Type the password to set up the fingerprint again.", isProblem = true)
-    FingerprintOutcome.StoredPasswordRejected ->
-        LockNotice("The database password was changed. Type the new one; the fingerprint will use it.", isProblem = true)
+    FingerprintOutcome.KeyInvalidated -> LockNotice(uiText(R.string.unlock_fingerprint_key_invalidated), isProblem = true)
+    FingerprintOutcome.StoredPasswordRejected -> LockNotice(uiText(R.string.unlock_fingerprint_password_rejected), isProblem = true)
     // The system's own words: "Too many attempts. Try again later." and the like.
-    is FingerprintOutcome.AuthenticationFailed -> LockNotice(reason, isProblem = true)
-    is FingerprintOutcome.StorageError -> LockNotice("The stored password could not be read ($reason).", isProblem = true)
+    is FingerprintOutcome.AuthenticationFailed -> LockNotice(uiPlain(reason), isProblem = true)
+    is FingerprintOutcome.StorageError -> LockNotice(uiText(R.string.unlock_fingerprint_storage_error, reason), isProblem = true)
 }
 
 /**
@@ -50,7 +56,7 @@ internal fun SetUpAgain.notice(): LockNotice = when (this) {
 }!!
 
 /** The fingerprint is on for the database and nothing is stored yet: the password typed now sets it up (SPEC §5). */
-internal val setUpByTypingNotice = LockNotice("Type the password once to set up the fingerprint.", isProblem = false, fingerprint = true)
+internal val setUpByTypingNotice = LockNotice(uiText(R.string.unlock_fingerprint_set_up_by_typing), isProblem = false, fingerprint = true)
 
 /** What the one button beside the password field does (SPEC §6.2; keething-spec unlock.lock-screen-keyboard AC3). */
 internal enum class Beside {
@@ -84,60 +90,51 @@ internal fun besideField(biometric: BiometricState, offered: Boolean, typed: Boo
  * ([wrongInARow]) a hardware key is named: the file does not tell that one is needed, and a first one is likelier a typo
  * (keething-spec app.first-start AC5).
  */
-internal fun OpenFailure.describe(file: String, wrongInARow: Int = 1): String = when (this) {
+internal fun OpenFailure.describe(file: String, wrongInARow: Int = 1): UiText = when (this) {
     // The file cannot tell a typo from a missing key file (keething-spec unlock.key-file AC4).
-    OpenFailure.WrongPassword -> "Wrong password — or this database needs a key file." + hardwareKey(wrongInARow)
-    OpenFailure.WrongPasswordOrKeyFile -> "Wrong password or key file." + hardwareKey(wrongInARow)
-    OpenFailure.WrongKeyFile -> "This key file does not open the database (or it needs a password too)." + hardwareKey(wrongInARow)
-    is OpenFailure.KeyFileMissing -> "The key file $name is not there."
-    is OpenFailure.KeyFileUnusable -> "The key file cannot be used: $why."
-    OpenFailure.Missing -> "There is no database at $file. Syncthing may be replacing it: try again in a moment."
-    OpenFailure.AccessDenied -> "Keething may not read the file any more: locate it to choose its folder again."
+    OpenFailure.WrongPassword ->
+        wrongKey(wrongInARow, R.string.unlock_failure_wrong_password, R.string.unlock_failure_wrong_password_hardware_key)
+    OpenFailure.WrongPasswordOrKeyFile ->
+        wrongKey(wrongInARow, R.string.unlock_failure_wrong_password_or_key_file, R.string.unlock_failure_wrong_password_or_key_file_hardware_key)
+    OpenFailure.WrongKeyFile ->
+        wrongKey(wrongInARow, R.string.unlock_failure_wrong_key_file, R.string.unlock_failure_wrong_key_file_hardware_key)
+    is OpenFailure.KeyFileMissing -> uiText(R.string.unlock_failure_key_file_missing, name)
+    is OpenFailure.KeyFileUnusable -> uiText(R.string.unlock_failure_key_file_unusable, why)
+    OpenFailure.Missing -> uiText(R.string.unlock_failure_missing, file)
+    OpenFailure.AccessDenied -> uiText(R.string.unlock_failure_access_denied)
     is OpenFailure.Unsupported -> describe()
     // Damaged is not a wrong password (SPEC §3.2): a sync may have caught the file half-written.
-    is OpenFailure.Damaged -> "The file is damaged or not completely synced yet ($detail)."
-    OpenFailure.OutOfMemory -> "Not enough memory to open the database."
-    OpenFailure.Locked -> "The database locked while it was being opened."
+    is OpenFailure.Damaged -> uiText(R.string.unlock_failure_damaged, detail)
+    OpenFailure.OutOfMemory -> uiText(R.string.unlock_failure_out_of_memory)
+    OpenFailure.Locked -> uiText(R.string.unlock_failure_locked)
 }
 
-private fun hardwareKey(wrongInARow: Int): String =
-    if (wrongInARow < 2) "" else " A database that also needs a YubiKey (or another hardware key) cannot be opened in Keething."
+/** A wrong key; from the second in a row, with the sentence naming a hardware key. */
+private fun wrongKey(wrongInARow: Int, @StringRes first: Int, @StringRes again: Int): UiText = uiText(if (wrongInARow < 2) first else again)
 
 /** What it is and, where something can be done, what to do (keething-spec app.first-start AC3, AC4). */
-private fun OpenFailure.Unsupported.describe(): String = when (kind) {
-    OpenFailure.Unsupported.Kind.NOT_KEEPASS -> "This file is not a KeePass database."
-    OpenFailure.Unsupported.Kind.OLD_FORMAT ->
-        "This database is in an old KeePass format ($what), which Keething does not read. Save it again in KeePass or " +
-            "KeePassXC, and it opens here."
-    OpenFailure.Unsupported.Kind.NEWER_FORMAT ->
-        "This database is in a newer KeePass format ($what) than this Keething reads. An update of Keething may open it."
-    OpenFailure.Unsupported.Kind.TWOFISH ->
-        "This database is encrypted with Twofish, which Keething does not read. In KeePassXC (Database › Database " +
-            "Security › Encryption Settings) or KeePass, choose AES-256 or ChaCha20 and save; then it opens here."
-    OpenFailure.Unsupported.Kind.CIPHER -> "This database is encrypted with a cipher Keething does not know ($what)."
-    OpenFailure.Unsupported.Kind.KEY_DERIVATION -> "This database's key derivation is one Keething does not run: ${what.removePrefix(KDF)}."
-    OpenFailure.Unsupported.Kind.MEMORY ->
-        "This phone does not give Keething enough memory for this database's key derivation (${what.removePrefix(KDF)}). " +
-            "Lower Argon2's memory in the database's settings on the computer (in KeePassXC: Database › Database " +
-            "Security), then it opens here."
-    OpenFailure.Unsupported.Kind.INNER_STREAM -> "This database protects its values in a way Keething does not know ($what)."
+private fun OpenFailure.Unsupported.describe(): UiText = when (kind) {
+    OpenFailure.Unsupported.Kind.NOT_KEEPASS -> uiText(R.string.unlock_unsupported_not_keepass)
+    OpenFailure.Unsupported.Kind.OLD_FORMAT -> uiText(R.string.unlock_unsupported_old_format, what)
+    OpenFailure.Unsupported.Kind.NEWER_FORMAT -> uiText(R.string.unlock_unsupported_newer_format, what)
+    OpenFailure.Unsupported.Kind.TWOFISH -> uiText(R.string.unlock_unsupported_twofish)
+    OpenFailure.Unsupported.Kind.CIPHER -> uiText(R.string.unlock_unsupported_cipher, what)
+    OpenFailure.Unsupported.Kind.KEY_DERIVATION -> uiText(R.string.unlock_unsupported_key_derivation, what.removePrefix(KDF))
+    OpenFailure.Unsupported.Kind.MEMORY -> uiText(R.string.unlock_unsupported_memory, what.removePrefix(KDF))
+    OpenFailure.Unsupported.Kind.INNER_STREAM -> uiText(R.string.unlock_unsupported_inner_stream, what)
 }
 
 /** The same in a few words, for a row of the chooser ("Cannot be read: …"). */
-internal fun OpenFailure.Unsupported.named(): String = when (kind) {
-    OpenFailure.Unsupported.Kind.NOT_KEEPASS -> "not a KeePass database"
-    OpenFailure.Unsupported.Kind.OLD_FORMAT -> "an old KeePass format ($what)"
-    OpenFailure.Unsupported.Kind.NEWER_FORMAT -> "a newer KeePass format ($what)"
-    OpenFailure.Unsupported.Kind.TWOFISH -> "encrypted with Twofish"
-    OpenFailure.Unsupported.Kind.MEMORY -> "needs more memory than this phone gives Keething"
-    OpenFailure.Unsupported.Kind.CIPHER, OpenFailure.Unsupported.Kind.INNER_STREAM -> "unknown $what"
-    OpenFailure.Unsupported.Kind.KEY_DERIVATION -> what
+internal fun OpenFailure.Unsupported.named(): UiText = when (kind) {
+    OpenFailure.Unsupported.Kind.NOT_KEEPASS -> uiText(R.string.unlock_unsupported_named_not_keepass)
+    OpenFailure.Unsupported.Kind.OLD_FORMAT -> uiText(R.string.unlock_unsupported_named_old_format, what)
+    OpenFailure.Unsupported.Kind.NEWER_FORMAT -> uiText(R.string.unlock_unsupported_named_newer_format, what)
+    OpenFailure.Unsupported.Kind.TWOFISH -> uiText(R.string.unlock_unsupported_named_twofish)
+    OpenFailure.Unsupported.Kind.MEMORY -> uiText(R.string.unlock_unsupported_named_memory)
+    OpenFailure.Unsupported.Kind.CIPHER, OpenFailure.Unsupported.Kind.INNER_STREAM -> uiText(R.string.unlock_unsupported_named_unknown, what)
+    // The file layer's own words.
+    OpenFailure.Unsupported.Kind.KEY_DERIVATION -> uiPlain(what)
 }
 
 /** How the file layer's words for a key derivation begin. */
-private const val KDF = "key derivation "
-
-private fun Duration.minutesText(): String {
-    val minutes = inWholeMinutes
-    return if (minutes == 1L) "1 minute" else "$minutes minutes"
-}
+private const val KDF = "key derivation " // not user text

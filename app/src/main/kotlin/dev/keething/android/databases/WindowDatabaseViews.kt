@@ -96,6 +96,11 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.receiveAsFlow
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiPlain
 
 /**
  * A database not open, its mark in place of its dot (keething-spec databases.not-open AC8): its state's icon in the
@@ -103,7 +108,7 @@ import dev.keething.search.FilterKind
  */
 @Composable
 internal fun NotOpenMark(state: NotOpenState, color: Color, size: Dp, behind: Color = MaterialTheme.extraColors.row) {
-    val description = state.word
+    val description = state.word.resolve()
     when (state.glyph) {
         NotOpenState.Glyph.SPINNER -> Box(Modifier.size(size).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
             CircularProgressIndicator(Modifier.size(size * 0.8f), color = color, strokeWidth = 2.dp)
@@ -161,32 +166,36 @@ internal fun NotOpenLine(
     Box(Modifier.fillMaxWidth().background(surface).padding(bottom = 10.dp, top = 2.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(start = 24.dp, end = 32.dp)) {
             items(notOpen, key = { it.id.value }) { database ->
+                val say = database.say.resolve()
+                val readAloud = NotOpenDatabases.readAloud(typing)?.resolve()
                 AttentionChip(
                     database.line,
                     Modifier
                         .combinedClickable(
-                            onClickLabel = "Unlock",
-                            onLongClickLabel = "More",
+                            onClickLabel = stringResource(R.string.databases_unlock),
+                            onLongClickLabel = stringResource(R.string.databases_more),
                             onLongClick = { onLongPress(database.id) },
                             onClick = { onTap(database.id) },
                         )
                         .semantics {
-                            NotOpenDatabases.readAloud(typing)?.let { stateDescription = it }
-                            customActions = listOf(CustomAccessibilityAction(database.say) { true })
+                            readAloud?.let { stateDescription = it }
+                            customActions = listOf(CustomAccessibilityAction(say) { true })
                         },
                 ) { NotOpenMark(database.state, databaseColors(database.line.colorIndex).dot, 16.dp) }
             }
             items(readOnly, key = { "r/${it.id.value}" }) { database ->
+                val say = database.say.resolve()
+                val more = stringResource(R.string.databases_more)
                 AttentionChip(
                     database.line,
                     Modifier
                         .combinedClickable(
-                            onClickLabel = "More",
-                            onLongClickLabel = "More",
+                            onClickLabel = more,
+                            onLongClickLabel = more,
                             onLongClick = { onReadOnly(database.id) },
                             onClick = { onReadOnly(database.id) },
                         )
-                        .semantics { customActions = listOf(CustomAccessibilityAction(database.say) { true }) },
+                        .semantics { customActions = listOf(CustomAccessibilityAction(say) { true }) },
                 ) { ReadOnlyMark(databaseColors(database.line.colorIndex).dot, 16.dp) }
             }
         }
@@ -244,12 +253,12 @@ internal fun ReadOnlySheet(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 ReadOnlyMark(databaseColors(line.colorIndex).dot, 20.dp)
-                Text(database.say, style = MaterialTheme.typography.bodyMedium)
+                Text(database.say.resolve(), style = MaterialTheme.typography.bodyMedium)
             }
-            if (database.besideOthers) SheetRow(Icons.Rounded.Lock, "Lock the others", detail = "It can be changed once they are locked", onClick = onLockOthers)
-            if (database.reason == ReadOnlyReason.KDBX3) SheetRow(Icons.Rounded.Upgrade, "Update to KDBX 4…", onClick = onUpdate)
-            SheetRow(Icons.Rounded.FilterAlt, "Show only this", detail = "Types $showOnly in the search", onClick = onShowOnly)
-            SheetRow(Icons.Rounded.Lock, "Lock ${line.label.full}", onClick = onLock)
+            if (database.besideOthers) SheetRow(Icons.Rounded.Lock, stringResource(R.string.databases_lock_others), detail = stringResource(R.string.databases_lock_others_detail), onClick = onLockOthers)
+            if (database.reason == ReadOnlyReason.KDBX3) SheetRow(Icons.Rounded.Upgrade, stringResource(R.string.databases_update_kdbx4), onClick = onUpdate)
+            SheetRow(Icons.Rounded.FilterAlt, stringResource(R.string.databases_show_only), detail = stringResource(R.string.databases_show_only_detail, showOnly), onClick = onShowOnly)
+            SheetRow(Icons.Rounded.Lock, stringResource(R.string.databases_lock_database, line.label.full), onClick = onLock)
         }
     }
 }
@@ -281,18 +290,18 @@ internal fun NotOpenSheet(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 NotOpenMark(state, databaseColors(line.colorIndex).dot, 20.dp)
-                Text(database.say, style = MaterialTheme.typography.bodyMedium)
+                Text(database.say.resolve(), style = MaterialTheme.typography.bodyMedium)
             }
             val unreadable = state is NotOpenState.NotFound || state is NotOpenState.CannotBeRead
-            SheetRow(Icons.Rounded.LockOpen, "Unlock…", enabled = !unreadable, onClick = onUnlock)
+            SheetRow(Icons.Rounded.LockOpen, stringResource(R.string.databases_unlock_button), enabled = !unreadable, onClick = onUnlock)
             if (state is NotOpenState.NotFound) {
-                SheetRow(Icons.Rounded.Search, if (state.reach == Reach.NEEDS_FOLDER) "Choose its folder…" else "Locate…", onClick = onLocate)
+                SheetRow(Icons.Rounded.Search, stringResource(if (state.reach == Reach.NEEDS_FOLDER) R.string.databases_lock_choose_folder else R.string.databases_lock_locate), onClick = onLocate)
             }
-            if (line.keyFile != null) SheetRow(Icons.Rounded.Key, "Choose key file…", onClick = onChooseKeyFile)
+            if (line.keyFile != null) SheetRow(Icons.Rounded.Key, stringResource(R.string.databases_choose_key_file), onClick = onChooseKeyFile)
             SheetRow(
                 Icons.Rounded.Close,
-                "Close",
-                detail = if (canClose) "Not shown here, nor opened next time; it stays under ⋮ › Databases" else "The last one stays",
+                stringResource(R.string.databases_close),
+                detail = stringResource(if (canClose) R.string.databases_close_detail else R.string.databases_last_one_stays),
                 enabled = canClose,
                 onClick = onClose,
             )
@@ -354,9 +363,9 @@ internal fun OpenDatabaseSheet(
                     Text("${line.folder}/${line.fileName}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
                 }
             }
-            SheetRow(Icons.Rounded.FilterAlt, "Show only this", detail = "Types $showOnly in the search", onClick = onShowOnly)
-            SheetRow(Icons.Rounded.Lock, "Lock ${line.label.full}", onClick = onLock)
-            SheetRow(Icons.Rounded.Close, "Close", detail = if (canClose) null else "The last one stays", enabled = canClose, onClick = onClose)
+            SheetRow(Icons.Rounded.FilterAlt, stringResource(R.string.databases_show_only), detail = stringResource(R.string.databases_show_only_detail, showOnly), onClick = onShowOnly)
+            SheetRow(Icons.Rounded.Lock, stringResource(R.string.databases_lock_database, line.label.full), onClick = onLock)
+            SheetRow(Icons.Rounded.Close, stringResource(R.string.databases_close), detail = if (canClose) null else stringResource(R.string.databases_last_one_stays), enabled = canClose, onClick = onClose)
         }
     }
 }
@@ -383,8 +392,8 @@ internal fun DatabasesScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { Text("Databases") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") } },
+                title = { Text(stringResource(R.string.databases_title)) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.databases_back)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
@@ -393,16 +402,16 @@ internal fun DatabasesScreen(
         val sections = overview ?: return@Scaffold
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 24.dp)) {
             if (sections.open.isNotEmpty()) {
-                item(key = "h/open") { SectionTitle("Open") }
+                item(key = "h/open") { SectionTitle(stringResource(R.string.databases_section_open)) }
                 itemsIndexed(sections.open, key = { _, it -> "o/${it.id.value}" }) { index, line ->
                     SwipeToClose(sections.canClose, onClose = { onClose(line.id) }, shape = segmentShape(index, sections.open.size, outer = 22.dp)) {
                         val readOnly = sections.readOnly(line.id)
-                        DatabaseRow(line, detail = readOnly?.say ?: line.folder, readOnly = readOnly != null, chevron = true, onClick = { onOpenSheet(line.id) })
+                        DatabaseRow(line, detail = readOnly?.say ?: uiPlain(line.folder), readOnly = readOnly != null, chevron = true, onClick = { onOpenSheet(line.id) })
                     }
                 }
             }
             if (sections.notOpen.isNotEmpty()) {
-                item(key = "h/not open") { SectionTitle("Not open") }
+                item(key = "h/not open") { SectionTitle(stringResource(R.string.databases_section_not_open)) } // not user text: the key
                 itemsIndexed(sections.notOpen, key = { _, it -> "n/${it.id.value}" }) { index, database ->
                     SwipeToClose(sections.canClose, onClose = { onClose(database.id) }, shape = segmentShape(index, sections.notOpen.size, outer = 22.dp)) {
                         DatabaseRow(database.line, detail = database.say, state = database.state, onClick = { onLockScreen(database.id) })
@@ -410,7 +419,7 @@ internal fun DatabasesScreen(
                 }
             }
             if (sections.recent.isNotEmpty()) {
-                item(key = "h/recent") { SectionTitle("Recent") }
+                item(key = "h/recent") { SectionTitle(stringResource(R.string.databases_section_recent)) }
                 itemsIndexed(sections.recent, key = { _, it -> "r/${it.id.value}" }) { index, line ->
                     Box(Modifier.padding(bottom = SegmentGap).clip(segmentShape(index, sections.recent.size, outer = 22.dp))) {
                         DatabaseRow(line, detail = line.sheetDetail, onClick = { onPutBack(line.id) })
@@ -419,10 +428,10 @@ internal fun DatabasesScreen(
             }
             item(key = "actions") {
                 Column(Modifier.padding(top = 16.dp)) {
-                    SheetRow(Icons.Rounded.Add, "New database…", onClick = onNew)
-                    SheetRow(Icons.Rounded.FolderOpen, "Open database…", onClick = onOpenOther)
+                    SheetRow(Icons.Rounded.Add, stringResource(R.string.databases_new_database_button), onClick = onNew)
+                    SheetRow(Icons.Rounded.FolderOpen, stringResource(R.string.databases_open_database_button), onClick = onOpenOther)
                     Text(
-                        "Swipe a database left to close it: it stays in the list, under Recent.",
+                        stringResource(R.string.databases_swipe_hint),
                         Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -445,7 +454,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun DatabaseRow(line: DatabaseLine, detail: String, state: NotOpenState? = null, readOnly: Boolean = false, chevron: Boolean = false, onClick: () -> Unit) {
+private fun DatabaseRow(line: DatabaseLine, detail: UiText, state: NotOpenState? = null, readOnly: Boolean = false, chevron: Boolean = false, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -465,7 +474,7 @@ private fun DatabaseRow(line: DatabaseLine, detail: String, state: NotOpenState?
         }
         Column(Modifier.weight(1f)) {
             DatabaseLabelText(line.label, MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-            Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(detail.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         if (chevron) Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -484,6 +493,7 @@ private fun SwipeToClose(canClose: Boolean, onClose: () -> Unit, shape: androidx
     var drag by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
     val shown by animateFloatAsState(if (dragging) drag else 0f, label = "swipe")
+    val closeLabel = stringResource(R.string.databases_close)
     val far = drag <= -threshold
     Box(Modifier.padding(bottom = SegmentGap).clip(shape)) {
         Row(
@@ -505,7 +515,7 @@ private fun SwipeToClose(canClose: Boolean, onClose: () -> Unit, shape: androidx
                 far -> MaterialTheme.colorScheme.onPrimary
                 else -> MaterialTheme.colorScheme.onPrimaryContainer
             }
-            Text(if (canClose) "Close" else "The last one stays", color = color, fontWeight = if (far) FontWeight.Bold else FontWeight.Medium)
+            Text(stringResource(if (canClose) R.string.databases_close else R.string.databases_last_one_stays), color = color, fontWeight = if (far) FontWeight.Bold else FontWeight.Medium)
             Spacer(Modifier.width(8.dp))
             Icon(Icons.Rounded.Close, contentDescription = null, tint = color)
         }
@@ -529,7 +539,7 @@ private fun SwipeToClose(canClose: Boolean, onClose: () -> Unit, shape: androidx
                         drag = (drag + amount).coerceIn(-limit, 0f)
                     }
                 }
-                .semantics { if (canClose) customActions = listOf(CustomAccessibilityAction("Close") { close(); true }) },
+                .semantics { if (canClose) customActions = listOf(CustomAccessibilityAction(closeLabel) { close(); true }) },
         ) { content() }
     }
 }

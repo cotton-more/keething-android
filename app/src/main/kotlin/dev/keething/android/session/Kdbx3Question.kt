@@ -1,7 +1,10 @@
 package dev.keething.android.session
 
+import dev.keething.android.ui.afterColon
+import dev.keething.android.R
 import dev.keething.android.editor.describe
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.uiText
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.session.SaveOutcome
 import dev.keething.vault.session.SessionState
@@ -78,9 +81,9 @@ internal class Kdbx3Question(private val scope: CoroutineScope) {
             val file = File(database.location.fileName)
             tell(
                 when (val ended = outcome.await()) {
-                    is SaveOutcome.Saved -> Notice("${file.name} is KDBX 4 now. The KDBX 3.1 file is kept beside it as “${ended.keptCopy}”.")
-                    is SaveOutcome.Failed -> Notice("Not upgraded: " + ended.failure.describe(file).replaceFirstChar(Char::lowercase), isProblem = true)
-                    SaveOutcome.Interrupted -> Notice("The database was locked; it may not have been upgraded.", isProblem = true)
+                    is SaveOutcome.Saved -> Notice(uiText(R.string.session_kdbx3_upgraded, file.name, ended.keptCopy.toString()))
+                    is SaveOutcome.Failed -> Notice(uiText(R.string.editor_kdbx3_not_upgraded, ended.failure.describe(file).afterColon()), isProblem = true)
+                    SaveOutcome.Interrupted -> Notice(uiText(R.string.session_kdbx3_interrupted), isProblem = true)
                 },
             )
         }

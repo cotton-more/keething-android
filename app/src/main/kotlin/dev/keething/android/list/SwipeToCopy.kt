@@ -30,12 +30,14 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -71,13 +73,15 @@ internal fun SwipeToCopy(
     val shown by remember { derivedStateOf { offset.value != 0f } }
     val armed by remember { derivedStateOf { abs(offset.value) >= threshold } }
 
+    val copyPasswordLabel = stringResource(R.string.list_copy_password)
+    val copyUsernameLabel = stringResource(R.string.list_copy_username)
     Box(
         modifier
             .clip(shape)
             .semantics {
                 customActions = listOfNotNull(
-                    CustomAccessibilityAction("Copy password") { copyPassword(); true }.takeIf { hasPassword },
-                    CustomAccessibilityAction("Copy username") { copyUsername(); true }.takeIf { hasUsername },
+                    CustomAccessibilityAction(copyPasswordLabel) { copyPassword(); true }.takeIf { hasPassword },
+                    CustomAccessibilityAction(copyUsernameLabel) { copyUsername(); true }.takeIf { hasUsername },
                 )
             },
     ) {
@@ -92,8 +96,8 @@ internal fun SwipeToCopy(
                 else -> colours.tertiaryContainer to colours.onTertiaryContainer
             }
             val label = when {
-                toRight -> if (possible) "Copy password" else "No password"
-                else -> if (possible) "Copy username" else "No username"
+                toRight -> if (possible) copyPasswordLabel else stringResource(R.string.list_no_password)
+                else -> if (possible) copyUsernameLabel else stringResource(R.string.list_no_username)
             }
             Row(
                 Modifier.matchParentSize().background(background).padding(horizontal = 24.dp),

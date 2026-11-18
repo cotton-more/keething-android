@@ -1,5 +1,6 @@
 package dev.keething.android.settings
 
+import dev.keething.android.ui.english
 import android.app.UiModeManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -10,7 +11,7 @@ class ThemeChoiceTest {
 
     @Test
     fun systemLightAndDarkAreTheAppsNightModes() {
-        assertEquals(listOf("System", "Light", "Dark"), ThemeChoice.entries.map { it.label })
+        assertEquals(listOf("System", "Light", "Dark"), ThemeChoice.entries.map { it.label.english() })
         assertEquals(UiModeManager.MODE_NIGHT_AUTO, ThemeChoice.System.nightMode)
         assertEquals(UiModeManager.MODE_NIGHT_NO, ThemeChoice.Light.nightMode)
         assertEquals(UiModeManager.MODE_NIGHT_YES, ThemeChoice.Dark.nightMode)

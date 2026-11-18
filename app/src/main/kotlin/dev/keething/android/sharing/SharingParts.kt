@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.EntryIcon
 import dev.keething.android.ui.dotsAtLineEnd
@@ -47,8 +49,10 @@ internal fun PersonIcon(name: String, size: Dp, modifier: Modifier = Modifier) {
 @Composable
 internal fun PictureGrid(indices: List<Int>, modifier: Modifier = Modifier) {
     val pictures = Pictures.named(indices)
+    // The pictures' names come from core, in English for now (keething-spec plans T13b).
+    val description = stringResource(R.string.sharing_pictures_description, pictures.joinToString(", ") { it.name })
     Column(
-        modifier.clearAndSetSemantics { contentDescription = "The pictures: " + pictures.joinToString(", ") { it.name } },
+        modifier.clearAndSetSemantics { contentDescription = description },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         pictures.chunked(3).forEach { row ->
@@ -105,7 +109,7 @@ internal fun CheckedChip(checked: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Icon(if (checked) Icons.Rounded.Check else Icons.Rounded.ErrorOutline, contentDescription = null, Modifier.size(15.dp), tint = content)
-        Text(if (checked) "Checked" else "Check first", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = content)
+        Text(stringResource(if (checked) R.string.sharing_checked else R.string.sharing_check_first), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = content)
     }
 }
 

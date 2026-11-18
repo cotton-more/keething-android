@@ -1,0 +1,637 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared by the package's dialogs -->
+    <string name="databases_cancel">Cancel</string>
+    <string name="databases_delete">Delete</string>
+    <string name="databases_close">Close</string>
+
+    <!-- The database page, Backups (BackupsSection.kt) -->
+    <string name="databases_backups_switch">Back up before changes</string>
+    <string name="databases_backups_keep">Keep</string>
+    <string name="databases_backups_lead_off">Off: nothing is copied before a change.</string>
+    <!-- %1$d: how many backups are kept -->
+    <plurals name="databases_backups_lead_off_kept">
+        <item quantity="one">Off: nothing is copied before a change. The one kept stays until deleted.</item>
+        <item quantity="other">Off: nothing is copied before a change. The %1$d kept stay until deleted.</item>
+    </plurals>
+    <!-- %1$s: the database's name -->
+    <string name="databases_backups_lead_none">None yet: the first is kept before %1$s’s first change after an unlock, the file as it was.</string>
+    <!-- %1$d: how many backups are kept; %2$s: their size ("8.1 MB") -->
+    <plurals name="databases_backups_lead_kept">
+        <item quantity="one">%1$d kept, %2$s: the file as it was before the first change of each unlock.</item>
+        <item quantity="other">%1$d kept, %2$s: the file as it was before the first change of each unlock.</item>
+    </plurals>
+    <string name="databases_backups_where">On this phone only, apart from other databases’: removing Keething, or its data, removes them.</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_backups_off_title">Stop backing up %1$s?</string>
+    <!-- %1$s: the database's name; %2$d: how many backups it has -->
+    <plurals name="databases_backups_off_text">
+        <item quantity="one">%1$s is no longer copied before its changes. Its backup can stay here or go.</item>
+        <item quantity="other">%1$s is no longer copied before its changes. Its %2$d backups can stay here or go.</item>
+    </plurals>
+    <plurals name="databases_backups_off_keep">
+        <item quantity="one">Keep it</item>
+        <item quantity="other">Keep them</item>
+    </plurals>
+    <plurals name="databases_backups_off_delete">
+        <item quantity="one">Delete it</item>
+        <item quantity="other">Delete them</item>
+    </plurals>
+    <!-- %1$d: how many backups are to be kept -->
+    <plurals name="databases_backups_fewer_title">
+        <item quantity="one">Keep %1$d backups?</item>
+        <item quantity="other">Keep %1$d backups?</item>
+    </plurals>
+    <!-- %1$d: how many backups go; %2$s: the database's name -->
+    <plurals name="databases_backups_fewer_text">
+        <item quantity="one">The oldest backup of %2$s is deleted from this phone now. It can’t be brought back.</item>
+        <item quantity="other">The %1$d oldest backups of %2$s are deleted from this phone now. They can’t be brought back.</item>
+    </plurals>
+    <!-- %1$d: how many backups go -->
+    <plurals name="databases_backups_fewer_delete">
+        <item quantity="one">Delete %1$d</item>
+        <item quantity="other">Delete %1$d</item>
+    </plurals>
+    <!-- A backup's date: %1$s: the time ("14:03") -->
+    <string name="databases_backups_date_today">Today, %1$s</string>
+    <string name="databases_backups_date_yesterday">Yesterday, %1$s</string>
+    <!-- %1$s: the day ("Mon 9 Nov"); %2$s: the time ("08:15") -->
+    <string name="databases_backups_date_day">%1$s, %2$s</string>
+    <!-- A backup's date in a sentence ("…as it was today, 14:03"): %1$s: the time -->
+    <string name="databases_backups_on_today">today, %1$s</string>
+    <string name="databases_backups_on_yesterday">yesterday, %1$s</string>
+    <!-- %1$s: the date ("Mon 9 Nov, 08:15") -->
+    <string name="databases_backups_on_date">on %1$s</string>
+    <string name="databases_backups_just_now">just now</string>
+    <!-- How long ago a backup was made; %1$d: the number -->
+    <plurals name="databases_backups_minutes_ago">
+        <item quantity="one">%1$d minute ago</item>
+        <item quantity="other">%1$d minutes ago</item>
+    </plurals>
+    <plurals name="databases_backups_hours_ago">
+        <item quantity="one">%1$d hour ago</item>
+        <item quantity="other">%1$d hours ago</item>
+    </plurals>
+    <plurals name="databases_backups_days_ago">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <plurals name="databases_backups_weeks_ago">
+        <item quantity="one">%1$d week ago</item>
+        <item quantity="other">%1$d weeks ago</item>
+    </plurals>
+    <plurals name="databases_backups_months_ago">
+        <item quantity="one">%1$d month ago</item>
+        <item quantity="other">%1$d months ago</item>
+    </plurals>
+    <plurals name="databases_backups_years_ago">
+        <item quantity="one">%1$d year ago</item>
+        <item quantity="other">%1$d years ago</item>
+    </plurals>
+    <!-- %1$s: how long ago ("3 days ago"); %2$s: the size ("1.2 MB") -->
+    <string name="databases_backups_detail">%1$s · %2$s</string>
+    <!-- %1$s: how long ago ("3 days ago") -->
+    <string name="databases_backups_detail_damaged">%1$s · damaged: it would not open</string>
+    <string name="databases_backups_damaged">Its file is damaged: its header does not match its checksum, so it would not open. It cannot be restored.</string>
+    <string name="databases_backups_show_fewer">Show fewer</string>
+    <!-- %1$d: how many backups there are -->
+    <plurals name="databases_backups_show_all">
+        <item quantity="one">Show all %1$d</item>
+        <item quantity="other">Show all %1$d</item>
+    </plurals>
+    <string name="databases_backups_delete_title">Delete this backup?</string>
+    <!-- %1$s: the backup's date ("Mon 9 Nov, 08:15") -->
+    <string name="databases_backups_delete_text">The backup of %1$s is deleted from this phone. It can’t be brought back.</string>
+    <!-- %1$s: the backup's date -->
+    <string name="databases_backups_deleted">Deleted the backup of %1$s</string>
+    <plurals name="databases_backups_delete_all_title">
+        <item quantity="one">Delete the backup?</item>
+        <item quantity="other">Delete all backups?</item>
+    </plurals>
+    <!-- %1$d: how many backups; %2$s: the database's name -->
+    <plurals name="databases_backups_delete_all_text">
+        <item quantity="one">The backup of %2$s is deleted from this phone. It can’t be brought back.</item>
+        <item quantity="other">The %1$d backups of %2$s are deleted from this phone. They can’t be brought back.</item>
+    </plurals>
+    <string name="databases_backups_delete_all_note">Backups made before a master key change still open with the old one: this is how they go.</string>
+    <plurals name="databases_backups_delete_all">
+        <item quantity="one">Delete</item>
+        <item quantity="other">Delete all</item>
+    </plurals>
+    <string name="databases_backups_delete_all_button">Delete all backups…</string>
+    <string name="databases_backups_before_restoring">Before restoring</string>
+    <!-- A backup's row read aloud: %1$s: its date; %2$s: how long ago and its size -->
+    <string name="databases_backups_row">Backup of %1$s, %2$s</string>
+    <string name="databases_backups_row_before_restoring">Backup of %1$s, before restoring, %2$s</string>
+    <string name="databases_backups_open">Open</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_backups_restore_line">%1$s becomes as it was then</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_backups_read_only">%1$s is read only on this phone: its backups are listed and deleted, not restored.</string>
+    <string name="databases_backups_restore_this">Restore this backup…</string>
+    <string name="databases_backups_delete_this">Delete…</string>
+    <string name="databases_backups_restore_title">Restore this backup?</string>
+    <!-- %1$s: the database's name; %2$s: the backup's date in a sentence ("on Mon 9 Nov, 08:15", "today, 14:03") -->
+    <string name="databases_backups_restore_text">%1$s becomes as it was %2$s. Changes made since leave the database, here and on every device it syncs with.</string>
+    <string name="databases_backups_restore_note">The file as it is now is kept as a backup first, so the restore can be undone.</string>
+    <string name="databases_backups_restore">Restore</string>
+    <!-- %1$s: the backup's date -->
+    <string name="databases_backups_restoring">Restoring the backup of %1$s…</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_backups_undoing">Bringing %1$s back as it was before the restore…</string>
+    <!-- %1$s: the backup's date -->
+    <string name="databases_backups_restored">Restored the backup of %1$s</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_backups_undone">Back to %1$s as it was before the restore</string>
+    <!-- %1$s: the database's name; %2$s: the backup's date in a sentence ("on Sun 1 Nov, 10:20", "yesterday, 21:40") -->
+    <string name="databases_backups_older_key">Restored. This backup opens with the master key %1$s had %2$s, so %1$s is locked: unlock it with that password. Its fingerprint stays off until then.</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_backups_older_key_then">Restored. This backup opens with the master key %1$s had then, so %1$s is locked: unlock it with that password. Its fingerprint stays off until then.</string>
+    <!-- %1$s: the database's file name; %2$s: why it could not be written -->
+    <string name="databases_backups_not_restored_write">Not restored: %1$s could not be written (%2$s). Nothing was changed, and no backup was added.</string>
+    <!-- %1$s: the database's file name -->
+    <string name="databases_backups_not_restored_changing">Not restored: %1$s kept changing (a sync?). Nothing was changed, and no backup was added; try again in a moment.</string>
+    <string name="databases_backups_not_restored_locked">Not restored: the database locked while the backup was being opened. Nothing was changed, and no backup was added.</string>
+    <!-- %1$s: why the backup did not open, a sentence starting in lower case -->
+    <string name="databases_backups_not_restored_cannot_open">Not restored: %1$s Nothing was changed, and no backup was added.</string>
+    <!-- %1$s: why, a sentence without its full stop ("That backup is not there any more. Nothing was changed") -->
+    <string name="databases_backups_not_restored">Not restored. %1$s, and no backup was added.</string>
+
+    <!-- A new master password typed twice (MasterPasswordFields.kt) -->
+    <!-- %1$d: the passphrase's words; %2$d: its bits -->
+    <plurals name="databases_strength_passphrase">
+        <item quantity="one">Strong · %1$d word, about %2$d bits</item>
+        <item quantity="other">Strong · %1$d words, about %2$d bits</item>
+    </plurals>
+    <!-- %1$s: why it is weak ("easy to guess") -->
+    <string name="databases_strength_weak">Weak: %1$s. Anyone with the file can try passwords against it.</string>
+    <string name="databases_strength_weak_reason">easy to guess</string>
+    <!-- %1$s: why it is only fair ("could be longer") -->
+    <string name="databases_strength_fair">Fair: %1$s</string>
+    <string name="databases_strength_fair_reason">could be longer</string>
+    <string name="databases_strength_strong">Strong</string>
+    <string name="databases_password_blocker_empty">Type a master password.</string>
+    <string name="databases_password_blocker_again">Type the password again.</string>
+    <string name="databases_password_blocker_differ">The two passwords differ.</string>
+
+    <!-- A database's name and colour (NameAndColorForm.kt) -->
+    <!-- %1$s: the file's name without its extension -->
+    <string name="databases_name_note_empty">Empty: it is called by its file name, %1$s.</string>
+    <!-- %1$s: the name typed; %2$s: the file's name without its extension -->
+    <string name="databases_name_note_no_name">“%1$s” counts as no name: it is called by its file name, %2$s.</string>
+    <!-- %1$s: the file's name ("Work.kdbx") -->
+    <string name="databases_name_note_file">Its file stays %1$s.</string>
+    <string name="databases_color_note_none">None: it takes a colour no other database has.</string>
+    <string name="databases_color_note_file">Its file\'s own colour, shown as the nearest of these; it stays as it is until another is chosen.</string>
+    <string name="databases_color_note_shown">KeePassXC shows it beside the name.</string>
+    <!-- The palette's colours, read aloud -->
+    <string name="databases_color_teal">Teal</string>
+    <string name="databases_color_orange">Orange</string>
+    <string name="databases_color_green">Green</string>
+    <string name="databases_color_purple">Purple</string>
+    <string name="databases_color_pink">Pink</string>
+    <string name="databases_color_indigo">Indigo</string>
+    <string name="databases_color_brown">Brown</string>
+    <string name="databases_color_red">Red</string>
+    <string name="databases_color_grey">Grey</string>
+
+    <!-- Change master key… (ChangeMasterKeyModel.kt) -->
+    <!-- %1$s: the key file's name -->
+    <string name="databases_change_key_wrong_with_file">That is not its master password with %1$s. Nothing changed.</string>
+    <string name="databases_change_key_wrong">That is not its master password. Nothing changed.</string>
+    <string name="databases_change_key_locked">The database is locked. Unlock it, then change its master key.</string>
+    <!-- %1$s: a file's name; %2$s: its folder ("Documents/Keys") -->
+    <string name="databases_file_in_folder">%1$s in %2$s</string>
+    <!-- %1$s: the folder ("Documents/Keys") -->
+    <string name="databases_change_key_folder_gone">The key file\'s folder, %1$s, is not there any more.</string>
+    <string name="databases_change_key_no_free_name">That folder has no free name for a key file: choose another.</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_change_key_file_gone">%1$s is not there any more.</string>
+    <string name="databases_key_file_beside">Beside the database, whoever gets the folder gets both. Keep it apart: a folder that does not sync.</string>
+    <string name="databases_key_file_syncs">In a folder that syncs, it goes wherever the database goes. Keep it apart: a folder that does not sync.</string>
+    <string name="databases_change_key_needs_password">Without a key file it needs a password.</string>
+    <string name="databases_change_key_nothing_new">Choose a new password or another key file.</string>
+    <string name="databases_change_key_interrupted">The database locked before its master key was changed. Nothing changed.</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_change_key_file_unusable">%1$s could not be read as a key file. Nothing changed.</string>
+    <string name="databases_change_key_folder_not_found">The key file\'s folder is not there any more. Nothing changed.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_change_key_file_not_made">The key file could not be made (%1$s). Nothing changed.</string>
+
+    <!-- Change master key… (ChangeMasterKeyScreen.kt) -->
+    <string name="databases_change_key_title">Change master key</string>
+    <string name="databases_change_key_first">First its master password as it is now, to show you know it.</string>
+    <string name="databases_change_key_first_with_file">First its master password as it is now, to show you know it. Nothing typed: its key file alone.</string>
+    <string name="databases_change_key_current_password">Current master password</string>
+    <string name="databases_hide_password">Hide the password</string>
+    <string name="databases_show_password">Show the password</string>
+    <!-- %1$s: the key file's name; %2$s: where it is ("Documents/Keys") -->
+    <string name="databases_change_key_with_key_file">With its key file, %1$s in %2$s</string>
+    <string name="databases_change_key_checking">Checking…</string>
+    <string name="databases_continue">Continue</string>
+    <string name="databases_change_key_confirmed">Its current key, confirmed</string>
+    <string name="databases_change_key_password">Password</string>
+    <string name="databases_change_key_password_keep">Keep it</string>
+    <string name="databases_change_key_password_new">New</string>
+    <string name="databases_change_key_password_none">None</string>
+    <string name="databases_new_master_password">New master password</string>
+    <string name="databases_suggest_passphrase">Suggest a passphrase</string>
+    <string name="databases_change_key_keeps_none">It stays without a password: its key file alone opens it.</string>
+    <string name="databases_change_key_keeps_password">The password stays as it is.</string>
+    <string name="databases_password_not_recoverable">Nobody can recover a forgotten master password, not even Keething.</string>
+    <string name="databases_change_key_no_password">No password: the key file alone opens it. Whoever has the file and the key file has everything.</string>
+    <string name="databases_change_key_key_file">Key file</string>
+    <!-- %1$s: the database's file name -->
+    <string name="databases_change_key_every_device">Every device that opens %1$s will need the new key. The file is backed up first; if anything fails, it stays as it is.</string>
+    <string name="databases_change_key_changing">Changing…</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_change_key_file_keep">Keep %1$s</string>
+    <string name="databases_change_key_file_make">Make a new one…</string>
+    <string name="databases_change_key_file_make_detail">A .keyx in a folder you pick, not beside the database</string>
+    <string name="databases_change_key_file_have">Use one I have…</string>
+    <string name="databases_change_key_file_have_detail">Chosen from your files; never changed</string>
+    <string name="databases_change_key_file_remove">Remove it</string>
+    <string name="databases_change_key_file_remove_detail">It opens with the password alone</string>
+    <string name="databases_change_key_file_none">None</string>
+    <string name="databases_change_key_file_none_detail">It opens with the password alone, as now</string>
+    <string name="databases_key_file_lose">Lose the key file and the database never opens again. Keep a copy apart from it.</string>
+    <string name="databases_change_key_done_title">Master key changed</string>
+    <!-- %1$s: the database's file name; %2$s: the key file's name -->
+    <string name="databases_change_key_opens_with_key_file">%1$s now opens with %2$s.</string>
+    <!-- %1$s: the database's file name -->
+    <string name="databases_change_key_opens_with_its_password">%1$s now opens with its password.</string>
+    <string name="databases_change_key_opens_with_new_password">%1$s now opens with the new password.</string>
+    <!-- %1$s: the database's file name; %2$s: the key file's name -->
+    <string name="databases_change_key_opens_with_its_password_and_key_file">%1$s now opens with its password and %2$s.</string>
+    <string name="databases_change_key_opens_with_new_password_and_key_file">%1$s now opens with the new password and %2$s.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_change_key_fingerprint_problem">Its new password could not be stored for the fingerprint: %1$s. It is stored at the next unlock with the password.</string>
+    <string name="databases_change_key_other_devices">Your other devices ask for the new key once the file reaches them; a fingerprint stored there stops working until the new password is typed.</string>
+    <string name="databases_change_key_old_copies">Copies of the file made before still open with the old key: the backups on this phone and elsewhere, other devices\' copies, a sync\'s old versions (Syncthing\'s .stversions). After a leak, delete those you can.</string>
+    <string name="databases_done">Done</string>
+
+    <!-- Open a database… and Locate… (ChooseDatabaseSheet.kt, FileActions.kt) -->
+    <string name="databases_open_title">Open a database</string>
+    <!-- %1$s: the database's file name -->
+    <string name="databases_locate_title">Locate %1$s</string>
+    <!-- %1$s: the database's file name -->
+    <string name="databases_locate_folder_title">The folder of %1$s</string>
+    <!-- %1$s: why the folder chosen does not hold it, a sentence -->
+    <string name="databases_locate_choose_below">%1$s Choose its file below, or another folder.</string>
+    <string name="databases_choose_up">Up</string>
+    <string name="databases_choose_looking">Looking…</string>
+    <string name="databases_choose_folder_gone">This folder is not there any more.</string>
+    <string name="databases_choose_no_access">Keething can no longer reach this folder: renamed, moved or deleted on a device, or its access taken back. Choose it again.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_choose_folder_failed">The folder could not be read (%1$s).</string>
+    <!-- %1$s: the database's name in the list -->
+    <string name="databases_choose_in_list">In the list as “%1$s”</string>
+    <string name="databases_choose_no_files">No KeePass files here (.kdbx).</string>
+    <string name="databases_choose_folder">Choose a folder…</string>
+    <string name="databases_choose_another_folder">Choose another folder…</string>
+    <string name="databases_refused_folders">Android gives no app the whole storage or Download itself: keep databases in a folder of their own, such as Download/KeePass or Sync/KeePass.</string>
+
+    <!-- A database of the list as the lock screen, its sheet and Settings show it (DatabaseLines.kt) -->
+    <!-- After a key file's name: %1$s: its folder -->
+    <string name="databases_key_file_detail_not_there">not there · %1$s</string>
+    <string name="databases_key_file_detail_no_access">no access · %1$s</string>
+    <string name="databases_reach_not_found">not found</string>
+    <string name="databases_reach_no_access">no access</string>
+    <string name="databases_reach_needs_folder">needs its folder</string>
+    <string name="databases_reach_not_found_title">Not found</string>
+    <string name="databases_reach_no_access_title">No access</string>
+    <string name="databases_reach_needs_folder_title">Needs its folder</string>
+    <!-- %1$s: the folder ("Sync/KeePass"); %2$s: its state ("changed 2 hours ago", "not found") -->
+    <string name="databases_line_detail">%1$s · %2$s</string>
+    <!-- %1$s: why it cannot be reached ("Not found"); %2$s: the folder -->
+    <string name="databases_line_settings_detail">%1$s · %2$s</string>
+    <!-- %1$s: when ("2 hours ago", "yesterday", "in March") -->
+    <string name="databases_changed_ago">changed %1$s</string>
+    <string name="databases_ago_just_now">just now</string>
+    <plurals name="databases_ago_minutes">
+        <item quantity="one">%1$d minute ago</item>
+        <item quantity="other">%1$d minutes ago</item>
+    </plurals>
+    <plurals name="databases_ago_hours">
+        <item quantity="one">%1$d hour ago</item>
+        <item quantity="other">%1$d hours ago</item>
+    </plurals>
+    <string name="databases_ago_today">today</string>
+    <string name="databases_ago_yesterday">yesterday</string>
+    <plurals name="databases_ago_days">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <string name="databases_ago_last_week">last week</string>
+    <!-- %1$s: the month ("March") -->
+    <string name="databases_ago_in_month">in %1$s</string>
+    <!-- %1$s: the month; %2$d: the year -->
+    <string name="databases_ago_in_month_year">in %1$s %2$d</string>
+    <!-- %1$s: the database's name; %2$s: its key file's name; %3$s: the key file's folder -->
+    <string name="databases_lock_key_file_not_there">%1$s needs its key file: %2$s is not in %3$s.</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_lock_key_file_no_access">Keething may not read %1$s any more: choose it again.</string>
+    <!-- %1$s: the folder; %2$s: the database's file name -->
+    <string name="databases_lock_needs_folder">Keething now opens files only in folders you choose. Choose %1$s, the folder of %2$s: it is asked once.</string>
+    <!-- %1$s: the folder -->
+    <string name="databases_lock_no_access">Keething can no longer reach %1$s: renamed, moved or deleted on a device, or its access taken back. Locate the file to choose its folder again.</string>
+    <!-- %1$s: the database's file name; %2$s: its folder -->
+    <string name="databases_lock_not_on_card">%1$s is not in %2$s. Put the card in, or locate the file.</string>
+    <string name="databases_lock_not_found">%1$s is not in %2$s any more. Locate the file, or choose another database.</string>
+    <string name="databases_lock_choose_folder">Choose its folder…</string>
+    <string name="databases_lock_locate">Locate…</string>
+    <string name="databases_master_password">Master password</string>
+
+    <!-- The chooser: nothing open and several in the window (ChooserRows.kt, ChooserScreen.kt) -->
+    <string name="databases_chooser_how">Checked ones are asked one after another.</string>
+    <string name="databases_chooser_open">Open</string>
+    <string name="databases_chooser_opening">Opening…</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_chooser_key_not_there">%1$s not there</string>
+    <string name="databases_chooser_key_no_access">%1$s no access</string>
+    <string name="databases_chooser_cannot_be_read">Cannot be read</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_chooser_key_unusable">%1$s cannot be used</string>
+    <string name="databases_chooser_its_key_unusable">Its key file cannot be used</string>
+    <string name="databases_chooser_fingerprint_set_up_again">Fingerprint to set up again</string>
+    <string name="databases_chooser_fingerprint_set_up">Fingerprint to set up</string>
+    <string name="databases_chooser_fingerprint">Fingerprint</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_chooser_key_file">Key file %1$s</string>
+    <string name="databases_chooser_password_and_key_file">Password + %1$s</string>
+    <string name="databases_chooser_password">Password</string>
+    <string name="databases_chooser_unlock">Unlock</string>
+    <!-- %1$d: how many databases are checked -->
+    <plurals name="databases_chooser_unlock_count">
+        <item quantity="one">Unlock %1$d database</item>
+        <item quantity="other">Unlock %1$d databases</item>
+    </plurals>
+    <!-- %1$d: how many databases are listed -->
+    <plurals name="databases_chooser_count">
+        <item quantity="one">%1$d database · scroll for the rest</item>
+        <item quantity="other">%1$d databases · scroll for the rest</item>
+    </plurals>
+    <string name="databases_chooser_fingerprint_cancelled">The fingerprint was cancelled.</string>
+    <!-- %1$s: why, as the system says it, without a full stop -->
+    <string name="databases_chooser_fingerprint_failed">The fingerprint failed: %1$s.</string>
+    <!-- %1$s: why, as the system says it, a sentence ending in a full stop -->
+    <string name="databases_chooser_fingerprint_failed_sentence">The fingerprint failed: %1$s</string>
+    <string name="databases_chooser_fingerprints_changed">The fingerprints on this phone changed: type the passwords to set up the fingerprint again.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_chooser_storage_error">Could not read the stored passwords: %1$s.</string>
+    <string name="databases_chooser_title">Open your databases</string>
+    <string name="databases_chooser_unlock_fingerprint">Unlock with the fingerprint</string>
+    <string name="databases_chooser_open_other">Open other…</string>
+    <string name="databases_new_database_button">New database…</string>
+    <string name="databases_actions">Actions</string>
+    <string name="databases_chooser_folder">Folder…</string>
+    <string name="databases_remove_from_list">Remove from list…</string>
+    <string name="databases_remove_from_list_detail">The file stays where it is</string>
+
+    <!-- Creating a database's notification (CreatingService.kt) -->
+    <string name="databases_creating_channel">Creating a database</string>
+    <string name="databases_creating_title">Creating a database…</string>
+
+    <!-- The system's pickers (Pickers.kt) -->
+    <string name="databases_picker_not_phone_storage">Keething opens files on this phone\'s storage and its card only. Keep the database in a folder that Syncthing, FolderSync or the cloud app\'s own offline folder keeps in sync, and choose that.</string>
+    <string name="databases_picker_not_kept">Android did not let Keething keep its access to that place. Choose it again.</string>
+    <string name="databases_ok">OK</string>
+
+    <!-- Why an open database is read only (ReadOnlyMark.kt) -->
+    <string name="databases_read_only">Read only</string>
+    <string name="databases_read_only_too_large">Read only: too large for this phone</string>
+    <string name="databases_read_only_kdbx3">Read only: KDBX 3.1, Edit offers to update it</string>
+    <string name="databases_read_only_kdbx3_say">Read only: a KDBX 3.1 database. Keething changes databases only in KDBX 4: update it to change it.</string>
+    <string name="databases_read_only_too_large_beside_say">Read only: with the other databases open, too large for this phone to save safely. Lock them to change it.</string>
+    <string name="databases_read_only_too_large_say">Read only: too large for this phone to save safely. To change it, keep large files outside it or split it into two databases.</string>
+
+    <!-- A database of the window that is not open (NotOpenDatabases.kt) -->
+    <string name="databases_not_open_locked">Locked</string>
+    <string name="databases_not_open_opening">Opening…</string>
+    <string name="databases_not_open_fingerprint">Fingerprint to set up</string>
+    <string name="databases_not_open_needs_key_file">Needs its key file</string>
+    <string name="databases_not_open_cannot_be_read">Cannot be read</string>
+    <string name="databases_not_open_wrong_password">Wrong password</string>
+    <string name="databases_not_open_password_changed">Password changed</string>
+    <string name="databases_not_open_skipped">Skipped</string>
+    <string name="databases_not_open_locked_say">Locked · tap to type its password</string>
+    <string name="databases_not_open_fingerprints_changed_say">Fingerprint to set up again: the fingerprints changed</string>
+    <string name="databases_not_open_password_rejected_say">Fingerprint to set up again: the stored password was not accepted</string>
+    <string name="databases_not_open_fingerprint_say">Fingerprint to set up: type its password once</string>
+    <!-- %1$s: the folder; %2$s: the database's file name -->
+    <string name="databases_not_open_no_access_say">No access to %1$s any more: locate %2$s to choose its folder again</string>
+    <!-- %1$s: the folder -->
+    <string name="databases_not_open_needs_folder_say">Needs its folder: choose %1$s once</string>
+    <!-- %1$s: the file's path ("Download/Crypto.kdbx") -->
+    <string name="databases_not_open_not_found_say">Not found at %1$s</string>
+    <!-- %1$s: the key file's name; %2$s: why it cannot be used -->
+    <string name="databases_not_open_key_file_unusable_say">Its key file %1$s cannot be used: %2$s</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_not_open_key_file_not_there_say">Needs its key file: %1$s is not there</string>
+    <string name="databases_not_open_key_file_no_access">Keething may not read it any more: choose it again</string>
+    <!-- %1$s: why ("damaged or not completely synced yet (…)") -->
+    <string name="databases_not_open_cannot_be_read_say">Cannot be read: %1$s</string>
+    <!-- %1$s: what was found wrong, as the reader says it -->
+    <string name="databases_not_open_damaged">damaged or not completely synced yet (%1$s)</string>
+    <string name="databases_not_open_access_denied">Keething may not read the file any more: locate it</string>
+    <string name="databases_not_open_out_of_memory">not enough memory to open it</string>
+    <string name="databases_not_open_did_not_open">it did not open</string>
+    <string name="databases_not_open_wrong_password_say">Wrong password · tap to type it again</string>
+    <string name="databases_not_open_password_changed_say">Its password was changed elsewhere · tap to type the new one</string>
+    <string name="databases_not_open_skipped_say">Skipped · tap to type its password</string>
+    <string name="databases_not_open_not_searched">Not searched</string>
+
+    <!-- ⋮ › Databases, its sheets and the line under the list's header (WindowDatabaseViews.kt) -->
+    <string name="databases_title">Databases</string>
+    <string name="databases_back">Back</string>
+    <string name="databases_unlock">Unlock</string>
+    <string name="databases_more">More</string>
+    <string name="databases_lock_others">Lock the others</string>
+    <string name="databases_lock_others_detail">It can be changed once they are locked</string>
+    <string name="databases_update_kdbx4">Update to KDBX 4…</string>
+    <string name="databases_show_only">Show only this</string>
+    <!-- %1$s: what is typed in the search ("!Work ") -->
+    <string name="databases_show_only_detail">Types %1$s in the search</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_lock_database">Lock %1$s</string>
+    <string name="databases_unlock_button">Unlock…</string>
+    <string name="databases_choose_key_file">Choose key file…</string>
+    <string name="databases_close_detail">Not shown here, nor opened next time; it stays under ⋮ › Databases</string>
+    <string name="databases_last_one_stays">The last one stays</string>
+    <string name="databases_section_open">Open</string>
+    <string name="databases_section_not_open">Not open</string>
+    <string name="databases_section_recent">Recent</string>
+    <string name="databases_open_database_button">Open database…</string>
+    <string name="databases_swipe_hint">Swipe a database left to close it: it stays in the list, under Recent.</string>
+
+    <!-- The lock screen's databases sheet and Remove from list (DatabaseViews.kt) -->
+    <!-- %1$s: the database's name -->
+    <string name="databases_remove_title">Remove “%1$s” from the list?</string>
+    <string name="databases_remove_text">Keething forgets it on this phone, with its stored password. The file stays where it is.</string>
+    <string name="databases_remove">Remove</string>
+    <string name="databases_shown_now">Shown now</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_remove_named">Remove “%1$s” from list…</string>
+
+    <!-- The first start (WelcomeScreen.kt) -->
+    <string name="databases_welcome_title">Welcome to Keething</string>
+    <string name="databases_welcome_list_unreadable">Keething could not read its list of databases. Your databases themselves are untouched: open them again.</string>
+    <string name="databases_welcome_lead">Your passwords live in a KeePass database: one encrypted file that stays yours. Keep it in a folder that syncs, and the same file opens on your computer too.</string>
+    <string name="databases_welcome_create">Create a new database…</string>
+    <string name="databases_welcome_open">Open a database…</string>
+    <string name="databases_welcome_hint_keepass">Already use KeePass, KeePassXC, KeePassDX or Strongbox? Open your database: it stays theirs too, and Keething writes it in their format.</string>
+    <string name="databases_welcome_hint_folder">Keething asks for the folder your database is in. Android then gives it that folder and nothing else on the phone; with the folder Keething sees a sync replace the file, and saves beside it safely.</string>
+    <string name="databases_welcome_hint_cloud">On Google Drive, Dropbox or OneDrive? Keep the database in a folder on the phone that Syncthing or FolderSync keeps up to date, and choose that folder.</string>
+
+    <!-- New database (NewDatabaseModel.kt) -->
+    <string name="databases_new_saves_in_folder">Keething saves only in a folder you choose.</string>
+    <!-- Under a new key file's name: %1$s: its folder -->
+    <string name="databases_new_key_file_made_at_create">%1$s · made at Create</string>
+    <!-- %1$s: the key file's name; %2$s: the folder -->
+    <string name="databases_new_key_file_taken">There is already a %1$s in %2$s. A key file is never replaced: choose another folder.</string>
+    <!-- %1$s: the cipher ("AES-256"); %2$s: the key derivation ("Argon2d"); %3$s: how long it takes to open ("1 s") -->
+    <string name="databases_new_encryption_line">KDBX 4 · %1$s · %2$s · opens in about %3$s on this phone · read by every current KeePass app</string>
+    <string name="databases_new_encryption_line_argon2id">KDBX 4 · %1$s · %2$s · opens in about %3$s on this phone · read by KeePass 2.47 and later and every current KeePass app</string>
+    <string name="databases_new_measuring">Measuring on this phone…</string>
+    <!-- %1$s: the seconds measured ("1.0"); %2$s: how many iterations ("42", "1,000") -->
+    <plurals name="databases_new_measured_iterations">
+        <item quantity="one">%1$s s on this phone: %2$s iteration, measured. A computer usually opens it faster.</item>
+        <item quantity="other">%1$s s on this phone: %2$s iterations, measured. A computer usually opens it faster.</item>
+    </plurals>
+    <!-- %1$s: the seconds measured ("1.0"); %2$s: how many rounds ("6,000,000") -->
+    <plurals name="databases_new_measured_rounds">
+        <item quantity="one">%1$s s on this phone: %2$s rounds, measured. A computer usually opens it faster.</item>
+        <item quantity="other">%1$s s on this phone: %2$s rounds, measured. A computer usually opens it faster.</item>
+    </plurals>
+    <string name="databases_new_blocker_folder">Choose the folder to save it in.</string>
+    <string name="databases_new_blocker_name">Name it.</string>
+    <string name="databases_new_blocker_too_long">The name is too long for a file name: shorten it.</string>
+    <string name="databases_new_folder_gone">That folder is not there any more. Choose another.</string>
+    <string name="databases_new_blocker_key_file">Make a key file, or choose one you have.</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_new_creating_title">Creating %1$s…</string>
+    <string name="databases_new_creating_writing">Writing the file and reading it back.</string>
+    <!-- %1$s: how long it takes to open ("1 s") -->
+    <string name="databases_new_creating_measuring">Measuring this phone’s speed for %1$s to open, then writing the file and reading it back.</string>
+    <!-- %1$s: the file's name; %2$s: the folder -->
+    <string name="databases_new_taken">There is already a %1$s in %2$s. A database is never replaced: choose another name or folder.</string>
+    <string name="databases_new_not_created_taken">Not created: there is already a %1$s in %2$s. A database is never replaced: choose another name or folder.</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_new_not_created_key_file_taken">Not created: there is already a %1$s there. A key file is never replaced: choose another folder.</string>
+    <string name="databases_new_not_created_folder_gone">Not created: that folder is not there any more. Choose another.</string>
+    <!-- %1$s: the key file's name -->
+    <string name="databases_new_not_created_key_file_unusable">Not created: %1$s cannot be read as a key file.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_new_not_created_write_failed">Not created: the file could not be written: %1$s.</string>
+    <!-- %1$s: what did not check out -->
+    <string name="databases_new_not_created_verification_failed">Not created: the new file did not check out (%1$s), so it was not kept.</string>
+    <!-- %1$s: what cannot be written -->
+    <string name="databases_new_not_created_unsupported">Not created: Not written: %1$s.</string>
+    <!-- %1$d: the memory asked for, in MiB -->
+    <string name="databases_new_not_created_memory">Not created: this phone has not enough memory for %1$d MiB: choose less on the Encryption page.</string>
+    <!-- %1$s: what went wrong -->
+    <string name="databases_new_not_created_went_wrong">Not created: something went wrong (%1$s).</string>
+    <string name="databases_new_not_created_not_measured">Not created: this phone’s speed could not be measured. Try again, or choose AES-KDF.</string>
+    <!-- %1$d: the memory asked for, in MiB -->
+    <string name="databases_new_measure_memory">This phone has not enough memory for %1$d MiB: choose less.</string>
+    <string name="databases_new_not_measured">This phone’s speed could not be measured. Try again, or choose AES-KDF.</string>
+    <string name="databases_new_folder_this_database">this database’s</string>
+    <!-- A time in seconds: %1$s: the number ("1", "0.5") -->
+    <string name="databases_seconds">%1$s s</string>
+
+    <!-- New database (NewDatabaseScreen.kt) -->
+    <string name="databases_new_title">New database</string>
+    <string name="databases_new_name">Name</string>
+    <string name="databases_new_name_placeholder">Personal, Work, Family…</string>
+    <string name="databases_new_fingerprint">Unlock it with the fingerprint</string>
+    <string name="databases_new_change">Change…</string>
+    <string name="databases_new_create">Create</string>
+    <string name="databases_new_save_in">Save in</string>
+    <string name="databases_new_choose_the_folder">Choose the folder</string>
+    <string name="databases_new_other_folder">Other folder…</string>
+    <string name="databases_hide_both_passwords">Hide both passwords</string>
+    <string name="databases_show_both_passwords">Show both passwords</string>
+    <string name="databases_password_again">Again</string>
+    <string name="databases_passwords_match">The passwords match</string>
+    <string name="databases_passwords_differ">The passwords differ</string>
+    <!-- %1$d: the passphrase's bits -->
+    <string name="databases_passphrase_shown_once">EFF words, one with capitals, a digit and a symbol: about %1$d bits. Shown once: write it down.</string>
+    <string name="databases_passphrase_fewer_words">Fewer words</string>
+    <string name="databases_passphrase_more_words">More words</string>
+    <!-- %1$d: the passphrase's words -->
+    <plurals name="databases_passphrase_words">
+        <item quantity="one">%1$d word</item>
+        <item quantity="other">%1$d words</item>
+    </plurals>
+    <string name="databases_passphrase_another">Another</string>
+    <string name="databases_passphrase_use">Use this</string>
+    <string name="databases_new_require_key_file">Also require a key file</string>
+    <string name="databases_new_optional">Optional</string>
+    <string name="databases_new_back">Back to New database</string>
+    <string name="databases_new_encryption">Encryption</string>
+    <string name="databases_new_format">Format</string>
+    <string name="databases_new_cipher">Cipher</string>
+    <string name="databases_new_key_derivation">Key derivation</string>
+    <string name="databases_new_memory">Memory</string>
+    <!-- %1$d: the memory in MiB -->
+    <string name="databases_new_memory_value">%1$d MiB</string>
+    <string name="databases_new_less_memory">Less memory</string>
+    <string name="databases_new_more_memory">More memory</string>
+    <string name="databases_new_lanes">Lanes</string>
+    <string name="databases_new_fewer_lanes">Fewer lanes</string>
+    <string name="databases_new_more_lanes">More lanes</string>
+    <string name="databases_new_time_to_open">Time to open</string>
+    <string name="databases_new_recommended">Back to recommended</string>
+
+    <!-- Settings › Databases and a database's page (DatabasePageScreen.kt) -->
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_page_stored_not_deleted">The stored password could not be deleted: %1$s.</string>
+    <string name="databases_page_back">Back to Settings</string>
+    <!-- %1$s: the database's path -->
+    <string name="databases_page_not_found_at">Not found at %1$s</string>
+    <string name="databases_page_key_file_none">None</string>
+    <string name="databases_page_key_file_none_detail">It opens with its password alone</string>
+    <string name="databases_page_choose">Choose…</string>
+    <string name="databases_page_forget">Forget</string>
+    <string name="databases_page_key_file_note">Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It must be there at every unlock, the fingerprint too.</string>
+    <string name="databases_page_backups">Backups</string>
+    <string name="databases_page_remove_note">Forgets it on this phone, with its stored password. The file stays.</string>
+    <string name="databases_page_use_fingerprint">Use fingerprint</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_page_fingerprint_not_deleted">Its stored password could not be deleted: %1$s.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_page_fingerprint_not_set_up">It could not be set up: %1$s. It tries again at the next unlock with the password.</string>
+    <!-- %1$s: why, as the system says it -->
+    <string name="databases_page_fingerprint_unavailable">Not available: %1$s.</string>
+    <string name="databases_page_fingerprint_app_off">Off: Unlock with the fingerprint is off in Settings. Once it is on, the fingerprint can be turned on here.</string>
+    <string name="databases_page_fingerprint_off">Off: its password is typed every time.</string>
+    <string name="databases_page_fingerprint_passwordless">The fingerprint opens it, and nothing is stored.</string>
+    <!-- %1$s: where the key is ("the phone's security chip (StrongBox)") -->
+    <string name="databases_page_fingerprint_stored">Its password is stored, sealed by a key in %1$s that opens only after your fingerprint. A fingerprint added on this phone undoes it.</string>
+    <string name="databases_page_fingerprint_next_unlock">Its password is stored the next time it is unlocked with the password.</string>
+    <string name="databases_key_location_strongbox">the phone\'s security chip (StrongBox)</string>
+    <string name="databases_key_location_tee">the processor\'s secure area (TEE)</string>
+    <string name="databases_key_location_secure_hardware">the phone\'s secure hardware</string>
+    <string name="databases_key_location_software">software (no secure hardware here)</string>
+    <string name="databases_key_location_keystore">the Android Keystore</string>
+    <!-- %1$s: when ("2 weeks ago") -->
+    <string name="databases_page_last_opened">Last opened %1$s</string>
+    <!-- %1$s: when ("2 hours ago", "yesterday") -->
+    <string name="databases_page_changed">Changed %1$s</string>
+    <string name="databases_page_name_and_colour">Name and colour</string>
+    <string name="databases_page_unlock_to_change">Unlock it to change its name, colour or master key: they are written into its file.</string>
+    <!-- %1$s: why it is read only, a sentence without its full stop -->
+    <string name="databases_page_read_only">%1$s. Its name, colour and master key can\'t be changed here.</string>
+    <string name="databases_page_master_key">Master key</string>
+    <string name="databases_page_key_file_alone">Key file alone</string>
+    <string name="databases_page_password_and_key_file">Password and key file</string>
+    <string name="databases_page_change_master_key">Change master key…</string>
+    <string name="databases_page_master_key_note">What opens it on every device. After a leak, change it here: the others then ask for the new one.</string>
+    <string name="databases_page_locked_not_saved">The database locked; nothing was saved.</string>
+    <!-- %1$s: the database's file name -->
+    <string name="databases_page_saved_into">Saved into %1$s</string>
+    <string name="databases_page_saving">Saving…</string>
+    <string name="databases_page_save">Save</string>
+    <string name="databases_page_written_into_file">Written into the file, so KeePassXC, the Mac and your other devices show the same.</string>
+    <string name="databases_page_color_none">None: a colour by its place in the list</string>
+</resources>

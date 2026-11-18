@@ -35,7 +35,7 @@ internal class AndroidAttachments(context: Context) {
 
     /** Writes [bytes] into the document the save dialog made. The caller wipes [bytes]. */
     fun writeDocument(uri: Uri, bytes: Secret) {
-        val stream = context.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("No stream for the document")
+        val stream = context.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("No stream for the document") // not user text
         stream.use { bytes.useBytes(it::write) }
     }
 

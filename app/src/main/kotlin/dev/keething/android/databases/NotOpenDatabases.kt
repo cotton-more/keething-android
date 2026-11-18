@@ -1,5 +1,9 @@
 package dev.keething.android.databases
 
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import dev.keething.android.unlock.named
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.vault.biometric.BiometricState
@@ -20,31 +24,31 @@ internal sealed interface NotOpenState {
         LOCK_RESET, SKIP,
     }
 
-    val word: String
+    val word: UiText
     val glyph: Glyph
 
     data object Locked : NotOpenState {
-        override val word = "Locked"
+        override val word = uiText(R.string.databases_not_open_locked)
         override val glyph = Glyph.LOCK
     }
 
     data object Opening : NotOpenState {
-        override val word = "Opening…"
+        override val word = uiText(R.string.databases_not_open_opening)
         override val glyph = Glyph.SPINNER
     }
 
     /** [why] its stored password went; null: nothing was stored yet. */
     data class FingerprintToSetUp(val why: SetUpAgain?) : NotOpenState {
-        override val word = "Fingerprint to set up"
+        override val word = uiText(R.string.databases_not_open_fingerprint)
         override val glyph = Glyph.FINGERPRINT
     }
 
     /** Its file cannot be reached: not found, no access any more, or its folder not chosen yet ([reach]). */
     data class NotFound(val reach: Reach = Reach.NOT_FOUND) : NotOpenState {
         override val word = when (reach) {
-            Reach.NO_ACCESS -> "No access"
-            Reach.NEEDS_FOLDER -> "Needs its folder"
-            else -> "Not found"
+            Reach.NO_ACCESS -> uiText(R.string.databases_reach_no_access_title)
+            Reach.NEEDS_FOLDER -> uiText(R.string.databases_reach_needs_folder_title)
+            else -> uiText(R.string.databases_reach_not_found_title)
         }
         override val glyph = when (reach) {
             Reach.NO_ACCESS -> Glyph.FOLDER_OFF
@@ -54,29 +58,29 @@ internal sealed interface NotOpenState {
     }
 
     /** Its key file [name] is not there, or cannot be used ([unusable]: why). */
-    data class NeedsKeyFile(val name: String, val unusable: String?) : NotOpenState {
-        override val word = "Needs its key file"
+    data class NeedsKeyFile(val name: String, val unusable: UiText?) : NotOpenState {
+        override val word = uiText(R.string.databases_not_open_needs_key_file)
         override val glyph = Glyph.KEY_OFF
     }
 
     data class CannotBeRead(val failure: OpenFailure) : NotOpenState {
-        override val word = "Cannot be read"
+        override val word = uiText(R.string.databases_not_open_cannot_be_read)
         override val glyph = Glyph.WARNING
     }
 
     data object WrongPassword : NotOpenState {
-        override val word = "Wrong password"
+        override val word = uiText(R.string.databases_not_open_wrong_password)
         override val glyph = Glyph.LOCK_WARNING
     }
 
     data object PasswordChanged : NotOpenState {
-        override val word = "Password changed"
+        override val word = uiText(R.string.databases_not_open_password_changed)
         override val glyph = Glyph.LOCK_RESET
     }
 
     /** Skipped in the chooser's run (plan AD13). */
     data object Skipped : NotOpenState {
-        override val word = "Skipped"
+        override val word = uiText(R.string.databases_not_open_skipped)
         override val glyph = Glyph.SKIP
     }
 }
@@ -89,32 +93,36 @@ internal data class NotOpenDatabase(val line: DatabaseLine, val state: NotOpenSt
     val id: DatabaseId get() = line.id
 
     /** Its whole say: the chip's long press, its row in ⋮ › Databases (the Mac's help tag, "tap" for "⏎"). */
-    val say: String
+    val say: UiText
         get() = when (val state = state) {
-            NotOpenState.Locked -> "Locked · tap to type its password"
-            NotOpenState.Opening -> "Opening…"
+            NotOpenState.Locked -> uiText(R.string.databases_not_open_locked_say)
+            NotOpenState.Opening -> uiText(R.string.databases_not_open_opening)
             is NotOpenState.FingerprintToSetUp -> when (state.why) {
-                SetUpAgain.FINGERPRINTS_CHANGED -> "Fingerprint to set up again: the fingerprints changed"
-                SetUpAgain.PASSWORD_REJECTED -> "Fingerprint to set up again: the stored password was not accepted"
-                null -> "Fingerprint to set up: type its password once"
+                SetUpAgain.FINGERPRINTS_CHANGED -> uiText(R.string.databases_not_open_fingerprints_changed_say)
+                SetUpAgain.PASSWORD_REJECTED -> uiText(R.string.databases_not_open_password_rejected_say)
+                null -> uiText(R.string.databases_not_open_fingerprint_say)
             }
             is NotOpenState.NotFound -> when (state.reach) {
-                Reach.NO_ACCESS -> "No access to ${line.folder} any more: locate ${line.fileName} to choose its folder again"
-                Reach.NEEDS_FOLDER -> "Needs its folder: choose ${line.folder} once"
-                else -> "Not found at ${line.folder}/${line.fileName}"
+                Reach.NO_ACCESS -> uiText(R.string.databases_not_open_no_access_say, line.folder, line.fileName)
+                Reach.NEEDS_FOLDER -> uiText(R.string.databases_not_open_needs_folder_say, line.folder)
+                else -> uiText(R.string.databases_not_open_not_found_say, "${line.folder}/${line.fileName}")
             }
             is NotOpenState.NeedsKeyFile ->
-                state.unusable?.let { "Its key file ${state.name} cannot be used: $it" } ?: "Needs its key file: ${state.name} is not there"
-            is NotOpenState.CannotBeRead -> "Cannot be read: " + when (val failure = state.failure) {
-                is OpenFailure.Damaged -> "damaged or not completely synced yet (${failure.detail})"
-                is OpenFailure.Unsupported -> failure.named()
-                OpenFailure.AccessDenied -> "Keething may not read the file any more: locate it"
-                OpenFailure.OutOfMemory -> "not enough memory to open it"
-                else -> "it did not open"
-            }
-            NotOpenState.WrongPassword -> "Wrong password · tap to type it again"
-            NotOpenState.PasswordChanged -> "Its password was changed elsewhere · tap to type the new one"
-            NotOpenState.Skipped -> "Skipped · tap to type its password"
+                state.unusable?.let { uiText(R.string.databases_not_open_key_file_unusable_say, state.name, it) }
+                    ?: uiText(R.string.databases_not_open_key_file_not_there_say, state.name)
+            is NotOpenState.CannotBeRead -> uiText(
+                R.string.databases_not_open_cannot_be_read_say,
+                when (val failure = state.failure) {
+                    is OpenFailure.Damaged -> uiText(R.string.databases_not_open_damaged, failure.detail)
+                    is OpenFailure.Unsupported -> failure.named()
+                    OpenFailure.AccessDenied -> uiText(R.string.databases_not_open_access_denied)
+                    OpenFailure.OutOfMemory -> uiText(R.string.databases_not_open_out_of_memory)
+                    else -> uiText(R.string.databases_not_open_did_not_open)
+                },
+            )
+            NotOpenState.WrongPassword -> uiText(R.string.databases_not_open_wrong_password_say)
+            NotOpenState.PasswordChanged -> uiText(R.string.databases_not_open_password_changed_say)
+            NotOpenState.Skipped -> uiText(R.string.databases_not_open_skipped_say)
         }
 }
 
@@ -139,12 +147,12 @@ internal object NotOpenDatabases {
         if (session is SessionState.Unlocking) return NotOpenState.Opening
         if (line.isMissing) return NotOpenState.NotFound(line.reach)
         line.keyFile?.takeIf { it.isMissing }?.let { key ->
-            return NotOpenState.NeedsKeyFile(key.name, "Keething may not read it any more: choose it again".takeIf { key.reach != Reach.NOT_FOUND })
+            return NotOpenState.NeedsKeyFile(key.name, uiText(R.string.databases_not_open_key_file_no_access).takeIf { key.reach != Reach.NOT_FOUND })
         }
         val reason = (session as? SessionState.Locked)?.reason
         val failure = (reason as? LockReason.UnlockFailed)?.failure
         when (failure) {
-            is OpenFailure.KeyFileUnusable -> return NotOpenState.NeedsKeyFile(line.keyFile?.name.orEmpty(), failure.why)
+            is OpenFailure.KeyFileUnusable -> return NotOpenState.NeedsKeyFile(line.keyFile?.name.orEmpty(), uiPlain(failure.why))
             is OpenFailure.Unsupported, is OpenFailure.Damaged, OpenFailure.AccessDenied, OpenFailure.OutOfMemory ->
                 return NotOpenState.CannotBeRead(failure)
             else -> {}
@@ -173,7 +181,7 @@ internal object NotOpenDatabases {
      * What a database not open is read aloud as besides its state (AC2): "Not searched" while a search is typed. The
      * line has no title (the owner, 2026-11-07): it holds the read-only ones too, which are searched.
      */
-    fun readAloud(typing: Boolean): String? = if (typing) "Not searched" else null
+    fun readAloud(typing: Boolean): UiText? = if (typing) uiText(R.string.databases_not_open_not_searched) else null
 }
 
 /** ⋮ › Databases (the agreed mock-up; the Mac's Databases ▸): the open ones, those not open, and Recent. */

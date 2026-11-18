@@ -1,6 +1,7 @@
 package dev.keething.android.about
 
 import android.content.res.AssetManager
+import androidx.annotation.StringRes
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,12 +33,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 
-/** A part of the app under its own licence, its text the asset `licenses/<file>`. */
-internal data class ThirdParty(val name: String, val credit: String, val licence: String, val file: String)
+/**
+ * A part of the app under its own licence, its text the asset `licenses/<file>`. Its [name] and the licences' names are
+ * theirs, said as they are; [credit] is the app's sentence about it.
+ */
+internal data class ThirdParty(val name: String, @StringRes val credit: Int, val licence: UiText, val file: String) {
+    constructor(name: String, @StringRes credit: Int, licence: String, file: String) : this(name, credit, uiPlain(licence), file)
+}
 
 /**
  * The third-party parts in the app (SPEC §6.2 "About"), in the order About lists them; every file of
@@ -45,28 +57,28 @@ internal data class ThirdParty(val name: String, val credit: String, val licence
  */
 internal val THIRD_PARTY = listOf(
     ThirdParty(
-        "EFF Large Wordlist for Passphrases",
-        "The password generator's words, by the Electronic Frontier Foundation (eff.org/dice)",
-        "CC BY 3.0 US",
+        "EFF Large Wordlist for Passphrases", // not user text: names
+        R.string.about_credit_eff_wordlist,
+        "CC BY 3.0 US", // not user text: names
         "eff-wordlist-CC-BY-3.0.txt",
     ),
-    ThirdParty("BIP-39 word lists", "The recovery phrase check's words, by the BIP-39 authors", "MIT", "bip39-wordlists-MIT.txt"),
-    ThirdParty("Matrix SAS emoji", "The pictures for checking a request, by The Matrix.org Foundation", "Apache 2.0", "matrix-sas-emoji-Apache-2.0.txt"),
-    ThirdParty("Google Sans Code", "The typeface of passwords and codes, by The Google Sans Code Project Authors", "OFL 1.1", "google-sans-code-OFL.txt"),
-    ThirdParty("QR Code generator", "QR codes of a password and a Wi-Fi network, by Project Nayuki", "MIT", "qrcodegen-MIT.txt"),
-    ThirdParty("ZXing", "Reading the QR codes of sharing and of one-time codes, by the ZXing authors", "Apache 2.0", "zxing-Apache-2.0.txt"),
-    ThirdParty("AndroidSVG", "Drawing an SVG image to read its QR code, by Paul LeBeau, Cave Rock Software Ltd.", "Apache 2.0", "androidsvg-Apache-2.0.txt"),
+    ThirdParty("BIP-39 word lists", R.string.about_credit_bip39, "MIT", "bip39-wordlists-MIT.txt"), // not user text: names
+    ThirdParty("Matrix SAS emoji", R.string.about_credit_matrix_sas, "Apache 2.0", "matrix-sas-emoji-Apache-2.0.txt"), // not user text: names
+    ThirdParty("Google Sans Code", R.string.about_credit_google_sans_code, "OFL 1.1", "google-sans-code-OFL.txt"), // not user text: names
+    ThirdParty("QR Code generator", R.string.about_credit_qrcodegen, "MIT", "qrcodegen-MIT.txt"), // not user text: names
+    ThirdParty("ZXing", R.string.about_credit_zxing, "Apache 2.0", "zxing-Apache-2.0.txt"), // not user text: names
+    ThirdParty("AndroidSVG", R.string.about_credit_androidsvg, "Apache 2.0", "androidsvg-Apache-2.0.txt"), // not user text: names
     ThirdParty(
-        "Argon2",
-        "The key derivation that opens a database, by Daniel Dinu, Dmitry Khovratovich, Jean-Philippe Aumasson and Samuel Neves",
-        "CC0 1.0 or Apache 2.0",
-        "argon2-CC0-Apache-2.0.txt",
+        "Argon2", // not user text: names
+        R.string.about_credit_argon2,
+        uiText(R.string.about_licence_either, "CC0 1.0", "Apache 2.0"), // not user text: names
+        "argon2-CC0-Apache-2.0.txt", // not user text: an asset
     ),
     ThirdParty(
-        "AndroidX, Kotlin, kotlinx.coroutines",
-        "Compose, CameraX and the other Jetpack libraries, by The Android Open Source Project and JetBrains",
-        "Apache 2.0",
-        "androidx-kotlin-Apache-2.0.txt",
+        "AndroidX, Kotlin, kotlinx.coroutines", // not user text: names
+        R.string.about_credit_androidx,
+        "Apache 2.0", // not user text: names
+        "androidx-kotlin-Apache-2.0.txt", // not user text: an asset
     ),
 )
 
@@ -78,21 +90,22 @@ internal const val LICENCE_ASSET = "LICENSE.txt"
 internal const val SECURITY_ASSET = "SECURITY.md"
 internal const val SOURCE = "https://github.com/cotton-more/keething-android"
 
-internal fun readAsset(assets: AssetManager, path: String): String =
-    runCatching { assets.open(path).use { it.readBytes().decodeToString() } }.getOrDefault("The text could not be read.")
+/** The asset's text; null when it could not be read. */
+internal fun readAsset(assets: AssetManager, path: String): String? =
+    runCatching { assets.open(path).use { it.readBytes().decodeToString() } }.getOrNull()
 
 /** Third-party licences: each part with its credit and licence; a tap shows the licence's text. */
 @Composable
 internal fun ThirdPartyScreen(onOpen: (ThirdParty) -> Unit, onClose: () -> Unit) {
     BackHandler(onBack = onClose)
-    Page("Third-party licences", onClose) {
+    Page(stringResource(R.string.about_third_party_title), onClose) {
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row)) {
             THIRD_PARTY.forEachIndexed { index, part ->
                 if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 20.dp))
                 Column(Modifier.fillMaxWidth().clickable { onOpen(part) }.padding(horizontal = 20.dp, vertical = 14.dp)) {
                     Text(part.name, style = MaterialTheme.typography.bodyLarge)
-                    Text(part.credit, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(part.licence, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(part.credit), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(part.licence.resolve(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -104,7 +117,7 @@ internal fun ThirdPartyScreen(onOpen: (ThirdParty) -> Unit, onClose: () -> Unit)
 internal fun LicenceTextScreen(title: String, asset: String, onClose: () -> Unit) {
     BackHandler(onBack = onClose)
     val assets = LocalContext.current.assets
-    val text = remember(asset) { readAsset(assets, asset) }
+    val text = remember(asset) { readAsset(assets, asset) } ?: stringResource(R.string.about_text_unreadable)
     Page(title, onClose) {
         SelectionContainer {
             Text(text, style = MaterialTheme.typography.bodySmall, fontFamily = MonospaceFamily)
@@ -125,7 +138,7 @@ private fun Page(title: String, onClose: () -> Unit, content: @Composable () -> 
             .padding(horizontal = 16.dp),
     ) {
         Row(Modifier.height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
+            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.about_back)) }
             Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
         }
         Column(Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = 720.dp).padding(horizontal = 8.dp, vertical = 8.dp)) {

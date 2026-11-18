@@ -1,6 +1,13 @@
 package dev.keething.android.history
 
 import dev.keething.android.session.file
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import android.content.Context
 import android.text.format.Formatter
 import androidx.compose.foundation.background
@@ -94,14 +101,14 @@ internal sealed interface HistoryState {
     /** Newest first; [title] is the entry's title as the file has it now. */
     data class Loaded(val title: String, val versions: List<HistoryVersion>) : HistoryState
 
-    data class Failed(val problem: String) : HistoryState
+    data class Failed(val problem: UiText) : HistoryState
 }
 
 /** Whether the versions can be restored (keething-spec edit.history-restore AC1), and why not. */
 internal enum class Restorable { YES, IN_RECYCLE_BIN, READ_ONLY }
 
 /** The restore asked about: the [version], what it changes from the current one, and what the history then loses. */
-internal class RestoreQuestion(val version: HistoryVersion, val changes: List<VersionChange>, val trimmed: String?)
+internal class RestoreQuestion(val version: HistoryVersion, val changes: List<VersionChange>, val trimmed: UiText?)
 
 /**
  * An entry's earlier versions (SPEC §6.2; Mac SPEC §3.22): the file is read again with the key in memory, keeping this
@@ -137,7 +144,7 @@ internal class EntryHistoryViewModel(
         private set
 
     /** Why the last restore did nothing. */
-    var problem: String? by mutableStateOf(null)
+    var problem: UiText? by mutableStateOf(null)
         private set
 
     private var read: EntryVersions? = null
@@ -163,8 +170,8 @@ internal class EntryHistoryViewModel(
                 }
                 is HistoryResult.Failed -> HistoryState.Failed(
                     when (val failure = result.failure) {
-                        null -> "This entry is no longer in the file."
-                        OpenFailure.WrongPassword -> "The database's password was changed since the unlock."
+                        null -> uiText(R.string.history_entry_gone)
+                        OpenFailure.WrongPassword -> uiText(R.string.history_password_changed)
                         else -> failure.describe(database.file.path)
                     },
                 )
@@ -181,7 +188,7 @@ internal class EntryHistoryViewModel(
         val versions = read ?: return
         if (restorable != Restorable.YES || version.isCurrent || restoring != null) return
         problem = null
-        revealed.removeAll { it.startsWith("ask/") }
+        revealed.removeAll { it.startsWith("ask/") } // not user text
         val changes = EntryVersionDiff.changes(versions.current, version.entry, ::dayText, sizeText)
         question = RestoreQuestion(version, changes, trimmedText(versions, version.id))
     }
@@ -191,7 +198,7 @@ internal class EntryHistoryViewModel(
     }
 
     /** Restores the version asked about; [done] gets what to say once it is saved. */
-    fun confirm(done: (String) -> Unit) {
+    fun confirm(done: (UiText) -> Unit) {
         val asked = question ?: return
         val versions = read ?: return
         question = null
@@ -208,7 +215,7 @@ internal class EntryHistoryViewModel(
             val outcome = pending.await()
             restoring = null
             when (val failure = outcome.problem(database.file)) {
-                null -> done("Back to the version of ${whenText(version.entry.lastModified)}")
+                null -> done(uiText(R.string.history_restored, whenText(version.entry.lastModified)))
                 else -> {
                     problem = failure
                     // Changed elsewhere or not, the versions shown are read again.
@@ -229,17 +236,22 @@ internal class EntryHistoryViewModel(
  * [date]; the version restored ([index]) itself among them leaves the history as it becomes the current one. Null when
  * nothing goes.
  */
-internal fun trimmedText(versions: EntryVersions, index: Int, date: (Instant?) -> String = ::whenText): String? {
+internal fun trimmedText(versions: EntryVersions, index: Int, date: (Instant?) -> UiText = ::whenText): UiText? {
     val max = versions.maxItems
     val gone = versions.history.size + 1 - max
     if (max < 0 || gone <= 0) return null
-    val kept = if (max == 1) "1 earlier version" else "$max earlier versions"
+    val kept = uiPlural(R.plurals.history_trimmed_kept, max)
     val leaves = index < gone
     return when {
-        gone == 1 && leaves -> "This database keeps $kept: this one leaves the history as it becomes the current one."
-        gone == 1 -> "This database keeps $kept, so the oldest, from ${date(versions.history[0].lastModified)}, goes."
-        else -> "This database keeps $kept, so the $gone oldest go, the newest of them from " +
-            "${date(versions.history[gone - 1].lastModified)}." + if (leaves) " This one becomes the current one." else ""
+        gone == 1 && leaves -> uiText(R.string.history_trimmed_this_one_leaves, kept)
+        gone == 1 -> uiText(R.string.history_trimmed_oldest_goes, kept, date(versions.history[0].lastModified))
+        else -> uiPlural(
+            if (leaves) R.plurals.history_trimmed_oldest_go_this_one_leaves else R.plurals.history_trimmed_oldest_go,
+            gone,
+            kept,
+            gone,
+            date(versions.history[gone - 1].lastModified),
+        )
     }
 }
 
@@ -248,10 +260,11 @@ private val WHEN: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(Form
 
 private fun dayText(instant: Instant): String = DAY.format(instant.atZone(ZoneId.systemDefault()))
 
-private fun whenText(instant: Instant?): String = instant?.let { WHEN.format(it.atZone(ZoneId.systemDefault())) } ?: "a date not known"
+private fun whenText(instant: Instant?): UiText =
+    instant?.let { uiPlain(WHEN.format(it.atZone(ZoneId.systemDefault()))) } ?: uiText(R.string.history_date_not_known_in_sentence)
 
 private fun sizeText(context: Context, bytes: Int?): String =
-    bytes?.let { Formatter.formatShortFileSize(context, it.toLong()) } ?: "size unknown"
+    bytes?.let { Formatter.formatShortFileSize(context, it.toLong()) } ?: context.getString(R.string.history_size_unknown)
 
 /**
  * The versions newest first, the current one marked, each with what it changed from the one before: old values
@@ -260,7 +273,7 @@ private fun sizeText(context: Context, bytes: Int?): String =
  * version"), asked once with what it changes; [onRestored] gets what to say once it is saved.
  */
 @Composable
-internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBack: () -> Unit, onRestored: (String) -> Unit) {
+internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBack: () -> Unit, onRestored: (UiText) -> Unit) {
     val context = LocalContext.current.applicationContext
     val model = viewModel { EntryHistoryViewModel(database, entryId) { sizeText(context, it) } }
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
@@ -270,9 +283,9 @@ internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBa
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { BarTitle("History", (state as? HistoryState.Loaded)?.title) },
+                title = { BarTitle(stringResource(R.string.history_title), (state as? HistoryState.Loaded)?.title) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the entry") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.history_back)) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -295,8 +308,8 @@ internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBa
             if (loaded != null && loaded.versions.size > 1) {
                 when (model.restorable) {
                     Restorable.YES -> {}
-                    Restorable.IN_RECYCLE_BIN -> item(key = "why") { Info("In the recycle bin: restore the entry first to go back to one of its versions.") }
-                    Restorable.READ_ONLY -> item(key = "why") { Info("This database is read only on this phone: its versions are shown, not restored.") }
+                    Restorable.IN_RECYCLE_BIN -> item(key = "why") { Info(stringResource(R.string.history_in_recycle_bin)) }
+                    Restorable.READ_ONLY -> item(key = "why") { Info(stringResource(R.string.history_read_only)) }
                 }
             }
             model.problem?.let { problem -> item(key = "problem") { Problem(problem) } }
@@ -304,17 +317,17 @@ internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBa
                 HistoryState.Loading -> item(key = "loading") {
                     Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         LoadingIndicator()
-                        Text("Reading the file…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.history_reading), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                is HistoryState.Failed -> item(key = "failed") { Note(state.problem) }
+                is HistoryState.Failed -> item(key = "failed") { Note(state.problem.resolve()) }
                 is HistoryState.Loaded -> {
-                    if (state.versions.size == 1) item(key = "none") { Note("No earlier versions are kept for this entry.") }
+                    if (state.versions.size == 1) item(key = "none") { Note(stringResource(R.string.history_none)) }
                     items(state.versions, key = { it.id }) { version ->
                         VersionCard(
                             version,
-                            isRevealed = { "${version.id}/$it" in model.revealed },
-                            onToggle = { model.toggle("${version.id}/$it") },
+                            isRevealed = { "${version.id}/$it" in model.revealed }, // not user text
+                            onToggle = { model.toggle("${version.id}/$it") }, // not user text
                             restore = when {
                                 model.restorable != Restorable.YES || version.isCurrent -> null
                                 model.restoring == version.id -> RestoreButton.WORKING
@@ -331,9 +344,9 @@ internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBa
     model.question?.let { question ->
         RestoreDialog(
             question,
-            title = (state as? HistoryState.Loaded)?.title ?: "The entry",
-            isRevealed = { "ask/$it" in model.revealed },
-            onToggle = { model.toggle("ask/$it") },
+            title = (state as? HistoryState.Loaded)?.title ?: stringResource(R.string.history_the_entry),
+            isRevealed = { "ask/$it" in model.revealed }, // not user text
+            onToggle = { model.toggle("ask/$it") }, // not user text
             onConfirm = { model.confirm(onRestored) },
             onDismiss = model::cancel,
         )
@@ -354,13 +367,10 @@ private fun RestoreDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Go back to this version?") },
+        title = { Text(stringResource(R.string.history_restore_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    "$title becomes as it was on ${whenText(question.version.entry.lastModified)}, with everything changed since undone. " +
-                        "The current version goes into the history, so you can come back to it the same way.",
-                )
+                Text(stringResource(R.string.history_restore_text, title, whenText(question.version.entry.lastModified).resolve()))
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -370,25 +380,25 @@ private fun RestoreDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        "What changes",
+                        stringResource(R.string.history_restore_what_changes),
                         Modifier.semantics { heading() },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     if (question.changes.isEmpty()) {
                         Text(
-                            "Nothing shown here (an icon, a colour or auto-type, for example).",
+                            stringResource(R.string.history_restore_nothing_shown),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     question.changes.forEach { change -> ChangeRow(change, isRevealed(change.field)) { onToggle(change.field) } }
                 }
-                question.trimmed?.let { Text(it) }
+                question.trimmed?.let { Text(it.resolve()) }
             }
         },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Go back") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.history_restore_confirm)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.history_cancel)) } },
     )
 }
 
@@ -404,7 +414,7 @@ private fun Info(text: String) {
 }
 
 @Composable
-private fun Problem(text: String) {
+private fun Problem(text: UiText) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -415,7 +425,7 @@ private fun Problem(text: String) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(Icons.Rounded.ErrorOutline, contentDescription = null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
-        Text("Not restored: $text", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+        Text(stringResource(R.string.history_not_restored, text.resolve()), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
     }
 }
 
@@ -447,7 +457,7 @@ private fun VersionCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                version.entry.lastModified?.let { WHEN.format(it.atZone(ZoneId.systemDefault())) } ?: "Date not known",
+                version.entry.lastModified?.let { WHEN.format(it.atZone(ZoneId.systemDefault())) } ?: stringResource(R.string.history_date_not_known),
                 Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
@@ -455,7 +465,7 @@ private fun VersionCard(
             if (version.isCurrent) {
                 Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                     Text(
-                        "Current",
+                        stringResource(R.string.history_current),
                         Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -466,12 +476,12 @@ private fun VersionCard(
         val changes = version.changes
         when {
             changes == null -> Text(
-                "The oldest version kept: nothing to compare it with.",
+                stringResource(R.string.history_oldest),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             changes.isEmpty() -> Text(
-                "Saved without a change that is shown here (an icon, a colour or auto-type, for example).",
+                stringResource(R.string.history_no_change_shown),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -479,11 +489,12 @@ private fun VersionCard(
         }
         if (restore != null) {
             val date = version.entry.lastModified?.let { WHEN.format(it.atZone(ZoneId.systemDefault())) }
+            val restoreLabel = date?.let { stringResource(R.string.history_restore_version_of, it) }
             FilledTonalButton(
                 onClick = onRestore,
                 enabled = restore == RestoreButton.READY,
                 modifier = Modifier.align(Alignment.End).semantics {
-                    if (date != null && restore != RestoreButton.WORKING) contentDescription = "Go back to the version of $date"
+                    if (restoreLabel != null && restore != RestoreButton.WORKING) contentDescription = restoreLabel
                 },
                 contentPadding = PaddingValues(start = 12.dp, end = 16.dp),
             ) {
@@ -492,7 +503,7 @@ private fun VersionCard(
                 } else {
                     Icon(Icons.Rounded.History, contentDescription = null, Modifier.size(18.dp))
                 }
-                Text(if (restore == RestoreButton.WORKING) "Going back…" else "Go back to this version…", Modifier.padding(start = 8.dp))
+                Text(stringResource(if (restore == RestoreButton.WORKING) R.string.history_restoring else R.string.history_restore), Modifier.padding(start = 8.dp))
             }
         }
     }
@@ -504,7 +515,7 @@ private fun ChangeRow(change: VersionChange, revealed: Boolean, onToggle: () -> 
     Row(verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                "${change.field} · ${change.kindText()}",
+                stringResource(change.kindText(), change.field),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -515,7 +526,7 @@ private fun ChangeRow(change: VersionChange, revealed: Boolean, onToggle: () -> 
             IconButton(onClick = onToggle) {
                 Icon(
                     if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                    contentDescription = if (revealed) "Hide ${change.field}" else "Show ${change.field}",
+                    contentDescription = stringResource(if (revealed) R.string.history_hide else R.string.history_show, change.field),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -528,7 +539,7 @@ private fun ValueText(value: String, secret: Boolean, masked: Boolean, struck: B
     Text(
         when {
             masked -> "••••••"
-            value.isEmpty() -> "(empty)"
+            value.isEmpty() -> stringResource(R.string.history_empty)
             else -> value
         },
         if (masked) Modifier.spokenMasked("••••••") else Modifier,
@@ -543,8 +554,9 @@ private fun ValueText(value: String, secret: Boolean, masked: Boolean, struck: B
     )
 }
 
-private fun VersionChange.kindText(): String = when (kind) {
-    VersionChange.Kind.ADDED -> "added"
-    VersionChange.Kind.REMOVED -> "removed"
-    VersionChange.Kind.CHANGED -> "changed"
+/** The change's line: its field and what happened to it. */
+private fun VersionChange.kindText(): Int = when (kind) {
+    VersionChange.Kind.ADDED -> R.string.history_change_added
+    VersionChange.Kind.REMOVED -> R.string.history_change_removed
+    VersionChange.Kind.CHANGED -> R.string.history_change_changed
 }

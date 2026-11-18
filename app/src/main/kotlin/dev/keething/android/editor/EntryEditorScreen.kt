@@ -1,5 +1,11 @@
 package dev.keething.android.editor
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
+import dev.keething.android.session.SizeTexts
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -11,6 +17,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
@@ -236,6 +243,7 @@ internal fun EntryEditorScreen(
     copySecret: (String) -> Unit,
 ) {
     // A new entry's editor is its own whichever database it started in: it may have moved to another (Save into).
+    // not user text
     val model = viewModel(key = if (entryId == null) "editor/new/$showing" else "editor/${database.number}/$entryId") { EntryEditorViewModel(database, entryId, groupId, prefill, places, note) }
     val editor = model.editor
     val context = LocalContext.current
@@ -258,33 +266,50 @@ internal fun EntryEditorScreen(
     when (val question = model.attachQuestion) {
         is AttachQuestion.Large -> AlertDialog(
             onDismissRequest = { model.answer(AttachAnswer.SKIP) },
-            title = { Text("Attach a large file?") },
-            text = { Text(question.text) },
-            confirmButton = { TextButton(onClick = { model.answer(AttachAnswer.ATTACH) }) { Text("Attach") } },
-            dismissButton = { TextButton(onClick = { model.answer(AttachAnswer.SKIP) }) { Text("Don't attach") } },
+            title = { Text(stringResource(R.string.editor_attach_large_title)) },
+            text = {
+                val name = question.name.ifBlank { stringResource(R.string.editor_attach_large_the_file) }
+                Text(SizeTexts.largeAttachment(name, question.size, question.question, question.fileName).resolve())
+            },
+            confirmButton = { TextButton(onClick = { model.answer(AttachAnswer.ATTACH) }) { Text(stringResource(R.string.editor_attach_large_attach)) } },
+            dismissButton = { TextButton(onClick = { model.answer(AttachAnswer.SKIP) }) { Text(stringResource(R.string.editor_attach_large_skip)) } },
         )
         // Back or a tap outside attaches nothing.
         is AttachQuestion.SameName -> AlertDialog(
             onDismissRequest = { model.answer(AttachAnswer.SKIP) },
-            title = { Text("“${question.name}” is attached already") },
+            title = { Text(stringResource(R.string.editor_attach_same_name_title, question.name)) },
             text = {
                 Text(
-                    "Replace it with the new file, or keep both, the new one as “${question.other}”?" +
-                        if (question.inHistory) " A replaced attachment stays in the entry's history." else "",
+                    stringResource(
+                        if (question.inHistory) R.string.editor_attach_same_name_text_history else R.string.editor_attach_same_name_text,
+                        question.other,
+                    ),
                 )
             },
-            confirmButton = { TextButton(onClick = { model.answer(AttachAnswer.REPLACE) }) { Text("Replace") } },
-            dismissButton = { TextButton(onClick = { model.answer(AttachAnswer.KEEP_BOTH) }) { Text("Keep both") } },
+            confirmButton = { TextButton(onClick = { model.answer(AttachAnswer.REPLACE) }) { Text(stringResource(R.string.editor_attach_same_name_replace)) } },
+            dismissButton = { TextButton(onClick = { model.answer(AttachAnswer.KEEP_BOTH) }) { Text(stringResource(R.string.editor_attach_same_name_keep_both)) } },
         )
         null -> {}
     }
     if (confirmingDiscard) {
         AlertDialog(
             onDismissRequest = { confirmingDiscard = false },
-            title = { Text("Discard the changes?") },
-            text = { Text(if (editor.isNew) "The new ${editor.noun} is not saved." else "What you changed in this ${editor.noun} is not saved.") },
-            confirmButton = { TextButton(onClick = { confirmingDiscard = false; onClose() }) { Text("Discard") } },
-            dismissButton = { TextButton(onClick = { confirmingDiscard = false }) { Text("Keep editing") } },
+            title = { Text(stringResource(R.string.editor_discard_title)) },
+            text = {
+                val isNote = editor.layout == EditorLayout.NOTE
+                Text(
+                    stringResource(
+                        when {
+                            editor.isNew && isNote -> R.string.editor_discard_text_new_note
+                            editor.isNew -> R.string.editor_discard_text_new_entry
+                            isNote -> R.string.editor_discard_text_changed_note
+                            else -> R.string.editor_discard_text_changed_entry
+                        },
+                    ),
+                )
+            },
+            confirmButton = { TextButton(onClick = { confirmingDiscard = false; onClose() }) { Text(stringResource(R.string.editor_discard)) } },
+            dismissButton = { TextButton(onClick = { confirmingDiscard = false }) { Text(stringResource(R.string.editor_keep_editing)) } },
         )
     }
 
@@ -303,15 +328,28 @@ internal fun EntryEditorScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             topBar = {
                 TopAppBar(
-                    title = { Text(if (note?.quick == true) "Quick note" else if (editor.isNew) "New ${editor.noun}" else "Edit ${editor.noun}") },
+                    title = {
+                        val isNote = editor.layout == EditorLayout.NOTE
+                        Text(
+                            stringResource(
+                                when {
+                                    note?.quick == true -> R.string.editor_title_quick_note
+                                    editor.isNew && isNote -> R.string.editor_title_new_note
+                                    editor.isNew -> R.string.editor_title_new_entry
+                                    isNote -> R.string.editor_title_edit_note
+                                    else -> R.string.editor_title_edit_entry
+                                },
+                            ),
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = close) {
-                            Icon(Icons.Rounded.Close, contentDescription = if (editor.isDirty(draft)) "Discard changes" else "Close")
+                            Icon(Icons.Rounded.Close, contentDescription = stringResource(if (editor.isDirty(draft)) R.string.editor_discard_changes else R.string.editor_close))
                         }
                     },
                     actions = {
                         Button(onClick = save, enabled = editor.canSave(draft) && phase == SavePhase.Editing && !model.readingFiles, modifier = Modifier.padding(end = 8.dp)) {
-                            Text("Save")
+                            Text(stringResource(R.string.editor_save))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -336,11 +374,11 @@ internal fun EntryEditorScreen(
                     banner?.invoke()
                     val into = model.chosen?.takeIf { model.offered.isNotEmpty() }
                     val saveInto: (@Composable () -> Unit)? = into?.let {
-                        { SaveInto(it, model.offered, model.notOpen, enabled = phase == SavePhase.Editing, onChoose = model::saveInto) }
+                        { SaveInto(it, model.offered, model.notOpen?.resolve(), enabled = phase == SavePhase.Editing, onChoose = model::saveInto) }
                     }
                     CompositionLocalProvider(LocalSecretCopy provides copySecret) {
                         EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto, model.groups, model::choose) {
-                            AttachmentsSection(editor, draft, model::update, model.readingFiles, model.attachmentProblem) { uris -> model.addFiles(uris, newAttachments) }
+                            AttachmentsSection(editor, draft, model::update, model.readingFiles, model.attachmentProblem?.resolve()) { uris -> model.addFiles(uris, newAttachments) }
                         }
                     }
                 }
@@ -355,7 +393,7 @@ private fun EditorForm(
     editor: EntryEditor,
     draft: EntryDraft,
     update: (EntryDraft) -> Unit,
-    addCodes: (text: String, prefix: String) -> String?,
+    addCodes: (text: String, prefix: String) -> UiText?,
     generator: () -> PasswordGeneratorState,
     knownTags: List<String>,
     /** A new entry's database over its group, the two as one block (while two or more are open). */
@@ -371,12 +409,12 @@ private fun EditorForm(
     }
     val note = editor.layout == EditorLayout.NOTE
     EditorField(
-        "Title", draft.title, { update(draft.copy(title = it)) }, highlighted = !note, capitalization = KeyboardCapitalization.Sentences,
+        stringResource(R.string.editor_field_title), draft.title, { update(draft.copy(title = it)) }, highlighted = !note, capitalization = KeyboardCapitalization.Sentences,
         placeholder = editor.titlePlaceholder(draft).takeIf { note },
     )
     if (note) NoteTextBlock(editor, draft, update)
     // A note shows a username, a password and fields only when another app gave it them (keething-spec types.note AC3).
-    if (editor.showsUsername) EditorField("Username", draft.username, { update(draft.copy(username = it)) }, keyboardType = KeyboardType.Email)
+    if (editor.showsUsername) EditorField(stringResource(R.string.editor_field_username), draft.username, { update(draft.copy(username = it)) }, keyboardType = KeyboardType.Email)
     var passwordShown by remember { mutableStateOf(false) }
     var generating by rememberSaveable { mutableStateOf(false) }
     if (editor.showsPassword) {
@@ -400,19 +438,19 @@ private fun EditorForm(
             onDismiss = { generating = false },
         )
     }
-    if (editor.showsWebsite(draft)) EditorField("Website", draft.url, { update(draft.copy(url = it)) }, keyboardType = KeyboardType.Uri)
+    if (editor.showsWebsite(draft)) EditorField(stringResource(R.string.editor_field_website), draft.url, { update(draft.copy(url = it)) }, keyboardType = KeyboardType.Uri)
     OwnCodeRow(editor, draft, update)
     if (!note) {
         // An ordinary entry's protected Notes: their text menu and copies as a secret's.
         EditorField(
-            "Notes", draft.notes, { update(draft.copy(notes = it)) }, singleLine = false, capitalization = KeyboardCapitalization.Sentences,
+            stringResource(R.string.editor_field_notes), draft.notes, { update(draft.copy(notes = it)) }, singleLine = false, capitalization = KeyboardCapitalization.Sentences,
             secret = draft.notesProtected,
         )
     }
     TagsField(draft, update, knownTags)
     if (!editor.showsWebsite(draft)) {
         FilledTonalButton(onClick = { update(draft.copy(websiteAdded = true)) }) {
-            ButtonLabel("Website", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
+            ButtonLabel(stringResource(R.string.editor_add_website), Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
         }
     }
     ExpiryRow(draft, update)
@@ -432,7 +470,7 @@ private fun EditorForm(
         ) {
             Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
             Text(
-                "Save is off. " + problems.joinToString(" "),
+                stringResource(R.string.editor_save_is_off, problems.joinToString(" ")),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
@@ -457,10 +495,10 @@ private fun CustomFieldsSection(
     editor: EntryEditor,
     draft: EntryDraft,
     update: (EntryDraft) -> Unit,
-    addCodes: (text: String, prefix: String) -> String?,
+    addCodes: (text: String, prefix: String) -> UiText?,
     generator: () -> PasswordGeneratorState,
 ) {
-    SectionTitle("Fields")
+    SectionTitle(stringResource(R.string.editor_section_fields))
     // A field just added: its value takes the focus and the form scrolls to it.
     var focusing by remember { mutableStateOf<Int?>(null) }
     CustomFields(editor, draft, update, generator, focusing, onFocused = { focusing = null })
@@ -513,7 +551,7 @@ private fun AttachmentsSection(
     problem: String?,
     onFiles: (List<Uri>) -> Unit,
 ) {
-    SectionTitle("Attachments")
+    SectionTitle(stringResource(R.string.editor_section_attachments))
     val context = LocalContext.current
     for (attachment in draft.attachments) {
         val wrong = editor.attachmentProblem(draft, attachment)
@@ -530,15 +568,15 @@ private fun AttachmentsSection(
                     Text(attachment.name, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            attachment.size?.let { Formatter.formatShortFileSize(context, it.toLong()) } ?: "No content",
+                            attachment.size?.let { Formatter.formatShortFileSize(context, it.toLong()) } ?: stringResource(R.string.editor_attachment_no_content),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        if (attachment.isNew) NewBadge(if (editor.replaces(attachment)) "REPLACED" else "NEW")
+                        if (attachment.isNew) NewBadge(stringResource(if (editor.replaces(attachment)) R.string.editor_badge_replaced else R.string.editor_badge_new))
                     }
                 }
                 IconButton(onClick = { update(draft.removeAttachment(attachment.id)) }) {
-                    Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove attachment ${attachment.name}".trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.editor_attachment_remove, attachment.name).trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (wrong != null) {
@@ -551,7 +589,7 @@ private fun AttachmentsSection(
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments(), onFiles)
     FilledTonalButton(onClick = { pick.launch(arrayOf("*/*")) }, enabled = !reading) {
-        ButtonLabel(if (reading) "Reading the files…" else "Add files", Icons.Rounded.AttachFile, iconSize = 18.dp, gap = 8.dp)
+        ButtonLabel(stringResource(if (reading) R.string.editor_attachment_reading else R.string.editor_attachment_add), Icons.Rounded.AttachFile, iconSize = 18.dp, gap = 8.dp)
     }
     if (problem != null) {
         Row(Modifier.padding(start = 8.dp, end = 8.dp).semantics { liveRegion = LiveRegionMode.Polite }, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -627,9 +665,6 @@ private val KeyEvent.isCut: Boolean
 /** Where the editor's secret fields copy and cut to: the app's clipboard (null: none given, as in a preview). */
 private val LocalSecretCopy = staticCompositionLocalOf<((String) -> Unit)?> { null }
 
-/** "note" or "entry", as the editor's title and its discard question say it. */
-private val EntryEditor.noun: String get() = if (layout == EditorLayout.NOTE) "note" else "entry"
-
 /**
  * A note's text and its Protect text under it, one block (the agreed mock-up; SPEC §6.4): the text shown as typed (the
  * window is never captured), larger than a field's; protected, a secret's text menu and copies. A new note opens on it
@@ -648,11 +683,11 @@ private fun NoteTextBlock(editor: EntryEditor, draft: EntryDraft, update: (Entry
                 modifier = Modifier.keepOutOfAutofill().fillMaxWidth().focusRequester(focus),
                 label = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Text", color = MaterialTheme.colorScheme.primary)
-                        if (draft.notesProtected) Icon(Icons.Rounded.Lock, contentDescription = "protected", Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.editor_note_text), color = MaterialTheme.colorScheme.primary)
+                        if (draft.notesProtected) Icon(Icons.Rounded.Lock, contentDescription = stringResource(R.string.editor_note_text_protected), Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
                     }
                 },
-                placeholder = { Text("What to keep") },
+                placeholder = { Text(stringResource(R.string.editor_note_placeholder)) },
                 minLines = 8,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp, lineHeight = 27.sp),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = true),
@@ -673,8 +708,8 @@ private fun NoteTextBlock(editor: EntryEditor, draft: EntryDraft, update: (Entry
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Protect text", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                Text("Hidden on the card until shown, and not searched", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.editor_note_protect), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.editor_note_protect_detail), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked = draft.notesProtected, onCheckedChange = null)
         }
@@ -712,7 +747,7 @@ private fun editorFieldColors(container: Color) = TextFieldDefaults.colors(
 @Composable
 private fun PasswordField(password: String, onChange: (String) -> Unit, revealed: Boolean, onToggle: () -> Unit, onGenerate: () -> Unit) {
     EditorField(
-        "Password",
+        stringResource(R.string.editor_field_password),
         password,
         onChange,
         keyboardType = KeyboardType.Password,
@@ -722,9 +757,9 @@ private fun PasswordField(password: String, onChange: (String) -> Unit, revealed
         secret = true,
         trailingIcon = {
             Row {
-                RevealButton(revealed, "password", onToggle)
+                RevealButton(revealed, Revealed.PASSWORD, onToggle)
                 IconButton(onClick = onGenerate) {
-                    Icon(Icons.Rounded.AutoFixHigh, contentDescription = "Generate a password", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Rounded.AutoFixHigh, contentDescription = stringResource(R.string.editor_generate_password), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         },
@@ -732,14 +767,21 @@ private fun PasswordField(password: String, onChange: (String) -> Unit, revealed
 }
 
 @Composable
-private fun RevealButton(revealed: Boolean, what: String, onToggle: () -> Unit) {
+private fun RevealButton(revealed: Boolean, what: Revealed, onToggle: () -> Unit) {
     IconButton(onClick = onToggle) {
         Icon(
             if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-            contentDescription = if (revealed) "Hide $what" else "Show $what",
+            contentDescription = stringResource(if (revealed) what.hide else what.show),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+/** What an eye shows and hides, as its label says it. */
+private enum class Revealed(val show: Int, val hide: Int) {
+    PASSWORD(R.string.editor_show_password, R.string.editor_hide_password),
+    VALUE(R.string.editor_show_value, R.string.editor_hide_value),
+    SECRET(R.string.editor_show_secret, R.string.editor_hide_secret),
 }
 
 @Composable
@@ -766,13 +808,14 @@ private fun ExpiryRow(draft: EntryDraft, update: (EntryDraft) -> Unit) {
             .padding(start = 16.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Expires", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        val expires = stringResource(R.string.editor_expires)
+        Text(expires, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         if (draft.expires) {
             TextButton(onClick = { picking = true }) {
                 Text(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(zone).format(draft.expiryTime))
             }
         }
-        Switch(checked = draft.expires, onCheckedChange = { update(draft.copy(expires = it)) }, Modifier.semantics { contentDescription = "Expires" })
+        Switch(checked = draft.expires, onCheckedChange = { update(draft.copy(expires = it)) }, Modifier.semantics { contentDescription = expires })
     }
     if (picking) {
         val day = draft.expiryTime.atZone(zone).toLocalDate()
@@ -786,9 +829,9 @@ private fun ExpiryRow(draft: EntryDraft, update: (EntryDraft) -> Unit) {
                         update(draft.expiringOn(chosen, zone))
                     }
                     picking = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.editor_ok)) }
             },
-            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text(stringResource(R.string.editor_cancel)) } },
         ) { DatePicker(state) }
     }
 }
@@ -807,13 +850,13 @@ private fun SaveInto(chosen: NewEntryDatabase, offered: List<NewEntryDatabase>, 
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(enabled = enabled, onClickLabel = "Choose the database") { choosing = true }
+            .clickable(enabled = enabled, onClickLabel = stringResource(R.string.editor_save_into_choose)) { choosing = true }
             .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Save into", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.editor_save_into), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(colors.dot))
                 Text(
@@ -856,8 +899,8 @@ internal fun SaveIntoSheet(
     notOpen: String?,
     onChoose: (DatabaseId) -> Unit,
     onDismiss: () -> Unit,
-    title: String = "Save into",
-    subtitle: String = "The group, tags and username follow the database chosen.",
+    title: String = stringResource(R.string.editor_save_into),
+    subtitle: String = stringResource(R.string.editor_save_into_subtitle),
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -894,7 +937,7 @@ internal fun SaveIntoSheet(
                                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
-                        if (database.id == chosen) Icon(Icons.Rounded.Check, contentDescription = "Chosen", tint = MaterialTheme.colorScheme.primary)
+                        if (database.id == chosen) Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.editor_chosen), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -919,18 +962,18 @@ private fun GroupRow(tree: GroupTree, editor: EntryEditor, draft: EntryDraft, jo
             .fillMaxWidth()
             .clip(if (joined) RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 18.dp, bottomEnd = 18.dp) else RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(onClickLabel = "Choose the group") { picking = true }
+            .clickable(onClickLabel = stringResource(R.string.editor_group_choose)) { picking = true }
             .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Group", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text(stringResource(R.string.editor_group), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Rounded.Folder, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                 when {
-                    levels == null -> Text("No longer in the file: choose another", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
-                    levels.isEmpty() -> Text(GroupTexts.TOP_LEVEL, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    levels == null -> Text(stringResource(R.string.editor_group_gone), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+                    levels.isEmpty() -> Text(GroupTexts.TOP_LEVEL.resolve(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                     else -> FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                         // New levels in their own colour, one NEW after the last: one badge a level is too many on a long path.
                         levels.forEachIndexed { index, level ->
@@ -949,7 +992,7 @@ private fun GroupRow(tree: GroupTree, editor: EntryEditor, draft: EntryDraft, jo
             GroupTexts.note(tree, draft.group, editor.originalGroupId.takeIf { editor.isMoved(draft) })?.let {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -959,7 +1002,7 @@ private fun GroupRow(tree: GroupTree, editor: EntryEditor, draft: EntryDraft, jo
         GroupPickerSheet(
             tree = tree,
             chosen = draft.group,
-            made = "made when the entry is saved",
+            made = stringResource(R.string.editor_group_made),
             onChoose = {
                 picking = false
                 onChoose(it)
@@ -971,7 +1014,7 @@ private fun GroupRow(tree: GroupTree, editor: EntryEditor, draft: EntryDraft, jo
 
 /** A level made with the save; an attachment added ([text] NEW) or put in another's place (REPLACED). */
 @Composable
-private fun NewBadge(text: String = "NEW") {
+private fun NewBadge(text: String = stringResource(R.string.editor_badge_new)) {
     Text(
         text,
         Modifier
@@ -1039,7 +1082,7 @@ private fun CodeListRow(list: CodeList, open: Boolean, onToggle: () -> Unit) {
             .heightIn(min = 60.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.extraColors.row)
-            .clickable(onClickLabel = if (open) "Fold the codes" else "Show the codes", onClick = onToggle)
+            .clickable(onClickLabel = stringResource(if (open) R.string.editor_code_list_fold else R.string.editor_code_list_show), onClick = onToggle)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1047,7 +1090,7 @@ private fun CodeListRow(list: CodeList, open: Boolean, onToggle: () -> Unit) {
             Text(list.title, style = MaterialTheme.typography.titleSmall)
             val count = list.fieldIds.size
             Text(
-                "$count codes" + if (list.allProtected) " · protected" else "",
+                pluralStringResource(if (list.allProtected) R.plurals.editor_code_list_count_protected else R.plurals.editor_code_list_count, count, count),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1110,7 +1153,7 @@ private fun FieldEditor(
             .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
     ) {
         EditorField(
-            "Name",
+            stringResource(R.string.editor_custom_name),
             field.name,
             { onChange(field.copy(name = it)) },
             containerColor = transparent,
@@ -1120,7 +1163,7 @@ private fun FieldEditor(
         if (code != null) {
             AnotherCode(code)
         } else EditorField(
-            "Value",
+            stringResource(R.string.editor_custom_value),
             field.value,
             { onChange(field.copy(value = it)) },
             modifier = Modifier.focusRequester(valueFocus),
@@ -1142,15 +1185,15 @@ private fun FieldEditor(
             copyable = !neverCopied,
             trailingIcon = {
                 Row {
-                    if (masked) RevealButton(revealed, "value") { revealed = !revealed }
+                    if (masked) RevealButton(revealed, Revealed.VALUE) { revealed = !revealed }
                     if (type?.isPassword == true) {
                         IconButton(onClick = { generating = true }) {
-                            Icon(Icons.Rounded.AutoFixHigh, contentDescription = "Generate a password", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Rounded.AutoFixHigh, contentDescription = stringResource(R.string.editor_generate_password), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                     if (type?.isDate == true && !field.isProtected) {
                         IconButton(onClick = { picking = true }) {
-                            Icon(Icons.Rounded.CalendarMonth, contentDescription = "Choose a day", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Rounded.CalendarMonth, contentDescription = stringResource(R.string.editor_choose_day), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -1175,7 +1218,7 @@ private fun FieldEditor(
                 ProtectedChip(field.isProtected) { onChange(field.copy(isProtected = it)) }
             }
             IconButton(onClick = onRemove) {
-                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove field ${field.name}".trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.editor_custom_remove, field.name).trim(), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -1200,9 +1243,9 @@ private fun FieldEditor(
                 TextButton(onClick = {
                     state.selectedDateMillis?.let { onDate(Instant.ofEpochMilli(it).atOffset(ZoneOffset.UTC).toLocalDate()) }
                     picking = false
-                }) { Text("OK") }
+                }) { Text(stringResource(R.string.editor_ok)) }
             },
-            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text(stringResource(R.string.editor_cancel)) } },
         ) { DatePicker(state) }
     }
 }
@@ -1219,8 +1262,8 @@ private fun FieldTypeChip(field: FieldDraft, guessed: FieldType, onType: (FieldT
     val shown = type ?: guessed
     val label = when {
         type != null -> type.fullTitle
-        field.typeName != null -> "“${field.typeName}”"
-        else -> "${guessed.fullTitle} · auto"
+        field.typeName != null -> stringResource(R.string.editor_quoted, field.typeName.orEmpty())
+        else -> stringResource(R.string.editor_type_auto, guessed.fullTitle)
     }
     Box {
         AssistChip(
@@ -1246,7 +1289,7 @@ private fun FieldTypeChip(field: FieldDraft, guessed: FieldType, onType: (FieldT
                 open = false
             },
             top = { close ->
-                TypeItem("Automatic (${guessed.fullTitle})", chosen = field.typeName == null) {
+                TypeItem(stringResource(R.string.editor_type_automatic, guessed.fullTitle), chosen = field.typeName == null) {
                     onType(null)
                     close()
                 }
@@ -1256,7 +1299,7 @@ private fun FieldTypeChip(field: FieldDraft, guessed: FieldType, onType: (FieldT
                 val unknown = field.typeName?.takeIf { type == null }
                 if (unknown != null) {
                     HorizontalDivider()
-                    DropdownMenuItem(text = { Text("“$unknown” (not known here, kept)") }, onClick = {}, enabled = false, leadingIcon = { Icon(Icons.Rounded.Check, null) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.editor_type_unknown, unknown)) }, onClick = {}, enabled = false, leadingIcon = { Icon(Icons.Rounded.Check, null) })
                 }
             },
         )
@@ -1269,7 +1312,7 @@ private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit, anot
     var open by remember { mutableStateOf(false) }
     Box(Modifier.padding(top = 4.dp)) {
         FilledTonalButton(onClick = { open = true }) {
-            ButtonLabel("Add field", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
+            ButtonLabel(stringResource(R.string.editor_add_field), Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp)
         }
         FieldTypeMenu(
             open,
@@ -1283,7 +1326,7 @@ private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit, anot
             bottom = { close ->
                 HorizontalDivider()
                 DropdownMenuItem(
-                    text = { Text("Codes…") },
+                    text = { Text(stringResource(R.string.editor_add_codes_item)) },
                     leadingIcon = { Icon(FieldType.CODE.icon(), contentDescription = null) },
                     onClick = {
                         close()
@@ -1291,7 +1334,7 @@ private fun AddFieldButton(onAdd: (FieldType) -> Unit, onCodes: () -> Unit, anot
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text(if (anotherCode) "Another one-time code…" else "One-time code…") },
+                    text = { Text(stringResource(if (anotherCode) R.string.editor_add_another_code_item else R.string.editor_add_code_item)) },
                     leadingIcon = { Icon(Icons.Rounded.VerifiedUser, contentDescription = null) },
                     onClick = {
                         close()
@@ -1328,7 +1371,7 @@ private fun FieldTypeMenu(
         if (parts != null) {
             DropdownMenuItem(
                 text = { Text(FieldType.KINDS.first { it.second == parts }.first, style = MaterialTheme.typography.titleSmall) },
-                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") },
+                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.editor_back)) },
                 onClick = { group = null },
             )
             HorizontalDivider()
@@ -1362,7 +1405,7 @@ private fun TypeItem(title: String, chosen: Boolean, icon: ImageVector? = null, 
     DropdownMenuItem(
         text = { Text(title, fontWeight = if (chosen) FontWeight.SemiBold else null) },
         leadingIcon = icon?.let { { Icon(it, contentDescription = null) } },
-        trailingIcon = if (chosen) ({ Icon(Icons.Rounded.Check, contentDescription = "Chosen", tint = MaterialTheme.colorScheme.primary) }) else null,
+        trailingIcon = if (chosen) ({ Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.editor_chosen), tint = MaterialTheme.colorScheme.primary) }) else null,
         onClick = onClick,
     )
 }
@@ -1391,7 +1434,7 @@ private fun ProtectedChip(checked: Boolean, onChange: (Boolean) -> Unit) {
     FilterChip(
         selected = checked,
         onClick = { onChange(!checked) },
-        label = { Text("Protected", maxLines = 1) },
+        label = { Text(stringResource(R.string.editor_protected), maxLines = 1) },
         leadingIcon = {
             Icon(if (checked) Icons.Rounded.Lock else Icons.Rounded.LockOpen, contentDescription = null, Modifier.size(FilterChipDefaults.IconSize))
         },
@@ -1418,8 +1461,8 @@ private fun OwnCodeRow(editor: EntryEditor, draft: EntryDraft, update: (EntryDra
                 .padding(start = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("The one-time code is removed with the save.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = { update(draft.copy(code = had)) }) { Text("Undo") }
+            Text(stringResource(R.string.editor_code_removed), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = { update(draft.copy(code = had)) }) { Text(stringResource(R.string.editor_undo)) }
         }
         return
     }
@@ -1437,49 +1480,50 @@ private fun OwnCodeRow(editor: EntryEditor, draft: EntryDraft, update: (EntryDra
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("One-time code", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.editor_code), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 CodeValue(TotpDisplay.of(config, now.value))
             }
             IconButton(onClick = { settings = !settings }) {
                 Icon(
                     Icons.Rounded.Tune,
-                    contentDescription = if (settings) "Hide the code's settings" else "The code's settings",
+                    contentDescription = stringResource(if (settings) R.string.editor_code_settings_hide else R.string.editor_code_settings),
                     tint = if (settings) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (changed && had != null) {
                 IconButton(onClick = { update(draft.copy(code = had)) }) {
-                    Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = "Back to the code the entry had", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = stringResource(R.string.editor_code_back), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             IconButton(onClick = {
                 settings = false
                 update(draft.copy(code = null))
             }) {
-                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Remove the one-time code", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.editor_code_remove), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (changed) {
             Text(
-                (if (had == null) "New" else "Changed") + ": check that the site accepts this code before saving.",
+                stringResource(if (had == null) R.string.editor_code_new_check else R.string.editor_code_changed_check),
                 Modifier.padding(end = 12.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
             )
         }
         if (settings) {
+            val resources = LocalResources.current
             Column(Modifier.padding(end = 12.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                CodeChoice("Digits", (listOf(6, 7, 8) + code.digits).distinct().sorted(), code.digits, { "$it" }) {
+                CodeChoice(stringResource(R.string.editor_code_digits), (listOf(6, 7, 8) + code.digits).distinct().sorted(), code.digits, { "$it" }) {
                     update(draft.copy(code = code.copy(digits = it)))
                 }
-                CodeChoice("Period", (listOf(30, 60) + code.period).distinct().sorted(), code.period, { "$it s" }) {
+                CodeChoice(stringResource(R.string.editor_code_period), (listOf(30, 60) + code.period).distinct().sorted(), code.period, { resources.getQuantityString(R.plurals.editor_code_period_seconds, it, it) }) {
                     update(draft.copy(code = code.copy(period = it)))
                 }
-                CodeChoice("Algorithm", TotpConfig.Algorithm.entries, code.algorithm, { it.title }) {
+                CodeChoice(stringResource(R.string.editor_code_algorithm), TotpConfig.Algorithm.entries, code.algorithm, { it.title }) {
                     update(draft.copy(code = code.copy(algorithm = it)))
                 }
                 Text(
-                    "Change them only when the site says so: a wrong one gives codes the site refuses.",
+                    stringResource(R.string.editor_code_settings_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1519,7 +1563,7 @@ private fun AnotherCode(config: TotpConfig) {
     Column(Modifier.padding(start = 16.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)) {
         CodeValue(TotpDisplay.of(config, now.value))
         Text(
-            "A one-time code. To change it, remove the field and add the code again.",
+            stringResource(R.string.editor_code_in_field),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1543,6 +1587,7 @@ private fun AddOneTimeCodeDialog(
     var problem by remember { mutableStateOf<String?>(null) }
     var scanning by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val clipboardEmpty = stringResource(R.string.editor_add_code_clipboard_empty)
     val add = { given: String -> onAdd(given)?.let { problem = it } ?: onDone() }
     val images = rememberCodeImages(
         onTexts = { texts -> onAddAny(texts)?.let { problem = it } ?: onDone() },
@@ -1557,12 +1602,12 @@ private fun AddOneTimeCodeDialog(
     }
     AlertDialog(
         onDismissRequest = onDone,
-        title = { Text(if (another) "Another one-time code" else "One-time code") },
+        title = { Text(stringResource(if (another) R.string.editor_add_another_code_title else R.string.editor_add_code_title)) },
         text = {
             NoLearningKeyboard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "The secret the site shows when you turn on two-step sign-in (often under “Can’t scan it?”), or its otpauth:// link.",
+                        stringResource(R.string.editor_add_code_text),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     // The key of the code: a secret's text menu, copied through the app.
@@ -1571,12 +1616,12 @@ private fun AddOneTimeCodeDialog(
                             TextField(
                                 value = text,
                                 onValueChange = { text = it; problem = null },
-                                label = { Text("Secret or link") },
+                                label = { Text(stringResource(R.string.editor_add_code_field)) },
                                 singleLine = true,
                                 isError = problem != null,
                                 supportingText = problem?.let { { Text(it) } },
                                 visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
-                                trailingIcon = { RevealButton(shown, "secret") { shown = !shown } },
+                                trailingIcon = { RevealButton(shown, Revealed.SECRET) { shown = !shown } },
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),
                                 keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
                                 shape = RoundedCornerShape(18.dp),
@@ -1590,54 +1635,55 @@ private fun AddOneTimeCodeDialog(
                         FilledTonalButton(onClick = {
                             when (val clip = clipped(context)) {
                                 is Clipped.Image -> images.pasteImage(clip.uri)
-                                is Clipped.Text -> if (clip.text.isBlank()) problem = "The clipboard holds no text or image." else add(clip.text)
+                                is Clipped.Text -> if (clip.text.isBlank()) problem = clipboardEmpty else add(clip.text)
                             }
                         }) {
-                            ButtonLabel("Paste", Icons.Rounded.ContentPaste, iconSize = 18.dp, gap = 8.dp)
+                            ButtonLabel(stringResource(R.string.editor_add_code_paste), Icons.Rounded.ContentPaste, iconSize = 18.dp, gap = 8.dp)
                         }
                         FilledTonalButton(onClick = images.chooseFile) {
-                            ButtonLabel("Image", Icons.Rounded.Image, iconSize = 18.dp, gap = 8.dp)
+                            ButtonLabel(stringResource(R.string.editor_add_code_image), Icons.Rounded.Image, iconSize = 18.dp, gap = 8.dp)
                         }
                         FilledTonalButton(onClick = images.openCamera) {
-                            ButtonLabel("Scan", Icons.Rounded.QrCodeScanner, iconSize = 18.dp, gap = 8.dp)
+                            ButtonLabel(stringResource(R.string.editor_add_code_scan), Icons.Rounded.QrCodeScanner, iconSize = 18.dp, gap = 8.dp)
                         }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { add(text) }, enabled = text.isNotBlank()) { Text("Add") } },
-        dismissButton = { TextButton(onClick = onDone) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = { add(text) }, enabled = text.isNotBlank()) { Text(stringResource(R.string.editor_add)) } },
+        dismissButton = { TextButton(onClick = onDone) { Text(stringResource(R.string.editor_cancel)) } },
     )
 }
 
 /** A block of codes pasted or typed (backup codes), added as a numbered list of protected fields. */
 @Composable
-private fun AddCodesDialog(onAdd: (text: String, prefix: String) -> String?, onDone: () -> Unit) {
-    var name by remember { mutableStateOf("Recovery codes") }
+private fun AddCodesDialog(onAdd: (text: String, prefix: String) -> UiText?, onDone: () -> Unit) {
+    val recoveryCodes = stringResource(R.string.editor_add_codes_default_name)
+    var name by remember { mutableStateOf(recoveryCodes) }
     var codes by remember { mutableStateOf("") }
-    var problem by remember { mutableStateOf<String?>(null) }
+    var problem by remember { mutableStateOf<UiText?>(null) }
     AlertDialog(
         onDismissRequest = onDone,
-        title = { Text("Add codes") },
+        title = { Text(stringResource(R.string.editor_add_codes_title)) },
         text = {
             NoLearningKeyboard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "Paste or type them, one per line. Each becomes a protected field; the card shows them as a numbered list.",
+                        stringResource(R.string.editor_add_codes_text),
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    EditorField("Name of the list", name, { name = it; problem = null }, capitalization = KeyboardCapitalization.Sentences)
+                    EditorField(stringResource(R.string.editor_add_codes_name), name, { name = it; problem = null }, capitalization = KeyboardCapitalization.Sentences)
                     // Backup codes are secrets: copied through the app, no other apps' items.
                     SecretTextMenu(copyable = true) {
                         CopiedThroughTheApp(LocalSecretCopy.current) {
                             TextField(
                                 value = codes,
                                 onValueChange = { codes = it; problem = null },
-                                label = { Text("Codes") },
+                                label = { Text(stringResource(R.string.editor_add_codes_field)) },
                                 minLines = 4,
                                 maxLines = 8,
                                 isError = problem != null,
-                                supportingText = problem?.let { { Text(it) } },
+                                supportingText = problem?.let { { Text(it.resolve()) } },
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),
                                 keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password),
                                 shape = RoundedCornerShape(18.dp),
@@ -1650,9 +1696,9 @@ private fun AddCodesDialog(onAdd: (text: String, prefix: String) -> String?, onD
             }
         },
         confirmButton = {
-            TextButton(onClick = { onAdd(codes, name)?.let { problem = it } ?: onDone() }) { Text("Add") }
+            TextButton(onClick = { onAdd(codes, name)?.let { problem = it } ?: onDone() }) { Text(stringResource(R.string.editor_add)) }
         },
-        dismissButton = { TextButton(onClick = onDone) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDone) { Text(stringResource(R.string.editor_cancel)) } },
     )
 }
 
@@ -1685,18 +1731,18 @@ private fun SaveSheet(phase: SavePhase, onKeepEditing: () -> Unit) {
                 ) {
                     when (val current = last) {
                         SavePhase.Editing, SavePhase.Saving, is SavePhase.Saved -> {
-                            Text("Saving and checking…", style = MaterialTheme.typography.headlineSmall)
+                            Text(stringResource(R.string.editor_saving_title), style = MaterialTheme.typography.headlineSmall)
                             Text(
-                                "Writing a new file, reading it back, comparing every entry. The old file is kept as a backup.",
+                                stringResource(R.string.editor_saving_text),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             LinearWavyProgressIndicator(Modifier.fillMaxWidth())
                         }
                         is SavePhase.Failed -> {
-                            SheetTitle(Icons.Rounded.ErrorOutline, "Not saved", MaterialTheme.colorScheme.error)
-                            Text(current.problem, style = MaterialTheme.typography.bodyMedium)
-                            Button(onClick = onKeepEditing, modifier = Modifier.align(Alignment.End)) { Text("Back to editing") }
+                            SheetTitle(Icons.Rounded.ErrorOutline, stringResource(R.string.editor_not_saved), MaterialTheme.colorScheme.error)
+                            Text(current.problem.resolve(), style = MaterialTheme.typography.bodyMedium)
+                            Button(onClick = onKeepEditing, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.editor_back_to_editing)) }
                         }
                     }
                 }

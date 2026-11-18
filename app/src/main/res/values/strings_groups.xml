@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paths (groups/GroupTexts.kt): the root group -->
+    <string name="groups_top_level">Top level</string>
+
+    <!-- The group picker (groups/GroupPickerSheet.kt, groups/GroupTexts.kt) -->
+    <string name="groups_picker_title">Group</string>
+    <string name="groups_picker_close">Close</string>
+    <string name="groups_picker_find_or_make">Find or make a group</string>
+    <!-- Move to…: no group is made there -->
+    <string name="groups_picker_find">Find a group</string>
+    <string name="groups_picker_clear">Clear</string>
+    <!-- %1$s: the path of the level above ("Travel › Japan", or "Top level") -->
+    <string name="groups_picker_up_to">Up to %1$s</string>
+    <!-- %1$s: the group's path -->
+    <string name="groups_picker_go_into">Go into %1$s</string>
+    <string name="groups_picker_choose">Choose</string>
+    <string name="groups_picker_chosen">Chosen</string>
+    <!-- Before the path (drawn after it, cut to fit) of the entry's group below a row -->
+    <string name="groups_picker_now_in">Now in </string>
+    <string name="groups_picker_namesake">Another group beside it has this name</string>
+    <!-- The "+ New group" row. %1$s: the new levels' path ("Korea › Seoul") -->
+    <plurals name="groups_picker_new_groups">
+        <item quantity="one">New group “%1$s”</item>
+        <item quantity="other">New groups “%1$s”</item>
+    </plurals>
+    <!-- Under it. %1$s: where ("Travel", "Top level"); %2$s: when they are made ("made when the entry is saved") -->
+    <string name="groups_picker_new_place">in %1$s · %2$s</string>
+    <!-- Under the search field. %1$s: the levels typed that are not groups ("Korea › Seoul") -->
+    <plurals name="groups_picker_not_groups_yet">
+        <item quantity="one">“%1$s” is not a group yet</item>
+        <item quantity="other">“%1$s” are not groups yet</item>
+    </plurals>
+    <!-- %1$s: the level's path -->
+    <string name="groups_picker_level_empty">No groups in “%1$s” yet.</string>
+    <!-- %1$s: the level's path -->
+    <string name="groups_picker_level_empty_make">No groups in “%1$s” yet. Type a name to make one.</string>
+    <!-- %1$s: the name typed -->
+    <string name="groups_picker_none_found">No group has “%1$s”.</string>
+    <!-- Under a row whose group has groups inside. %1$d: how many -->
+    <plurals name="groups_subgroups">
+        <item quantity="one">%1$d group</item>
+        <item quantity="other">%1$d groups</item>
+    </plurals>
+    <!-- A row's number as a screen reader says it. %1$d: entries -->
+    <plurals name="groups_entries">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
+
+    <!-- Under the editor's group row (groups/GroupTexts.kt note). %1$s, %2$s: the new groups' names -->
+    <string name="groups_note_one_made">“%1$s” is made when the entry is saved</string>
+    <string name="groups_note_one_made_entries">“%1$s” is made when the entries are saved</string>
+    <string name="groups_note_two_made">“%1$s” and “%2$s” are made when the entry is saved</string>
+    <string name="groups_note_two_made_entries">“%1$s” and “%2$s” are made when the entries are saved</string>
+    <!-- %1$d: how many new groups (three or more) -->
+    <plurals name="groups_note_many_made">
+        <item quantity="one">%1$d new group is made when the entry is saved</item>
+        <item quantity="other">%1$d new groups are made when the entry is saved</item>
+    </plurals>
+    <plurals name="groups_note_many_made_entries">
+        <item quantity="one">%1$d new group is made when the entries are saved</item>
+        <item quantity="other">%1$d new groups are made when the entries are saved</item>
+    </plurals>
+    <!-- %1$s: the path the entry was in -->
+    <string name="groups_note_moved_from">Moves here from %1$s when saved</string>
+    <string name="groups_note_moved_from_gone">Moves here from a group no longer there when saved</string>
+
+    <!-- Groups & tags (groups/GroupsScreen.kt) -->
+    <string name="groups_title">Groups &amp; tags</string>
+    <string name="groups_back">Back</string>
+    <string name="groups_new_group">New group</string>
+    <string name="groups_new_group_where">At the top level of the database chosen.</string>
+    <!-- %1$s: the databases not open, separated by commas -->
+    <string name="groups_not_open_list">Not open: %1$s</string>
+    <string name="groups_not_open">Not open:</string>
+    <string name="groups_unlock">Unlock</string>
+    <string name="groups_section_groups">Groups</string>
+    <string name="groups_section_tags">Tags</string>
+    <string name="groups_saving">Saving…</string>
+    <string name="groups_recycle_bin">Recycle bin</string>
+    <string name="groups_templates">Templates · another app\'s forms, not listed</string>
+    <string name="groups_no_tags">No entry has a tag.</string>
+    <!-- Under a tag. %1$s: its other spellings, separated by commas -->
+    <string name="groups_tag_also">also %1$s</string>
+    <string name="groups_none_here">None here, all in its groups</string>
+    <!-- %1$s: how many entries are right in the group (formatted) -->
+    <plurals name="groups_here">
+        <item quantity="one">%1$s here</item>
+        <item quantity="other">%1$s here</item>
+    </plurals>
+    <!-- A block's header. %1$s: its database's entries (formatted) -->
+    <plurals name="groups_block_entries">
+        <item quantity="one">%1$s entry</item>
+        <item quantity="other">%1$s entries</item>
+    </plurals>
+    <string name="groups_fold">Fold</string>
+    <string name="groups_unfold">Unfold</string>
+    <string name="groups_folded">Folded</string>
+    <string name="groups_unfolded">Unfolded</string>
+    <string name="groups_show_entries">Show the entries</string>
+    <string name="groups_change_group">Change the group</string>
+    <string name="groups_gone">That group is no longer there as it was (changed elsewhere?). Nothing was saved.</string>
+
+    <!-- A group's sheet -->
+    <string name="groups_sheet_new_group">New group…</string>
+    <string name="groups_sheet_new_group_inside">New group inside…</string>
+    <string name="groups_sheet_rename">Rename…</string>
+    <string name="groups_sheet_move">Move to…</string>
+    <string name="groups_sheet_move_detail">With everything in it</string>
+    <string name="groups_sheet_delete">Delete</string>
+    <string name="groups_sheet_delete_detail">It is empty: deleted at once</string>
+    <!-- Under its path. %1$s: the database's name -->
+    <string name="groups_sheet_meta_empty">%1$s · empty</string>
+    <!-- %1$s: the database's name; %2$d: the groups inside -->
+    <plurals name="groups_sheet_meta_no_entries">
+        <item quantity="one">%1$s · no entries, %2$d group</item>
+        <item quantity="other">%1$s · no entries, %2$d groups</item>
+    </plurals>
+    <!-- %1$s: the database's name; %2$d: the entries in it and in its groups -->
+    <plurals name="groups_sheet_meta_entries">
+        <item quantity="one">%1$s · %2$d entry</item>
+        <item quantity="other">%1$s · %2$d entries</item>
+    </plurals>
+    <plurals name="groups_sheet_meta_entries_none_here">
+        <item quantity="one">%1$s · %2$d entry · none here</item>
+        <item quantity="other">%1$s · %2$d entries · none here</item>
+    </plurals>
+    <!-- %3$d: the entries right in the group -->
+    <plurals name="groups_sheet_meta_entries_here">
+        <item quantity="one">%1$s · %2$d entry · %3$d here</item>
+        <item quantity="other">%1$s · %2$d entries · %3$d here</item>
+    </plurals>
+
+    <!-- The name's dialog. %1$s: the group's name -->
+    <string name="groups_rename_title">Rename “%1$s”</string>
+    <string name="groups_new_title_top">New group at the top level</string>
+    <!-- %1$s: the group it is made in -->
+    <string name="groups_new_title_in">New group in “%1$s”</string>
+    <string name="groups_name_label">Name</string>
+    <string name="groups_save">Save</string>
+    <string name="groups_cancel">Cancel</string>
+    <string name="groups_name_empty">A group needs a name.</string>
+    <!-- %1$s: the name taken -->
+    <string name="groups_name_taken_top">Top level has a group “%1$s” already.</string>
+    <!-- %1$s: the group it would be in; %2$s: the name taken -->
+    <string name="groups_name_taken">“%1$s” has a group “%2$s” already.</string>
+
+    <!-- Move to… %1$s: the group's name -->
+    <string name="groups_move_title">Move “%1$s” to…</string>
+    <!-- %1$s: the group's path -->
+    <string name="groups_move_subtitle_empty">%1$s · empty</string>
+    <!-- %1$s: the group's path; %2$d: the entries in it and in its groups -->
+    <plurals name="groups_move_subtitle">
+        <item quantity="one">%1$s · %2$d entry goes with it</item>
+        <item quantity="other">%1$s · %2$d entries, all go with it</item>
+    </plurals>
+    <!-- Under a target that cannot be chosen -->
+    <string name="groups_move_refused_itself">The group itself</string>
+    <!-- %1$s: the group moved -->
+    <string name="groups_move_refused_inside">Inside “%1$s”</string>
+    <string name="groups_move_refused_here_now">It is here now</string>
+    <!-- %1$s: the name taken -->
+    <string name="groups_move_refused_taken_top">Top level has a “%1$s” already</string>
+    <!-- %1$s: the target; %2$s: the name taken -->
+    <string name="groups_move_refused_taken">“%1$s” has a “%2$s” already</string>
+
+    <!-- The snackbars once a change is saved. %1$s: the new name -->
+    <string name="groups_renamed">Renamed to “%1$s”</string>
+    <!-- %1$s: the new group -->
+    <string name="groups_made_top">Made “%1$s” at the top level</string>
+    <!-- %1$s: the new group; %2$s: the group it is in -->
+    <string name="groups_made_in">Made “%1$s” in “%2$s”</string>
+    <!-- %1$s: the group moved -->
+    <string name="groups_moved_top">Moved “%1$s” to the top level</string>
+    <!-- %1$s: the group moved; %2$s: where -->
+    <string name="groups_moved_into">Moved “%1$s” into “%2$s”</string>
+    <!-- %1$s: the group's path -->
+    <string name="groups_deleted">Deleted the empty group “%1$s”</string>
+    <!-- The card's Move to group… %1$s: where the entry went (a path, or "Top level") -->
+    <string name="groups_entry_moved">Moved to “%1$s”</string>
+    <!-- %1$s: where the entry went; %2$s: the empty groups deleted ("The empty group “Old” was deleted.") -->
+    <string name="groups_entry_moved_with_note">Moved to “%1$s”. %2$s</string>
+</resources>

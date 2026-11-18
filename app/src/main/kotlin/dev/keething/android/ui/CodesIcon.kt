@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
  */
 internal val CodesIcon: ImageVector by lazy {
     val tint = SolidColor(Color.Black)
-    ImageVector.Builder("Codes", 24.dp, 24.dp, 48f, 48f)
+    ImageVector.Builder("Codes", 24.dp, 24.dp, 48f, 48f) // not user text
         .addPath(addPathNodes("M24,9 A15,15 0 1,1 24,39 A15,15 0 1,1 24,9 Z"), stroke = tint, strokeAlpha = 0.3f, strokeLineWidth = 4f)
         .addPath(addPathNodes("M24,9 A15,15 0 1,1 9,24"), stroke = tint, strokeLineWidth = 4f, strokeLineCap = StrokeCap.Round)
         .addPath(addPathNodes(DOTS), fill = tint)

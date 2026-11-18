@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.english
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import dev.keething.domain.encryption.DatabaseEncryption
 import dev.keething.domain.encryption.DatabaseEncryption.Cipher
@@ -204,7 +205,7 @@ class NewDatabaseModelTest {
         assertEquals("Family Shared", m.databaseName)
         assertEquals("Family Shared.kdbx", m.fileName)
         assertEquals("$ROOT/Sync/KeePass/Family Shared.kdbx", m.path)
-        assertEquals("Sync/KeePass/Family Shared.kdbx", m.pathText)
+        assertEquals("Sync/KeePass/Family Shared.kdbx", m.pathText.english())
         m.changeName("Taxes/2026: Q1")
         assertEquals("Taxes-2026- Q1.kdbx", m.fileName, "no folder or colon in a file name")
         assertEquals("Taxes/2026: Q1", m.databaseName, "the name keeps them")
@@ -218,8 +219,8 @@ class NewDatabaseModelTest {
         m.changeName("   ")
         assertNull(m.fileName)
         assertNull(m.path)
-        assertEquals("Sync/KeePass/…", m.pathText, "the folder alone")
-        assertEquals("Name it.", m.blockers.first())
+        assertEquals("Sync/KeePass/…", m.pathText.english(), "the folder alone")
+        assertEquals("Name it.", m.blockers.first().english())
     }
 
     @Test
@@ -228,7 +229,7 @@ class NewDatabaseModelTest {
         val m = f.model
         assertEquals("$ROOT/Sync/KeePass", m.folder)
         assertEquals(listOf("Sync/KeePass", "Work"), m.folders.map { it.title })
-        assertEquals("this database’s", m.folders.first().note)
+        assertEquals("this database’s", m.folders.first().note?.english())
         m.chooseFolder("$ROOT/Taxes/")
         assertEquals("$ROOT/Taxes", m.folder)
         assertEquals("Taxes", m.folders.last().title)
@@ -245,12 +246,12 @@ class NewDatabaseModelTest {
         assertNull(first.folder, "nothing granted: no folder guessed")
         assertEquals(emptyList(), first.folders)
         assertNull(first.path)
-        assertEquals("Keething saves only in a folder you choose.", first.pathText)
-        assertEquals("Choose the folder to save it in.", first.blockers.first())
+        assertEquals("Keething saves only in a folder you choose.", first.pathText.english())
+        assertEquals("Choose the folder to save it in.", first.blockers.first().english())
         assertFalse(first.canCreate)
 
         first.chooseFolder("$ROOT/Documents")
-        assertEquals("Documents/Family Shared.kdbx", first.pathText)
+        assertEquals("Documents/Family Shared.kdbx", first.pathText.english())
         assertNull(first.folders.single().note)
         assertTrue(first.canCreate)
     }
@@ -260,7 +261,7 @@ class NewDatabaseModelTest {
         val f = Fixture(this, existing = setOf("$ROOT/Sync/KeePass/Family Shared.kdbx"))
         f.fill()
         assertTrue(f.model.nameIsTaken)
-        assertEquals("There is already a Family Shared.kdbx in Sync/KeePass. A database is never replaced: choose another name or folder.", f.model.problem)
+        assertEquals("There is already a Family Shared.kdbx in Sync/KeePass. A database is never replaced: choose another name or folder.", f.model.problem?.english())
         assertFalse(f.model.canCreate)
         f.model.changeName("Family")
         assertTrue(!f.model.nameIsTaken && f.model.problem == null && f.model.canCreate)
@@ -283,22 +284,22 @@ class NewDatabaseModelTest {
     fun thePasswordIsRequiredAndTypedTwiceAWeakOneIsAllowedAndSaid() = runTest {
         val m = Fixture(this).model
         m.changeName("Family")
-        assertEquals(listOf("Type a master password."), m.blockers)
+        assertEquals(listOf("Type a master password."), m.blockers.map { it.english() })
         assertNull(m.strength)
         assertNull(m.match)
         m.password.setTextAndPlaceCursorAtEnd("abc")
-        assertEquals(listOf("Type the password again."), m.blockers)
+        assertEquals(listOf("Type the password again."), m.blockers.map { it.english() })
         m.again.setTextAndPlaceCursorAtEnd("abd")
         assertEquals(MasterPasswordFields.Match.DIFFERS, m.match)
-        assertEquals(listOf("The two passwords differ."), m.blockers)
+        assertEquals(listOf("The two passwords differ."), m.blockers.map { it.english() })
         m.again.setTextAndPlaceCursorAtEnd("abc")
         assertEquals(MasterPasswordFields.Match.MATCHES, m.match)
         assertTrue(m.canCreate, "a weak password is the owner's choice")
         val strength = assertNotNull(m.strength)
         assertEquals(Strength.WEAK, strength.verdict)
         assertEquals(1, strength.level)
-        assertTrue(strength.text.startsWith("Weak: shorter than 8 characters"), strength.text)
-        assertTrue(strength.text.endsWith("Anyone with the file can try passwords against it."), strength.text)
+        assertTrue(strength.text.english().startsWith("Weak: shorter than 8 characters"), strength.text.english())
+        assertTrue(strength.text.english().endsWith("Anyone with the file can try passwords against it."), strength.text.english())
         m.password.setTextAndPlaceCursorAtEnd("Gx7#mQ2v!Lp9@Wz4")
         assertEquals(Strength.STRONG, m.strength?.verdict)
         m.password.setTextAndPlaceCursorAtEnd("family2026")
@@ -325,7 +326,7 @@ class NewDatabaseModelTest {
         m.changeWords(1)
         assertEquals(3, m.passphraseWords, "brought into range")
         m.useSuggestion()
-        assertEquals("Strong · 3 words, about 51 bits", m.strength?.text)
+        assertEquals("Strong · 3 words, about 51 bits", m.strength?.text?.english())
         assertEquals(3, m.strength?.level, "under 80 bits: three segments, as a typed one")
         m.changeWords(6)
         m.suggest()
@@ -334,10 +335,10 @@ class NewDatabaseModelTest {
         assertEquals(six, m.password.text.toString())
         assertEquals(six, m.again.text.toString())
         assertTrue(m.reveals, "shown in both fields, to be written down")
-        assertEquals("Strong · 6 words, about 92 bits", m.strength?.text, "the generator's bits, not a guess from its letters")
+        assertEquals("Strong · 6 words, about 92 bits", m.strength?.text?.english(), "the generator's bits, not a guess from its letters")
         assertEquals(4, m.strength?.level)
         m.password.setTextAndPlaceCursorAtEnd(six + "x")
-        assertEquals("Strong", m.strength?.text, "typed over: an estimate again")
+        assertEquals("Strong", m.strength?.text?.english(), "typed over: an estimate again")
     }
 
     @Test
@@ -346,37 +347,37 @@ class NewDatabaseModelTest {
         val m = f.model
         f.fill()
         m.requireKeyFile(true)
-        assertEquals(listOf("Make a key file, or choose one you have."), m.blockers)
+        assertEquals(listOf("Make a key file, or choose one you have."), m.blockers.map { it.english() })
         m.chooseKeyFile(NewDatabaseModel.KeyFileChoice.New("$ROOT/Documents"))
         assertTrue(m.canCreate)
         assertEquals("$ROOT/Documents/Family Shared.keyx", m.keyFilePath, "named as the database")
         assertEquals("Family Shared.keyx", m.keyFileName)
-        assertEquals("Documents · made at Create", m.keyFileDetail)
-        assertNull(m.keyFileWarning)
+        assertEquals("Documents · made at Create", m.keyFileDetail?.english())
+        assertNull(m.keyFileWarning?.english())
         m.changeName("Family")
         assertEquals("Family.keyx", m.keyFileName, "it follows the name")
 
         m.chooseKeyFile(NewDatabaseModel.KeyFileChoice.New("$ROOT/Sync/KeePass"))
-        assertEquals("Beside the database, whoever gets the folder gets both. Keep it apart: a folder that does not sync.", m.keyFileWarning)
+        assertEquals("Beside the database, whoever gets the folder gets both. Keep it apart: a folder that does not sync.", m.keyFileWarning?.english())
         assertTrue(m.canCreate, "a warning, not a refusal")
         m.chooseKeyFile(NewDatabaseModel.KeyFileChoice.New("$ROOT/Sync/Keys"))
         f.files.there += "$ROOT/Sync/Keys"
         m.lookAgain()
-        assertEquals("In a folder that syncs, it goes wherever the database goes. Keep it apart: a folder that does not sync.", m.keyFileWarning)
+        assertEquals("In a folder that syncs, it goes wherever the database goes. Keep it apart: a folder that does not sync.", m.keyFileWarning?.english())
 
         m.changeName("Family Shared")
         m.chooseKeyFile(NewDatabaseModel.KeyFileChoice.New("$ROOT/Keys"))
-        assertEquals("There is already a Family Shared.keyx in Keys. A key file is never replaced: choose another folder.", m.keyFileProblem)
+        assertEquals("There is already a Family Shared.keyx in Keys. A key file is never replaced: choose another folder.", m.keyFileProblem?.english())
         assertFalse(m.canCreate)
-        assertNull(m.keyFileWarning)
+        assertNull(m.keyFileWarning?.english())
 
         m.chooseKeyFile(NewDatabaseModel.KeyFileChoice.Existing("$ROOT/Keys/old.keyx"))
-        assertNull(m.keyFileProblem)
+        assertNull(m.keyFileProblem?.english())
         assertTrue(m.canCreate)
         assertEquals("old.keyx", m.keyFileName)
-        assertEquals("Keys", m.keyFileDetail)
+        assertEquals("Keys", m.keyFileDetail?.english())
         m.chooseKeyFile(NewDatabaseModel.KeyFileChoice.Existing("$ROOT/Keys/gone.keyx"))
-        assertEquals("gone.keyx is not there any more.", m.keyFileProblem)
+        assertEquals("gone.keyx is not there any more.", m.keyFileProblem?.english())
         m.requireKeyFile(false)
         assertTrue(m.keyFileName == null && m.keyFilePath == null && m.canCreate, "turned off: no key file")
     }
@@ -385,11 +386,11 @@ class NewDatabaseModelTest {
     fun aNewKeyFileWhoseFolderIsGoneOrANameTooLongWaitBeforeCreate() = runTest {
         val f = Fixture(this)
         f.fill("Ж".repeat(130))
-        assertEquals(listOf("The name is too long for a file name: shorten it."), f.model.blockers, "260 bytes")
+        assertEquals(listOf("The name is too long for a file name: shorten it."), f.model.blockers.map { it.english() }, "260 bytes")
         f.fill("Ж".repeat(120))
         assertTrue(f.model.canCreate, "250 bytes with .kdbx")
         f.model.chooseKeyFile(NewDatabaseModel.KeyFileChoice.New("/storage/1234-5678/Keys"))
-        assertEquals("The key file's folder, /storage/1234-5678/Keys, is not there any more.", f.model.keyFileProblem)
+        assertEquals("The key file's folder, /storage/1234-5678/Keys, is not there any more.", f.model.keyFileProblem?.english())
         assertFalse(f.model.canCreate)
     }
 
@@ -412,37 +413,37 @@ class NewDatabaseModelTest {
         val m = Fixture(this).model
         assertEquals(DatabaseEncryption(Cipher.AES256, KeyDerivation.ARGON2D, 64, 4, 1.0), m.encryption)
         assertTrue(m.isRecommended)
-        assertEquals("KDBX 4 · AES-256 · Argon2d · opens in about 1 s on this phone · read by every current KeePass app", m.encryptionLine)
+        assertEquals("KDBX 4 · AES-256 · Argon2d · opens in about 1 s on this phone · read by every current KeePass app", m.encryptionLine.english())
         m.changeEncryption(m.encryption.copy(keyDerivation = KeyDerivation.ARGON2ID, cipher = Cipher.CHACHA20))
         assertFalse(m.isRecommended)
         assertEquals(
             "KDBX 4 · ChaCha20 · Argon2id · opens in about 1 s on this phone · read by KeePass 2.47 and later and every current KeePass app",
-            m.encryptionLine,
+            m.encryptionLine.english(),
         )
         m.recommend()
         assertTrue(m.isRecommended)
-        assertEquals("0.5 s", NewDatabaseModel.seconds(0.5))
-        assertEquals("2 s", NewDatabaseModel.seconds(2.0))
-        assertEquals("2.5 s", NewDatabaseModel.seconds(2.54))
+        assertEquals("0.5 s", NewDatabaseModel.seconds(0.5).english())
+        assertEquals("2 s", NewDatabaseModel.seconds(2.0).english())
+        assertEquals("2.5 s", NewDatabaseModel.seconds(2.54).english())
     }
 
     @Test
     fun theEncryptionPageMeasuresTheTimeAloneScalesWhatWasMeasured() = runTest {
         val f = Fixture(this)
         val m = f.model
-        assertEquals("Measuring on this phone…", m.measuredLine)
+        assertEquals("Measuring on this phone…", m.measuredLine.english())
         m.showPage(NewDatabaseModel.Page.ENCRYPTION)
         advanceUntilIdle()
         assertEquals(1, f.making.measured.size)
-        assertEquals("1.0 s on this phone: 42 iterations, measured. A computer usually opens it faster.", m.measuredLine)
+        assertEquals("1.0 s on this phone: 42 iterations, measured. A computer usually opens it faster.", m.measuredLine.english())
         m.changeEncryption(m.encryption.copy(seconds = 2.0))
         assertEquals(1, f.making.measured.size, "the time alone: scaled")
         assertEquals(84, m.measured?.units)
-        assertEquals("KDBX 4 · AES-256 · Argon2d · opens in about 2 s on this phone · read by every current KeePass app", m.encryptionLine)
+        assertEquals("KDBX 4 · AES-256 · Argon2d · opens in about 2 s on this phone · read by every current KeePass app", m.encryptionLine.english())
         m.changeEncryption(m.encryption.copy(keyDerivation = KeyDerivation.AES_KDF))
         advanceUntilIdle()
         assertEquals(2, f.making.measured.size, "another kind: measured")
-        assertTrue("2,000,000 rounds" in m.measuredLine, m.measuredLine)
+        assertTrue("2,000,000 rounds" in m.measuredLine.english(), m.measuredLine.english())
     }
 
     @Test
@@ -469,8 +470,8 @@ class NewDatabaseModelTest {
         f.locks = 3
         m.create()
         assertEquals(NewDatabaseModel.Phase.Creating(writing = false), m.phase)
-        assertEquals("Creating Family Shared…", m.creatingTitle)
-        assertEquals("Measuring this phone’s speed for 1 s to open, then writing the file and reading it back.", m.creatingDetail)
+        assertEquals("Creating Family Shared…", m.creatingTitle.english())
+        assertEquals("Measuring this phone’s speed for 1 s to open, then writing the file and reading it back.", m.creatingDetail.english())
         f.locks = 4
         advanceUntilIdle()
         assertEquals(NewDatabaseModel.Phase.Created, m.phase)
@@ -512,7 +513,7 @@ class NewDatabaseModelTest {
         assertEquals(NewDatabaseModel.Phase.Editing, f.model.phase)
         assertEquals(
             "Not created: there is already a Family Shared.kdbx in Sync/KeePass. A database is never replaced: choose another name or folder.",
-            f.model.problem,
+            f.model.problem?.english(),
         )
         assertTrue(f.model.nameIsTaken)
         assertEquals(listOf("$ROOT/Keys/Family Shared.keyx"), f.making.removed, "never used: it goes (the Mac's D9)")
@@ -531,7 +532,7 @@ class NewDatabaseModelTest {
         f.making.keyFileFailure = CreateFailure.Exists("Family Shared.keyx")
         f.model.create()
         advanceUntilIdle()
-        assertEquals("Not created: there is already a Family Shared.keyx there. A key file is never replaced: choose another folder.", f.model.problem)
+        assertEquals("Not created: there is already a Family Shared.keyx there. A key file is never replaced: choose another folder.", f.model.problem?.english())
         assertTrue(f.making.made.isEmpty())
         assertTrue(f.making.removed.isEmpty(), "the file already there is not the one it made: never removed")
 
@@ -541,7 +542,7 @@ class NewDatabaseModelTest {
         g.making.createFailure = CreateFailure.VerificationFailed("the new file does not open")
         g.model.create()
         advanceUntilIdle()
-        assertEquals("Not created: the new file did not check out (the new file does not open), so it was not kept.", g.model.problem)
+        assertEquals("Not created: the new file did not check out (the new file does not open), so it was not kept.", g.model.problem?.english())
         assertTrue(g.making.removed.isEmpty(), "the user's own key file is never removed")
 
         val h = Fixture(this)
@@ -549,9 +550,9 @@ class NewDatabaseModelTest {
         h.making.createFailure = CreateFailure.NotEnoughMemory()
         h.model.create()
         advanceUntilIdle()
-        assertEquals("Not created: this phone has not enough memory for 64 MiB: choose less on the Encryption page.", h.model.problem)
+        assertEquals("Not created: this phone has not enough memory for 64 MiB: choose less on the Encryption page.", h.model.problem?.english())
         h.model.changeEncryption(h.model.encryption.copy(memoryMiB = 32))
-        assertNull(h.model.problem, "less memory chosen: the failure about the memory goes")
+        assertNull(h.model.problem?.english(), "less memory chosen: the failure about the memory goes")
     }
 
     @Test
@@ -597,7 +598,7 @@ class NewDatabaseModelTest {
         m.again.setTextAndPlaceCursorAtEnd("pw")
         m.create()
         advanceUntilIdle()
-        assertEquals("Not created: this phone’s speed could not be measured. Try again, or choose AES-KDF.", m.problem)
+        assertEquals("Not created: this phone’s speed could not be measured. Try again, or choose AES-KDF.", m.problem?.english())
     }
 
     @Test
@@ -630,12 +631,12 @@ class NewDatabaseModelTest {
         m.changeEncryption(m.encryption.copy(memoryMiB = 2047))
         advanceUntilIdle()
         assertFalse(m.isMeasuring)
-        assertEquals("This phone has not enough memory for 2047 MiB: choose less.", m.measuredLine)
+        assertEquals("This phone has not enough memory for 2047 MiB: choose less.", m.measuredLine.english())
         f.making.measureFailure = null
         m.changeEncryption(m.encryption.copy(memoryMiB = 1024))
-        assertEquals("Measuring on this phone…", m.measuredLine, "a new measurement: the failure goes")
+        assertEquals("Measuring on this phone…", m.measuredLine.english(), "a new measurement: the failure goes")
         advanceUntilIdle()
-        assertTrue("measured" in m.measuredLine, m.measuredLine)
+        assertTrue("measured" in m.measuredLine.english(), m.measuredLine.english())
     }
 
     @Test
@@ -647,7 +648,7 @@ class NewDatabaseModelTest {
         f.making.removeFailure = java.io.IOException("access revoked")
         f.model.create()
         advanceUntilIdle()
-        assertEquals("Not created: the file could not be written: disk full.", f.model.problem)
+        assertEquals("Not created: the file could not be written: disk full.", f.model.problem?.english())
         assertEquals(listOf("begin Family Shared", "end"), f.making.notes, "not made: the note keeps what was not removed (FileDatabaseMakingTest)")
         assertEquals(NewDatabaseModel.Phase.Editing, f.model.phase)
     }
@@ -659,7 +660,7 @@ class NewDatabaseModelTest {
         f.making.createFailure = IllegalStateException("surprise")
         f.model.create()
         advanceUntilIdle()
-        assertEquals("Not created: something went wrong (surprise).", f.model.problem)
+        assertEquals("Not created: something went wrong (surprise).", f.model.problem?.english())
         assertEquals(listOf("begin Family Shared", "end"), f.making.notes)
     }
 

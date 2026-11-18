@@ -52,13 +52,17 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
+import dev.keething.android.ui.uiText
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.SegmentGap
@@ -247,20 +251,20 @@ internal fun FieldRowView(
             IconButton(onClick = { actions.onToggle(row.id) }) {
                 Icon(
                     if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                    contentDescription = if (shown) "Hide ${row.noticeLabel.lowercase()}" else "Show ${row.noticeLabel.lowercase()}",
+                    contentDescription = stringResource(if (shown) R.string.entry_row_hide else R.string.entry_row_show, row.noticeLabel.lowercase()),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
         row.link?.let { url ->
             IconButton(onClick = { actions.onOpenLink(url) }) {
-                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open in the browser", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = stringResource(R.string.entry_row_open_link), tint = MaterialTheme.colorScheme.primary)
             }
         }
         // Every row that copies on a tap says so with the same button.
         if (row.isCopyable) {
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy ${row.noticeLabel.lowercase()}", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase()), tint = MaterialTheme.colorScheme.primary)
             }
         }
         if (row.kind == FieldRow.Kind.PASSWORD && !row.isEmpty) PasswordMenu(actions)
@@ -319,23 +323,23 @@ private fun AppRowView(row: FieldRow, app: ValueStyle.App, actions: CardActions,
         }
         when (onPhone) {
             is AppOnPhone.Installed -> onPhone.launch?.let { launch ->
-                IconButton(onClick = { actions.onStart(launch, "${onPhone.name} could not be opened") }) {
-                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open ${onPhone.name}", tint = MaterialTheme.colorScheme.primary)
+                IconButton(onClick = { actions.onStart(launch, uiText(R.string.entry_app_could_not_open, onPhone.name)) }) {
+                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = stringResource(R.string.entry_app_open, onPhone.name), tint = MaterialTheme.colorScheme.primary)
                 }
             }
             is AppOnPhone.Missing -> when (val store = onPhone.store) {
-                is AppOnPhone.Store.One -> IconButton(onClick = { actions.onStart(store.intent, "${store.name} could not be opened") }) {
-                    Image(store.icon, contentDescription = "Find in ${store.name}", Modifier.size(24.dp))
+                is AppOnPhone.Store.One -> IconButton(onClick = { actions.onStart(store.intent, uiText(R.string.entry_app_could_not_open, store.name)) }) {
+                    Image(store.icon, contentDescription = stringResource(R.string.entry_app_find_in, store.name), Modifier.size(24.dp))
                 }
-                is AppOnPhone.Store.Several -> IconButton(onClick = { actions.onStart(store.intent, "No store opens this app") }) {
-                    Icon(Icons.Rounded.InstallMobile, contentDescription = "Find in a store", tint = MaterialTheme.colorScheme.primary)
+                is AppOnPhone.Store.Several -> IconButton(onClick = { actions.onStart(store.intent, uiText(R.string.entry_app_no_store)) }) {
+                    Icon(Icons.Rounded.InstallMobile, contentDescription = stringResource(R.string.entry_app_find_in_store), tint = MaterialTheme.colorScheme.primary)
                 }
                 null -> Unit
             }
         }
         if (row.isCopyable) {
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy ${row.noticeLabel.lowercase()}", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase()), tint = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -347,12 +351,12 @@ private fun PasswordMenu(actions: CardActions) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = "More for the password", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.entry_password_more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            val item: @Composable (String, ImageVector, PasswordAction) -> Unit = { text, icon, action ->
+            val item: @Composable (Int, ImageVector, PasswordAction) -> Unit = { text, icon, action ->
                 DropdownMenuItem(
-                    text = { Text(text) },
+                    text = { Text(stringResource(text)) },
                     leadingIcon = { Icon(icon, contentDescription = null) },
                     onClick = {
                         open = false
@@ -360,9 +364,9 @@ private fun PasswordMenu(actions: CardActions) {
                     },
                 )
             }
-            item("Show as QR", Icons.Rounded.QrCode2, PasswordAction.QR_CODE)
-            item("Large type", Icons.Rounded.TextFields, PasswordAction.LARGE_TYPE)
-            item("Share…", Icons.Rounded.Share, PasswordAction.SHARE)
+            item(R.string.entry_password_qr, Icons.Rounded.QrCode2, PasswordAction.QR_CODE)
+            item(R.string.entry_password_large, Icons.Rounded.TextFields, PasswordAction.LARGE_TYPE)
+            item(R.string.entry_password_share, Icons.Rounded.Share, PasswordAction.SHARE)
         }
     }
 }
@@ -398,7 +402,7 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
             Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
                 Text(section.title.orEmpty(), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "${section.rows.size - used} of ${section.rows.size} left",
+                    pluralStringResource(R.plurals.entry_codes_left, section.rows.size - used, section.rows.size - used, section.rows.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (used == section.rows.size) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -407,7 +411,7 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
                 IconButton(onClick = { actions.onToggleSection(section) }) {
                     Icon(
                         if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                        contentDescription = if (shown) "Hide the codes" else "Show the codes",
+                        contentDescription = stringResource(if (shown) R.string.entry_codes_hide else R.string.entry_codes_show),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -428,7 +432,7 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
         ) {
             Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text(if (next == null) "No unused codes left" else "Copy next unused · ${next.label}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (next == null) stringResource(R.string.entry_codes_none_left) else stringResource(R.string.entry_codes_copy_next, next.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -440,8 +444,9 @@ private fun LeftBar(rows: List<FieldRow>, modifier: Modifier) {
     val filled = if (left <= 2) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     val empty = MaterialTheme.colorScheme.outlineVariant
     val gap = if (rows.size > 16) 2.dp else 3.dp
+    val spoken = pluralStringResource(R.plurals.entry_codes_left, left, left, rows.size)
     Row(
-        modifier.fillMaxWidth().height(6.dp).semantics { contentDescription = "$left of ${rows.size} left" },
+        modifier.fillMaxWidth().height(6.dp).semantics { contentDescription = spoken },
         horizontalArrangement = Arrangement.spacedBy(gap),
     ) {
         val shape = RoundedCornerShape(if (rows.size > 30) 1.dp else 3.dp)
@@ -465,9 +470,9 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
                 .then(if (isNext) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
                 .combinedClickable(
                     enabled = row.isCopyable,
-                    onClickLabel = "Copy ${row.noticeLabel.lowercase()}",
+                    onClickLabel = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase()),
                     onClick = { actions.onCopy(row) },
-                    onLongClickLabel = if (usedOn == null) "Mark as used" else "Mark as not used",
+                    onLongClickLabel = stringResource(if (usedOn == null) R.string.entry_codes_mark_used else R.string.entry_codes_mark_not_used),
                     onLongClick = if (setUsed != null && actions.marking == null) ({ menu = true }) else null,
                 )
                 .heightIn(min = 40.dp)
@@ -492,7 +497,7 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
                 }
                 if (usedOn != null) {
                     Text(
-                        "used " + USED_DAY.format(usedOn),
+                        stringResource(R.string.entry_codes_used_on, USED_DAY.format(usedOn)),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -504,7 +509,7 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
         if (setUsed != null) {
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
-                    text = { Text(if (usedOn == null) "Mark as used" else "Mark as not used") },
+                    text = { Text(stringResource(if (usedOn == null) R.string.entry_codes_mark_used else R.string.entry_codes_mark_not_used)) },
                     onClick = {
                         menu = false
                         setUsed(row, usedOn == null)
@@ -544,10 +549,10 @@ private fun AttachmentRowView(row: FieldRow, actions: CardActions, shape: Shape)
         }
         if (row.size != null) {
             IconButton(onClick = { actions.onOpenAttachment(row) }) {
-                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Open ${row.label} in another app", tint = colors.primary)
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = stringResource(R.string.entry_attachment_open, row.label), tint = colors.primary)
             }
             IconButton(onClick = { actions.onSaveAttachment(row) }) {
-                Icon(Icons.Rounded.Download, contentDescription = "Save ${row.label} to a folder", tint = colors.primary)
+                Icon(Icons.Rounded.Download, contentDescription = stringResource(R.string.entry_attachment_save, row.label), tint = colors.primary)
             }
         }
     }

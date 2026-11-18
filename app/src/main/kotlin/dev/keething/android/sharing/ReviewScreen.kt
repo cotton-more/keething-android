@@ -45,6 +45,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -55,9 +57,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.session.OpenDatabase
+import dev.keething.android.ui.UiText
 import dev.keething.android.ui.keepOutOfAutofill
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.spokenMasked
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import kotlinx.coroutines.flow.StateFlow
 import dev.keething.android.session.entries
 import dev.keething.vault.databases.EntryRef
@@ -117,7 +124,7 @@ internal class ReviewModel(
     var made by mutableStateOf(false)
         private set
 
-    var problem by mutableStateOf<String?>(null)
+    var problem by mutableStateOf<UiText?>(null)
         private set
 
     fun toggle(entryId: String, part: EntryPart) {
@@ -134,7 +141,7 @@ internal class ReviewModel(
         val their = id?.let { id -> requests.book.value?.theirs?.firstOrNull { it.request.id == id } ?: return }
         val entries = open.value.entries(entryIds)
         if (entries.isEmpty()) {
-            problem = "The entries are no longer in the database."
+            problem = uiText(R.string.sharing_review_no_entries)
             return
         }
         sealing = true
@@ -155,12 +162,12 @@ internal class ReviewModel(
             sealing = false
             answer.onSuccess { sealed ->
                 if (sealed == null) {
-                    problem = "The request has expired or was deleted. Ask for a new one."
+                    problem = uiText(R.string.sharing_review_request_gone)
                 } else {
                     made = true
                     onMade(MadeAnswer(their.request.name, their.request.reason, entries.size, sealed.encoded()))
                 }
-            }.onFailure { problem = "The answer could not be made: ${it.message}." }
+            }.onFailure { problem = uiText(R.string.sharing_review_not_made, it.message.toString()) }
         }
     }
 
@@ -177,13 +184,13 @@ internal class ReviewModel(
         sealing = false
         sent.onSuccess { envelope ->
             if (envelope == null) {
-                problem = "The phone was locked. Unlock it and try again."
+                problem = uiText(R.string.sharing_review_locked)
             } else {
                 Log.i("Sharing", "envelope made in ${started.elapsedNow()}")
                 made = true
                 onSent(envelope.envelope.id)
             }
-        }.onFailure { problem = "The entries could not be sealed: ${it.message}." }
+        }.onFailure { problem = uiText(R.string.sharing_review_not_sealed, it.message.toString()) }
     }
 }
 
@@ -217,8 +224,8 @@ internal fun ReviewScreen(
     val entries = open.entries(model.entryIds)
     val ready = ShareRequest.isLine(from.trim(), ShareRequest.MAX_NAME_LENGTH) && entries.isNotEmpty() &&
         (recipient.isBlank() || ShareRequest.isLine(recipient.trim(), ShareRequest.MAX_NAME_LENGTH))
-    // Who the warnings name: the asker, or whom the envelope is for.
-    val name = their?.request?.name ?: recipient.trim().ifEmpty { "whoever opens it" }
+    // Who the warnings name: the asker, or whom the envelope is for; null: whoever opens it.
+    val name = their?.request?.name ?: recipient.trim().ifEmpty { null }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -226,18 +233,18 @@ internal fun ReviewScreen(
             TopAppBar(
                 title = {
                     BarTitle(
-                        if (their != null) "Send to ${their.request.name}" else "Send without a request",
-                        their?.request?.reason ?: "It opens with ten pictures you give another way",
+                        if (their != null) stringResource(R.string.sharing_review_send_to, their.request.name) else stringResource(R.string.sharing_review_send_without),
+                        their?.request?.reason ?: stringResource(R.string.sharing_review_without_subtitle),
                     )
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.sharing_back)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
         bottomBar = {
             Column(Modifier.imePadding()) {
                 BottomActions {
-                    model.problem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                    model.problem?.let { Text(it.resolve(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
                     Button(
                         onClick = {
                             container.settings.requestName = from
@@ -249,7 +256,10 @@ internal fun ReviewScreen(
                         if (model.sealing) {
                             LoadingIndicator(Modifier.size(28.dp))
                         } else {
-                            ButtonLabel(if (their != null) "Encrypt for ${their.request.name}" else "Seal with ten pictures", Icons.Rounded.Lock)
+                            ButtonLabel(
+                                if (their != null) stringResource(R.string.sharing_review_encrypt_for, their.request.name) else stringResource(R.string.sharing_review_seal),
+                                Icons.Rounded.Lock,
+                            )
                         }
                     }
                 }
@@ -262,12 +272,17 @@ internal fun ReviewScreen(
         ) {
             NoLearningKeyboard {
                 if (their == null) {
-                    NameField(recipient, { recipient = it }, "For", "Whom it is for: only this phone keeps it")
+                    NameField(recipient, { recipient = it }, stringResource(R.string.sharing_review_for), stringResource(R.string.sharing_review_for_hint))
                 }
-                NameField(from, { from = it }, "From", if (their != null) "Your name, as ${their.request.name} knows you" else "Your name, as they know you")
+                NameField(
+                    from,
+                    { from = it },
+                    stringResource(R.string.sharing_review_from),
+                    if (their != null) stringResource(R.string.sharing_review_from_hint_request, their.request.name) else stringResource(R.string.sharing_review_from_hint),
+                )
             }
             for (entry in entries) EntryParts(entry, model.leftOut[entry.id].orEmpty(), name) { model.toggle(entry.id, it) }
-            InfoBox(Icons.Rounded.Info, "Tags and the expiry date go along. Attachments and earlier versions never do.")
+            InfoBox(Icons.Rounded.Info, stringResource(R.string.sharing_review_info))
         }
     }
 }
@@ -294,7 +309,7 @@ private fun NameField(value: String, onChange: (String) -> Unit, label: String, 
 }
 
 @Composable
-private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onToggle: (EntryPart) -> Unit) {
+private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String?, onToggle: (EntryPart) -> Unit) {
     val parts = remember(entry) { Sending.parts(entry) }
     val never = remember(entry) { Sending.neverSent(entry) }
     val rows = parts.size + never.size + 1 + if (entry.attachments.isNotEmpty()) 1 else 0
@@ -308,7 +323,7 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
             Column(Modifier.weight(1f)) {
                 Text(entry.displayTitle, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    (entry.groupPath.joinToString(" › ").ifEmpty { "Top level" }) + " · the title always goes",
+                    stringResource(R.string.sharing_review_title_goes, entry.groupPath.joinToString(" › ").ifEmpty { stringResource(R.string.sharing_top_level) }),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -331,9 +346,10 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(part.label(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val preview = part.preview(entry).resolve()
                     Text(
-                        part.preview(entry),
-                        Modifier.spokenMasked(part.preview(entry)),
+                        preview,
+                        Modifier.spokenMasked(preview),
                         style = MaterialTheme.typography.bodyLarge,
                         color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                         maxLines = 1,
@@ -341,10 +357,10 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
                     )
                     val warning = when {
                         !on -> null
-                        Sending.isSecondStep(part) -> "With it, $name can sign in without you: the second step is no longer yours alone."
+                        Sending.isSecondStep(part) ->
+                            name?.let { stringResource(R.string.sharing_review_second_step, it) } ?: stringResource(R.string.sharing_review_second_step_anyone)
                         Sending.isWalletKey(entry, part) ->
-                            "With it, $name sees every address and balance of the wallet, past and future, and one leaked key of any " +
-                                "of its addresses opens them all."
+                            name?.let { stringResource(R.string.sharing_review_wallet_key, it) } ?: stringResource(R.string.sharing_review_wallet_key_anyone)
                         else -> null
                     }
                     warning?.let {
@@ -361,7 +377,7 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
             }
         }
         never.entries.forEachIndexed { index, (part, kind) ->
-            val (what, why) = kind.words()
+            val (what, why) = kind.words().let { (what, why) -> stringResource(what) to stringResource(why) }
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -374,16 +390,16 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(part.label(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("$what · stays on this phone", style = MaterialTheme.typography.bodyLarge)
+                    Text(what, style = MaterialTheme.typography.bodyLarge)
                     Text(why, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Icon(Icons.Rounded.Lock, contentDescription = "Never sent", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Rounded.Lock, contentDescription = stringResource(R.string.sharing_review_never_sent), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (entry.attachments.isNotEmpty()) {
             val count = entry.attachments.size
             Text(
-                if (count == 1) "1 attachment stays on this phone" else "$count attachments stay on this phone",
+                pluralStringResource(R.plurals.sharing_review_attachments, count, count),
                 Modifier.fillMaxWidth().clip(segmentShape(rows - 1, rows)).background(MaterialTheme.extraColors.row).padding(16.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -392,33 +408,32 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String, onTo
     }
 }
 
-/** What a part that never goes is, and why (SPEC §10.1). */
-private fun WalletSecrets.Kind.words(): Pair<String, String> = when (this) {
-    WalletSecrets.Kind.PHRASE ->
-        "Recovery phrase" to "Whoever has these words has the wallet, on every network. To give someone coins, send them to their address."
-    WalletSecrets.Kind.PASSPHRASE -> "Passphrase" to "With the recovery phrase it opens the wallet."
-    WalletSecrets.Kind.PRIVATE_KEY ->
-        "Private key" to "Whoever has it can spend the wallet's coins. To give someone coins, send them to their address."
+/** What a part that never goes is ("Recovery phrase · stays on this phone"), and why (SPEC §10.1). */
+private fun WalletSecrets.Kind.words(): Pair<Int, Int> = when (this) {
+    WalletSecrets.Kind.PHRASE -> R.string.sharing_review_phrase to R.string.sharing_review_phrase_why
+    WalletSecrets.Kind.PASSPHRASE -> R.string.sharing_review_passphrase to R.string.sharing_review_passphrase_why
+    WalletSecrets.Kind.PRIVATE_KEY -> R.string.sharing_review_private_key to R.string.sharing_review_private_key_why
 }
 
+@Composable
 private fun EntryPart.label(): String = when (this) {
-    EntryPart.Username -> "Username"
-    EntryPart.Password -> "Password"
-    EntryPart.Website -> "Website"
-    EntryPart.Notes -> "Notes"
+    EntryPart.Username -> stringResource(R.string.sharing_field_username)
+    EntryPart.Password -> stringResource(R.string.sharing_field_password)
+    EntryPart.Website -> stringResource(R.string.sharing_field_website)
+    EntryPart.Notes -> stringResource(R.string.sharing_field_notes)
     is EntryPart.Field -> name
-    EntryPart.OneTimeCode -> "One-time code"
+    EntryPart.OneTimeCode -> stringResource(R.string.sharing_field_one_time_code)
 }
 
 /** What the row shows of the part: never a protected value. */
-internal fun EntryPart.preview(entry: Entry): String = when (this) {
-    EntryPart.Username -> entry.username
-    EntryPart.Password -> "••••••••••••"
-    EntryPart.Website -> entry.url
-    EntryPart.Notes -> if (entry.notesProtected) "••••••••" else entry.notes.lineSequence().first()
+internal fun EntryPart.preview(entry: Entry): UiText = when (this) {
+    EntryPart.Username -> uiPlain(entry.username)
+    EntryPart.Password -> uiPlain("••••••••••••")
+    EntryPart.Website -> uiPlain(entry.url)
+    EntryPart.Notes -> uiPlain(if (entry.notesProtected) "••••••••" else entry.notes.lineSequence().first())
     is EntryPart.Field -> when (val value = entry.customFields.firstOrNull { it.name == name }?.value) {
-        is FieldValue.Plain -> value.text.lineSequence().first()
-        else -> "••••••••"
+        is FieldValue.Plain -> uiPlain(value.text.lineSequence().first())
+        else -> uiPlain("••••••••")
     }
-    EntryPart.OneTimeCode -> "The key that makes the sign-in codes"
+    EntryPart.OneTimeCode -> uiText(R.string.sharing_review_otp_preview)
 }

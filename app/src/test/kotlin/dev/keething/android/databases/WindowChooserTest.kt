@@ -27,6 +27,7 @@ import kotlinx.coroutines.yield
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import dev.keething.android.ui.english
 
 /**
  * The chooser and its run as the app keeps them (plan AD13; keething-spec databases.chooser AC2, AC6–AC8; the Mac's
@@ -97,7 +98,7 @@ class WindowChooserTest {
             offers = offers::offer,
             label = { if (it == personal) "Personal" else "Work" },
             showOpened = { shownOpened++ },
-            tell = { told += it },
+            tell = { told += it.english() },
             sessionState = { id -> window.value.firstOrNull { it.id == id }?.session },
             scope = scope.backgroundScope,
             window = window,
@@ -153,7 +154,7 @@ class WindowChooserTest {
         assertEquals(emptySet(), f.chooser.skipped.value, "another run")
         f.skip()
         f.skip()
-        assertEquals("0 of 2 open · Personal: skipped · Work: skipped", f.chooser.note.value)
+        assertEquals("0 of 2 open · Personal: skipped · Work: skipped", f.chooser.note.value?.english())
         assertEquals(1, f.told.size, "nothing said over a list that is not there")
     }
 
@@ -221,7 +222,7 @@ class WindowChooserTest {
 
         f.chooser.unlockWithFingerprint()
         runCurrent()
-        assertEquals("The fingerprint was cancelled.", f.chooser.note.value)
+        assertEquals("The fingerprint was cancelled.", f.chooser.note.value?.english())
         assertEquals(0, f.shownOpened)
 
         f.fingerprint = FingerprintOutcome.Unlocked

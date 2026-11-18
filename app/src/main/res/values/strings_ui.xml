@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notices (ui/Notices.kt) -->
+    <string name="notice_undo">Undo</string>
+    <!-- %1$s: the field copied, as the card names it ("Password") -->
+    <string name="notice_copied">%1$s copied · clears in 30 s</string>
+    <plurals name="notice_next_code_copied">
+        <item quantity="one">Next code copied · works in %1$d s</item>
+        <item quantity="other">Next code copied · works in %1$d s</item>
+    </plurals>
+
+    <!-- A live one-time code (ui/OneTimeCode.kt) -->
+    <string name="ui_code_copy_next">Copy next code</string>
+    <!-- %1$d: the seconds until the next code; %2$s: figure spaces that keep it as wide as two digits -->
+    <plurals name="ui_code_next_in">
+        <item quantity="one">Next in %1$d s%2$s</item>
+        <item quantity="other">Next in %1$d s%2$s</item>
+    </plurals>
+    <!-- What a screen reader says of the next code. %1$d: the seconds until it; %2$s: the next code -->
+    <plurals name="ui_code_next_said">
+        <item quantity="one">Next code in %1$d second: %2$s</item>
+        <item quantity="other">Next code in %1$d seconds: %2$s</item>
+    </plurals>
+    <!-- A code's seconds as a screen reader says them. %1$d: the seconds -->
+    <plurals name="ui_code_seconds_left">
+        <item quantity="one">%1$d second left</item>
+        <item quantity="other">%1$d seconds left</item>
+    </plurals>
+</resources>

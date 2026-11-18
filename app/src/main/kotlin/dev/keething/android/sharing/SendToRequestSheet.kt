@@ -25,15 +25,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.ButtonLabel
 import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.rememberSecondsNow
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.segmentShape
 import dev.keething.sharing.requests.TheirRequest
 
@@ -58,14 +61,9 @@ internal fun SendToRequestSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Send “$title” to", style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.sharing_send_to_title, title), style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (theirs.isEmpty()) {
-                        "No one has asked yet. Ask them for a request (Keething › Sharing › Ask for an entry), or send it " +
-                            "without one: it opens with ten pictures you give another way."
-                    } else {
-                        "A request someone sent you: only their phone can open what you send. Or send it without one."
-                    },
+                    stringResource(if (theirs.isEmpty()) R.string.sharing_send_to_none else R.string.sharing_send_to_some),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -88,7 +86,7 @@ internal fun SendToRequestSheet(
                         Column(Modifier.weight(1f)) {
                             Text(their.request.reason, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                "${their.request.name} · ${SharingTexts.expires(their.request.expires, now)}",
+                                stringResource(R.string.sharing_two_parts, their.request.name, SharingTexts.expires(their.request.expires, now).resolve()),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -99,10 +97,10 @@ internal fun SendToRequestSheet(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onRead, modifier = Modifier.weight(1f)) {
-                    ButtonLabel("Read a request", Icons.Rounded.QrCodeScanner, gap = 8.dp)
+                    ButtonLabel(stringResource(R.string.sharing_send_to_read), Icons.Rounded.QrCodeScanner, gap = 8.dp)
                 }
                 TextButton(onClick = onSendWithout, modifier = Modifier.weight(1f)) {
-                    ButtonLabel("Without one", Icons.AutoMirrored.Rounded.Send, gap = 8.dp)
+                    ButtonLabel(stringResource(R.string.sharing_send_to_without), Icons.AutoMirrored.Rounded.Send, gap = 8.dp)
                 }
             }
         }

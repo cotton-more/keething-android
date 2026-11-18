@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.biometrics.BiometricManager.Authenticators
 import android.hardware.biometrics.BiometricPrompt
 import android.os.CancellationSignal
+import dev.keething.android.R
 import javax.crypto.Cipher
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -40,9 +41,9 @@ internal class FingerprintPrompt(private val context: Context) {
                 answer(if (errorCode in CLOSED) Answer.Cancelled else Answer.Failed(errString.toString()))
         }
         val dialog = BiometricPrompt.Builder(context)
-            .setTitle("Unlock Keething")
+            .setTitle(context.getString(R.string.biometric_prompt_title))
             .setAllowedAuthenticators(Authenticators.BIOMETRIC_STRONG)
-            .setNegativeButton("Use password", executor) { _, _ -> answer(Answer.Cancelled) }
+            .setNegativeButton(context.getString(R.string.biometric_prompt_use_password), executor) { _, _ -> answer(Answer.Cancelled) }
             .setConfirmationRequired(false)
             .build()
         if (cipher == null) {

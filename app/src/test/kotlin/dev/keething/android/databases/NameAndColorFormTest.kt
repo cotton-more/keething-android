@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.english
 import dev.keething.domain.vault.VaultEdit
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,9 +24,9 @@ class NameAndColorFormTest {
     @Test
     fun anEmptyNameAndNoColourAreWrittenAsNone() {
         assertEquals(VaultEdit.NameAndColor(name = "", color = ""), work.edit("   ", null))
-        assertEquals("Empty: it is called by its file name, Work.", work.nameNote(""))
-        assertEquals("“Passwords” counts as no name: it is called by its file name, Work.", work.nameNote("Passwords"))
-        assertEquals("Its file stays Work.kdbx.", work.nameNote("Office"))
+        assertEquals("Empty: it is called by its file name, Work.", work.nameNote("").english())
+        assertEquals("“Passwords” counts as no name: it is called by its file name, Work.", work.nameNote("Passwords").english())
+        assertEquals("Its file stays Work.kdbx.", work.nameNote("Office").english())
     }
 
     // spec: databases.rename-recolour/AC3
@@ -35,7 +36,7 @@ class NameAndColorFormTest {
 
         assertEquals(1, yellow.fileColorIndex, "yellow is shown as orange")
         assertNull(yellow.edit("Home", 1), "kept as it is")
-        assertEquals("Its file's own colour, shown as the nearest of these; it stays as it is until another is chosen.", yellow.colorNote(1))
+        assertEquals("Its file's own colour, shown as the nearest of these; it stays as it is until another is chosen.", yellow.colorNote(1).english())
         assertEquals(VaultEdit.NameAndColor(color = "#0E9AA7"), yellow.edit("Home", 0))
         val none = NameAndColorForm(fileName = "", fileColor = null, databaseFile = "Home.kdbx")
         assertNull(none.fileColorIndex)

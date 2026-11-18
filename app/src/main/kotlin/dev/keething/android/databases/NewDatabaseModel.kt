@@ -5,6 +5,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.domain.encryption.DatabaseEncryption
 import dev.keething.domain.encryption.MeasuredEncryption
 import dev.keething.domain.secret.Secret
@@ -149,7 +154,7 @@ internal class NewDatabaseModel(
     }
 
     /** A folder of Save in, granted; [note]: "this database’s" for the current one's. */
-    data class Folder(val path: String, val title: String, val note: String? = null)
+    data class Folder(val path: String, val title: String, val note: UiText? = null)
 
     /** After Create: the app opens it (the list, its session) and the screen closes. */
     var onCreated: suspend (CreatedDatabase) -> Unit = {}
@@ -215,12 +220,12 @@ internal class NewDatabaseModel(
         private set
 
     /** Why the Encryption page's last measurement failed, until the next one. */
-    private var measureFailure: String? by mutableStateOf(null)
+    private var measureFailure: UiText? by mutableStateOf(null)
 
     /** What the last Create could not do, and what was in the form then: shown until something changes. */
     private var failure: Failure? by mutableStateOf(null)
 
-    private class Failure(val text: String, val onName: Boolean, val form: Int)
+    private class Failure(val text: UiText, val onName: Boolean, val form: Int)
 
     /** Counts [lookAgain]: what is read of the files is read again. */
     private var looked by mutableIntStateOf(0)
@@ -268,8 +273,8 @@ internal class NewDatabaseModel(
     val path: String? get() = folder?.let { folder -> fileName?.let { File(folder, it).path } }
 
     /** Under Save in: "Sync/KeePass/Family Shared.kdbx" (the folder and "…" while there is no name). */
-    val pathText: String
-        get() = path?.let(::shown) ?: folder?.let { "${shown(it)}/…" } ?: "Keething saves only in a folder you choose."
+    val pathText: UiText
+        get() = (path?.let(::shown) ?: folder?.let { "${shown(it)}/…" })?.let(::uiPlain) ?: uiText(R.string.databases_new_saves_in_folder)
 
     /** A file is already where it would go (or Create found one): the name is red, and the line says why. */
     val nameIsTaken: Boolean get() = path?.let(::there) == true || failure?.takeIf { it.form == form() }?.onName == true
@@ -333,37 +338,36 @@ internal class NewDatabaseModel(
         }
 
     /** Under its name: "Documents · made at Create", "Keys". */
-    val keyFileDetail: String?
+    val keyFileDetail: UiText?
         get() = when (val choice = keyFile?.takeIf { requiresKeyFile }) {
-            is KeyFileChoice.New -> "${shown(choice.folder)} · made at Create"
-            is KeyFileChoice.Existing -> shown(File(choice.path).parent ?: "/")
+            is KeyFileChoice.New -> uiText(R.string.databases_new_key_file_made_at_create, shown(choice.folder))
+            is KeyFileChoice.Existing -> uiPlain(shown(File(choice.path).parent ?: "/"))
             null -> null
         }
 
     /** A new key file that cannot be made there (a file in its place, its folder gone), or one to use that is not there. */
-    val keyFileProblem: String?
+    val keyFileProblem: UiText?
         get() {
             val choice = keyFile?.takeIf { requiresKeyFile } ?: return null
             return when (choice) {
                 is KeyFileChoice.New -> when {
-                    !folderThere(choice.folder) -> "The key file's folder, ${shown(choice.folder)}, is not there any more."
-                    keyFilePath?.let(::there) == true ->
-                        "There is already a ${keyFileName} in ${shown(choice.folder)}. A key file is never replaced: choose another folder."
+                    !folderThere(choice.folder) -> uiText(R.string.databases_change_key_folder_gone, shown(choice.folder))
+                    keyFilePath?.let(::there) == true -> uiText(R.string.databases_new_key_file_taken, keyFileName.orEmpty(), shown(choice.folder))
                     else -> null
                 }
-                is KeyFileChoice.Existing -> if (there(choice.path)) null else "${File(choice.path).name} is not there any more."
+                is KeyFileChoice.Existing -> if (there(choice.path)) null else uiText(R.string.databases_change_key_file_gone, File(choice.path).name)
             }
         }
 
     /** A key file kept with the database protects little: whoever gets the folder gets both. */
-    val keyFileWarning: String?
+    val keyFileWarning: UiText?
         get() {
             val keyPath = keyFilePath ?: return null
             if (keyFileProblem != null) return null
             val keyFolder = File(keyPath).parent ?: return null
             return when {
-                keyFolder == folder -> "Beside the database, whoever gets the folder gets both. Keep it apart: a folder that does not sync."
-                files.syncs(keyFolder) -> "In a folder that syncs, it goes wherever the database goes. Keep it apart: a folder that does not sync."
+                keyFolder == folder -> uiText(R.string.databases_key_file_beside)
+                files.syncs(keyFolder) -> uiText(R.string.databases_key_file_syncs)
                 else -> null
             }
         }
@@ -371,16 +375,16 @@ internal class NewDatabaseModel(
     // Encryption (keething-spec databases.new-database-create)
 
     /** "KDBX 4 · AES-256 · Argon2d · opens in about 1 s on this phone · read by every current KeePass app". */
-    val encryptionLine: String
+    val encryptionLine: UiText
         get() {
             val e = encryption.clamped
             val seconds = measured?.takeIf { it.encryption == e }?.seconds ?: e.seconds
-            val readers = if (e.keyDerivation == DatabaseEncryption.KeyDerivation.ARGON2ID) {
-                "read by KeePass 2.47 and later and every current KeePass app"
+            val line = if (e.keyDerivation == DatabaseEncryption.KeyDerivation.ARGON2ID) {
+                R.string.databases_new_encryption_line_argon2id
             } else {
-                "read by every current KeePass app"
+                R.string.databases_new_encryption_line
             }
-            return "KDBX 4 · ${e.cipher.label} · ${e.keyDerivation.label} · opens in about ${seconds(seconds)} on this phone · $readers"
+            return uiText(line, e.cipher.label, e.keyDerivation.label, seconds(seconds))
         }
 
     val isRecommended: Boolean get() = encryption.clamped == DatabaseEncryption.recommended(cores)
@@ -391,17 +395,20 @@ internal class NewDatabaseModel(
     }
 
     /** Under the time on the Encryption page: "1.0 s on this phone: 16 iterations, measured. A computer usually opens it faster." */
-    val measuredLine: String
+    val measuredLine: UiText
         get() {
             val measured = measured?.takeIf { it.encryption == encryption.clamped }
-                ?: return measureFailure?.takeUnless { isMeasuring } ?: "Measuring on this phone…"
+                ?: return measureFailure?.takeUnless { isMeasuring } ?: uiText(R.string.databases_new_measuring)
             val count = String.format(Locale.US, "%,d", measured.units)
-            val unit = when {
-                measured.encryption.keyDerivation == DatabaseEncryption.KeyDerivation.AES_KDF -> "rounds"
-                measured.units == 1L -> "iteration"
-                else -> "iterations"
+            val time = String.format(Locale.US, "%.1f", measured.seconds)
+            // Rounds can pass an Int: past it, the last six digits choose the form (as every language's rules do), never "one".
+            val units = if (measured.units <= Int.MAX_VALUE) measured.units.toInt() else (measured.units % 1_000_000 + 1_000_000).toInt()
+            val line = if (measured.encryption.keyDerivation == DatabaseEncryption.KeyDerivation.AES_KDF) {
+                R.plurals.databases_new_measured_rounds
+            } else {
+                R.plurals.databases_new_measured_iterations
             }
-            return "${String.format(Locale.US, "%.1f", measured.seconds)} s on this phone: $count $unit, measured. A computer usually opens it faster."
+            return uiPlural(line, units, time, count)
         }
 
     fun changeEncryption(changed: DatabaseEncryption) {
@@ -419,19 +426,19 @@ internal class NewDatabaseModel(
     // Create
 
     /** What keeps Create from being tapped, the first first; empty: it can. */
-    val blockers: List<String>
+    val blockers: List<UiText>
         get() {
-            val why = mutableListOf<String>()
+            val why = mutableListOf<UiText>()
             val folder = folder
-            if (folder == null) why += "Choose the folder to save it in."
+            if (folder == null) why += uiText(R.string.databases_new_blocker_folder)
             val fileName = fileName
-            if (fileName == null) why += "Name it."
+            if (fileName == null) why += uiText(R.string.databases_new_blocker_name)
             // A file name has 255 bytes at most (UTF-8: a Cyrillic letter is two).
-            if (fileName != null && fileName.encodeToByteArray().size > 255) why += "The name is too long for a file name: shorten it."
+            if (fileName != null && fileName.encodeToByteArray().size > 255) why += uiText(R.string.databases_new_blocker_too_long)
             if (nameIsTaken && fileName != null) why += takenText(fileName)
-            if (folder != null && !folderThere(folder)) why += "That folder is not there any more. Choose another."
+            if (folder != null && !folderThere(folder)) why += uiText(R.string.databases_new_folder_gone)
             fields.blocker?.let { why += it }
-            if (requiresKeyFile && keyFile == null) why += "Make a key file, or choose one you have."
+            if (requiresKeyFile && keyFile == null) why += uiText(R.string.databases_new_blocker_key_file)
             keyFileProblem?.let { why += it }
             return why
         }
@@ -439,7 +446,7 @@ internal class NewDatabaseModel(
     val canCreate: Boolean get() = phase == Phase.Editing && blockers.isEmpty()
 
     /** The red line over Create: what Create could not do, or a file already there. */
-    val problem: String?
+    val problem: UiText?
         get() {
             failure?.takeIf { it.form == form() }?.let { return it.text }
             val fileName = fileName
@@ -447,14 +454,14 @@ internal class NewDatabaseModel(
         }
 
     /** "Creating Family Shared…". */
-    val creatingTitle: String get() = "Creating $databaseName…"
+    val creatingTitle: UiText get() = uiText(R.string.databases_new_creating_title, databaseName)
 
     /** "Measuring this phone’s speed for 1 s to open, then writing the file and reading it back." */
-    val creatingDetail: String
+    val creatingDetail: UiText
         get() = if (phase == Phase.Creating(writing = true)) {
-            "Writing the file and reading it back."
+            uiText(R.string.databases_new_creating_writing)
         } else {
-            "Measuring this phone’s speed for ${seconds(encryption.clamped.seconds)} to open, then writing the file and reading it back."
+            uiText(R.string.databases_new_creating_measuring, seconds(encryption.clamped.seconds))
         }
 
     /** The file (and a new key file) is being written: nothing stops it, the screen stays. */
@@ -597,52 +604,49 @@ internal class NewDatabaseModel(
 
     private suspend fun measure(e: DatabaseEncryption): MeasuredEncryption = withContext(io) {
         val job = coroutineContext.job
-        making.measure(e) { if (!job.isActive) throw CancellationException("measuring stopped") }
+        making.measure(e) { if (!job.isActive) throw CancellationException("measuring stopped") } // not user text
     }
 
     private enum class Step { MEASURE, NEW_KEY_FILE, KEY_FILE, DATABASE }
 
     private fun fail(error: Throwable, step: Step) {
         phase = Phase.Editing
-        val message = when (error) {
+        // "Not created: there is already…", but a file's own name as it is.
+        val text = when (error) {
             is CreateFailure.Exists -> if (step == Step.DATABASE) {
-                takenText(error.name)
+                uiText(R.string.databases_new_not_created_taken, error.name, folder?.let(::shown).toString())
             } else {
-                "There is already a ${error.name} there. A key file is never replaced: choose another folder."
+                uiText(R.string.databases_new_not_created_key_file_taken, error.name)
             }
-            is CreateFailure.FolderNotFound -> "That folder is not there any more. Choose another."
-            is CreateFailure.KeyFileUnusable -> "${error.name} cannot be read as a key file."
-            is CreateFailure.WriteFailed -> "The file could not be written: ${error.why}."
-            is CreateFailure.VerificationFailed -> "The new file did not check out (${error.why}), so it was not kept."
-            is CreateFailure.Unsupported -> "Not written: ${error.what}."
-            is CreateFailure.NotEnoughMemory -> "This phone has not enough memory for ${encryption.clamped.memoryMiB} MiB: choose less on the Encryption page."
-            else -> if (step == Step.MEASURE) {
-                measuringFailure(error)
-            } else {
-                "Something went wrong (${error.message ?: error.javaClass.simpleName})."
+            is CreateFailure.FolderNotFound -> uiText(R.string.databases_new_not_created_folder_gone)
+            is CreateFailure.KeyFileUnusable -> uiText(R.string.databases_new_not_created_key_file_unusable, error.name)
+            is CreateFailure.WriteFailed -> uiText(R.string.databases_new_not_created_write_failed, error.why)
+            is CreateFailure.VerificationFailed -> uiText(R.string.databases_new_not_created_verification_failed, error.why)
+            is CreateFailure.Unsupported -> uiText(R.string.databases_new_not_created_unsupported, error.what)
+            is CreateFailure.NotEnoughMemory -> uiText(R.string.databases_new_not_created_memory, encryption.clamped.memoryMiB)
+            else -> when {
+                step != Step.MEASURE -> uiText(R.string.databases_new_not_created_went_wrong, error.message ?: error.javaClass.simpleName)
+                else -> uiText(R.string.databases_new_not_created_not_measured)
             }
         }
-        // "Not created: there is already…", but a file's own name as it is.
-        val lowered = if (message.startsWith("Th") || message.startsWith("Something")) message.replaceFirstChar { it.lowercaseChar() } else message
-        failure = Failure("Not created: $lowered", onName = error is CreateFailure.Exists && step == Step.DATABASE, form = form())
+        failure = Failure(text, onName = error is CreateFailure.Exists && step == Step.DATABASE, form = form())
     }
 
     /** Why measuring failed, as the Encryption page and Create say it. */
-    private fun measuringFailure(error: Throwable): String = if (error is CreateFailure.NotEnoughMemory) {
-        "This phone has not enough memory for ${encryption.clamped.memoryMiB} MiB: choose less."
+    private fun measuringFailure(error: Throwable): UiText = if (error is CreateFailure.NotEnoughMemory) {
+        uiText(R.string.databases_new_measure_memory, encryption.clamped.memoryMiB)
     } else {
-        "This phone’s speed could not be measured. Try again, or choose AES-KDF."
+        uiText(R.string.databases_new_not_measured)
     }
 
-    private fun takenText(fileName: String): String =
-        "There is already a $fileName in ${folder?.let(::shown)}. A database is never replaced: choose another name or folder."
+    private fun takenText(fileName: String): UiText = uiText(R.string.databases_new_taken, fileName, folder?.let(::shown).toString())
 
     /** What the form holds now: a failure is shown until it changes (the name, the folder, the password, a key file, the encryption). */
     private fun form(): Int = listOf(name, folder, password.text.toString(), keyFile, requiresKeyFile, encryption).hashCode()
 
     private fun shown(path: String): String = DatabaseText.abbreviated(path, root)
 
-    private fun folderAt(path: String, isCurrent: Boolean): Folder = Folder(path, shown(path), "this database’s".takeIf { isCurrent })
+    private fun folderAt(path: String, isCurrent: Boolean): Folder = Folder(path, shown(path), uiText(R.string.databases_new_folder_this_database).takeIf { isCurrent })
 
     private fun encryptionChanged() {
         val e = encryption.clamped
@@ -692,9 +696,10 @@ internal class NewDatabaseModel(
 
     companion object {
         /** "1 s", "0.5 s", "2.5 s". */
-        fun seconds(value: Double): String {
+        fun seconds(value: Double): UiText {
             val rounded = Math.round(value * 10) / 10.0
-            return if (rounded == Math.floor(rounded) && rounded >= 1) "${rounded.toInt()} s" else String.format(Locale.US, "%.1f s", rounded)
+            val number = if (rounded == Math.floor(rounded) && rounded >= 1) "${rounded.toInt()}" else String.format(Locale.US, "%.1f", rounded)
+            return uiText(R.string.databases_seconds, number)
         }
     }
 }

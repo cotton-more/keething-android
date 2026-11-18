@@ -43,9 +43,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.ButtonLabel
 import dev.keething.android.ui.FullBrightness
@@ -54,6 +57,7 @@ import dev.keething.android.ui.NoticeEffect
 import dev.keething.android.ui.NoticeHost
 import dev.keething.android.ui.QrCodeImage
 import dev.keething.android.ui.readableInset
+import dev.keething.android.ui.uiText
 import dev.keething.sharing.message.ShareCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -85,10 +89,10 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
                     try {
                         context.startActivity(intent)
                     } catch (_: ActivityNotFoundException) {
-                        notices.send(Notice("No app can take it", isProblem = true))
+                        notices.send(Notice(uiText(R.string.sharing_no_app), isProblem = true))
                     }
                 }
-                .onFailure { notices.send(Notice("Could not make the picture: ${it.message}", isProblem = true)) }
+                .onFailure { notices.send(Notice(uiText(R.string.sharing_picture_not_made, it.message.toString()), isProblem = true)) }
         }
     }
 
@@ -96,8 +100,13 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { BarTitle("For ${answer.name}", "${answer.reason} · ${if (answer.entries == 1) "1 entry" else "${answer.entries} entries"}") },
-                navigationIcon = { IconButton(onClick = onDone) { Icon(Icons.Rounded.Close, contentDescription = "Done") } },
+                title = {
+                    BarTitle(
+                        stringResource(R.string.sharing_for, answer.name),
+                        pluralStringResource(R.plurals.sharing_answer_subtitle, answer.entries, answer.entries, answer.reason),
+                    )
+                },
+                navigationIcon = { IconButton(onClick = onDone) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.sharing_done)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
@@ -105,7 +114,7 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
             BottomActions {
                 if (pictures != null) {
                     Button(onClick = { send { container.codePictures.sendIntent(pictures) } }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                        ButtonLabel(if (pictures.size == 1) "Send the picture" else "Send the ${pictures.size} pictures", Icons.AutoMirrored.Rounded.Send)
+                        ButtonLabel(pluralStringResource(R.plurals.sharing_send_pictures, pictures.size, pictures.size), Icons.AutoMirrored.Rounded.Send)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -113,20 +122,32 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
                         onClick = { send { container.codePictures.sendTextIntent(SharingTexts.answerMessage(answer.reason, answer.encoded)) } },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
-                        ButtonLabel("Send as text", Icons.AutoMirrored.Rounded.TextSnippet, short = "As text", iconSize = 20.dp, gap = 8.dp)
+                        ButtonLabel(
+                            stringResource(R.string.sharing_send_as_text),
+                            Icons.AutoMirrored.Rounded.TextSnippet,
+                            short = stringResource(R.string.sharing_send_as_text_short),
+                            iconSize = 20.dp,
+                            gap = 8.dp,
+                        )
                     }
                     if (pictures != null) {
                         FilledTonalButton(
                             onClick = {
                                 scope.launch {
                                     runCatching { withContext(Dispatchers.IO) { container.codePictures.save(pictures) } }
-                                        .onSuccess { notices.send(Notice("Saved to Pictures › Keething")) }
-                                        .onFailure { notices.send(Notice("Could not save the pictures: ${it.message}", isProblem = true)) }
+                                        .onSuccess { notices.send(Notice(uiText(R.string.sharing_saved_to_pictures))) }
+                                        .onFailure { notices.send(Notice(uiText(R.string.sharing_pictures_not_saved, it.message.toString()), isProblem = true)) }
                                 }
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                         ) {
-                            ButtonLabel(if (pictures.size == 1) "Save picture" else "Save pictures", Icons.Rounded.Download, short = "Save", iconSize = 20.dp, gap = 8.dp)
+                            ButtonLabel(
+                                pluralStringResource(R.plurals.sharing_save_pictures, pictures.size),
+                                Icons.Rounded.Download,
+                                short = stringResource(R.string.sharing_save_short),
+                                iconSize = 20.dp,
+                                gap = 8.dp,
+                            )
                         }
                     }
                 }
@@ -140,22 +161,22 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (codes == null) {
-                Explanation("Too large for QR codes", "Send it as text: a messenger or mail carries it whole.")
+                Explanation(stringResource(R.string.sharing_too_large_title), stringResource(R.string.sharing_too_large_text))
             } else {
                 val index = shown.coerceIn(codes.indices)
-                QrCodeImage(codes[index], "QR code of the answer, ${index + 1} of ${codes.size}", Modifier.widthIn(max = 300.dp).fillMaxWidth())
+                QrCodeImage(codes[index], stringResource(R.string.sharing_answer_qr, index + 1, codes.size), Modifier.widthIn(max = 300.dp).fillMaxWidth())
                 if (codes.size > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilledTonalIconButton(onClick = { shown = (index - 1 + codes.size) % codes.size }) {
-                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "Previous code")
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = stringResource(R.string.sharing_previous_code))
                         }
-                        Text("Code ${index + 1} of ${codes.size}", Modifier.widthIn(min = 120.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.sharing_code_of, index + 1, codes.size), Modifier.widthIn(min = 120.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall)
                         FilledTonalIconButton(onClick = { shown = (index + 1) % codes.size }) {
-                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "Next code")
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = stringResource(R.string.sharing_next_code))
                         }
                     }
                     Text(
-                        "Too much for one code: ${if (codes.size == 2) "both are" else "all ${codes.size} are"} needed, in any order.",
+                        if (codes.size == 2) stringResource(R.string.sharing_answer_both) else pluralStringResource(R.plurals.sharing_answer_all, codes.size, codes.size),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -163,8 +184,7 @@ internal fun AnswerScreen(container: AppContainer, answer: MadeAnswer, onDone: (
             }
             InfoBox(
                 Icons.Rounded.Lock,
-                "Only the phone that made ${answer.name}'s request can open it, so it may travel any way. The request is closed " +
-                    "now: nothing more can be sent to it.",
+                stringResource(R.string.sharing_answer_info, answer.name),
             )
         }
     }

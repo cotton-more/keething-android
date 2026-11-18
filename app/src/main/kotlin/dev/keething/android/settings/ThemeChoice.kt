@@ -1,6 +1,9 @@
 package dev.keething.android.settings
 
 import android.app.UiModeManager
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 
 /**
  * Settings' "Theme" (keething-spec app.theme-choice; SPEC §6.2): as the system, always light or always dark. Kept in the
@@ -8,10 +11,10 @@ import android.app.UiModeManager
  * no getter), again at each start: every window of the app follows it (the splash, a quick note, autofill's screens),
  * and the screens rebuild themselves when it changes.
  */
-internal enum class ThemeChoice(val label: String, val stored: String, val nightMode: Int) {
-    System("System", "system", UiModeManager.MODE_NIGHT_AUTO),
-    Light("Light", "light", UiModeManager.MODE_NIGHT_NO),
-    Dark("Dark", "dark", UiModeManager.MODE_NIGHT_YES),
+internal enum class ThemeChoice(val label: UiText, val stored: String, val nightMode: Int) {
+    System(uiText(R.string.settings_theme_system), "system", UiModeManager.MODE_NIGHT_AUTO),
+    Light(uiText(R.string.settings_theme_light), "light", UiModeManager.MODE_NIGHT_NO),
+    Dark(uiText(R.string.settings_theme_dark), "dark", UiModeManager.MODE_NIGHT_YES),
     ;
 
     companion object {

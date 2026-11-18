@@ -54,8 +54,8 @@ internal class AndroidSystemClipboard(context: Context) : SystemClipboard {
     } == true
 
     private companion object {
-        const val LABEL = "Keething"
-        const val TOKEN = "dev.keething.android.clipToken"
+        const val LABEL = "Keething" // not user text: the clip's label, the app's name
+        const val TOKEN = "dev.keething.android.clipToken" // not user text
     }
 }
 

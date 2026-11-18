@@ -55,7 +55,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
+import dev.keething.android.ui.resolve
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.spokenMasked
 import dev.keething.card.BankAccount
@@ -99,11 +102,11 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         FaceTile(Icons.Rounded.AccountBalance)
-                        Text("BANK ACCOUNT", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = colors.stickerLabel, maxLines = 1)
+                        Text(stringResource(R.string.entry_bank_heading), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = colors.stickerLabel, maxLines = 1)
                         CountryChip(account.country)
                     }
                     account.holderRowId?.let { id ->
-                        StickerLine("ACCOUNT HOLDER", rows[id], actions) {
+                        StickerLine(stringResource(R.string.entry_bank_holder), rows[id], actions) {
                             Text(account.holder.orEmpty(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -142,7 +145,7 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                     }
                     HorizontalDivider(color = colors.stickerEdge)
                     Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Tap a line to copy it · numbers without spaces", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = colors.stickerLabel)
+                        Text(stringResource(R.string.entry_bank_tap_line), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = colors.stickerLabel)
                         if (concealed) ShowButton(shown) { actions.onToggle(account.numberRowId) }
                     }
                 }
@@ -154,14 +157,14 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                         Button(onClick = { actions.onCopy(number) }, Modifier.weight(1f).heightIn(min = 52.dp)) {
                             Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text(if (account.numberLabel == "IBAN") "Copy IBAN" else "Copy account", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(stringResource(if (account.numberLabel == "IBAN") R.string.entry_bank_copy_iban else R.string.entry_bank_copy_account), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     if (account.shareText() != null) {
                         FilledTonalButton(onClick = actions.onShareBank, Modifier.heightIn(min = 52.dp)) {
                             Icon(Icons.Rounded.Share, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text("Share", maxLines = 1)
+                            Text(stringResource(R.string.entry_bank_share), maxLines = 1)
                         }
                     }
                 }
@@ -220,9 +223,9 @@ internal fun DocumentSection(section: CardSection, document: IdentityDocument, r
                                 }
                             }
                             document.nameRowId?.let { id ->
-                                PaperLine("NAME", rows[id], actions) { Text(document.name.orEmpty(), color = ink, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                                PaperLine(stringResource(R.string.entry_document_name), rows[id], actions) { Text(document.name.orEmpty(), color = ink, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                             }
-                            PaperLine("NUMBER", number, actions) {
+                            PaperLine(stringResource(R.string.entry_document_number), number, actions) {
                                 Text(
                                     if (shown) number?.revealedText().orEmpty() else RevealState.MASK,
                                     if (shown) Modifier else Modifier.spokenMasked(RevealState.MASK),
@@ -234,10 +237,10 @@ internal fun DocumentSection(section: CardSection, document: IdentityDocument, r
                                 )
                             }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                DateLine("BORN", document.birth, document.birthRowId, rows, actions, ink, locale)
-                                DateLine("ISSUED", document.issued, document.issuedRowId, rows, actions, ink, locale)
+                                DateLine(stringResource(R.string.entry_document_born), document.birth, document.birthRowId, rows, actions, ink, locale)
+                                DateLine(stringResource(R.string.entry_document_issued), document.issued, document.issuedRowId, rows, actions, ink, locale)
                                 val expired = document.expiryHint?.status == ExpiryHint.Status.EXPIRED
-                                DateLine("EXPIRES", document.expiry, document.expiryRowId, rows, actions, if (expired) MaterialTheme.colorScheme.error else ink, locale)
+                                DateLine(stringResource(R.string.entry_document_expires), document.expiry, document.expiryRowId, rows, actions, if (expired) MaterialTheme.colorScheme.error else ink, locale)
                             }
                         }
                     }
@@ -251,11 +254,11 @@ internal fun DocumentSection(section: CardSection, document: IdentityDocument, r
                         FilledTonalButton(onClick = { actions.onToggle(document.numberRowId) }, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
                             Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text(if (shown) "Hide" else "Show")
+                            Text(stringResource(if (shown) R.string.entry_face_hide else R.string.entry_face_show))
                         }
                     }
                     document.expiryHint?.takeIf { it.status != ExpiryHint.Status.VALID }?.let { ExpiryChip(it) }
-                    Text("Tap a line to copy it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.entry_face_tap_line), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             val others = section.rows.filter { it.id !in document.faceRowIds }
@@ -316,6 +319,7 @@ private fun Guilloche(color: Color, modifier: Modifier) {
 internal fun SshSection(section: CardSection, login: SshLogin, key: SshKeyView?, sshApp: SshApp?, hasPassword: Boolean, reveal: RevealState, now: State<Instant>, actions: CardActions) {
     val location: SshKeyLocation? = key?.location ?: login.keyLocation
     val command = login.command(location)
+    val commandCopied = stringResource(R.string.entry_ssh_copied_command)
     Titled(section.title) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             FaceWidth {
@@ -332,14 +336,14 @@ internal fun SshSection(section: CardSection, login: SshLogin, key: SshKeyView?,
                 ) {
                     Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { repeat(3) { Box(Modifier.size(10.dp).clip(CircleShape).background(Terminal.dot)) } }
-                        Text("SSH", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = Terminal.label)
-                        val auth = when {
-                            location != null -> "key"
-                            hasPassword -> "password"
-                            else -> null
-                        }
+                        Text(stringResource(R.string.entry_ssh_heading), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.4.sp, color = Terminal.label)
+                        val port = login.port ?: 22
                         Text(
-                            listOfNotNull(auth, "port ${login.port ?: 22}").joinToString(" · "),
+                            when {
+                                location != null -> stringResource(R.string.entry_ssh_chip_key, port)
+                                hasPassword -> stringResource(R.string.entry_ssh_chip_password, port)
+                                else -> stringResource(R.string.entry_ssh_chip_port, port)
+                            },
                             Modifier.clip(RoundedCornerShape(9.dp)).background(Terminal.chip).padding(horizontal = 10.dp, vertical = 4.dp),
                             color = Terminal.ink,
                             fontFamily = MonospaceFamily,
@@ -355,7 +359,7 @@ internal fun SshSection(section: CardSection, login: SshLogin, key: SshKeyView?,
                         Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable(onClickLabel = "Copy the ssh command") { actions.onCopyText("ssh command", command) }
+                            .clickable(onClickLabel = stringResource(R.string.entry_ssh_copy_command_label)) { actions.onCopyText(commandCopied, command) }
                             .padding(8.dp),
                         color = Terminal.ink,
                         fontFamily = MonospaceFamily,
@@ -364,21 +368,26 @@ internal fun SshSection(section: CardSection, login: SshLogin, key: SshKeyView?,
                     )
                     HorizontalDivider(color = Terminal.rule)
                     Column {
-                        TerminalLine("host", login.host) { actions.onCopyText("Host", login.host) }
+                        val host = stringResource(R.string.entry_ssh_copied_host)
+                        TerminalLine(stringResource(R.string.entry_ssh_host), stringResource(R.string.entry_ssh_copy_host), login.host) { actions.onCopyText(host, login.host) }
                         login.user?.let { user ->
-                            TerminalLine("user", user, note = if (login.userRowId == RowIds.USERNAME) "the username" else null) { actions.onCopyText("User", user) }
+                            val copied = stringResource(R.string.entry_ssh_copied_user)
+                            val note = if (login.userRowId == RowIds.USERNAME) stringResource(R.string.entry_ssh_the_username) else null
+                            TerminalLine(stringResource(R.string.entry_ssh_user), stringResource(R.string.entry_ssh_copy_user), user, note = note) { actions.onCopyText(copied, user) }
                         }
-                        TerminalLine("port", (login.port ?: 22).toString()) { actions.onCopyText("Port", (login.port ?: 22).toString()) }
+                        val port = stringResource(R.string.entry_ssh_copied_port)
+                        TerminalLine(stringResource(R.string.entry_ssh_port), stringResource(R.string.entry_ssh_copy_port), (login.port ?: 22).toString()) { actions.onCopyText(port, (login.port ?: 22).toString()) }
                     }
                     key?.let { KeyLine(it, actions) }
                     HorizontalDivider(color = Terminal.rule)
                     val config = login.config(location)
+                    val block = stringResource(R.string.entry_ssh_copied_host_block)
                     Row(Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("~/.ssh/config", Modifier.weight(1f), color = Terminal.label, fontFamily = MonospaceFamily, fontSize = 12.sp)
-                        TextButton(onClick = { actions.onCopyText("Host block", config) }) {
+                        TextButton(onClick = { actions.onCopyText(block, config) }) {
                             Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(16.dp), tint = Terminal.ink)
                             Spacer(Modifier.size(6.dp))
-                            Text("Copy", color = Terminal.ink)
+                            Text(stringResource(R.string.entry_ssh_copy), color = Terminal.ink)
                         }
                     }
                     Text(
@@ -390,20 +399,20 @@ internal fun SshSection(section: CardSection, login: SshLogin, key: SshKeyView?,
                         lineHeight = 19.sp,
                     )
                     Row(Modifier.heightIn(min = 40.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Tap a line to copy it", style = MaterialTheme.typography.bodySmall, color = Terminal.label)
+                        Text(stringResource(R.string.entry_face_tap_line), style = MaterialTheme.typography.bodySmall, color = Terminal.label)
                     }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { actions.onCopyText("ssh command", command) }, Modifier.heightIn(min = 52.dp)) {
+                    Button(onClick = { actions.onCopyText(commandCopied, command) }, Modifier.heightIn(min = 52.dp)) {
                         Icon(Icons.Rounded.Terminal, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                        Text("Copy ssh command", maxLines = 1)
+                        Text(stringResource(R.string.entry_ssh_copy_command), maxLines = 1)
                     }
                     sshApp?.let { app ->
                         FilledTonalButton(onClick = app.open, Modifier.heightIn(min = 52.dp)) {
                             Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text("Open in ${app.label}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(stringResource(R.string.entry_ssh_open_in, app.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -418,13 +427,13 @@ internal fun SshSection(section: CardSection, login: SshLogin, key: SshKeyView?,
 internal class SshApp(val label: String, val open: () -> Unit)
 
 @Composable
-private fun TerminalLine(key: String, value: String, note: String? = null, onCopy: () -> Unit) {
+private fun TerminalLine(key: String, copyLabel: String, value: String, note: String? = null, onCopy: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 36.dp)
             .clip(RoundedCornerShape(10.dp))
-            .clickable(onClickLabel = "Copy the $key", onClick = onCopy)
+            .clickable(onClickLabel = copyLabel, onClick = onCopy)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -438,11 +447,12 @@ private fun TerminalLine(key: String, value: String, note: String? = null, onCop
 @Composable
 private fun KeyLine(key: SshKeyView, actions: CardActions) {
     val publicKey = key.publicKey
+    val copied = stringResource(R.string.entry_ssh_copied_public_key)
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .then(if (publicKey != null) Modifier.clickable(onClickLabel = "Copy the public key") { actions.onCopyText("Public key", publicKey.line) } else Modifier)
+            .then(if (publicKey != null) Modifier.clickable(onClickLabel = stringResource(R.string.entry_ssh_copy_public_key)) { actions.onCopyText(copied, publicKey.line) } else Modifier)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -452,9 +462,9 @@ private fun KeyLine(key: SshKeyView, actions: CardActions) {
             Text(listOfNotNull(name, publicKey?.displayType).joinToString(" · "), color = Terminal.ink, fontFamily = MonospaceFamily, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             publicKey?.let { Text(it.fingerprint, color = Terminal.label, fontFamily = MonospaceFamily, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             Text(
-                key.problem ?: when (key.location) {
-                    is SshKeyLocation.InAttachment -> "Attachment of this entry · the SSH agent gives it to ssh · tap to copy the public key"
-                    is SshKeyLocation.InFile -> "Key file on the computer, from KeePassXC's settings"
+                key.problem?.resolve() ?: when (key.location) {
+                    is SshKeyLocation.InAttachment -> stringResource(R.string.entry_ssh_key_in_attachment)
+                    is SshKeyLocation.InFile -> stringResource(R.string.entry_ssh_key_in_file)
                 },
                 color = Terminal.label,
                 style = MaterialTheme.typography.bodySmall,
@@ -492,7 +502,7 @@ private fun CountryChip(code: String?) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(code?.let(Countries::flag) ?: Countries.UNKNOWN_FLAG, fontSize = 14.sp)
-        Text(code?.let(Countries::name) ?: "Country unknown", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1)
+        Text(code?.let(Countries::name) ?: stringResource(R.string.entry_country_unknown), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1)
     }
 }
 
@@ -516,6 +526,6 @@ private fun ShowButton(shown: Boolean, onClick: () -> Unit) {
     TextButton(onClick = onClick) {
         Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
         Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-        Text(if (shown) "Hide" else "Show")
+        Text(stringResource(if (shown) R.string.entry_face_hide else R.string.entry_face_show))
     }
 }

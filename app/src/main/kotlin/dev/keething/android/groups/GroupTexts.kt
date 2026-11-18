@@ -1,6 +1,11 @@
 package dev.keething.android.groups
 
+import dev.keething.android.R
 import dev.keething.android.editor.deletedGroupsNote
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.card.GroupPathFormatter
 import dev.keething.card.editing.GroupChanges
 import dev.keething.card.editing.GroupChoice
@@ -13,126 +18,122 @@ import dev.keething.domain.vault.VaultGroup
  * AG3): paths with ›, the root group "Top level".
  */
 internal object GroupTexts {
-    const val TOP_LEVEL = "Top level"
+    val TOP_LEVEL: UiText = uiText(R.string.groups_top_level)
 
     /** A group's path from the top; "Top level" for the root group, "" when it is gone. */
-    fun path(tree: GroupTree, groupId: String): String = tree.group(groupId)?.let { if (it.isRoot) TOP_LEVEL else GroupPathFormatter.text(it.path) }.orEmpty()
+    fun path(tree: GroupTree, groupId: String): UiText =
+        tree.group(groupId)?.let { if (it.isRoot) TOP_LEVEL else uiPlain(GroupPathFormatter.text(it.path)) } ?: uiPlain("")
 
     /** Where [choice] goes, its new levels too: "Travel › Japan › Kyoto". */
-    fun path(tree: GroupTree, choice: GroupChoice): String {
-        val levels = tree.levels(choice) ?: return ""
-        return if (levels.isEmpty()) TOP_LEVEL else GroupPathFormatter.text(levels.map { it.name })
+    fun path(tree: GroupTree, choice: GroupChoice): UiText {
+        val levels = tree.levels(choice) ?: return uiPlain("")
+        return if (levels.isEmpty()) TOP_LEVEL else uiPlain(GroupPathFormatter.text(levels.map { it.name }))
     }
 
     /** The picker's "+ New group" row: "New group “qu”", "New groups “Baz › Zed”". */
-    fun newGroups(names: List<String>): String =
-        (if (names.size == 1) "New group" else "New groups") + " “${GroupPathFormatter.text(names)}”"
+    fun newGroups(names: List<String>): UiText = uiPlural(R.plurals.groups_picker_new_groups, names.size, GroupPathFormatter.text(names))
 
     /** Under it: "in Foo › Bar · made when the entry is saved" ([made]: when, for the screen it is on). */
-    fun newGroupsPlace(tree: GroupTree, offer: GroupChoice, made: String): String = "in ${path(tree, offer.groupId)} · $made"
+    fun newGroupsPlace(tree: GroupTree, offer: GroupChoice, made: String): UiText =
+        uiText(R.string.groups_picker_new_place, path(tree, offer.groupId), made)
 
     /** Under the search field: the levels before the last that are not groups yet (the level searched is said above the rows). */
-    fun hint(view: GroupPicker.View): String? = view.missing.takeIf { it.isNotEmpty() }?.let { missing ->
-        "“${GroupPathFormatter.text(missing)}” " + if (missing.size == 1) "is not a group yet" else "are not groups yet"
+    fun hint(view: GroupPicker.View): UiText? = view.missing.takeIf { it.isNotEmpty() }?.let { missing ->
+        uiPlural(R.plurals.groups_picker_not_groups_yet, missing.size, GroupPathFormatter.text(missing))
     }
 
     /**
      * Under a level with no groups inside, or a search that found nothing and has nothing to make ([canMake]: the
      * picker offers new groups; Move to… does not).
      */
-    fun empty(tree: GroupTree, view: GroupPicker.View, canMake: Boolean = true): String? {
+    fun empty(tree: GroupTree, view: GroupPicker.View, canMake: Boolean = true): UiText? {
         val level = view.level
         return when {
             view.isLevel && level != null && view.rows.size <= 1 ->
-                "No groups in “${path(tree, level.id)}” yet." + if (canMake) " Type a name to make one." else ""
+                uiText(if (canMake) R.string.groups_picker_level_empty_make else R.string.groups_picker_level_empty, path(tree, level.id))
             view.isLevel || view.rows.isNotEmpty() || (canMake && view.offer != null) -> null
-            else -> "No group has “${view.last}”."
+            else -> uiText(R.string.groups_picker_none_found, view.last)
         }
     }
 
     /** "2 groups" under a row whose group has groups inside; null for none. */
-    fun subgroups(count: Int): String? = when (count) {
-        0 -> null
-        1 -> "1 group"
-        else -> "$count groups"
-    }
+    fun subgroups(count: Int): UiText? = if (count == 0) null else uiPlural(R.plurals.groups_subgroups, count)
 
     /**
      * Under the editor's group row: the new levels made with the save ("“Korea” and “Seoul” are made when the entry is
-     * saved", from three on how many, the row shows them; [saved]: when, for the screen it is on), else where a moved entry comes from ("Moves here from
-     * Travel › Japan when saved"); null for neither.
+     * saved", from three on how many, the row shows them; [entries]: several entries are saved, on the screen that saves
+     * them), else where a moved entry comes from ("Moves here from Travel › Japan when saved"); null for neither.
      */
-    fun note(tree: GroupTree, choice: GroupChoice, movedFrom: String?, saved: String = "the entry is saved"): String? {
-        val names = choice.newNames.map { "“$it”" }
+    fun note(tree: GroupTree, choice: GroupChoice, movedFrom: String?, entries: Boolean = false): UiText? {
+        val names = choice.newNames
         return when {
-            names.size == 1 -> "${names[0]} is made when $saved"
-            names.size == 2 -> "${names[0]} and ${names[1]} are made when $saved"
-            names.isNotEmpty() -> "${names.size} new groups are made when $saved"
-            movedFrom != null -> "Moves here from ${path(tree, movedFrom).ifEmpty { "a group no longer there" }} when saved"
+            names.size == 1 -> uiText(if (entries) R.string.groups_note_one_made_entries else R.string.groups_note_one_made, names[0])
+            names.size == 2 -> uiText(if (entries) R.string.groups_note_two_made_entries else R.string.groups_note_two_made, names[0], names[1])
+            names.isNotEmpty() -> uiPlural(if (entries) R.plurals.groups_note_many_made_entries else R.plurals.groups_note_many_made, names.size)
+            movedFrom != null -> tree.group(movedFrom)?.let { uiText(R.string.groups_note_moved_from, path(tree, movedFrom)) }
+                ?: uiText(R.string.groups_note_moved_from_gone)
             else -> null
         }
     }
 
     // Groups & tags' changes (plans/android-groups.md G5; the AG3 mock-ups; keething-spec groups.manage).
 
-    fun renameTitle(group: VaultGroup): String = "Rename “${group.name}”"
+    fun renameTitle(group: VaultGroup): UiText = uiText(R.string.groups_rename_title, group.name)
 
-    fun newGroupTitle(parent: VaultGroup): String = if (parent.isRoot) "New group at the top level" else "New group in “${parent.name}”"
+    fun newGroupTitle(parent: VaultGroup): UiText =
+        if (parent.isRoot) uiText(R.string.groups_new_title_top) else uiText(R.string.groups_new_title_in, parent.name)
 
     /** Under the name's field: why it is refused ("“Work” has a group “Mail” already."); null when it is not. */
-    fun nameProblem(name: GroupChanges.Name): String? = when (name) {
-        GroupChanges.Name.Empty -> "A group needs a name."
-        is GroupChanges.Name.Taken -> "${place(name.parent)} has a group “${name.taken.name}” already."
+    fun nameProblem(name: GroupChanges.Name): UiText? = when (name) {
+        GroupChanges.Name.Empty -> uiText(R.string.groups_name_empty)
+        is GroupChanges.Name.Taken ->
+            if (name.parent.isRoot) uiText(R.string.groups_name_taken_top, name.taken.name)
+            else uiText(R.string.groups_name_taken, name.parent.name, name.taken.name)
         is GroupChanges.Name.Ok, GroupChanges.Name.Unchanged -> null
     }
 
     /** Move to…'s picker: "Move “Japan” to…", under it the group's path and what goes with it. */
-    fun moveTitle(group: VaultGroup): String = "Move “${group.name}” to…"
+    fun moveTitle(group: VaultGroup): UiText = uiText(R.string.groups_move_title, group.name)
 
-    fun moveSubtitle(group: VaultGroup, total: Int): String = GroupPathFormatter.text(group.path) + " · " + when (total) {
-        0 -> "empty"
-        1 -> "1 entry goes with it"
-        else -> "$total entries, all go with it"
+    fun moveSubtitle(group: VaultGroup, total: Int): UiText {
+        val path = GroupPathFormatter.text(group.path)
+        return if (total == 0) uiText(R.string.groups_move_subtitle_empty, path) else uiPlural(R.plurals.groups_move_subtitle, total, path, total)
     }
 
     /** Under a target greyed in Move to…, why [group] may not go there. */
-    fun moveRefusal(group: VaultGroup, refusal: GroupChanges.MoveRefusal): String = when (refusal) {
-        GroupChanges.MoveRefusal.Itself -> "The group itself"
-        GroupChanges.MoveRefusal.Inside -> "Inside “${group.name}”"
-        GroupChanges.MoveRefusal.HereNow -> "It is here now"
-        is GroupChanges.MoveRefusal.NameTaken -> "${place(refusal.target)} has a “${refusal.taken.name}” already"
+    fun moveRefusal(group: VaultGroup, refusal: GroupChanges.MoveRefusal): UiText = when (refusal) {
+        GroupChanges.MoveRefusal.Itself -> uiText(R.string.groups_move_refused_itself)
+        GroupChanges.MoveRefusal.Inside -> uiText(R.string.groups_move_refused_inside, group.name)
+        GroupChanges.MoveRefusal.HereNow -> uiText(R.string.groups_move_refused_here_now)
+        is GroupChanges.MoveRefusal.NameTaken ->
+            if (refusal.target.isRoot) uiText(R.string.groups_move_refused_taken_top, refusal.taken.name)
+            else uiText(R.string.groups_move_refused_taken, refusal.target.name, refusal.taken.name)
     }
 
     /** Under a group's path on its sheet: its database, then what it holds ("Personal · 12 entries · 3 here"). */
-    fun sheetMeta(database: String, total: Int, here: Int, subgroups: Int): String {
-        val holds = when {
-            total == 0 && subgroups == 0 -> "empty"
-            total == 0 -> "no entries, " + subgroups(subgroups)
-            else -> (if (total == 1) "1 entry" else "$total entries") + when (here) {
-                total -> ""
-                0 -> " · none here"
-                else -> " · $here here"
-            }
-        }
-        return "$database · $holds"
+    fun sheetMeta(database: String, total: Int, here: Int, subgroups: Int): UiText = when {
+        total == 0 && subgroups == 0 -> uiText(R.string.groups_sheet_meta_empty, database)
+        total == 0 -> uiPlural(R.plurals.groups_sheet_meta_no_entries, subgroups, database, subgroups)
+        here == total -> uiPlural(R.plurals.groups_sheet_meta_entries, total, database, total)
+        here == 0 -> uiPlural(R.plurals.groups_sheet_meta_entries_none_here, total, database, total)
+        else -> uiPlural(R.plurals.groups_sheet_meta_entries_here, total, database, total, here)
     }
 
     // The snackbars, once saved and checked.
 
-    fun renamed(name: String): String = "Renamed to “$name”"
+    fun renamed(name: String): UiText = uiText(R.string.groups_renamed, name)
 
-    fun made(name: String, parent: VaultGroup): String =
-        "Made “$name” " + if (parent.isRoot) "at the top level" else "in “${parent.name}”"
+    fun made(name: String, parent: VaultGroup): UiText =
+        if (parent.isRoot) uiText(R.string.groups_made_top, name) else uiText(R.string.groups_made_in, name, parent.name)
 
-    fun moved(group: VaultGroup, target: VaultGroup): String =
-        "Moved “${group.name}” " + if (target.isRoot) "to the top level" else "into “${target.name}”"
+    fun moved(group: VaultGroup, target: VaultGroup): UiText =
+        if (target.isRoot) uiText(R.string.groups_moved_top, group.name) else uiText(R.string.groups_moved_into, group.name, target.name)
 
-    fun deleted(group: VaultGroup): String = "Deleted the empty group “${GroupPathFormatter.text(group.path)}”"
+    fun deleted(group: VaultGroup): UiText = uiText(R.string.groups_deleted, GroupPathFormatter.text(group.path))
 
     /** The card's Move to group… (G6): where it went ([tree] as before the move), and the empty groups the move deleted. */
-    fun entryMoved(tree: GroupTree, choice: GroupChoice, deleted: List<VaultGroup>): String =
-        listOfNotNull("Moved to “${path(tree, choice)}”", deletedGroupsNote(deleted)).joinToString(". ")
-
-    /** A group as the start of a sentence: "“Work”", the root group "Top level". */
-    private fun place(group: VaultGroup): String = if (group.isRoot) TOP_LEVEL else "“${group.name}”"
+    fun entryMoved(tree: GroupTree, choice: GroupChoice, deleted: List<VaultGroup>): UiText {
+        val note = deletedGroupsNote(deleted)
+        return if (note == null) uiText(R.string.groups_entry_moved, path(tree, choice)) else uiText(R.string.groups_entry_moved_with_note, path(tree, choice), note)
+    }
 }

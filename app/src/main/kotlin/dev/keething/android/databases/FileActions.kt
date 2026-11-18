@@ -7,7 +7,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.FileLocation
 
@@ -62,6 +66,7 @@ internal fun rememberFileActions(
     var shown by rememberSaveable { mutableStateOf<String?>(null) }
     // Whose key file the picker is asked for; one that comes back without it (the process ended meanwhile) gives its grant back.
     var keyFileOf by rememberSaveable { mutableStateOf<String?>(null) }
+    val resources = LocalResources.current
 
     val pickKeyFile = rememberKeyFilePicker { picked ->
         val id = keyFileOf ?: return@rememberKeyFilePicker container.offerGrant(picked.grant)
@@ -75,7 +80,7 @@ internal fun rememberFileActions(
             val now = list.state.value
             ChooseDatabaseSheet(
                 container = container,
-                title = "Open a database",
+                title = stringResource(R.string.databases_open_title),
                 pickAt = (now.current?.file as? FileLocation.InFolder)?.place?.parent,
                 pickAtOnce = now.grantedFolders().isEmpty(),
                 onChosen = { file -> opened(databases.open(file)) },
@@ -90,14 +95,14 @@ internal fun rememberFileActions(
                 val old = record.file is FileLocation.ByPath
                 ChooseDatabaseSheet(
                     container = container,
-                    title = if (old) "The folder of ${record.fileName}" else "Locate ${record.fileName}",
+                    title = stringResource(if (old) R.string.databases_locate_folder_title else R.string.databases_locate_title, record.fileName),
                     pickAt = record.file.place?.parent,
                     pickAtOnce = sheet.pickNow || old,
                     onChosen = { file -> problem(databases.locate(sheet.id, file)) },
                     onDismiss = { shown = null },
                     onFolderPicked = if (old) {
                         { folder ->
-                            databases.folderGranted(sheet.id, folder.id, folder.place)?.let { "$it Choose its file below, or another folder." }
+                            databases.folderGranted(sheet.id, folder.id, folder.place)?.let { resources.getString(R.string.databases_locate_choose_below, it) }
                         }
                     } else {
                         null

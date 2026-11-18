@@ -42,6 +42,8 @@ internal class AutofillPickerModel(
     recents: RecentEntries,
     entries: AutofillEntries,
     request: AutofillRequest,
+    /** What the list calls a code with no name of its own. */
+    unnamedCode: String,
 ) : ViewModel() {
     /** What is typed: not a secret, but kept here as the list keeps its own. */
     val query = TextFieldState()
@@ -51,7 +53,7 @@ internal class AutofillPickerModel(
         .mapLatest { databases ->
             if (databases.isEmpty()) return@mapLatest null
             withContext(Dispatchers.Default) {
-                val listing = listingOf(databases, Instant.now())
+                val listing = listingOf(databases, Instant.now(), unnamedCode)
                 val matched = entries.candidates(databases.map { OpenVault(it.database.id, it.unlocked.vault) }, request.form)
                     .mapNotNull { listing.entry(it.entry.id) }
                 PreparedPicker(listing, matched, CustomIconImages(listing.vault.customIcons))

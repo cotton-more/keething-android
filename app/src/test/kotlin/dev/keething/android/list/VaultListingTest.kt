@@ -1,7 +1,10 @@
 package dev.keething.android.list
 
+import dev.keething.android.R
 import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.ui.english
+import dev.keething.android.ui.uiText
 import dev.keething.card.ExpiryHint
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
@@ -20,6 +23,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+
+/** What the list calls a further code without a name of its own, as the app passes it in. */
+internal val UNNAMED_CODE = uiText(R.string.list_one_time_code).english()
 
 class VaultListingTest {
     private val now = Instant.parse("2026-10-18T12:00:00Z")
@@ -41,6 +47,7 @@ class VaultListingTest {
         Vault(entries = listOf(github, bahn, amazon, passport), recycleBin = listOf(oldRouter, shop)),
         now,
         Collator.getInstance(Locale.ENGLISH),
+        unnamedCode = UNNAMED_CODE,
     )
 
     @Test
@@ -98,7 +105,7 @@ class VaultListingTest {
         )
         val hetzner = Entry(id = "hz", title = "Hetzner", username = "alex", customFields = listOf(CustomField.plain("Robot", link("Hetzner"))))
         val broken = Entry(id = "br", title = "Broken", customFields = listOf(CustomField.plain("Code", "otpauth://totp/x?secret=")))
-        val listing = VaultListing(Vault(entries = listOf(microsoft, github, bahn, hetzner, broken)), now, Collator.getInstance(Locale.ENGLISH))
+        val listing = VaultListing(Vault(entries = listOf(microsoft, github, bahn, hetzner, broken)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
 
         val tiles = listing.codes("")
         assertEquals(listOf("GitHub", "Hetzner", "Microsoft", "Microsoft", "Microsoft"), tiles.map { it.title })
@@ -115,7 +122,7 @@ class VaultListingTest {
             id = "ms", title = "Microsoft", username = "alex@outlook.com", totp = secret,
             customFields = listOf(CustomField.plain("One-time code 2", link("Microsoft")), CustomField.plain("Backup_Codes", link("Microsoft"))),
         )
-        val listing = VaultListing(Vault(entries = listOf(microsoft)), now, Collator.getInstance(Locale.ENGLISH))
+        val listing = VaultListing(Vault(entries = listOf(microsoft)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
 
         val tiles = listing.codes("")
         assertEquals(listOf("alex@outlook.com", "One-time code 2", "Backup › Codes"), tiles.map { it.subtitle })
@@ -132,7 +139,7 @@ class VaultListingTest {
             url = "https://login.live.com", customFields = listOf(CustomField.plain("Work account", link("Microsoft"))),
         )
         val bank = Entry(id = "bk", title = "Bank", username = "alex", totp = secret, groupPath = listOf("Finanzen"), tags = listOf("money"))
-        val listing = VaultListing(Vault(entries = listOf(microsoft, github, bahn, bank, amazon)), now, Collator.getInstance(Locale.ENGLISH))
+        val listing = VaultListing(Vault(entries = listOf(microsoft, github, bahn, bank, amazon)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
 
         assertEquals(listOf("bk", "ms", "ms"), listing.codes("alex").map { it.entryId }, "the username: both of Microsoft's codes")
         assertEquals(listOf("Work account"), listing.codes("work").map { it.fieldName }, "a further code's name finds that code only")
@@ -163,7 +170,7 @@ class VaultListingTest {
     fun withOneDatabaseOpenATileHasItsGroupsPathAndNoDatabase() {
         val nested = Entry(id = "sp", title = "Sparkasse", totp = secret, groupPath = listOf("Finanzen", "Banken"))
         val atRoot = Entry(id = "rt", title = "Root", totp = secret)
-        val tiles = VaultListing(Vault(entries = listOf(nested, atRoot)), now, Collator.getInstance(Locale.ENGLISH)).codes("")
+        val tiles = VaultListing(Vault(entries = listOf(nested, atRoot)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE).codes("")
 
         assertEquals(listOf("Root", "Sparkasse"), tiles.map { it.title })
         assertEquals(listOf(emptyList(), listOf("Finanzen", "Banken")), tiles.map { it.group }, "the root group: no line")
@@ -184,7 +191,7 @@ class VaultListingTest {
         assertTrue(rows.getValue("db").codes.isEmpty())
 
         val app = Entry(id = "app", title = "Parking", url = "androidapp://com.example.parking")
-        val withApp = VaultListing(Vault(entries = listOf(app)), now, Collator.getInstance(Locale.ENGLISH))
+        val withApp = VaultListing(Vault(entries = listOf(app)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
         assertEquals("", withApp.sections("", emptyList()).single().rows.single().subtitle, "an app's address is no site")
     }
 
@@ -202,7 +209,7 @@ class VaultListingTest {
         val furtherOnly = Entry(id = "hz", title = "Hetzner", customFields = listOf(CustomField.plain("Robot", link("Hetzner"))))
         val broken = Entry(id = "br", title = "Broken", customFields = listOf(CustomField.plain("Code", "otpauth://totp/x?secret=")))
         val binned = Entry(id = "old", title = "Old", totp = secret, customFields = listOf(CustomField.plain("Backup", link("Old"))))
-        val listing = VaultListing(Vault(entries = listOf(microsoft, furtherOnly, broken, bahn), recycleBin = listOf(binned)), now, Collator.getInstance(Locale.ENGLISH))
+        val listing = VaultListing(Vault(entries = listOf(microsoft, furtherOnly, broken, bahn), recycleBin = listOf(binned)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
 
         assertEquals(listOf(null, "Work account", "One-time code 2"), rows.getValue("ms").codes.map { it.fieldName }, "own first, a protected link too")
@@ -217,7 +224,7 @@ class VaultListingTest {
     @Test
     fun aRowSaysWhenSomethingEndsSoonOrEnded() {
         val expired = Entry(id = "x", title = "Licence", expires = true, expiryTime = Instant.parse("2026-10-17T08:00:00Z"))
-        val listing = VaultListing(Vault(entries = listOf(passport, expired, bahn)), now, Collator.getInstance(Locale.ENGLISH))
+        val listing = VaultListing(Vault(entries = listOf(passport, expired, bahn)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
 
         assertEquals(RowDeadline("expires · Expires in 23 days", ExpiryHint.Status.SOON), rows.getValue("pp").deadline)
@@ -240,7 +247,7 @@ class VaultListingTest {
         val inGroup = Entry(id = "g", title = "Sparkasse", groupPath = listOf("Finanzen", "Banken"))
         val binned = Entry(id = "b", title = "Old", groupPath = listOf("Recycle Bin", "Work"))
         val binnedAlone = Entry(id = "c", title = "Older", groupPath = listOf("Recycle Bin"))
-        val listing = VaultListing(Vault(entries = listOf(inGroup, bahn), recycleBin = listOf(binned, binnedAlone)), now, Collator.getInstance(Locale.ENGLISH))
+        val listing = VaultListing(Vault(entries = listOf(inGroup, bahn), recycleBin = listOf(binned, binnedAlone)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
 
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
         assertEquals(listOf("Finanzen", "Banken"), rows.getValue("g").group)
@@ -284,6 +291,7 @@ class VaultListingTest {
         listOf(ListedDatabase(personalId, p, personalMark), ListedDatabase(workId, w, workMark)),
         now,
         Collator.getInstance(Locale.ENGLISH),
+        unnamedCode = UNNAMED_CODE,
     )
 
     @Test
@@ -301,7 +309,7 @@ class VaultListingTest {
 
     @Test
     fun withOneDatabaseOpenTheRowsAreRefsWithoutLabels() {
-        val listing = VaultListing(listOf(ListedDatabase(personalId, personal)), now, Collator.getInstance(Locale.ENGLISH))
+        val listing = VaultListing(listOf(ListedDatabase(personalId, personal)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
         val rows = listing.sections("", emptyList()).single().rows
 
         assertEquals(listOf(p("same"), p("tv"), p("bank")), rows.map { it.id })
@@ -388,7 +396,7 @@ class VaultListingTest {
         assertEquals(listOf(w("same")), listing.sections("!work git", emptyList()).single().rows.map { it.id })
         assertEquals(emptyList(), listing.sections("!Work !Personal", emptyList()))
         assertEquals(listOf(p("oldP1"), p("oldP2")), listing.sections("- !Pers", emptyList()).single().rows.map { it.id }.sorted(), "in the bins too")
-        val alone = VaultListing(listOf(ListedDatabase(personalId, personal, label = "Personal")), now, Collator.getInstance(Locale.ENGLISH))
+        val alone = VaultListing(listOf(ListedDatabase(personalId, personal, label = "Personal")), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
         assertEquals(3, alone.sections("!Personal", emptyList()).single().rows.size, "one database open: its label typed by hand still filters")
         assertEquals(emptyList(), alone.sections("!Work", emptyList()))
     }
@@ -400,6 +408,7 @@ class VaultListingTest {
             listOf(ListedDatabase(workId, Vault(entries = work.entries), workMark), ListedDatabase(workshop.id, work, workshop)),
             now,
             Collator.getInstance(Locale.ENGLISH),
+            unnamedCode = UNNAMED_CODE,
         )
 
         assertEquals(emptyList(), listing.sections("- !Work", emptyList()), "Work's bin is empty: Workshop's is not Work's")

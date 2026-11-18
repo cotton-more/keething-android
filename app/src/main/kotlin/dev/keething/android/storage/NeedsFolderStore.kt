@@ -15,7 +15,7 @@ internal class NeedsFolderStore(override val fileName: String) : DatabaseStore {
 
     override fun version(): FileVersion? = null
 
-    override fun replace(bytes: ByteArray, expected: FileVersion?): Unit = throw AccessDeniedException(fileName, null, "its folder is not chosen yet")
+    override fun replace(bytes: ByteArray, expected: FileVersion?): Unit = throw AccessDeniedException(fileName, null, "its folder is not chosen yet") // not user text
 
     override fun conflictCopies(): List<ConflictCopy> = emptyList()
 

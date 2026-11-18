@@ -72,6 +72,8 @@ import dev.keething.card.EntryCardBuilder
 import dev.keething.card.LargeTypeCell
 import dev.keething.card.SeedPhrase
 import dev.keething.vault.databases.DatabaseSession
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.FullBrightness
@@ -118,7 +120,7 @@ internal fun PasswordScreen(database: DatabaseSession, entryId: String, view: Pa
         topBar = {
             TopAppBar(
                 title = { Text(entry.displayTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Rounded.Close, contentDescription = "Close") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.entry_full_close)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
@@ -148,12 +150,12 @@ internal fun PasswordScreen(database: DatabaseSession, entryId: String, view: Pa
 private fun QrCodeView(password: String) {
     FullBrightness()
     if (qrCodeOf(password) == null) {
-        Text("The password is too long for a QR code.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.entry_full_qr_too_long), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
-    QrCodeImage(password, description = "QR code of the password", modifier = Modifier.fillMaxWidth().widthIn(max = 360.dp))
+    QrCodeImage(password, description = stringResource(R.string.entry_full_qr_password), modifier = Modifier.fillMaxWidth().widthIn(max = 360.dp))
     Text(
-        "Scan it with the other device's camera. Nothing leaves this phone.",
+        stringResource(R.string.entry_full_qr_hint),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
@@ -161,7 +163,7 @@ private fun QrCodeView(password: String) {
     var shown by rememberSaveable { mutableStateOf(false) }
     FilledTonalButton(onClick = { shown = !shown }) {
         Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = null, Modifier.padding(end = ButtonDefaults.IconSpacing))
-        Text(if (shown) "Hide the password" else "Show the password")
+        Text(stringResource(if (shown) R.string.entry_full_hide_password else R.string.entry_full_show_password))
     }
     if (shown) {
         Text(colouredSecret(password), style = MaterialTheme.typography.titleLarge, fontFamily = MonospaceFamily, textAlign = TextAlign.Center)
@@ -172,10 +174,10 @@ private fun QrCodeView(password: String) {
 @Composable
 private fun NetworkQrCode(payload: String, ssid: String) {
     FullBrightness()
-    QrCodeImage(payload, description = "QR code to join $ssid", modifier = Modifier.fillMaxWidth().widthIn(max = 360.dp))
-    Text("Join $ssid", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+    QrCodeImage(payload, description = stringResource(R.string.entry_wifi_qr_join, ssid), modifier = Modifier.fillMaxWidth().widthIn(max = 360.dp))
+    Text(stringResource(R.string.entry_full_join, ssid), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
     Text(
-        "Point the other phone's camera at the code.",
+        stringResource(R.string.entry_full_join_hint),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
@@ -193,8 +195,9 @@ private fun SeedWords(text: String) {
     var index by rememberSaveable { mutableIntStateOf(0) }
     val current = index.coerceIn(words.indices)
     val colors = MaterialTheme.colorScheme
+    val position = stringResource(R.string.entry_full_word_of, current + 1, words.size)
     Row(
-        Modifier.fillMaxWidth().height(6.dp).semantics { contentDescription = "Word ${current + 1} of ${words.size}" },
+        Modifier.fillMaxWidth().height(6.dp).semantics { contentDescription = position },
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         for (i in words.indices) {
@@ -224,7 +227,7 @@ private fun SeedWords(text: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Word ${current + 1} of ${words.size}", style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+        Text(position, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
         Text(
             words[current],
             fontFamily = MonospaceFamily,
@@ -247,15 +250,15 @@ private fun SeedWords(text: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         FilledTonalButton(onClick = { index = current - 1 }, enabled = current > 0, modifier = Modifier.weight(1f).heightIn(min = 64.dp)) {
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = null)
-            Text("Back", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.entry_full_back), style = MaterialTheme.typography.titleMedium)
         }
         Button(onClick = { index = current + 1 }, enabled = current < words.size - 1, modifier = Modifier.weight(1.4f).heightIn(min = 64.dp)) {
-            Text(if (current == words.size - 1) "Last word" else "Next", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(if (current == words.size - 1) R.string.entry_full_last_word else R.string.entry_full_next), style = MaterialTheme.typography.titleMedium)
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
         }
     }
     Text(
-        "Swipe, or tap the buttons. Screenshots are blocked; this closes when the app locks.",
+        stringResource(R.string.entry_full_words_hint),
         style = MaterialTheme.typography.bodyMedium,
         color = colors.onSurfaceVariant,
         textAlign = TextAlign.Center,
@@ -271,10 +274,10 @@ private fun AddressQrCode(address: String, onCopy: () -> Unit) {
     read?.network?.let { network ->
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             NetworkBadge(network, 28.dp)
-            Text("Receive · ${network.displayName}", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.entry_full_receive, network.displayName), style = MaterialTheme.typography.titleMedium)
         }
     }
-    QrCodeImage(address, description = "QR code of the address", modifier = Modifier.fillMaxWidth().widthIn(max = 340.dp))
+    QrCodeImage(address, description = stringResource(R.string.entry_full_address_qr), modifier = Modifier.fillMaxWidth().widthIn(max = 340.dp))
     Text(
         groupedAddress(address, MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.onSurfaceVariant),
         fontFamily = MonospaceFamily,
@@ -286,19 +289,19 @@ private fun AddressQrCode(address: String, onCopy: () -> Unit) {
     read?.network?.let { network ->
         Note(
             Icons.Rounded.WarningAmber,
-            if (network == CryptoNetwork.ETHEREUM) "Ethereum or the EVM network this wallet uses: coins of another network sent here can be lost." else "Only ${network.displayName} to this address. Coins of another network sent here can be lost.",
+            if (network == CryptoNetwork.ETHEREUM) stringResource(R.string.entry_full_evm_warning) else stringResource(R.string.entry_full_network_warning, network.displayName),
             MaterialTheme.extraColors.warnContainer,
             MaterialTheme.extraColors.onWarnContainer,
         )
     }
     if (read?.check == AddressCheck.FAILS) {
-        Note(Icons.Rounded.ErrorOutline, "The address fails its checksum (a typo?)", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+        Note(Icons.Rounded.ErrorOutline, stringResource(R.string.entry_full_address_fails), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
     }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = onCopy) {
             Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-            Text("Copy")
+            Text(stringResource(R.string.entry_full_copy))
         }
         // An address is public: the share sheet without a warning.
         FilledTonalButton(onClick = {
@@ -307,7 +310,7 @@ private fun AddressQrCode(address: String, onCopy: () -> Unit) {
         }) {
             Icon(Icons.Rounded.Share, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-            Text("Share")
+            Text(stringResource(R.string.entry_full_share))
         }
     }
 }

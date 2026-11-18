@@ -113,10 +113,13 @@ internal fun List<ListSection>.onlyOf(open: Set<DatabaseId>): List<ListSection> 
  */
 internal class ListedDatabase(val id: DatabaseId, val vault: Vault, val mark: DatabaseMark? = null, val label: String? = mark?.label?.full)
 
-/** The open databases listed as one, labelled while two or more are open. */
-internal fun listingOf(open: List<OpenDatabase>, now: Instant): VaultListing {
+/**
+ * The open databases listed as one, labelled while two or more are open; [unnamedCode] as [VaultListing] takes it (a
+ * listing that shows no code's name, as autofill's and Share's pickers, leaves it out).
+ */
+internal fun listingOf(open: List<OpenDatabase>, now: Instant, unnamedCode: String = ""): VaultListing {
     val labelled = open.size >= 2
-    return VaultListing(open.map { ListedDatabase(it.database.id, it.unlocked.vault, it.mark.takeIf { labelled }, it.mark.label.full) }, now)
+    return VaultListing(open.map { ListedDatabase(it.database.id, it.unlocked.vault, it.mark.takeIf { labelled }, it.mark.label.full) }, now, unnamedCode = unnamedCode)
 }
 
 /** Whether [a] and [b] list the same: the same sessions, the same vaults read, the same marks. */
@@ -129,10 +132,19 @@ internal fun sameListing(a: List<OpenDatabase>, b: List<OpenDatabase>): Boolean 
  * indexes and each entry's deadline are computed once per vault read (it takes a moment for ~2000 entries: build it
  * off the main thread), then [sections] answers every query.
  */
-internal class VaultListing(databases: List<ListedDatabase>, now: Instant, private val collator: Collator = Collator.getInstance()) {
+internal class VaultListing(
+    databases: List<ListedDatabase>,
+    now: Instant,
+    private val collator: Collator = Collator.getInstance(),
+    /**
+     * What a further code is called whose field has no name of its own (empty or generated): "One-time code", from the
+     * resources; only the list's Codes view and code sheets show it.
+     */
+    private val unnamedCode: String = "",
+) {
     /** One vault on its own, its entries' refs their own ids. */
-    constructor(vault: Vault, now: Instant, collator: Collator = Collator.getInstance()) :
-        this(listOf(ListedDatabase(DatabaseId(""), vault)), now, collator)
+    constructor(vault: Vault, now: Instant, collator: Collator = Collator.getInstance(), unnamedCode: String = "") :
+        this(listOf(ListedDatabase(DatabaseId(""), vault)), now, collator, unnamedCode)
 
     /**
      * The open databases' entries as one vault, ids and custom icons by ref; its recycle bin is each database's in the
@@ -309,9 +321,9 @@ internal class VaultListing(databases: List<ListedDatabase>, now: Instant, priva
     /** Whether [id] is in a recycle bin. */
     fun inRecycleBin(id: String): Boolean = id in binById
 
-    /** A further code's field name as the card shows it; an empty or generated one is "One-time code". */
+    /** A further code's field name as the card shows it; an empty or generated one is [unnamedCode] ("One-time code"). */
     private fun codeName(name: String): String =
-        if (name.isBlank() || ImportedFieldName.isGeneratedId(name)) "One-time code" else ImportedFieldName.displayName(name)
+        if (name.isBlank() || ImportedFieldName.isGeneratedId(name)) unnamedCode else ImportedFieldName.displayName(name)
 
     fun section(kind: ListSection.Kind, entries: List<Entry>): ListSection? =
         if (entries.isEmpty()) null else ListSection(kind, entries.map(::row))

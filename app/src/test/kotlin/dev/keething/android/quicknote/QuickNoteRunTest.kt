@@ -6,6 +6,7 @@ import dev.keething.android.quicknote.QuickNoteRun.Source
 import dev.keething.android.quicknote.QuickNoteRun.State
 import dev.keething.android.settings.AppSettings
 import dev.keething.android.settings.InMemorySettingsStore
+import dev.keething.android.ui.english
 import dev.keething.card.editing.QuickNoteSource
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseRecord
@@ -89,7 +90,7 @@ class QuickNoteRunTest {
         f.fromClipboard()
         assertEquals(State.NoText(fromClipboard = true), f.run.state)
         assertEquals(0, f.clipboard.reads, "with no text on it the clipboard is not read, only its description")
-        assertEquals("No text on the clipboard", f.run.state.message)
+        assertEquals("No text on the clipboard", f.run.state.message?.english())
         f.clipboard.text = " \n\t\n"
         f.fromClipboard()
         assertEquals(State.NoText(fromClipboard = true), f.run.state)
@@ -146,7 +147,7 @@ class QuickNoteRunTest {
         val f = Fixture()
         f.run.start(Source.Given(" \n\t "))
         assertEquals(State.NoText(fromClipboard = false), f.run.state)
-        assertEquals("No text to save", f.run.state.message)
+        assertEquals("No text to save", f.run.state.message?.english())
         f.run.start(Source.Given(""))
         assertEquals(State.NoText(fromClipboard = false), f.run.state)
         assertTrue(f.opened.isEmpty())
@@ -219,7 +220,7 @@ class QuickNoteRunTest {
         f.clipboard.text = "Dune"
         f.fromClipboard()
         assertEquals(State.NoDatabase, f.run.state)
-        assertEquals("No database to put the quick note in", f.run.state.message)
+        assertEquals("No database to put the quick note in", f.run.state.message?.english())
         assertEquals(0, f.clipboard.reads)
         f.run.start(Source.Given("Dune"))
         assertEquals(State.NoDatabase, f.run.state)

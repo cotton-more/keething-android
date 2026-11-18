@@ -1,6 +1,8 @@
 package dev.keething.android.databases
 
 import dev.keething.android.session.Visit
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
 import dev.keething.domain.secret.Secret
 import dev.keething.vault.biometric.FingerprintOutcome
 import dev.keething.vault.biometric.WindowFingerprintResult
@@ -46,7 +48,7 @@ internal class WindowChooser(
     private val label: (DatabaseId) -> String,
     /** The vault on the window's first open database, unless the current one is open. */
     private val showOpened: () -> Unit,
-    private val tell: (String) -> Unit,
+    private val tell: (UiText) -> Unit,
     /** A database's session state now, while it is in the window. */
     private val sessionState: (DatabaseId) -> SessionState?,
     private val scope: CoroutineScope,
@@ -74,10 +76,10 @@ internal class WindowChooser(
     /** The fingerprint is offered or asked: the chooser waits, and no run starts under its prompt. */
     val busy: StateFlow<Boolean> = mutableBusy.asStateFlow()
 
-    private val mutableNote = MutableStateFlow<String?>(null)
+    private val mutableNote = MutableStateFlow<UiText?>(null)
 
     /** Over the chooser, before how it goes: why the fingerprint opened none, or what the last run did when it opened none. */
-    val note: StateFlow<String?> = mutableNote.asStateFlow()
+    val note: StateFlow<UiText?> = mutableNote.asStateFlow()
 
     private val mutableSkipped = MutableStateFlow(emptySet<DatabaseId>())
 
@@ -226,7 +228,7 @@ internal class WindowChooser(
         }
         mutableSkipped.value = result.skipped.toSet()
         skippedStates = result.skipped.associateWith(sessionState)
-        val notice = result.notice(label)
+        val notice = uiPlain(result.notice(label)) // core's words (T13b)
         if (result.opened.isEmpty()) {
             mutableNote.value = notice
         } else {

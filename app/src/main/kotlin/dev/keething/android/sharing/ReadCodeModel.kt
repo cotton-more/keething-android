@@ -6,6 +6,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.sharing.message.MalformedShareException
 import dev.keething.sharing.message.PartCollector
 import dev.keething.sharing.message.ShareCode
@@ -26,7 +31,7 @@ import kotlinx.coroutines.withContext
  * are collected in any order. What cannot be used is said in a banner, and the camera goes on looking.
  */
 internal class ReadCodeModel(private val requests: ShareRequests, private val parts: PartCollector) : ViewModel() {
-    data class Banner(val title: String, val text: String, val isProblem: Boolean)
+    data class Banner(val title: UiText, val text: UiText, val isProblem: Boolean)
 
     sealed interface Outcome {
         /** A request to answer: its screen, to check the pictures. */
@@ -53,7 +58,7 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
         if (busy) return
         // What another app shared held nothing to read (a picture without a code, or one the app may not open).
         if (texts.all(String::isBlank)) {
-            banner = Banner("No code in what was shared", "Share the picture or the text of a Keething code, or read it here.", isProblem = true)
+            banner = Banner(uiText(R.string.sharing_read_nothing_shared_title), uiText(R.string.sharing_read_nothing_shared_text), isProblem = true)
             return
         }
         val fresh = if (fromCamera) texts.filter { text -> seen[text]?.let { it.elapsedNow() < REPEAT } != true } else texts
@@ -63,9 +68,9 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
         val messages = found.flatMap { it.messages }
         if (messages.isEmpty()) {
             banner = if (found.any { it.broken > 0 }) {
-                Banner("The code is cut short", "Part of it is missing or was changed. Read it again, or ask for it once more.", isProblem = true)
+                Banner(uiText(R.string.sharing_read_cut_title), uiText(R.string.sharing_read_cut_text), isProblem = true)
             } else {
-                Banner("Not a Keething code", "This one is something else. Read the code of a request, an answer or entries sent to you.", isProblem = true)
+                Banner(uiText(R.string.sharing_read_not_keething_title), uiText(R.string.sharing_read_not_keething_text), isProblem = true)
             }
             return
         }
@@ -74,7 +79,7 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
                 for (message in messages) if (handle(message)) break
             } catch (failure: RuntimeException) {
                 // A code nothing here foresaw: said, not a crash.
-                banner = Banner("Not a code this app can read", failure.javaClass.simpleName, isProblem = true)
+                banner = Banner(uiText(R.string.sharing_read_unknown_title), uiPlain(failure.javaClass.simpleName), isProblem = true)
             }
         }
     }
@@ -84,7 +89,7 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
         val read = try {
             ShareCode.read(message)
         } catch (_: MalformedShareException) {
-            banner = Banner("Not a code this app can read", "It may come from a newer Keething, or it was changed on the way.", isProblem = true)
+            banner = Banner(uiText(R.string.sharing_read_unknown_title), uiText(R.string.sharing_read_unknown_text), isProblem = true)
             return false
         }
         when (read) {
@@ -92,15 +97,15 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
                 val progress = try {
                     parts.add(read.part)
                 } catch (_: MalformedShareException) {
-                    banner = Banner("These codes do not belong together", "Read all the codes of one answer, or of the same entries.", isProblem = true)
+                    banner = Banner(uiText(R.string.sharing_read_mixed_title), uiText(R.string.sharing_read_mixed_text), isProblem = true)
                     return false
                 }
                 when (progress) {
                     is PartCollector.Progress.Waiting -> {
                         val rest = progress.count - progress.read
                         banner = Banner(
-                            "Code ${progress.read} of ${progress.count} read",
-                            if (rest == 1) "Now the other one." else "Now the other $rest, in any order.",
+                            uiText(R.string.sharing_read_part_title, progress.read, progress.count),
+                            uiPlural(R.plurals.sharing_read_part_rest, rest),
                             isProblem = false,
                         )
                         return false
@@ -113,8 +118,8 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
                 val forThisPhone = requests.book.value?.mine?.any { it.request.id == read.answer.requestId } == true
                 if (!forThisPhone) {
                     banner = Banner(
-                        "Not for a request on this phone",
-                        "It answers a request that was closed, expired, or made on another phone. Ask again.",
+                        uiText(R.string.sharing_not_here_title),
+                        uiText(R.string.sharing_not_here_text),
                         isProblem = true,
                     )
                     return false
@@ -129,18 +134,26 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
                         outcomes.send(Outcome.Sealed(ShareCode.text(message)))
                         return true
                     }
-                    ShareRequests.Arrival.Own -> banner = Banner("These are your own", "This phone sent these entries. Send the code to the one they are for.", isProblem = false)
+                    ShareRequests.Arrival.Own -> banner = Banner(
+                        uiText(R.string.sharing_own_entries_title),
+                        uiText(R.string.sharing_own_entries_text),
+                        isProblem = false,
+                    )
                     ShareRequests.Arrival.Expired -> banner = Banner(
-                        "These entries have expired",
-                        "They ran out on ${SharingTexts.dateTime(envelope.expires)}. Ask the sender to send them again.",
+                        uiText(R.string.sharing_expired_entries_title),
+                        uiText(R.string.sharing_read_expired_entries_text, SharingTexts.dateTime(envelope.expires)),
                         isProblem = true,
                     )
                     ShareRequests.Arrival.BadDates -> banner = Banner(
-                        "The dates are wrong",
-                        "It says it was made later than now, or lasts longer than a week. Check both phones' clocks, or ask for it again.",
+                        uiText(R.string.sharing_bad_dates_title),
+                        uiText(R.string.sharing_bad_dates_text),
                         isProblem = true,
                     )
-                    ShareRequests.Arrival.Saved -> banner = Banner("Saved already", "These entries were saved on this phone.", isProblem = false)
+                    ShareRequests.Arrival.Saved -> banner = Banner(
+                        uiText(R.string.sharing_saved_already_title),
+                        uiText(R.string.sharing_read_saved_already_text),
+                        isProblem = false,
+                    )
                     ShareRequests.Arrival.Closed -> {}
                 }
                 return false
@@ -154,7 +167,7 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
         val received = try {
             withContext(Dispatchers.Default) { requests.receive(request) }.also { Log.i("Sharing", "request read in ${started.elapsedNow()}") }
         } catch (failure: Exception) {
-            banner = Banner("The request could not be kept", failure.message ?: failure.javaClass.simpleName, isProblem = true)
+            banner = Banner(uiText(R.string.sharing_read_not_kept_title), uiPlain(failure.message ?: failure.javaClass.simpleName), isProblem = true)
             return false
         } finally {
             busy = false
@@ -163,27 +176,31 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
             is ShareRequests.Received.Added -> outcomes.send(Outcome.Theirs(received.request.request.id))
             is ShareRequests.Received.AlreadyHere -> outcomes.send(Outcome.Theirs(received.request.request.id))
             ShareRequests.Received.Own -> {
-                banner = Banner("This is your own request", "Send it to the one who should answer it.", isProblem = false)
+                banner = Banner(uiText(R.string.sharing_read_own_request_title), uiText(R.string.sharing_read_own_request_text), isProblem = false)
                 return false
             }
             ShareRequests.Received.Expired -> {
                 banner = Banner(
-                    "This request has expired",
-                    "It ran out on ${SharingTexts.dateTime(request.expires)}. Ask ${request.name} to send a new one.",
+                    uiText(R.string.sharing_read_request_expired_title),
+                    uiText(R.string.sharing_read_request_expired_text, SharingTexts.dateTime(request.expires), request.name),
                     isProblem = true,
                 )
                 return false
             }
             ShareRequests.Received.BadDates -> {
                 banner = Banner(
-                    "This request's dates are wrong",
-                    "It says it was made later than now, or lasts longer than a week. Check both phones' clocks, or ask for a new one.",
+                    uiText(R.string.sharing_read_request_bad_dates_title),
+                    uiText(R.string.sharing_read_request_bad_dates_text),
                     isProblem = true,
                 )
                 return false
             }
             ShareRequests.Received.Answered -> {
-                banner = Banner("Answered already", "This phone answered this request. For more, ask ${request.name} for a new one.", isProblem = false)
+                banner = Banner(
+                    uiText(R.string.sharing_read_answered_title),
+                    uiText(R.string.sharing_read_answered_text, request.name),
+                    isProblem = false,
+                )
                 return false
             }
             ShareRequests.Received.Closed -> return false
@@ -191,7 +208,7 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
         return true
     }
 
-    fun problem(title: String, text: String) {
+    fun problem(title: UiText, text: UiText) {
         banner = Banner(title, text, isProblem = true)
     }
 

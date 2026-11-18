@@ -1,5 +1,9 @@
 package dev.keething.android.editor
 
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import dev.keething.android.databases.DatabaseMark
 import dev.keething.domain.vault.Vault
 import dev.keething.search.EntrySearch
@@ -43,9 +47,10 @@ internal object NewEntryDatabases {
         if (open.size >= 2) open.filter { it.takesEntries }.takeIf { it.size >= 2 }.orEmpty() else emptyList()
 
     /** Under Save into's choices: the window's databases not open ("Not open: Family Shared, Crypto"), or null. */
-    fun notOpen(window: List<DatabaseMark>, open: List<NewEntryDatabase>): String? {
+    fun notOpen(window: List<DatabaseMark>, open: List<NewEntryDatabase>): UiText? {
         val ids = open.mapTo(HashSet()) { it.id }
-        return window.filter { it.id !in ids }.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Not open: ") { it.label.full }
+        val names = window.filter { it.id !in ids }.takeIf { it.isNotEmpty() }?.map { uiPlain(it.label.full) } ?: return null
+        return uiText(R.string.editor_not_open, names.reduce { list, name -> uiText(R.string.editor_names_more, list, name) })
     }
 
     /** A new entry's draft lives while its database is open in the same session; it goes when that one locks. */

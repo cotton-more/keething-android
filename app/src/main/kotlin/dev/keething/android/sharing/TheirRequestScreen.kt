@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,9 +51,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.rememberSecondsNow
+import dev.keething.android.ui.resolve
 import dev.keething.sharing.pictures.Picture
 import dev.keething.sharing.pictures.Pictures
 import dev.keething.sharing.requests.ShareRequests
@@ -94,10 +97,10 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
         topBar = {
             TopAppBar(
                 title = {},
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.sharing_back)) } },
                 actions = {
                     IconButton(onClick = { container.shareRequests.delete(id) }) {
-                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete the request", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.sharing_delete_request), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -106,14 +109,14 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
         bottomBar = {
             BottomActions {
                 if (their.checked) {
-                    Button(onClick = onChoose, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("Choose entries") }
+                    Button(onClick = onChoose, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text(stringResource(R.string.sharing_choose_entries)) }
                 } else if (mismatched) {
                     Button(onClick = {
                         heard = intArrayOf()
                         mismatched = false
-                    }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("Tap them again") }
+                    }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text(stringResource(R.string.sharing_tap_again)) }
                     TextButton(onClick = { container.shareRequests.delete(id) }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                        Text("They really differ · delete it", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.sharing_their_differ), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -127,9 +130,9 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                 PersonIcon(request.name, 56.dp)
                 TitleBlock(
                     request.reason,
-                    "Read ${SharingTexts.moment(their.received, now)} · ${SharingTexts.expires(request.expires, now)}",
+                    stringResource(R.string.sharing_their_read, SharingTexts.moment(their.received, now).resolve(), SharingTexts.expires(request.expires, now).resolve()),
                     Modifier.padding(horizontal = 0.dp),
-                    overline = "${request.name} asks for",
+                    overline = stringResource(R.string.sharing_their_asks, request.name),
                 )
             }
             Column(
@@ -137,12 +140,12 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Check the pictures", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.sharing_their_check), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                     if (their.checked) CheckedChip(checked = true)
                 }
                 if (their.checked) {
                     Text(
-                        "The six ${request.name} read out are this request's own.",
+                        stringResource(R.string.sharing_their_checked, request.name),
                         Modifier.padding(horizontal = 4.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -151,9 +154,7 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                     Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Rounded.Call, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            "Call ${request.name} or ask in person, not in the chat the code came through. Ask them to read out " +
-                                "the six pictures their phone shows, and tap them below in that order. In person: tap what their " +
-                                "screen shows.",
+                            stringResource(R.string.sharing_their_call, request.name),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -161,8 +162,7 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                     HeardPictures(heard.toList(), Pictures.COUNT, mismatched, onUndo = undo)
                     if (mismatched) {
                         Text(
-                            "These are not this request's pictures. A picture misheard? Tap them again. If they really " +
-                                "differ, the request was swapped on the way: delete it.",
+                            stringResource(R.string.sharing_their_mismatch),
                             Modifier.padding(horizontal = 4.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
@@ -191,13 +191,15 @@ internal fun HeardPictures(heard: List<Int>, count: Int, mismatched: Boolean, on
             }
         }
         IconButton(onClick = onUndo, enabled = heard.isNotEmpty()) {
-            Icon(Icons.AutoMirrored.Rounded.Backspace, contentDescription = "Take the last picture back")
+            Icon(Icons.AutoMirrored.Rounded.Backspace, contentDescription = stringResource(R.string.sharing_take_back))
         }
     }
 }
 
 @Composable
 private fun RowScope.HeardPlace(picture: Picture?, place: Int, mismatched: Boolean) {
+    // A picture's name comes from core, in English for now (keething-spec plans T13b).
+    val description = picture?.name ?: stringResource(R.string.sharing_place_empty, place + 1)
     Column(
         Modifier
             .weight(1f)
@@ -210,7 +212,7 @@ private fun RowScope.HeardPlace(picture: Picture?, place: Int, mismatched: Boole
                 },
             )
             .padding(vertical = 6.dp)
-            .semantics { contentDescription = picture?.name ?: "Picture ${place + 1}, not tapped yet" },
+            .semantics { contentDescription = description },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(picture?.emoji ?: "${place + 1}", fontSize = if (picture != null) 24.sp else 16.sp, lineHeight = 30.sp,

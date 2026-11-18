@@ -19,25 +19,24 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 
 /** What the KDBX 3.1 question says (keething-spec kdbx.kdbx3 AC5): what KDBX 4 means for other apps, and the copy. */
-private val kdbx3Lines = listOf(
-    "Keething changes databases only in KDBX 4: upgrade this one, or open it to view only.",
-    "KeePass 2.35 and later and KeePassXC 2.3 and later read KDBX 4; older apps do not. The KDBX 3.1 file is kept as a copy beside it.",
-)
+private val kdbx3Lines = listOf(R.string.unlock_kdbx3_line_upgrade, R.string.unlock_kdbx3_line_other_apps)
 
 /** On a KDBX 3.1 database's lock screen, in place of the password until answered (AC5): View only, or Upgrade. */
 @Composable
 internal fun Kdbx3QuestionCard(onAnswer: (upgrade: Boolean) -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("This database is KDBX 3.1", style = MaterialTheme.typography.titleMedium)
-            kdbx3Lines.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(stringResource(R.string.unlock_kdbx3_card_title), style = MaterialTheme.typography.titleMedium)
+            kdbx3Lines.forEach { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 4.dp)) {
-                OutlinedButton(onClick = { onAnswer(false) }, modifier = Modifier.weight(1f).height(52.dp)) { Text("View only") }
-                Button(onClick = { onAnswer(true) }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Upgrade") }
+                OutlinedButton(onClick = { onAnswer(false) }, modifier = Modifier.weight(1f).height(52.dp)) { Text(stringResource(R.string.unlock_kdbx3_view_only)) }
+                Button(onClick = { onAnswer(true) }, modifier = Modifier.weight(1f).height(52.dp)) { Text(stringResource(R.string.unlock_kdbx3_upgrade)) }
             }
         }
     }
@@ -52,9 +51,9 @@ internal fun Kdbx3QuestionDialog(name: String, onAnswer: (upgrade: Boolean) -> U
     AlertDialog(
         onDismissRequest = { onAnswer(false) },
         icon = { Icon(Icons.Rounded.Upgrade, contentDescription = null) },
-        title = { Text("Upgrade “$name” to KDBX 4?", textAlign = TextAlign.Center) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { kdbx3Lines.forEach { Text(it) } } },
-        confirmButton = { TextButton(onClick = { onAnswer(true) }) { Text("Upgrade") } },
-        dismissButton = { TextButton(onClick = { onAnswer(false) }) { Text("View only") } },
+        title = { Text(stringResource(R.string.unlock_kdbx3_dialog_title, name), textAlign = TextAlign.Center) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { kdbx3Lines.forEach { Text(stringResource(it)) } } },
+        confirmButton = { TextButton(onClick = { onAnswer(true) }) { Text(stringResource(R.string.unlock_kdbx3_upgrade)) } },
+        dismissButton = { TextButton(onClick = { onAnswer(false) }) { Text(stringResource(R.string.unlock_kdbx3_view_only)) } },
     )
 }

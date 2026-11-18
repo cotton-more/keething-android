@@ -52,6 +52,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,6 +63,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import dev.keething.android.databases.databaseColors
 import dev.keething.android.editor.Clipped
 import dev.keething.android.editor.CodeCameraDialog
@@ -73,6 +77,8 @@ import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.SecretTextMenu
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.card.TotpDisplay
 import dev.keething.card.editing.CodeDraft
@@ -91,11 +97,11 @@ import java.time.Instant
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpConfig, name: String?) -> String?, onDismiss: () -> Unit) {
+internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpConfig, name: String?) -> UiText?, onDismiss: () -> Unit) {
     var draft by remember { mutableStateOf(CodeDraft.of(tile.totp)) }
     var name by remember { mutableStateOf(tile.fieldName.orEmpty()) }
     var replaced by remember { mutableStateOf(false) }
-    var problem by remember { mutableStateOf<String?>(null) }
+    var problem by remember { mutableStateOf<UiText?>(null) }
     val take = { read: ReadCode ->
         when (read) {
             is ReadCode.Code -> {
@@ -113,7 +119,7 @@ internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpCon
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Edit code", style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.list_edit_code_title), style = MaterialTheme.typography.headlineSmall)
                 Text("${tile.title} · ${tile.subtitle}".trimEnd(' ', '·'), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             LiveCode(draft, now)
@@ -122,7 +128,7 @@ internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpCon
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it; problem = null },
-                        label = { Text("Name") },
+                        label = { Text(stringResource(R.string.list_code_name)) },
                         singleLine = true,
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
@@ -131,24 +137,25 @@ internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpCon
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    if (replaced) "Secret · replaced: the code above is the new one" else "Secret · kept as it is, or replaced from",
+                    stringResource(if (replaced) R.string.list_edit_code_secret_replaced else R.string.list_edit_code_secret_kept),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 CodeInput(large = false, onText = { take(CodeEdits.read(it)) }, onTexts = { take(CodeEdits.read(it)) })
             }
-            CodeChoice("Digits", (listOf(6, 7, 8) + draft.digits).distinct().sorted(), draft.digits, { "$it" }) { draft = draft.copy(digits = it) }
-            CodeChoice("Period", (listOf(30, 60) + draft.period).distinct().sorted(), draft.period, { "$it s" }) { draft = draft.copy(period = it) }
-            CodeChoice("Algorithm", TotpConfig.Algorithm.entries, draft.algorithm, { it.title }) { draft = draft.copy(algorithm = it) }
-            problem?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+            CodeChoice(stringResource(R.string.list_code_digits), (listOf(6, 7, 8) + draft.digits).distinct().sorted(), draft.digits, { "$it" }) { draft = draft.copy(digits = it) }
+            val resources = LocalResources.current
+            CodeChoice(stringResource(R.string.list_code_period), (listOf(30, 60) + draft.period).distinct().sorted(), draft.period, { resources.getQuantityString(R.plurals.list_code_period_seconds, it, it) }) { draft = draft.copy(period = it) }
+            CodeChoice(stringResource(R.string.list_code_algorithm), TotpConfig.Algorithm.entries, draft.algorithm, { it.title }) { draft = draft.copy(algorithm = it) }
+            problem?.let { Text(it.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.list_cancel)) }
                 Button(onClick = {
                     val config = draft.config()
                     problem = onSave(config, name.takeIf { tile.further })
                     config.secret.wipe()
                     if (problem == null) onDismiss()
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.list_save)) }
             }
         }
     }
@@ -180,8 +187,8 @@ internal fun AddCodeSheet(
             val code = read
             if (code == null) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Add a code", style = MaterialTheme.typography.headlineSmall)
-                    Text("Scan the QR code the site shows, or paste its setup key.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.list_add_a_code), style = MaterialTheme.typography.headlineSmall)
+                    Text(stringResource(R.string.list_add_code_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 val take = { given: ReadCode ->
                     when (given) {
@@ -190,8 +197,8 @@ internal fun AddCodeSheet(
                     }
                 }
                 CodeInput(large = true, onText = { take(CodeEdits.read(it)) }, onTexts = { take(CodeEdits.read(it)) })
-                Text("Read on the phone; nothing is sent anywhere.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onDismiss) { Text("Cancel") } }
+                Text(stringResource(R.string.list_add_code_on_phone), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onDismiss) { Text(stringResource(R.string.list_cancel)) } }
             } else {
                 WhereTheCodeGoes(code, places, start, now, onAdd = { database, into, title, username ->
                     onAdd(database, into, title, username, code.config)
@@ -221,10 +228,14 @@ private fun WhereTheCodeGoes(
     // An entry of that title is offered first (AC7); the choice is the user's once made.
     var newEntry by remember(match?.id, database.id) { mutableStateOf(match == null) }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text("Add a code", style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.list_add_a_code), style = MaterialTheme.typography.headlineSmall)
         val whom = listOf(code.label.issuer, code.label.account).filter { it.isNotEmpty() }
         Text(
-            if (whom.isEmpty()) "A setup key without a name: give the entry a title." else "Read: ${whom.joinToString(", ")}",
+            when (whom.size) {
+                0 -> stringResource(R.string.list_add_code_no_name)
+                1 -> stringResource(R.string.list_add_code_read, whom[0])
+                else -> stringResource(R.string.list_add_code_read_both, whom[0], whom[1])
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -233,7 +244,7 @@ private fun WhereTheCodeGoes(
     // AC8: with two or more databases taking entries, which one; with one, nothing asked.
     if (places.size >= 2) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Into", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.list_add_code_into), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (place in places) {
                     FilterChip(
@@ -248,11 +259,16 @@ private fun WhereTheCodeGoes(
     }
     if (match != null) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val where = if (places.size >= 2) database.mark.label.full else "the database"
-            Text("“${match.displayTitle}” is already in $where", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            val into = if (match.totp == null) "it has no code yet" else "as its next code"
-            Choice("Add to “${match.displayTitle}”", listOf(match.username, into).filter { it.isNotEmpty() }.joinToString(" · "), selected = !newEntry) { newEntry = false }
-            Choice("A new entry", "Title, username and this code", selected = newEntry) { newEntry = true }
+            val already = if (places.size >= 2) {
+                stringResource(R.string.list_add_code_already_in, match.displayTitle, database.mark.label.full)
+            } else {
+                stringResource(R.string.list_add_code_already_in_database, match.displayTitle)
+            }
+            Text(already, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val into = stringResource(if (match.totp == null) R.string.list_add_code_no_code_yet else R.string.list_add_code_as_next)
+            val detail = if (match.username.isEmpty()) into else stringResource(R.string.list_add_code_detail, match.username, into)
+            Choice(stringResource(R.string.list_add_code_to, match.displayTitle), detail, selected = !newEntry) { newEntry = false }
+            Choice(stringResource(R.string.list_add_code_new_entry), stringResource(R.string.list_add_code_new_entry_detail), selected = newEntry) { newEntry = true }
         }
     }
     if (newEntry || match == null) {
@@ -261,7 +277,7 @@ private fun WhereTheCodeGoes(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Title") },
+                    label = { Text(stringResource(R.string.list_add_code_entry_title)) },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
@@ -269,7 +285,7 @@ private fun WhereTheCodeGoes(
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it },
-                    label = { Text("Username") },
+                    label = { Text(stringResource(R.string.list_add_code_entry_username)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     shape = RoundedCornerShape(16.dp),
@@ -280,11 +296,11 @@ private fun WhereTheCodeGoes(
     }
     val intoMatch = match != null && !newEntry
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-        TextButton(onClick = onDismiss) { Text("Cancel") }
+        TextButton(onClick = onDismiss) { Text(stringResource(R.string.list_cancel)) }
         Button(
             onClick = { onAdd(database, match.takeIf { intoMatch }, title, username) },
             enabled = intoMatch || title.isNotBlank(),
-        ) { Text("Add code") }
+        ) { Text(stringResource(R.string.list_add_code_button)) }
     }
 }
 
@@ -332,6 +348,7 @@ private fun CodeInput(large: Boolean, onText: (String) -> String?, onTexts: (Lis
     var problem by remember { mutableStateOf<String?>(null) }
     var scanning by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val clipboardEmpty = stringResource(R.string.list_code_clipboard_empty)
     val images = rememberCodeImages(
         onTexts = { texts -> problem = onTexts(texts) },
         onProblem = { problem = it },
@@ -346,13 +363,13 @@ private fun CodeInput(large: Boolean, onText: (String) -> String?, onTexts: (Lis
     val paste = {
         when (val clip = clipped(context)) {
             is Clipped.Image -> images.pasteImage(clip.uri)
-            is Clipped.Text -> problem = if (clip.text.isBlank()) "The clipboard holds no text or image." else onText(clip.text)
+            is Clipped.Text -> problem = if (clip.text.isBlank()) clipboardEmpty else onText(clip.text)
         }
     }
     val sources = listOf(
-        Triple("Camera", Icons.Rounded.QrCodeScanner, images.openCamera),
-        Triple("Image", Icons.Rounded.Image, images.chooseFile),
-        Triple("Paste", Icons.Rounded.ContentPaste, paste),
+        Triple(stringResource(R.string.list_code_source_camera), Icons.Rounded.QrCodeScanner, images.openCamera),
+        Triple(stringResource(R.string.list_code_source_image), Icons.Rounded.Image, images.chooseFile),
+        Triple(stringResource(R.string.list_code_source_paste), Icons.Rounded.ContentPaste, paste),
     )
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (large) {
@@ -380,7 +397,7 @@ private fun CodeInput(large: Boolean, onText: (String) -> String?, onTexts: (Lis
                         typed = it
                         problem = null
                     },
-                    label = { Text(if (large) "Or type the setup key or otpauth:// link" else "Or type the secret or link") },
+                    label = { Text(stringResource(if (large) R.string.list_code_type_key_or_link else R.string.list_code_type_secret_or_link)) },
                     singleLine = true,
                     isError = problem != null,
                     supportingText = problem?.let { { Text(it) } },
@@ -388,9 +405,9 @@ private fun CodeInput(large: Boolean, onText: (String) -> String?, onTexts: (Lis
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { shown = !shown }) {
-                                Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = if (shown) "Hide the secret" else "Show the secret")
+                                Icon(if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = stringResource(if (shown) R.string.list_code_hide_secret else R.string.list_code_show_secret))
                             }
-                            TextButton(onClick = { problem = onText(typed).also { if (it == null) typed = "" } }, enabled = typed.isNotBlank()) { Text("Use") }
+                            TextButton(onClick = { problem = onText(typed).also { if (it == null) typed = "" } }, enabled = typed.isNotBlank()) { Text(stringResource(R.string.list_code_use)) }
                         }
                     },
                     textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),

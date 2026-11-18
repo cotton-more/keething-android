@@ -14,6 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
@@ -32,21 +34,18 @@ internal fun DeleteForGoodDialog(title: String, onDelete: () -> Unit, onDismiss:
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.DeleteForever, contentDescription = null) },
-        title = { Text("Delete “$title” for good?") },
+        title = { Text(stringResource(R.string.recyclebin_delete_for_good_title, title)) },
         text = {
-            Text(
-                "It leaves the database with its history and the attachments nothing else uses. This cannot be " +
-                    "undone; copies that sync with this file delete it too.",
-            )
+            Text(stringResource(R.string.recyclebin_delete_for_good_text))
         },
         confirmButton = {
             TextButton(
                 onClick = onDelete,
                 enabled = armed,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) { Text("Delete for good") }
+            ) { Text(stringResource(R.string.recyclebin_delete_for_good_confirm)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.recyclebin_cancel)) } },
     )
 }
 

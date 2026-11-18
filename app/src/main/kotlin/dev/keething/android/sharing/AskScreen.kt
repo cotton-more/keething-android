@@ -35,11 +35,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.ui.readableInset
@@ -60,6 +63,7 @@ internal fun AskScreen(container: AppContainer, onClose: () -> Unit, onCreated: 
     var name by rememberSaveable { mutableStateOf(container.settings.requestName) }
     var reason by rememberSaveable { mutableStateOf("") }
     var creating by rememberSaveable { mutableStateOf(false) }
+    /** Why the request could not be kept, as the system says it. */
     var problem by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val ready = ShareRequest.isLine(name.trim(), ShareRequest.MAX_NAME_LENGTH) && ShareRequest.isLine(reason.trim(), ShareRequest.MAX_REASON_LENGTH)
@@ -75,7 +79,7 @@ internal fun AskScreen(container: AppContainer, onClose: () -> Unit, onCreated: 
             Log.i("Sharing", "request made in ${started.elapsedNow()}")
             creating = false
             made.onSuccess { mine -> mine?.let { onCreated(it.request.id) } ?: onClose() }
-                .onFailure { problem = "The request could not be kept on this phone: ${it.message}." }
+                .onFailure { problem = it.message.toString() }
         }
         Unit
     }
@@ -84,7 +88,7 @@ internal fun AskScreen(container: AppContainer, onClose: () -> Unit, onCreated: 
         topBar = {
             TopAppBar(
                 title = {},
-                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close") } },
+                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.sharing_close)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
@@ -92,7 +96,7 @@ internal fun AskScreen(container: AppContainer, onClose: () -> Unit, onCreated: 
             Column(Modifier.imePadding()) {
                 BottomActions {
                     Button(onClick = create, enabled = ready && !creating, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                        if (creating) LoadingIndicator(Modifier.size(28.dp)) else Text("Create the request")
+                        if (creating) LoadingIndicator(Modifier.size(28.dp)) else Text(stringResource(R.string.sharing_ask_create))
                     }
                 }
             }
@@ -102,26 +106,34 @@ internal fun AskScreen(container: AppContainer, onClose: () -> Unit, onCreated: 
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = readableInset(), vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            TitleBlock("Ask for an entry", "The one you ask answers with a code that only this phone can open.")
+            TitleBlock(stringResource(R.string.sharing_ask_for_entry), stringResource(R.string.sharing_ask_subtitle))
             NoLearningKeyboard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AskField("Your name", name, { name = it.take(ShareRequest.MAX_NAME_LENGTH) }, "As they know you", KeyboardCapitalization.Words)
-                    AskField("What for", reason, { reason = it.take(ShareRequest.MAX_REASON_LENGTH) }, "e.g. Netflix for the TV", KeyboardCapitalization.Sentences)
+                    AskField(
+                        stringResource(R.string.sharing_ask_name),
+                        name,
+                        { name = it.take(ShareRequest.MAX_NAME_LENGTH) },
+                        stringResource(R.string.sharing_ask_name_hint),
+                        KeyboardCapitalization.Words,
+                    )
+                    AskField(
+                        stringResource(R.string.sharing_ask_reason),
+                        reason,
+                        { reason = it.take(ShareRequest.MAX_REASON_LENGTH) },
+                        stringResource(R.string.sharing_ask_reason_hint),
+                        KeyboardCapitalization.Sentences,
+                    )
                 }
             }
             Text(
-                "Both go with the request as they are: whoever carries it can read them. Keep secrets out of them.",
+                stringResource(R.string.sharing_ask_public),
                 Modifier.padding(horizontal = 8.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            val days = validity.inWholeDays
-            InfoBox(
-                Icons.Rounded.Schedule,
-                "Valid for ${if (days == 1L) "1 day" else "$days days"}, then this phone forgets its key and the answer can no longer be opened. " +
-                    "Settings › Sharing changes how long.",
-            )
-            problem?.let { Text(it, Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.error) }
+            val days = validity.inWholeDays.toInt()
+            InfoBox(Icons.Rounded.Schedule, pluralStringResource(R.plurals.sharing_ask_valid, days, days))
+            problem?.let { Text(stringResource(R.string.sharing_ask_not_kept, it), Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.error) }
         }
     }
 }

@@ -76,7 +76,7 @@ class AutofillActivity : ComponentActivity() {
 
     /** A generated password into every new-password field (a sign-up's repetition too); the save offer then has it. */
     private fun fillGenerated(password: String) {
-        val presentation = AutofillPresentations(this, inline = null).action("Generated password", null, R.drawable.ic_autofill_generate, 0, pinned = false)
+        val presentation = AutofillPresentations(this, inline = null).action(getString(R.string.autofill_generated_password), null, R.drawable.ic_autofill_generate, 0, pinned = false)
         val builder = Dataset.Builder(presentation)
         for (index in request.form.newPasswords) {
             builder.setField(request.ids.getValue(index), Field.Builder().setValue(AutofillValue.forText(password)).build())

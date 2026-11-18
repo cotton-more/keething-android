@@ -70,6 +70,7 @@ internal object QuickNoteIntent {
      * Chrome's "Including link: …" (AQ0, in English; another language's is taken as a title, shown in the editor).
      */
     private fun isBrowsersOwnLine(subject: String): Boolean =
+        // not user text: the browsers' own words, matched
         subject.equals("Share via", ignoreCase = true) || subject.startsWith("Including link:", ignoreCase = true)
 }
 

@@ -71,6 +71,9 @@ import dev.keething.android.ui.secretToAccessibility
 import dev.keething.android.ui.segmentShape
 import dev.keething.android.databases.ChangeMasterKeyModel.KeyFileChoice
 import dev.keething.android.databases.ChangeMasterKeyModel.PasswordChoice
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
+import dev.keething.android.ui.resolve
 
 /**
  * Change master key… (SPEC §6.2; keething-spec databases.change-master-key; agreed on the canvas "Database name, colour
@@ -92,9 +95,9 @@ internal fun ChangeMasterKeyScreen(model: ChangeMasterKeyModel, onClose: () -> U
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(Modifier.height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose, enabled = !model.changing) { Icon(Icons.Rounded.Close, contentDescription = "Close") }
+                IconButton(onClick = onClose, enabled = !model.changing) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.databases_close)) }
                 Spacer(Modifier.width(4.dp))
-                Text("Change master key", style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.databases_change_key_title), style = MaterialTheme.typography.titleLarge)
             }
             when (model.step) {
                 ChangeMasterKeyModel.Step.CURRENT -> CurrentKey(model)
@@ -113,7 +116,7 @@ private fun CurrentKey(model: ChangeMasterKeyModel) {
         Text(model.fileText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     Text(
-        if (model.currentKeyFile != null) "First its master password as it is now, to show you know it. Nothing typed: its key file alone." else "First its master password as it is now, to show you know it.",
+        stringResource(if (model.currentKeyFile != null) R.string.databases_change_key_first_with_file else R.string.databases_change_key_first),
         Modifier.padding(horizontal = 4.dp),
         style = MaterialTheme.typography.bodyLarge,
     )
@@ -121,7 +124,7 @@ private fun CurrentKey(model: ChangeMasterKeyModel) {
         SecureTextField(
             state = model.current,
             modifier = Modifier.keepOutOfAutofill().secretToAccessibility(model.current.text.length, shown = model.revealsCurrent).fillMaxWidth(),
-            label = { Text("Current master password") },
+            label = { Text(stringResource(R.string.databases_change_key_current_password)) },
             textStyle = if (model.revealsCurrent) MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily) else MaterialTheme.typography.bodyLarge,
             textObfuscationMode = if (model.revealsCurrent) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
             isError = model.problem != null,
@@ -129,7 +132,7 @@ private fun CurrentKey(model: ChangeMasterKeyModel) {
                 IconButton(onClick = { model.revealsCurrent = !model.revealsCurrent }) {
                     Icon(
                         if (model.revealsCurrent) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                        contentDescription = if (model.revealsCurrent) "Hide the password" else "Show the password",
+                        contentDescription = stringResource(if (model.revealsCurrent) R.string.databases_hide_password else R.string.databases_show_password),
                     )
                 }
             },
@@ -144,11 +147,11 @@ private fun CurrentKey(model: ChangeMasterKeyModel) {
             colors = fieldColors(),
         )
     }
-    model.problem?.let { Text(it, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+    model.problem?.let { Text(it.resolve(), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
     model.currentKeyFile?.let { key ->
         Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(Icons.Rounded.Key, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("With its key file, ${key.name} in ${key.placeText}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.databases_change_key_with_key_file, key.name, key.placeText), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
     Spacer(Modifier.height(8.dp))
@@ -156,9 +159,9 @@ private fun CurrentKey(model: ChangeMasterKeyModel) {
         if (model.checking) {
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(10.dp))
-            Text("Checking…")
+            Text(stringResource(R.string.databases_change_key_checking))
         } else {
-            Text("Continue")
+            Text(stringResource(R.string.databases_continue))
         }
     }
 }
@@ -177,11 +180,15 @@ private fun NewKey(model: ChangeMasterKeyModel) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(Icons.Rounded.CheckCircle, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-        Text("Its current key, confirmed", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.databases_change_key_confirmed), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 
-    SectionTitle("Password")
-    val choices = listOf(PasswordChoice.KEEP to "Keep it", PasswordChoice.NEW to "New", PasswordChoice.NONE to "None")
+    SectionTitle(stringResource(R.string.databases_change_key_password))
+    val choices = listOf(
+        PasswordChoice.KEEP to R.string.databases_change_key_password_keep,
+        PasswordChoice.NEW to R.string.databases_change_key_password_new,
+        PasswordChoice.NONE to R.string.databases_change_key_password_none,
+    )
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         choices.forEachIndexed { index, (choice, label) ->
             SegmentedButton(
@@ -189,32 +196,34 @@ private fun NewKey(model: ChangeMasterKeyModel) {
                 onClick = { model.choosePassword(choice) },
                 enabled = choice != PasswordChoice.NONE || model.noneAllowed,
                 shape = SegmentedButtonDefaults.itemShape(index, choices.size),
-            ) { Text(label) }
+            ) { Text(stringResource(label)) }
         }
     }
     if (model.passwordChoice == PasswordChoice.NEW) {
         val fields = model.fields
-        PasswordFields(fields, label = "New master password")
+        PasswordFields(fields, label = stringResource(R.string.databases_new_master_password))
         fields.strength?.let { StrengthBar(it) }
         val suggestion = fields.suggestion
         if (suggestion == null) {
-            TextButton(onClick = fields::suggest) { ButtonLabel("Suggest a passphrase", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp) }
+            TextButton(onClick = fields::suggest) { ButtonLabel(stringResource(R.string.databases_suggest_passphrase), Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp) }
         } else {
             SuggestionCard(fields, suggestion)
         }
     }
     Text(
-        when (model.passwordChoice) {
-            PasswordChoice.KEEP -> if (model.keepsNoPassword) "It stays without a password: its key file alone opens it." else "The password stays as it is."
-            PasswordChoice.NEW -> "Nobody can recover a forgotten master password, not even Keething."
-            PasswordChoice.NONE -> "No password: the key file alone opens it. Whoever has the file and the key file has everything."
-        },
+        stringResource(
+            when (model.passwordChoice) {
+                PasswordChoice.KEEP -> if (model.keepsNoPassword) R.string.databases_change_key_keeps_none else R.string.databases_change_key_keeps_password
+                PasswordChoice.NEW -> R.string.databases_password_not_recoverable
+                PasswordChoice.NONE -> R.string.databases_change_key_no_password
+            },
+        ),
         Modifier.padding(horizontal = 16.dp),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
-    SectionTitle("Key file")
+    SectionTitle(stringResource(R.string.databases_change_key_key_file))
     KeyFileChoices(model, onMake = { pickKeyFolder(DOCUMENTS) }, onHave = { pickKeyFile(DOCUMENTS) })
 
     Row(
@@ -223,7 +232,7 @@ private fun NewKey(model: ChangeMasterKeyModel) {
     ) {
         Icon(Icons.Rounded.Devices, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            "Every device that opens ${model.fileName} will need the new key. The file is backed up first; if anything fails, it stays as it is.",
+            stringResource(R.string.databases_change_key_every_device, model.fileName),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -234,13 +243,13 @@ private fun NewKey(model: ChangeMasterKeyModel) {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Icon(Icons.Rounded.ErrorOutline, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
-            Text(problem, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+            Text(problem.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
         }
     }
     // Read once a frame: each one looks at the files.
     val blockers = model.blockers
     blockers.firstOrNull()?.let {
-        Text(it, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(it.resolve(), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     Button(
         onClick = { model.changeKey() },
@@ -250,9 +259,9 @@ private fun NewKey(model: ChangeMasterKeyModel) {
         if (model.changing) {
             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(10.dp))
-            Text("Changing…")
+            Text(stringResource(R.string.databases_change_key_changing))
         } else {
-            Text("Change master key")
+            Text(stringResource(R.string.databases_change_key_title))
         }
     }
     Spacer(Modifier.height(16.dp))
@@ -263,11 +272,19 @@ private fun NewKey(model: ChangeMasterKeyModel) {
 private fun KeyFileChoices(model: ChangeMasterKeyModel, onMake: () -> Unit, onHave: () -> Unit) {
     val current = model.currentKeyFile
     val chosen = model.keyFile
+    val keyFileText = model.keyFileText?.resolve() ?: "…"
+    val keep = current?.let { stringResource(R.string.databases_change_key_file_keep, it.name) }
+    val make = stringResource(R.string.databases_change_key_file_make)
+    val makeDetail = if (chosen is KeyFileChoice.New) keyFileText else stringResource(R.string.databases_change_key_file_make_detail)
+    val have = stringResource(R.string.databases_change_key_file_have)
+    val haveDetail = if (chosen is KeyFileChoice.Existing) keyFileText else stringResource(R.string.databases_change_key_file_have_detail)
+    val none = stringResource(if (current != null) R.string.databases_change_key_file_remove else R.string.databases_change_key_file_none)
+    val noneDetail = stringResource(if (current != null) R.string.databases_change_key_file_remove_detail else R.string.databases_change_key_file_none_detail)
     val rows = buildList {
-        if (current != null) add(Triple("Keep ${current.name}", current.placeText, chosen == KeyFileChoice.Keep) to { model.chooseKeyFile(KeyFileChoice.Keep) })
-        add(Triple("Make a new one…", if (chosen is KeyFileChoice.New) model.keyFileText ?: "…" else "A .keyx in a folder you pick, not beside the database", chosen is KeyFileChoice.New) to onMake)
-        add(Triple("Use one I have…", if (chosen is KeyFileChoice.Existing) model.keyFileText ?: "…" else "Chosen from your files; never changed", chosen is KeyFileChoice.Existing) to onHave)
-        add(Triple(if (current != null) "Remove it" else "None", if (current != null) "It opens with the password alone" else "It opens with the password alone, as now", chosen == KeyFileChoice.None) to { model.chooseKeyFile(KeyFileChoice.None) })
+        if (current != null && keep != null) add(Triple(keep, current.placeText, chosen == KeyFileChoice.Keep) to { model.chooseKeyFile(KeyFileChoice.Keep) })
+        add(Triple(make, makeDetail, chosen is KeyFileChoice.New) to onMake)
+        add(Triple(have, haveDetail, chosen is KeyFileChoice.Existing) to onHave)
+        add(Triple(none, noneDetail, chosen == KeyFileChoice.None) to { model.chooseKeyFile(KeyFileChoice.None) })
     }
     Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         rows.forEachIndexed { index, (row, onClick) ->
@@ -291,16 +308,16 @@ private fun KeyFileChoices(model: ChangeMasterKeyModel, onMake: () -> Unit, onHa
             }
         }
     }
-    model.keyFileProblem?.let { Text(it, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+    model.keyFileProblem?.let { Text(it.resolve(), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
     model.keyFileWarning?.let {
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.extraColors.warn)
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.extraColors.warn)
+            Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.extraColors.warn)
         }
     }
     if (chosen is KeyFileChoice.New) {
         Text(
-            "Lose the key file and the database never opens again. Keep a copy apart from it.",
+            stringResource(R.string.databases_key_file_lose),
             Modifier.padding(horizontal = 16.dp),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.extraColors.warn,
@@ -317,19 +334,24 @@ private fun Changed(model: ChangeMasterKeyModel, onClose: () -> Unit) {
     ) {
         Icon(Icons.Rounded.Check, contentDescription = null, Modifier.size(36.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
     }
-    Text("Master key changed", Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium)
-    val password = when {
-        !model.passwordAfter -> null
-        model.passwordChoice == PasswordChoice.KEEP -> "its password"
-        else -> "the new password"
+    Text(stringResource(R.string.databases_change_key_done_title), Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium)
+    val keyFile = model.keyFileAfter
+    val kept = model.passwordChoice == PasswordChoice.KEEP
+    val opensWith = when {
+        !model.passwordAfter -> stringResource(R.string.databases_change_key_opens_with_key_file, model.fileName, keyFile.orEmpty())
+        keyFile == null -> stringResource(if (kept) R.string.databases_change_key_opens_with_its_password else R.string.databases_change_key_opens_with_new_password, model.fileName)
+        else -> stringResource(
+            if (kept) R.string.databases_change_key_opens_with_its_password_and_key_file else R.string.databases_change_key_opens_with_new_password_and_key_file,
+            model.fileName,
+            keyFile,
+        )
     }
-    val opensWith = listOfNotNull(password, model.keyFileAfter)
-    Text("${model.fileName} now opens with ${opensWith.joinToString(" and ")}.", style = MaterialTheme.typography.bodyLarge)
+    Text(opensWith, style = MaterialTheme.typography.bodyLarge)
     model.fingerprintProblem?.let {
-        Text("Its new password could not be stored for the fingerprint: $it. It is stored at the next unlock with the password.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        Text(stringResource(R.string.databases_change_key_fingerprint_problem, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
     }
     Text(
-        "Your other devices ask for the new key once the file reaches them; a fingerprint stored there stops working until the new password is typed.",
+        stringResource(R.string.databases_change_key_other_devices),
         style = MaterialTheme.typography.bodyLarge,
     )
     Row(
@@ -338,13 +360,13 @@ private fun Changed(model: ChangeMasterKeyModel, onClose: () -> Unit) {
     ) {
         Icon(Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.extraColors.onWarnContainer)
         Text(
-            "Copies of the file made before still open with the old key: the backups on this phone and elsewhere, other devices' copies, a sync's old versions (Syncthing's .stversions). After a leak, delete those you can.",
+            stringResource(R.string.databases_change_key_old_copies),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.extraColors.onWarnContainer,
         )
     }
     Spacer(Modifier.height(8.dp))
-    Button(onClick = onClose, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(bottom = 8.dp)) { Text("Done") }
+    Button(onClick = onClose, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(bottom = 8.dp)) { Text(stringResource(R.string.databases_done)) }
 }
 
 @Composable

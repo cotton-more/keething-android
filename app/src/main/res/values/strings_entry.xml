@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The card's screen (entry/EntryCardScreen.kt) -->
+    <string name="entry_card_back">Back to the list</string>
+    <string name="entry_card_restore">Restore</string>
+    <string name="entry_card_edit">Edit</string>
+    <string name="entry_card_more">More</string>
+    <string name="entry_card_menu_show_all">Show all</string>
+    <string name="entry_card_menu_hide_all">Hide all</string>
+    <string name="entry_card_menu_history">History</string>
+    <string name="entry_card_menu_move">Move to group…</string>
+    <string name="entry_card_menu_send">Send to a request</string>
+    <string name="entry_card_menu_delete_for_good">Delete for good…</string>
+    <string name="entry_card_menu_to_bin">Move to the recycle bin</string>
+    <string name="entry_card_no_app_for_file">No app opens this file; save it instead</string>
+    <string name="entry_card_no_app_for_link">No app opens this link</string>
+    <string name="entry_card_no_way_to_add_network">This phone offers no way to add the network</string>
+    <string name="entry_card_in_bin">In the recycle bin</string>
+    <!-- Move to group…'s picker: the title, and what a group made in it is made with -->
+    <string name="entry_card_move_title">Move to group</string>
+    <string name="entry_card_move_made">made with the move</string>
+    <!-- The chip of where the entry is: a tap searches there -->
+    <string name="entry_card_place_search">Search there</string>
+    <!-- %1$s: the database's name -->
+    <string name="entry_card_place_database">Database %1$s</string>
+    <!-- Under the fields; %1$s: the day it was changed, %2$s: the day it was made -->
+    <string name="entry_card_changed_created">Changed %1$s · created %2$s</string>
+    <!-- %1$s: the day -->
+    <string name="entry_card_changed">Changed %1$s</string>
+    <!-- %1$s: the day -->
+    <string name="entry_card_created">Created %1$s</string>
+    <!-- Stands for the app that opens ssh:// links when several do -->
+    <string name="entry_card_ssh_app_several">an SSH app</string>
+    <string name="entry_card_no_app_for_ssh">No app opens SSH links</string>
+
+    <!-- The offer to type the fields (SPEC §6.3) -->
+    <string name="entry_suggestion_not_now">Not now</string>
+    <string name="entry_suggestion_card_title">Looks like a payment card</string>
+    <string name="entry_suggestion_card_text">Show these fields as a card. Their types are saved in the entry, so the Mac shows the card too.</string>
+    <string name="entry_suggestion_card_button">Show as card</string>
+    <string name="entry_suggestion_wifi_title">Looks like a Wi-Fi network</string>
+    <string name="entry_suggestion_wifi_text">Show these fields as a network, with its QR code. Their types are saved in the entry, so the Mac shows the network too.</string>
+    <string name="entry_suggestion_wifi_button">Show as network</string>
+    <string name="entry_suggestion_bank_title">Looks like a bank account</string>
+    <string name="entry_suggestion_bank_text">Show these fields as an account: the number grouped and checked, the country\'s flag. Their types are saved in the entry.</string>
+    <string name="entry_suggestion_bank_button">Show as account</string>
+    <string name="entry_suggestion_document_title">Looks like an identity document</string>
+    <string name="entry_suggestion_document_text">Show these fields as a document: its number, its dates and the country\'s flag. Their types are saved in the entry.</string>
+    <string name="entry_suggestion_document_button">Show as document</string>
+    <string name="entry_suggestion_ssh_title">Looks like an SSH login</string>
+    <string name="entry_suggestion_ssh_text">Show these fields with the ssh command and a ~/.ssh/config block. Their types are saved in the entry.</string>
+    <string name="entry_suggestion_ssh_button">Show as SSH</string>
+    <string name="entry_suggestion_crypto_title">Looks like a crypto wallet</string>
+    <string name="entry_suggestion_crypto_text">Show these fields as a wallet: the recovery phrase checked and never copied, the address with its QR code. Their types are saved in the entry.</string>
+    <string name="entry_suggestion_crypto_button">Show as wallet</string>
+
+    <!-- Share… of the password -->
+    <string name="entry_share_title">Share the password?</string>
+    <string name="entry_share_text">It goes to the app you choose, as plain text, and maybe to that app\'s cloud and history. To another phone, Show as QR is safer: nothing leaves this one.</string>
+    <string name="entry_share_share">Share</string>
+    <string name="entry_share_qr">Show as QR</string>
+    <string name="entry_share_cancel">Cancel</string>
+
+    <!-- The card's notices (entry/EntryCardViewModel.kt) -->
+    <string name="entry_saved_card">Saved · the Mac shows it as a card too</string>
+    <string name="entry_saved_network">Saved · the Mac shows the network too</string>
+    <string name="entry_saved">Saved</string>
+    <string name="entry_network_refused">This phone cannot add the network: its name or key is not one Android accepts</string>
+    <!-- %1$s: the field copied, as the card names it -->
+    <string name="entry_copied_compact">%1$s copied without spaces · clears in 30 s</string>
+    <!-- %1$s: the address's field, as the card names it -->
+    <string name="entry_copied_address">%1$s copied · check its start and end where you paste it</string>
+    <string name="entry_copied_selection">Copied · clears in 30 s</string>
+    <!-- %1$s: the code's field, as the card names it -->
+    <string name="entry_code_marked_used">%1$s marked as used</string>
+    <!-- %1$s: the code's field, as the card names it -->
+    <string name="entry_code_marked_not_used">%1$s marked as not used</string>
+    <!-- %1$s: the attachment's name -->
+    <string name="entry_attachment_could_not_read">Could not read %1$s</string>
+    <!-- %1$s: the attachment's name -->
+    <string name="entry_attachment_could_not_open">Could not open %1$s</string>
+    <!-- %1$s: the attachment's name -->
+    <string name="entry_attachment_saved">Saved %1$s</string>
+    <!-- %1$s: the attachment's name -->
+    <string name="entry_attachment_could_not_save">Could not save %1$s</string>
+    <string name="entry_attachment_could_not_save_unnamed">Could not save the attachment</string>
+    <!-- %1$s: the group's path -->
+    <string name="entry_restored_to">Restored to %1$s</string>
+    <string name="entry_restored_to_top">Restored to the top group</string>
+    <!-- %1$s: the key's attachment -->
+    <string name="entry_ssh_key_missing">%1$s is not in the database</string>
+    <string name="entry_ssh_key_not_openssh">Only keys in the OpenSSH format can be read</string>
+
+    <!-- The card's rows (entry/CardSections.kt) -->
+    <!-- %1$s: the field, as the card names it, in lower case -->
+    <string name="entry_row_copy">Copy %1$s</string>
+    <!-- %1$s: the field, as the card names it, in lower case -->
+    <string name="entry_row_hide">Hide %1$s</string>
+    <!-- %1$s: the field, as the card names it, in lower case -->
+    <string name="entry_row_show">Show %1$s</string>
+    <string name="entry_row_open_link">Open in the browser</string>
+    <!-- An app's address: %1$s is the app's or the store's name -->
+    <string name="entry_app_could_not_open">%1$s could not be opened</string>
+    <!-- %1$s: the app's name -->
+    <string name="entry_app_open">Open %1$s</string>
+    <!-- %1$s: the store's name -->
+    <string name="entry_app_find_in">Find in %1$s</string>
+    <string name="entry_app_no_store">No store opens this app</string>
+    <string name="entry_app_find_in_store">Find in a store</string>
+    <!-- The password's menu -->
+    <string name="entry_password_more">More for the password</string>
+    <string name="entry_password_qr">Show as QR</string>
+    <string name="entry_password_large">Large type</string>
+    <string name="entry_password_share">Share…</string>
+    <!-- A list of codes: %1$d codes left of %2$d -->
+    <plurals name="entry_codes_left">
+        <item quantity="one">%1$d of %2$d left</item>
+        <item quantity="other">%1$d of %2$d left</item>
+    </plurals>
+    <string name="entry_codes_hide">Hide the codes</string>
+    <string name="entry_codes_show">Show the codes</string>
+    <string name="entry_codes_none_left">No unused codes left</string>
+    <!-- %1$s: the next code's number in the list -->
+    <string name="entry_codes_copy_next">Copy next unused · %1$s</string>
+    <string name="entry_codes_mark_used">Mark as used</string>
+    <string name="entry_codes_mark_not_used">Mark as not used</string>
+    <!-- Under a code marked used; %1$s: the day -->
+    <string name="entry_codes_used_on">used %1$s</string>
+    <!-- %1$s: the attachment's name -->
+    <string name="entry_attachment_open">Open %1$s in another app</string>
+    <!-- %1$s: the attachment's name -->
+    <string name="entry_attachment_save">Save %1$s to a folder</string>
+
+    <!-- The faces (entry/FaceSections.kt, entry/MoreFaceSections.kt) -->
+    <string name="entry_face_show">Show</string>
+    <string name="entry_face_hide">Hide</string>
+    <string name="entry_face_tap_line">Tap a line to copy it</string>
+    <string name="entry_qr_full_screen">QR code full screen</string>
+    <!-- A payment card -->
+    <string name="entry_card_face_turn_over">Turn over</string>
+    <string name="entry_card_face_check_digit">The number fails its check digit (a typo?)</string>
+    <!-- Read aloud for the masked number; %1$s: its last digits as spoken -->
+    <string name="entry_card_face_number">Card number, %1$s</string>
+    <string name="entry_card_face_holder">CARDHOLDER</string>
+    <string name="entry_card_face_valid_thru">VALID THRU</string>
+    <string name="entry_card_face_cvc">CVC</string>
+    <string name="entry_card_face_tap_cvc">Tap the CVC to copy it</string>
+    <!-- A Wi-Fi network -->
+    <string name="entry_wifi_heading">WI-FI NETWORK</string>
+    <string name="entry_wifi_name">NETWORK NAME</string>
+    <string name="entry_wifi_key">NETWORK KEY</string>
+    <string name="entry_wifi_qr_full_screen">Show the QR code full screen</string>
+    <!-- %1$s: the network's name -->
+    <string name="entry_wifi_qr_join">QR code to join %1$s</string>
+    <string name="entry_wifi_show_key_and_qr">Show the key and the QR code</string>
+    <string name="entry_wifi_tap_code">Tap the code for full screen</string>
+    <string name="entry_wifi_code_holds_key">The code holds the key</string>
+    <string name="entry_wifi_add">Add to this phone</string>
+    <string name="entry_wifi_open">Open · no password</string>
+    <!-- A bank account -->
+    <string name="entry_bank_heading">BANK ACCOUNT</string>
+    <string name="entry_bank_holder">ACCOUNT HOLDER</string>
+    <string name="entry_bank_tap_line">Tap a line to copy it · numbers without spaces</string>
+    <string name="entry_bank_copy_iban">Copy IBAN</string>
+    <string name="entry_bank_copy_account">Copy account</string>
+    <string name="entry_bank_share">Share</string>
+    <string name="entry_country_unknown">Country unknown</string>
+    <!-- An identity document -->
+    <string name="entry_document_name">NAME</string>
+    <string name="entry_document_number">NUMBER</string>
+    <string name="entry_document_born">BORN</string>
+    <string name="entry_document_issued">ISSUED</string>
+    <string name="entry_document_expires">EXPIRES</string>
+    <!-- An SSH login, as a terminal -->
+    <string name="entry_ssh_heading">SSH</string>
+    <!-- How it logs in, and its port; %1$d: the port -->
+    <string name="entry_ssh_chip_key">key · port %1$d</string>
+    <!-- %1$d: the port -->
+    <string name="entry_ssh_chip_password">password · port %1$d</string>
+    <!-- %1$d: the port -->
+    <string name="entry_ssh_chip_port">port %1$d</string>
+    <string name="entry_ssh_copy_command_label">Copy the ssh command</string>
+    <string name="entry_ssh_copy_command">Copy ssh command</string>
+    <!-- The terminal's lines -->
+    <string name="entry_ssh_host">host</string>
+    <string name="entry_ssh_user">user</string>
+    <string name="entry_ssh_port">port</string>
+    <string name="entry_ssh_copy_host">Copy the host</string>
+    <string name="entry_ssh_copy_user">Copy the user</string>
+    <string name="entry_ssh_copy_port">Copy the port</string>
+    <string name="entry_ssh_the_username">the username</string>
+    <string name="entry_ssh_copy">Copy</string>
+    <!-- %1$s: the app that opens ssh:// links -->
+    <string name="entry_ssh_open_in">Open in %1$s</string>
+    <string name="entry_ssh_copy_public_key">Copy the public key</string>
+    <string name="entry_ssh_key_in_attachment">Attachment of this entry · the SSH agent gives it to ssh · tap to copy the public key</string>
+    <string name="entry_ssh_key_in_file">Key file on the computer, from KeePassXC\'s settings</string>
+    <!-- What was copied, in the notice "… copied · clears in 30 s" -->
+    <string name="entry_ssh_copied_command">ssh command</string>
+    <string name="entry_ssh_copied_host">Host</string>
+    <string name="entry_ssh_copied_user">User</string>
+    <string name="entry_ssh_copied_port">Port</string>
+    <string name="entry_ssh_copied_host_block">Host block</string>
+    <string name="entry_ssh_copied_public_key">Public key</string>
+
+    <!-- A crypto wallet (entry/CryptoSections.kt) -->
+    <!-- %1$s: the field that holds the key -->
+    <string name="entry_wallet_private_key">“%1$s” holds a private key: whoever has it has the wallet. It is shown, never copied.</string>
+    <string name="entry_wallet_fails_checksum">Fails its checksum. A typo?</string>
+    <string name="entry_wallet_xpub_note">Shows every address and balance of the wallet: share it with care</string>
+    <string name="entry_seed_heading">RECOVERY PHRASE</string>
+    <plurals name="entry_seed_words">
+        <item quantity="one">%1$d word</item>
+        <item quantity="other">%1$d words</item>
+    </plurals>
+    <!-- %1$d: the number of words; %2$s: the word list's language -->
+    <plurals name="entry_seed_words_language">
+        <item quantity="one">%1$d word · %2$s</item>
+        <item quantity="other">%1$d words · %2$s</item>
+    </plurals>
+    <string name="entry_seed_empty">Empty</string>
+    <string name="entry_seed_warning">Whoever has these words has the wallet. They are shown here, never copied.</string>
+    <string name="entry_seed_word_by_word">Word by word</string>
+    <string name="entry_seed_never_copied">Never copied · not in the clipboard, not in a QR code</string>
+    <!-- Read aloud for the grid of words -->
+    <plurals name="entry_seed_words_spoken">
+        <item quantity="one">The %1$d word</item>
+        <item quantity="other">The %1$d words</item>
+    </plurals>
+    <!-- Read aloud for one cell; %1$d: its number, %2$s: the word -->
+    <string name="entry_seed_word_spoken">Word %1$d, %2$s</string>
+    <string name="entry_passphrase_heading">+ PASSPHRASE</string>
+    <string name="entry_passphrase_note">The 25th word: without it the phrase opens another wallet</string>
+    <string name="entry_passphrase_hide">Hide the passphrase</string>
+    <string name="entry_passphrase_show">Show the passphrase</string>
+    <!-- The check of an address, on its chip -->
+    <string name="entry_address_eip55">EIP-55</string>
+    <string name="entry_address_checked">checked</string>
+    <string name="entry_address_no_checksum">no checksum</string>
+    <string name="entry_address_fails">fails its check</string>
+    <string name="entry_receive_heading">RECEIVE</string>
+    <!-- %1$s: the network, in capitals -->
+    <string name="entry_receive_heading_network">RECEIVE · %1$s</string>
+    <string name="entry_receive_qr">QR code of the address; full screen</string>
+    <string name="entry_receive_tap">Tap the address to copy it · start and end in bold, to check where it lands</string>
+    <string name="entry_receive_fails">The address fails its checksum (a typo?): check it before anyone sends to it</string>
+    <string name="entry_receive_copy">Copy address</string>
+    <string name="entry_receive_show_qr">Show QR</string>
+    <!-- %1$s: the address's field -->
+    <string name="entry_address_qr_of">QR code of %1$s</string>
+
+    <!-- A note's text, an entry's Notes (entry/NoteTextView.kt); %1$s: the field's name in lower case -->
+    <string name="entry_note_show">Show the %1$s</string>
+    <!-- %1$s: the field's name in lower case -->
+    <string name="entry_note_hide">Hide the %1$s</string>
+    <!-- %1$s: the field's name in lower case -->
+    <string name="entry_note_copy">Copy the %1$s</string>
+    <!-- Read aloud for a hidden text; %1$s: the field's name -->
+    <string name="entry_note_hidden_spoken">%1$s hidden</string>
+    <string name="entry_note_hidden">Hidden</string>
+
+    <!-- Full screen: the password's QR code, large type, a network's code, the words, an address (entry/PasswordScreen.kt) -->
+    <string name="entry_full_close">Close</string>
+    <string name="entry_full_qr_too_long">The password is too long for a QR code.</string>
+    <string name="entry_full_qr_password">QR code of the password</string>
+    <string name="entry_full_qr_hint">Scan it with the other device\'s camera. Nothing leaves this phone.</string>
+    <string name="entry_full_hide_password">Hide the password</string>
+    <string name="entry_full_show_password">Show the password</string>
+    <!-- %1$s: the network's name -->
+    <string name="entry_full_join">Join %1$s</string>
+    <string name="entry_full_join_hint">Point the other phone\'s camera at the code.</string>
+    <!-- %1$d: the word's number, %2$d: how many there are -->
+    <string name="entry_full_word_of">Word %1$d of %2$d</string>
+    <string name="entry_full_back">Back</string>
+    <string name="entry_full_last_word">Last word</string>
+    <string name="entry_full_next">Next</string>
+    <string name="entry_full_words_hint">Swipe, or tap the buttons. Screenshots are blocked; this closes when the app locks.</string>
+    <!-- %1$s: the network -->
+    <string name="entry_full_receive">Receive · %1$s</string>
+    <string name="entry_full_address_qr">QR code of the address</string>
+    <string name="entry_full_evm_warning">Ethereum or the EVM network this wallet uses: coins of another network sent here can be lost.</string>
+    <!-- %1$s: the network -->
+    <string name="entry_full_network_warning">Only %1$s to this address. Coins of another network sent here can be lost.</string>
+    <string name="entry_full_address_fails">The address fails its checksum (a typo?)</string>
+    <string name="entry_full_copy">Copy</string>
+    <string name="entry_full_share">Share</string>
+</resources>

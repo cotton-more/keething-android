@@ -10,7 +10,7 @@ import dev.keething.domain.settings.SettingsStore
  * as it is: each reader then takes what it understands and its default for the rest (AC3).
  */
 internal object SettingsVersion {
-    const val KEY = "storeVersion"
+    const val KEY = "storeVersion" // not user text
 
     const val CURRENT = 1
 

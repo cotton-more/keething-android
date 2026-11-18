@@ -5,7 +5,10 @@ import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.EntryRef
+import dev.keething.android.R
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 import dev.keething.card.GroupPathFormatter
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.VaultEdit
@@ -49,18 +52,18 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
                 if (problem != null) {
                     Notice(problem, isProblem = true)
                 } else {
-                    Notice("Moved “$title” to the recycle bin", undo = { restore(database, entry.id) })
+                    Notice(uiText(R.string.recyclebin_moved, title), undo = { restore(database, entry.id) })
                 },
             )
         }
     }
 
     /** Back out of the bin, into the group it came from; [entryId] is its own in [database]; [done] gets the problem, or null. */
-    fun restore(database: DatabaseSession, entryId: String, done: (problem: String?) -> Unit = ::restored) {
+    fun restore(database: DatabaseSession, entryId: String, done: (problem: UiText?) -> Unit = ::restored) {
         mutableLeaving.update { it - EntryRef(database.id, entryId).text }
         val vault = (database.session.state.value as? SessionState.Unlocked)?.vault ?: return
         val entry = vault.recycleBin.firstOrNull { it.id == entryId }
-            ?: return done("This entry is not in the recycle bin any more (restored elsewhere?). Nothing was changed.")
+            ?: return done(uiText(R.string.recyclebin_restore_gone))
         save(database, VaultEdit.Restore(entry.id, entry.lastModified), done)
     }
 
@@ -71,7 +74,7 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
             val group = vault?.entries?.firstOrNull { it.id == entryId }?.groupPath.orEmpty()
             mutableNotices.trySend(
                 problem?.let { Notice(it, isProblem = true) }
-                    ?: Notice("Restored to " + GroupPathFormatter.text(group).ifEmpty { "the top group" }),
+                    ?: Notice(restoredTo(group)),
             )
         }
     }
@@ -83,7 +86,7 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
         mutableLeaving.update { it + ref }
         save(database, VaultEdit.DeleteForGood(entry.id, entry.lastModified)) { problem ->
             if (problem != null) mutableLeaving.update { it - ref }
-            mutableNotices.trySend(Notice(problem ?: "Deleted “$title” for good", isProblem = problem != null))
+            mutableNotices.trySend(Notice(problem ?: uiText(R.string.recyclebin_deleted_for_good, title), isProblem = problem != null))
         }
     }
 
@@ -98,12 +101,18 @@ internal class RecycleBinMoves(private val scope: CoroutineScope) {
         while (mutableNotices.tryReceive().isSuccess) Unit
     }
 
-    private fun restored(problem: String?) {
+    private fun restored(problem: UiText?) {
         if (problem != null) mutableNotices.trySend(Notice(problem, isProblem = true))
     }
 
-    private fun save(database: DatabaseSession, edit: VaultEdit.EntryEdit, done: (problem: String?) -> Unit) {
+    private fun save(database: DatabaseSession, edit: VaultEdit.EntryEdit, done: (problem: UiText?) -> Unit) {
         val pending = database.session.save(edit) ?: return done(SAVE_LOCKED)
         scope.launch { done(pending.await().problem(database.file)) }
+    }
+
+    companion object {
+        /** "Restored to Finanzen › Banken", or to the top group: where a restored entry went. */
+        fun restoredTo(group: List<String>): UiText =
+            GroupPathFormatter.text(group).let { if (it.isEmpty()) uiText(R.string.recyclebin_restored_to_top) else uiText(R.string.recyclebin_restored_to, it) }
     }
 }

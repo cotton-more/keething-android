@@ -25,11 +25,14 @@ import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.CustomIconImages
@@ -90,7 +93,8 @@ internal fun RowCodesSheet(
 }
 
 /** "2 one-time codes": the sheet's line under the title, and what a screen reader says of a row's button (AC6). */
-internal fun codeCount(count: Int): String = if (count == 1) "1 one-time code" else "$count one-time codes"
+@Composable
+internal fun codeCount(count: Int): String = pluralStringResource(R.plurals.list_one_time_codes, count, count)
 
 /**
  * One code of the sheet: its name (a field icon before a further code's), the code and the next one. A screen reader
@@ -99,13 +103,16 @@ internal fun codeCount(count: Int): String = if (count == 1) "1 one-time code" e
 @Composable
 private fun RowCode(tile: CodeTile, now: State<Instant>, onCopy: () -> Unit, onCopyNext: () -> Unit, modifier: Modifier) {
     val display = TotpDisplay.of(tile.totp, now.value)
-    val name = if (tile.further) tile.subtitle else "One-time code"
+    val left = secondsLeft(display.secondsRemaining)
+    val name = if (tile.further) tile.subtitle else stringResource(R.string.list_one_time_code)
+    val copyCode = stringResource(R.string.list_copy_code)
+    val separator = stringResource(R.string.list_separator)
     Column(
         modifier
             .fillMaxWidth()
             .background(MaterialTheme.extraColors.row)
-            .clickable(onClickLabel = "Copy code", onClick = onCopy)
-            .semantics { contentDescription = listOf(name, display.formatted, secondsLeft(display.secondsRemaining)).joinToString(", ") }
+            .clickable(onClickLabel = copyCode, onClick = onCopy)
+            .semantics { contentDescription = listOf(name, display.formatted, left).joinToString(separator) }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

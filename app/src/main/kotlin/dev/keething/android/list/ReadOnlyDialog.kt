@@ -7,7 +7,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import dev.keething.android.R
 
 /**
  * A change tried on a database too large to save, before anything is typed (keething-spec app.large-database AC3): why
@@ -18,8 +20,8 @@ internal fun ReadOnlyDialog(text: String, onOk: () -> Unit) {
     AlertDialog(
         onDismissRequest = onOk,
         icon = { Icon(Icons.Rounded.EditOff, contentDescription = null) },
-        title = { Text("Read only", textAlign = TextAlign.Center) },
+        title = { Text(stringResource(R.string.list_read_only), textAlign = TextAlign.Center) },
         text = { Text(text) },
-        confirmButton = { TextButton(onClick = onOk) { Text("OK") } },
+        confirmButton = { TextButton(onClick = onOk) { Text(stringResource(R.string.list_ok)) } },
     )
 }

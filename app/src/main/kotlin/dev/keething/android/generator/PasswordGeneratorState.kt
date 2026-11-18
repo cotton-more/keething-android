@@ -47,6 +47,6 @@ internal class PasswordGeneratorState(private val store: SettingsStore, private 
     }
 
     companion object {
-        const val OPTIONS_KEY = "passwordGenerator"
+        const val OPTIONS_KEY = "passwordGenerator" // not user text
     }
 }

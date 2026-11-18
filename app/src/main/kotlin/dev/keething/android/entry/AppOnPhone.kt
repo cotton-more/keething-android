@@ -43,7 +43,7 @@ internal sealed interface AppOnPhone {
         }
 
         private fun store(pm: PackageManager, packageName: String, iconSize: Int): Store? {
-            val intent = Intent(Intent.ACTION_VIEW, "market://details?id=$packageName".toUri())
+            val intent = Intent(Intent.ACTION_VIEW, "market://details?id=$packageName".toUri()) // not user text
             val stores = pm.queryIntentActivities(intent, 0)
             return when (stores.size) {
                 0 -> null

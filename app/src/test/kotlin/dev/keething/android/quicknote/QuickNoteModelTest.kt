@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.keething.android.quicknote.QuickNoteModel.Showing
+import dev.keething.android.ui.english
 import dev.keething.card.editing.QuickNoteSource
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
@@ -108,13 +109,13 @@ class QuickNoteModelTest {
         for (text in listOf(null, "", " \n\t\n")) {
             val f = Fixture(this)
             f.model.start(recreated = false) { given(text) }
-            assertEquals(Showing.Gone("No text to save"), f.showing, "for ${text?.length} characters")
+            assertEquals("No text to save", (f.showing as Showing.Gone).message?.english(), "for ${text?.length} characters")
             assertTrue(f.intoWindow.isEmpty(), "no unlock asked for nothing")
         }
         val f = Fixture(this)
         f.target = null
         f.model.start(recreated = false) { given("Dune") }
-        assertEquals(Showing.Gone("No database to put the quick note in"), f.showing)
+        assertEquals("No database to put the quick note in", (f.showing as Showing.Gone).message?.english())
     }
 
     @Test
@@ -299,12 +300,12 @@ class QuickNoteModelTest {
         val blank = Fixture(this, started = started)
         blank.model.start(recreated = false) { given(" \n ") }
         runCurrent()
-        assertEquals(Showing.Gone("No text to save"), blank.showing)
+        assertEquals("No text to save", (blank.showing as Showing.Gone).message?.english())
         val nowhere = Fixture(this, started = started)
         nowhere.target = null
         nowhere.model.start(recreated = false) { given("Arrival") }
         runCurrent()
-        assertEquals(Showing.Gone("No database to put the quick note in"), nowhere.showing)
+        assertEquals("No database to put the quick note in", (nowhere.showing as Showing.Gone).message?.english())
         assertEquals(Showing.Unlock(personal), first.showing, "nothing replaced it")
         first.state.value = unlocked()
         runCurrent()
@@ -478,7 +479,7 @@ class QuickNoteModelTest {
             c.start()
             c.focus(true)
             runCurrent()
-            assertEquals(Showing.Gone("No text on the clipboard"), c.f.showing, if (open) "open" else "locked")
+            assertEquals("No text on the clipboard", (c.f.showing as Showing.Gone).message?.english(), if (open) "open" else "locked")
             assertTrue(c.f.intoWindow.isEmpty(), "no unlock asked for nothing")
             assertEquals(0, c.clipboard.reads, "its description alone looked at")
         }
@@ -574,7 +575,7 @@ class QuickNoteModelTest {
         empty.start()
         empty.focus(true)
         runCurrent()
-        assertEquals(Showing.Gone("No text on the clipboard"), empty.f.showing)
+        assertEquals("No text on the clipboard", (empty.f.showing as Showing.Gone).message?.english())
         val waiting = Clipboard(this, started = started)
         waiting.clipboard.text = "Arrival"
         waiting.start()
@@ -616,7 +617,7 @@ class QuickNoteModelTest {
             f.model.start(recreated = false) { given("Films to watch") }
             runCurrent()
             f.model.saved(vault, id)
-            assertEquals(Showing.Gone(said), f.showing, id)
+            assertEquals(said, (f.showing as Showing.Gone).message?.english(), id)
             assertFalse(holds(f.model, "Films to watch"))
         }
     }

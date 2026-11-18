@@ -97,6 +97,10 @@ import dev.keething.domain.encryption.DatabaseEncryption.Cipher
 import dev.keething.domain.encryption.DatabaseEncryption.KeyDerivation
 import dev.keething.generator.Strength
 import kotlin.math.roundToInt
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
+import dev.keething.android.ui.resolve
 
 /**
  * New database (SPEC §6.2, agreed on the canvas, rows "Databases: Settings, a database's page, New database"): the form,
@@ -137,22 +141,22 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(Modifier.height(64.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close") }
+            IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.databases_close)) }
             Spacer(Modifier.width(4.dp))
-            Text("New database", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.databases_new_title), style = MaterialTheme.typography.titleLarge)
         }
 
         // The name and where it goes.
         FieldTextField(
             value = model.name,
             onValueChange = model::changeName,
-            label = "Name",
-            placeholder = "Personal, Work, Family…",
+            label = stringResource(R.string.databases_new_name),
+            placeholder = stringResource(R.string.databases_new_name_placeholder),
             isError = model.nameIsTaken,
         )
         SaveIn(model) { pickFolder(model.folder?.let(StoragePlace::ofPath)) }
         Text(
-            model.pathText,
+            model.pathText.resolve(),
             Modifier.padding(horizontal = 16.dp),
             style = MaterialTheme.typography.bodySmall,
             color = if (model.nameIsTaken) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -165,12 +169,12 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
         model.strength?.let { StrengthBar(it) }
         val suggestion = model.suggestion
         if (suggestion == null) {
-            TextButton(onClick = model::suggest) { ButtonLabel("Suggest a passphrase", Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp) }
+            TextButton(onClick = model::suggest) { ButtonLabel(stringResource(R.string.databases_suggest_passphrase), Icons.Rounded.Add, iconSize = 18.dp, gap = 8.dp) }
         } else {
             SuggestionCard(model.fields, suggestion)
         }
         Text(
-            "Nobody can recover a forgotten master password, not even Keething.",
+            stringResource(R.string.databases_password_not_recoverable),
             Modifier.padding(horizontal = 16.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -180,7 +184,7 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
         // A key file is kept apart from the database: the pickers start in Documents.
         KeyFileSection(model, onMake = { pickKeyFolder(DOCUMENTS) }, onHave = { pickKeyFile(DOCUMENTS) })
         if (model.offersFingerprint) {
-            SwitchRow(Icons.Rounded.Fingerprint, "Unlock it with the fingerprint", null, model.useFingerprint) { model.useFingerprint = it }
+            SwitchRow(Icons.Rounded.Fingerprint, stringResource(R.string.databases_new_fingerprint), null, model.useFingerprint) { model.useFingerprint = it }
         }
 
         Row(
@@ -189,8 +193,8 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(model.encryptionLine, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = { model.showPage(NewDatabaseModel.Page.ENCRYPTION) }) { Text("Change…") }
+            Text(model.encryptionLine.resolve(), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = { model.showPage(NewDatabaseModel.Page.ENCRYPTION) }) { Text(stringResource(R.string.databases_new_change)) }
         }
 
         model.problem?.let { problem ->
@@ -199,7 +203,7 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Icon(Icons.Rounded.ErrorOutline, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
-                Text(problem, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                Text(problem.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
             }
         }
         // Read once a frame: each one looks at the files.
@@ -207,12 +211,12 @@ private fun Form(model: NewDatabaseModel, onClose: () -> Unit) {
         val why = blockers.firstOrNull()?.takeIf { it != model.problem }
         Row(Modifier.fillMaxWidth().padding(bottom = 24.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                why.orEmpty(),
+                why?.resolve().orEmpty(),
                 Modifier.weight(1f),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(onClick = { model.create() }, enabled = model.phase == NewDatabaseModel.Phase.Editing && blockers.isEmpty(), modifier = Modifier.heightIn(min = 48.dp)) { Text("Create") }
+            Button(onClick = { model.create() }, enabled = model.phase == NewDatabaseModel.Phase.Editing && blockers.isEmpty(), modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.databases_new_create)) }
         }
     }
 }
@@ -263,10 +267,10 @@ private fun SaveIn(model: NewDatabaseModel, onOther: () -> Unit) {
         ) {
             Icon(Icons.Rounded.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {
-                Text("Save in", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(chosen?.title ?: model.folder ?: "Choose a folder…", style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
+                Text(stringResource(R.string.databases_new_save_in), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(chosen?.title ?: model.folder ?: stringResource(R.string.databases_choose_folder), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
             }
-            Icon(Icons.Rounded.ExpandMore, contentDescription = "Choose the folder", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.ExpandMore, contentDescription = stringResource(R.string.databases_new_choose_the_folder), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             model.folders.forEach { folder ->
@@ -274,7 +278,7 @@ private fun SaveIn(model: NewDatabaseModel, onOther: () -> Unit) {
                     text = {
                         Column {
                             Text(folder.title, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
-                            folder.note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            folder.note?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                     },
                     leadingIcon = { Icon(Icons.Rounded.Folder, contentDescription = null) },
@@ -285,7 +289,7 @@ private fun SaveIn(model: NewDatabaseModel, onOther: () -> Unit) {
                 )
             }
             DropdownMenuItem(
-                text = { Text("Other folder…") },
+                text = { Text(stringResource(R.string.databases_new_other_folder)) },
                 leadingIcon = { Icon(Icons.Rounded.FolderOpen, contentDescription = null) },
                 onClick = {
                     open = false
@@ -298,7 +302,7 @@ private fun SaveIn(model: NewDatabaseModel, onOther: () -> Unit) {
 
 /** The master password twice, one eye for both (else a typo goes unseen and the database is lost). */
 @Composable
-internal fun PasswordFields(model: MasterPasswordFields, label: String = "Master password") {
+internal fun PasswordFields(model: MasterPasswordFields, label: String = stringResource(R.string.databases_master_password)) {
     val keyboard = KeyboardOptions(
         capitalization = KeyboardCapitalization.None,
         autoCorrectEnabled = false,
@@ -318,7 +322,7 @@ internal fun PasswordFields(model: MasterPasswordFields, label: String = "Master
                 IconButton(onClick = { model.reveals = !model.reveals }) {
                     Icon(
                         if (model.reveals) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                        contentDescription = if (model.reveals) "Hide both passwords" else "Show both passwords",
+                        contentDescription = stringResource(if (model.reveals) R.string.databases_hide_both_passwords else R.string.databases_show_both_passwords),
                     )
                 }
             },
@@ -331,13 +335,13 @@ internal fun PasswordFields(model: MasterPasswordFields, label: String = "Master
         SecureTextField(
             state = model.again,
             modifier = Modifier.keepOutOfAutofill().secretToAccessibility(model.again.text.length, shown = model.reveals).fillMaxWidth(),
-            label = { Text("Again") },
+            label = { Text(stringResource(R.string.databases_password_again)) },
             textStyle = style,
             textObfuscationMode = mode,
             trailingIcon = {
                 when (model.match) {
-                    MasterPasswordFields.Match.MATCHES -> Icon(Icons.Rounded.CheckCircle, contentDescription = "The passwords match", tint = MaterialTheme.colorScheme.primary)
-                    MasterPasswordFields.Match.DIFFERS -> Icon(Icons.Rounded.Cancel, contentDescription = "The passwords differ", tint = MaterialTheme.colorScheme.error)
+                    MasterPasswordFields.Match.MATCHES -> Icon(Icons.Rounded.CheckCircle, contentDescription = stringResource(R.string.databases_passwords_match), tint = MaterialTheme.colorScheme.primary)
+                    MasterPasswordFields.Match.DIFFERS -> Icon(Icons.Rounded.Cancel, contentDescription = stringResource(R.string.databases_passwords_differ), tint = MaterialTheme.colorScheme.error)
                     null -> Unit
                 }
             },
@@ -359,7 +363,7 @@ internal fun StrengthBar(strength: MasterPasswordFields.StrengthLine) {
             }
         }
         Text(
-            strength.text,
+            strength.text.resolve(),
             style = MaterialTheme.typography.bodySmall,
             color = if (strength.verdict == Strength.WEAK) MaterialTheme.extraColors.warn else MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -376,17 +380,17 @@ internal fun SuggestionCard(model: MasterPasswordFields, suggestion: String) {
     ) {
         Text(suggestion, style = MaterialTheme.typography.titleMedium.copy(fontFamily = MonospaceFamily), color = MaterialTheme.colorScheme.onSecondaryContainer)
         Text(
-            "EFF words, one with capitals, a digit and a symbol: about $bits bits. Shown once: write it down.",
+            stringResource(R.string.databases_passphrase_shown_once, bits),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { model.changeWords(model.passphraseWords - 1) }) { Icon(Icons.Rounded.Remove, contentDescription = "Fewer words") }
-            Text("${model.passphraseWords} words", style = MaterialTheme.typography.bodyMedium)
-            IconButton(onClick = { model.changeWords(model.passphraseWords + 1) }) { Icon(Icons.Rounded.Add, contentDescription = "More words") }
+            IconButton(onClick = { model.changeWords(model.passphraseWords - 1) }) { Icon(Icons.Rounded.Remove, contentDescription = stringResource(R.string.databases_passphrase_fewer_words)) }
+            Text(pluralStringResource(R.plurals.databases_passphrase_words, model.passphraseWords, model.passphraseWords), style = MaterialTheme.typography.bodyMedium)
+            IconButton(onClick = { model.changeWords(model.passphraseWords + 1) }) { Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.databases_passphrase_more_words)) }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = model::suggest) { Text("Another") }
-            FilledTonalButton(onClick = model::useSuggestion) { Text("Use this") }
+            TextButton(onClick = model::suggest) { Text(stringResource(R.string.databases_passphrase_another)) }
+            FilledTonalButton(onClick = model::useSuggestion) { Text(stringResource(R.string.databases_passphrase_use)) }
         }
     }
 }
@@ -395,33 +399,33 @@ internal fun SuggestionCard(model: MasterPasswordFields, suggestion: String) {
 @Composable
 private fun KeyFileSection(model: NewDatabaseModel, onMake: () -> Unit, onHave: () -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(MaterialTheme.extraColors.row)) {
-        SwitchRow(Icons.Rounded.Key, "Also require a key file", "Optional", model.requiresKeyFile, inCard = true, onChange = model::requireKeyFile)
+        SwitchRow(Icons.Rounded.Key, stringResource(R.string.databases_new_require_key_file), stringResource(R.string.databases_new_optional), model.requiresKeyFile, inCard = true, onChange = model::requireKeyFile)
         if (model.requiresKeyFile) {
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val name = model.keyFileName
                 if (name == null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledTonalButton(onClick = onMake) { ButtonLabel("Make a new one…", Icons.Rounded.NoteAdd, iconSize = 18.dp, gap = 8.dp) }
-                        TextButton(onClick = onHave) { Text("Use one I have…") }
+                        FilledTonalButton(onClick = onMake) { ButtonLabel(stringResource(R.string.databases_change_key_file_make), Icons.Rounded.NoteAdd, iconSize = 18.dp, gap = 8.dp) }
+                        TextButton(onClick = onHave) { Text(stringResource(R.string.databases_change_key_file_have)) }
                     }
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                            model.keyFileDetail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            model.keyFileDetail?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
-                        TextButton(onClick = model::forgetKeyFile) { Text("Change…") }
+                        TextButton(onClick = model::forgetKeyFile) { Text(stringResource(R.string.databases_new_change)) }
                     }
                 }
-                model.keyFileProblem?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+                model.keyFileProblem?.let { Text(it.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
                 model.keyFileWarning?.let {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.extraColors.warn)
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.extraColors.warn)
+                        Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.extraColors.warn)
                     }
                 }
                 Text(
-                    "Lose the key file and the database never opens again. Keep a copy apart from it.",
+                    stringResource(R.string.databases_key_file_lose),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -467,30 +471,38 @@ private fun EncryptionPage(model: NewDatabaseModel) {
     ) {
         Row(Modifier.height(64.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { model.showPage(NewDatabaseModel.Page.BASIC) }) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to New database")
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.databases_new_back))
             }
             Spacer(Modifier.width(4.dp))
-            Text("Encryption", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.databases_new_encryption), style = MaterialTheme.typography.titleLarge)
         }
-        Labelled("Format") { Text("KDBX 4.0", style = MaterialTheme.typography.bodyLarge) }
-        Labelled("Cipher") {
+        Labelled(stringResource(R.string.databases_new_format)) { Text("KDBX 4.0", style = MaterialTheme.typography.bodyLarge) }
+        Labelled(stringResource(R.string.databases_new_cipher)) {
             Choices(Cipher.entries, e.cipher, { it.label }) { model.changeEncryption(e.copy(cipher = it)) }
         }
-        Labelled("Key derivation") {
+        Labelled(stringResource(R.string.databases_new_key_derivation)) {
             Choices(KeyDerivation.entries, e.keyDerivation, { it.label }) { model.changeEncryption(e.copy(keyDerivation = it)) }
         }
         if (e.keyDerivation.isArgon2) {
-            Stepper("Memory", "${e.memoryMiB} MiB", "Less memory", "More memory",
+            Stepper(
+                stringResource(R.string.databases_new_memory),
+                stringResource(R.string.databases_new_memory_value, e.memoryMiB),
+                stringResource(R.string.databases_new_less_memory),
+                stringResource(R.string.databases_new_more_memory),
                 onLess = { model.changeEncryption(e.copy(memoryMiB = (e.memoryMiB / 2).coerceIn(DatabaseEncryption.MEMORY_RANGE))) },
                 onMore = { model.changeEncryption(e.copy(memoryMiB = (e.memoryMiB * 2).coerceIn(DatabaseEncryption.MEMORY_RANGE))) },
             )
-            Stepper("Lanes", "${e.lanes}", "Fewer lanes", "More lanes",
+            Stepper(
+                stringResource(R.string.databases_new_lanes),
+                "${e.lanes}",
+                stringResource(R.string.databases_new_fewer_lanes),
+                stringResource(R.string.databases_new_more_lanes),
                 onLess = { model.changeEncryption(e.copy(lanes = (e.lanes - 1).coerceIn(DatabaseEncryption.LANE_RANGE))) },
                 onMore = { model.changeEncryption(e.copy(lanes = (e.lanes + 1).coerceIn(DatabaseEncryption.LANE_RANGE))) },
             )
         }
-        Labelled("Time to open") {
-            Text(NewDatabaseModel.seconds(e.seconds), style = MaterialTheme.typography.titleMedium)
+        Labelled(stringResource(R.string.databases_new_time_to_open)) {
+            Text(NewDatabaseModel.seconds(e.seconds).resolve(), style = MaterialTheme.typography.titleMedium)
             Slider(
                 value = (e.seconds * 10).toFloat(),
                 onValueChange = { model.changeEncryption(e.copy(seconds = it.roundToInt() / 10.0)) },
@@ -498,14 +510,14 @@ private fun EncryptionPage(model: NewDatabaseModel) {
                 steps = 48,
             )
             Row {
-                Text("0.1 s", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("5 s", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.databases_seconds, "0.1"), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.databases_seconds, "5"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (model.isMeasuring) LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(model.measuredLine, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(model.measuredLine.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         TextButton(onClick = model::recommend, enabled = !model.isRecommended, modifier = Modifier.padding(bottom = 24.dp)) {
-            Text("Back to recommended")
+            Text(stringResource(R.string.databases_new_recommended))
         }
     }
 }
@@ -548,14 +560,14 @@ private fun CreatingDialog(model: NewDatabaseModel) {
         onDismissRequest = {},
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
         icon = { CircularProgressIndicator(Modifier.size(32.dp)) },
-        title = { Text(model.creatingTitle) },
-        text = { Text(model.creatingDetail) },
+        title = { Text(model.creatingTitle.resolve()) },
+        text = { Text(model.creatingDetail.resolve()) },
         confirmButton = {},
         dismissButton = {
-            if (model.canCancel) TextButton(onClick = model::cancelCreating) { Text("Cancel") }
+            if (model.canCancel) TextButton(onClick = model::cancelCreating) { Text(stringResource(R.string.databases_cancel)) }
         },
     )
 }
 
 /** Where the key file pickers start: the phone's Documents folder. */
-internal val DOCUMENTS = StoragePlace(StoragePlace.PRIMARY, "Documents")
+internal val DOCUMENTS = StoragePlace(StoragePlace.PRIMARY, "Documents") // not user text: the folder's path

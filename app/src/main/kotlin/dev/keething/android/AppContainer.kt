@@ -64,6 +64,7 @@ import dev.keething.vault.storage.FolderDatabaseStore
 import dev.keething.vault.storage.SaveNotes
 import dev.keething.android.storageprobe.FingerprintProbe
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.UiText
 import dev.keething.domain.storage.DatabaseStore
 import dev.keething.sharing.message.PartCollector
 import dev.keething.sharing.requests.ShareRequests
@@ -116,7 +117,7 @@ internal class AppContainer(context: Context) {
     private fun databaseStoreOf(file: FileLocation): DatabaseStore = when (file) {
         is FileLocation.ByPath -> NeedsFolderStore(file.fileName)
         is FileLocation.InFolder -> FolderDatabaseStore(folderOf(file.grant) ?: UnreachableFolder(file.grant), file.path, saveNotes, AndroidClock)
-        is FileLocation.Granted -> throw IllegalArgumentException("a database is never reached through a grant to the file alone")
+        is FileLocation.Granted -> throw IllegalArgumentException("a database is never reached through a grant to the file alone") // not user text
     }
 
     /** A key file granted alone, by its grant; one not of the phone's storage cannot be reached (AC12). */
@@ -225,7 +226,7 @@ internal class AppContainer(context: Context) {
             try {
                 // Offered first: the list's change below keeps those it is reached through, the others go.
                 offerTaken()
-                val file = checkNotNull(places.inFolder(made.path)) { "made where no grant reaches" }
+                val file = checkNotNull(places.inFolder(made.path)) { "made where no grant reaches" } // not user text
                 sessions.created(made, file, made.keyFilePath?.let(places::keyFile))?.let { Log.w("Creating", "an old record's stored password stayed: $it") }
             } finally {
                 newDatabases.created(model)
@@ -299,7 +300,7 @@ internal class AppContainer(context: Context) {
     }
 
     /** A version restored from History, said by the card it goes back to. */
-    fun versionRestored(text: String) {
+    fun versionRestored(text: UiText) {
         saves.trySend(Notice(text))
     }
 

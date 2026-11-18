@@ -1,5 +1,6 @@
 package dev.keething.android.sharing
 
+import dev.keething.android.ui.english
 import dev.keething.sharing.message.ShareCode
 import dev.keething.sharing.pictures.Pictures
 import kotlin.test.Test
@@ -12,13 +13,13 @@ class SharingTextsTest {
 
     @Test
     fun thePicturesSentOrCopiedArePastedBack() {
-        assertEquals(pictures, Pictures.find(SharingTexts.picturesMessage(pictures), Pictures.ENVELOPE_COUNT).pictures)
+        assertEquals(pictures, Pictures.find(SharingTexts.picturesMessage(pictures).english(), Pictures.ENVELOPE_COUNT).pictures)
         assertEquals(pictures, Pictures.find(SharingTexts.picturesLine(pictures), Pictures.ENVELOPE_COUNT).pictures)
     }
 
     @Test
     fun theCodesTextCarriesTheCodeAndNoPictures() {
-        val text = SharingTexts.envelopeMessage("Ivan", byteArrayOf(1, 4, 0, 0))
+        val text = SharingTexts.envelopeMessage("Ivan", byteArrayOf(1, 4, 0, 0)).english()
 
         assertEquals(1, ShareCode.find(text).messages.size)
         assertEquals(0, Pictures.find(text.substringBefore(ShareCode.PREFIX), Pictures.ENVELOPE_COUNT).longest)

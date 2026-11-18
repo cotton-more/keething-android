@@ -6,7 +6,11 @@ import android.util.Log
 import dev.keething.android.attachment.NewAttachments
 import dev.keething.android.attachment.PickedFile
 import dev.keething.domain.secret.Secret
-import dev.keething.android.session.SizeTexts
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
+import dev.keething.vault.session.AttachmentQuestion
 import dev.keething.vault.session.SaveMemory
 import kotlinx.coroutines.CompletableDeferred
 import androidx.compose.runtime.getValue
@@ -52,13 +56,16 @@ internal sealed interface SavePhase {
     /** [ref]: the entry in its database (a new one's id); [deletedGroups]: the empty groups a move deleted. */
     data class Saved(val ref: EntryRef, val deletedGroups: List<VaultGroup> = emptyList()) : SavePhase
 
-    data class Failed(val problem: String) : SavePhase
+    data class Failed(val problem: UiText) : SavePhase
 }
 
 /** What a file picked asks before it is attached. */
 internal sealed interface AttachQuestion {
-    /** Large, or it makes a save's room worse (keething-spec app.large-database AC4): [text] says how and what to do. */
-    data class Large(val text: String) : AttachQuestion
+    /**
+     * Large, or it makes a save's room worse (keething-spec app.large-database AC4): the file [name] (blank: none given),
+     * its [size] as the rows show it, what it does to the database [fileName] ([question]).
+     */
+    data class Large(val name: String, val size: String, val question: AttachmentQuestion, val fileName: String) : AttachQuestion
 
     /** The entry has an attachment [name] already: Replace it, or Keep both, the new one as [other]. [inHistory]: the entry's own, kept by its history. */
     data class SameName(val name: String, val other: String, val inHistory: Boolean) : AttachQuestion
@@ -147,7 +154,7 @@ internal class EntryEditorViewModel(
     val chosen: NewEntryDatabase? get() = open.firstOrNull { it.id == database.id }
 
     /** Under Save into's choices: "Not open: Family Shared, Crypto". */
-    val notOpen: String? get() = places?.let { NewEntryDatabases.notOpen(it.window(), open) }
+    val notOpen: UiText? get() = places?.let { NewEntryDatabases.notOpen(it.window(), open) }
 
     var phase: SavePhase by mutableStateOf(SavePhase.Editing)
         private set
@@ -157,7 +164,7 @@ internal class EntryEditorViewModel(
         private set
 
     /** Why the files last picked were not all attached (keething-spec edit.attachments AC2); null when they were. */
-    var attachmentProblem: String? by mutableStateOf(null)
+    var attachmentProblem: UiText? by mutableStateOf(null)
         private set
 
     /** Every file's content read for this editor, removed again or not: wiped when it goes. */
@@ -202,14 +209,14 @@ internal class EntryEditorViewModel(
     fun choose(group: GroupChoice) = update(draft.choosing(group))
 
     /** Adds a block of codes; the problem when none could be added. */
-    fun addCodes(text: String, prefix: String): String? {
+    fun addCodes(text: String, prefix: String): UiText? {
         val editor = editor ?: return null
         return when (val added = editor.addCodes(draft, text, prefix)) {
             is AddedCodes.Added -> {
                 update(added.draft)
                 null
             }
-            is AddedCodes.Refused -> added.problem
+            is AddedCodes.Refused -> uiPlain(added.problem)
         }
     }
 
@@ -222,7 +229,7 @@ internal class EntryEditorViewModel(
         readingFiles = true
         attachmentProblem = null
         viewModelScope.launch {
-            val problems = mutableListOf<String>()
+            val problems = mutableListOf<UiText>()
             try {
                 for (uri in uris) {
                     when (val picked = withContext(Dispatchers.IO) { files.read(uri) }) {
@@ -234,7 +241,7 @@ internal class EntryEditorViewModel(
                     }
                 }
             } finally {
-                attachmentProblem = problems.joinToString(" ").ifEmpty { null }
+                attachmentProblem = problems.reduceOrNull { said, next -> uiText(R.string.editor_sentences, said, next) }
                 readingFiles = false
             }
         }
@@ -255,8 +262,7 @@ internal class EntryEditorViewModel(
         val after = session.roomWith(added + bytes)
         val large = if (before != null && after != null) SaveMemory.question(bytes, before, after) else null
         if (large != null) {
-            val text = SizeTexts.largeAttachment(picked.name.ifBlank { "The file" }, files.sizeText(bytes), large, database.file.name)
-            if (ask(AttachQuestion.Large(text)) != AttachAnswer.ATTACH) return content.wipe()
+            if (ask(AttachQuestion.Large(picked.name, files.sizeText(bytes), large, database.file.name)) != AttachAnswer.ATTACH) return content.wipe()
         }
         val same = draft.attachmentNamed(picked.name)
         if (same == null) {
@@ -358,7 +364,7 @@ internal class EntryEditorViewModel(
     }
 
     private companion object {
-        const val TAG = "Save"
+        const val TAG = "Save" // not user text
 
         fun tagsOf(vault: Vault): List<String> = SearchFacets.of(vault.entries).tags.sortedByDescending { it.count }.map { it.name }
     }

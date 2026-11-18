@@ -36,7 +36,7 @@ internal class AttachmentFiles(private val root: File) {
         val folder = File(File(root, database.fileName), UUID.randomUUID().toString())
         val file = File(folder, AttachmentNames.fileName(name))
         try {
-            check(folder.mkdirs()) { "Could not make $folder" }
+            check(folder.mkdirs()) { "Could not make $folder" } // not user text
             bytes.useBytes(file::writeBytes)
         } catch (e: Exception) {
             folder.deleteRecursively()

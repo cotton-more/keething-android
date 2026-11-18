@@ -40,10 +40,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.AppLogo
+import dev.keething.android.ui.resolve
 
 /**
  * Whether About covers the app (SPEC §6.2 "About"): opened from a corner of the screens with nothing open (the welcome,
@@ -66,9 +69,9 @@ internal fun AboutScreen(onClose: () -> Unit) {
     when {
         shown != null -> LicenceTextScreen(
             title = when (shown) {
-                LICENCE_ASSET -> "Licence"
-                SECURITY_ASSET -> "Security policy"
-                else -> THIRD_PARTY.firstOrNull { "licenses/${it.file}" == shown }?.name ?: "Licence"
+                LICENCE_ASSET -> stringResource(R.string.about_licence_title)
+                SECURITY_ASSET -> stringResource(R.string.about_security_title)
+                else -> THIRD_PARTY.firstOrNull { "licenses/${it.file}" == shown }?.name ?: stringResource(R.string.about_licence_title)
             },
             asset = shown,
             onClose = { text = null },
@@ -93,8 +96,8 @@ private fun AboutMain(onLicence: () -> Unit, onSecurity: () -> Unit, onThirdPart
             .padding(horizontal = 16.dp),
     ) {
         Row(Modifier.height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
-            Text("About", style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.about_back)) }
+            Text(stringResource(R.string.about_title), style = MaterialTheme.typography.titleLarge)
         }
         Column(
             Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = 480.dp).padding(horizontal = 8.dp),
@@ -103,31 +106,31 @@ private fun AboutMain(onLicence: () -> Unit, onSecurity: () -> Unit, onThirdPart
             Spacer(Modifier.height(24.dp))
             AppLogo(Modifier.size(96.dp))
             Spacer(Modifier.height(16.dp))
-            Text("Keething", style = MaterialTheme.typography.headlineMedium)
-            Text("for Android", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
+            Text(stringResource(R.string.about_for_android), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(32.dp))
             // Selectable: a bug report quotes them.
             SelectionContainer {
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).padding(vertical = 8.dp),
                 ) {
-                    Fact("Version", info.versionText)
-                    Fact("Built", info.builtText())
-                    Fact("Commit", info.commitText)
+                    Fact(stringResource(R.string.about_version), info.versionText.resolve())
+                    Fact(stringResource(R.string.about_built), info.builtText().resolve())
+                    Fact(stringResource(R.string.about_commit), info.commitText.resolve())
                 }
             }
             Spacer(Modifier.height(16.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).padding(vertical = 8.dp)) {
-                Fact("Licence", LICENCE, Modifier.clickable(onClick = onLicence))
-                Fact("Source", SOURCE.removePrefix("https://"), Modifier.clickable { openInBrowser(context, SOURCE) })
-                Fact("Security", "How to report a vulnerability", Modifier.clickable(onClick = onSecurity))
+                Fact(stringResource(R.string.about_licence), LICENCE, Modifier.clickable(onClick = onLicence))
+                Fact(stringResource(R.string.about_source), SOURCE.removePrefix("https://"), Modifier.clickable { openInBrowser(context, SOURCE) })
+                Fact(stringResource(R.string.about_security), stringResource(R.string.about_security_how), Modifier.clickable(onClick = onSecurity))
             }
             Spacer(Modifier.height(24.dp))
-            FilledTonalButton(onClick = onThirdParty) { Text("Third-party licences") }
+            FilledTonalButton(onClick = onThirdParty) { Text(stringResource(R.string.about_third_party_title)) }
             Spacer(Modifier.height(8.dp))
-            FilledTonalButton(onClick = { ProblemReport.open(context) }) { Text("Report a problem") }
+            FilledTonalButton(onClick = { ProblemReport.open(context) }) { Text(stringResource(R.string.about_report_problem)) }
             Text(
-                "Opens a new issue on GitHub with this build, Android and the phone's model filled in; nothing from a database.",
+                stringResource(R.string.about_report_problem_detail),
                 Modifier.padding(top = 8.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -151,7 +154,7 @@ internal fun WithAboutCorner(onAbout: () -> Unit, content: @Composable () -> Uni
     Box(Modifier.fillMaxSize()) {
         content()
         IconButton(onClick = onAbout, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().displayCutoutPadding().padding(4.dp)) {
-            Icon(Icons.Outlined.Info, contentDescription = "About Keething", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Outlined.Info, contentDescription = stringResource(R.string.about_open), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

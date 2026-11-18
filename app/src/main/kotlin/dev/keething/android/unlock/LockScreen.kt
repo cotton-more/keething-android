@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.StickyNote2
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import dev.keething.android.session.Visit
 import androidx.compose.material.icons.rounded.FindInPage
 import androidx.compose.material.icons.rounded.Key
@@ -28,8 +30,11 @@ import dev.keething.android.databases.Reach
 import dev.keething.android.ui.AppLogo
 import dev.keething.android.ui.ButtonLabel
 import androidx.compose.foundation.text.input.clearText
+import dev.keething.android.ui.UiText
 import dev.keething.android.ui.keepOutOfAutofill
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.secretToAccessibility
+import dev.keething.android.ui.uiPlain
 import dev.keething.vault.databases.DatabaseId
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
@@ -95,6 +100,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
@@ -202,6 +208,8 @@ internal fun LockScreen(
     BackHandler(enabled = back != null) { back?.invoke() }
 
     val context = LocalContext.current
+
+    val resources = LocalResources.current
     // Per session: nothing of this database's sheet, dialog or Locate… stays on the next one's lock screen.
     var sheet by remember(database.number) { mutableStateOf(false) }
     var removing by remember(database.number) { mutableStateOf(false) }
@@ -253,7 +261,7 @@ internal fun LockScreen(
                 removing = false
                 leave()
                 container.sessions.remove(database.id) {
-                    Toast.makeText(context.applicationContext, "The stored password could not be deleted: $it.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context.applicationContext, resources.getString(R.string.unlock_stored_password_not_deleted, it), Toast.LENGTH_LONG).show()
                 }
             },
             onDismiss = { removing = false },
@@ -304,10 +312,10 @@ internal fun LockScreen(
         val typeToSetUp = setUpByTypingNotice.takeIf {
             biometric.enabled && biometric.availability == BiometricAvailability.Available && !biometric.stored && !biometric.passwordless
         }
-        val notice = locateProblem?.let { LockNotice(it, isProblem = true) }
+        val notice = locateProblem?.let(::problemNotice)
             ?: when {
                 lock?.line?.isMissing == true -> null
-                lock?.problem != null -> LockNotice(lock.problem, isProblem = true)
+                lock?.problem != null -> problemNotice(lock.problem)
                 run != null -> setUpAgain ?: reasonNotice?.takeIf { reason == LockReason.PasswordChanged } ?: typeToSetUp
                 else -> fingerprintNotice ?: reasonNotice?.takeIf { it.isProblem && model.typedHere } ?: setUpAgain
                     ?: reasonNotice?.takeIf { it.isProblem } ?: typeToSetUp ?: reasonNotice
@@ -327,11 +335,11 @@ internal fun LockScreen(
                 busy -> Column(Modifier.fillMaxWidth().height(96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     ContainedLoadingIndicator()
                     Spacer(Modifier.height(12.dp))
-                    Text("Opening $name…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.unlock_opening, name), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 // Not known yet (the files are being looked at): nothing rather than a field that goes again.
                 lock == null -> Spacer(Modifier.height(56.dp))
-                lock.showsLocate -> NotFound(lock.missingText.orEmpty(), lock.locateLabel, othersAbove = run == null && purpose == null, onLocate = {
+                lock.showsLocate -> NotFound(lock.missingText?.resolve().orEmpty(), lock.locateLabel.resolve(), othersAbove = run == null && purpose == null, onLocate = {
                     files.locate(database.id, lock.line.reach == Reach.NO_ACCESS)
                 })
                 asksKdbx3 == true -> Kdbx3QuestionCard { upgrade ->
@@ -340,7 +348,7 @@ internal fun LockScreen(
                 }
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     // The run's: "Wrong password … Type it again, or skip it."
-                    runState?.failure?.let { RunFailure(it.describe(lock.line.path) + " Type it again, or skip it.") }
+                    runState?.failure?.let { RunFailure(stringResource(R.string.unlock_run_failure, it.describe(lock.line.path).resolve())) }
                     // The run's: bound to this database, never tried on the next one asked.
                     val unlock = { model.unlock(run?.let { { secret: Secret -> container.chooser.type(database.id, secret) } }, askFingerprint = showsList) }
                     // Not in the run: the chooser asked the fingerprint for every database that could. Nor where no list
@@ -352,7 +360,7 @@ internal fun LockScreen(
                         // Never chosen: it unlocks as the arrow does, and an empty field opens nothing without a key file.
                         enabled = !biometric.prompting &&
                             (beside != Beside.UNLOCK_THEN_ASK || !lock.needsPassword || model.password.text.isNotEmpty()),
-                        label = if (beside == Beside.FINGERPRINT) "Unlock with fingerprint" else "Unlock, then set up the fingerprint",
+                        label = stringResource(if (beside == Beside.FINGERPRINT) R.string.unlock_with_fingerprint else R.string.unlock_then_set_up_fingerprint),
                         onFingerprint = if (beside == Beside.FINGERPRINT) model::fingerprintTapped else unlock,
                     )
                     val keyFile = lock.line.keyFile
@@ -361,7 +369,7 @@ internal fun LockScreen(
                     if (lock.showsPasswordField) {
                         PasswordRow(
                             model = model,
-                            placeholder = lock.passwordPlaceholder,
+                            placeholder = lock.passwordPlaceholder.resolve(),
                             needsPassword = lock.needsPassword,
                             // Not while the fingerprint can open it (the user may touch), nor before it is known.
                             focusAtOnce = biometric.availability != null && !(offered && biometric.canUnlock),
@@ -385,7 +393,7 @@ internal fun LockScreen(
         // Skip whatever shows (also Locate… for a file gone since the run reached it), not while it opens.
         if (run != null && !unlocking) {
             OutlinedButton(onClick = { leave(); container.chooser.skip(database.id) }, modifier = Modifier.padding(top = 14.dp).fillMaxWidth().height(52.dp)) {
-                ButtonLabel("Skip $name", Icons.Rounded.SkipNext, iconSize = 18.dp)
+                ButtonLabel(stringResource(R.string.unlock_run_skip, name), Icons.Rounded.SkipNext, iconSize = 18.dp)
             }
         }
     }
@@ -399,9 +407,11 @@ internal fun LockScreen(
         // The run's bar over it: Stop, "Unlocking 2 of 3", what opened, a segment per database (the agreed mock-up).
         if (run != null && runState != null) {
             val labels = screens?.lines.orEmpty().associate { it.id to it.label.full }
+            val separator = stringResource(R.string.list_separator)
             RunBar(
                 step = run.step,
-                opened = run.opened.takeIf { it.isNotEmpty() }?.joinToString(", ") { labels[it].orEmpty() }?.let { "$it open" },
+                opened = run.opened.takeIf { it.isNotEmpty() }?.joinToString(separator) { labels[it].orEmpty() }
+                    ?.let { stringResource(R.string.unlock_run_opened, it) },
                 segments = run.segments,
                 onStop = { back?.invoke() },
             )
@@ -422,7 +432,7 @@ internal fun LockScreen(
             }
             if (back != null && run == null) {
                 IconButton(onClick = back, modifier = Modifier.statusBarsPadding().displayCutoutPadding().padding(4.dp)) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.unlock_back))
                 }
             }
         }
@@ -434,7 +444,7 @@ internal fun LockScreen(
 private fun RunBar(step: String, opened: String?, segments: List<UnlockRun.Segment>, onStop: () -> Unit) {
     Column(Modifier.fillMaxWidth().statusBarsPadding().displayCutoutPadding().padding(horizontal = 4.dp, vertical = 4.dp)) {
         Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(onClick = onStop) { Icon(Icons.Rounded.Close, contentDescription = "Stop") }
+            IconButton(onClick = onStop) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.unlock_run_stop)) }
             Text(step, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1)
             opened?.let {
                 Text(
@@ -481,7 +491,7 @@ private fun RunFailure(text: String) {
 private fun KeyFileAlone(beside: BesideField, onUnlock: () -> Unit) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "It opens with its key file alone: nothing to type.",
+            stringResource(R.string.unlock_key_file_alone),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -489,7 +499,7 @@ private fun KeyFileAlone(beside: BesideField, onUnlock: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onUnlock, modifier = Modifier.weight(1f).height(56.dp)) {
-                ButtonLabel("Unlock", Icons.Rounded.LockOpen, iconSize = 20.dp)
+                ButtonLabel(stringResource(R.string.unlock_unlock), Icons.Rounded.LockOpen, iconSize = 20.dp)
             }
             if (beside.fingerprint) FingerprintBeside(beside)
         }
@@ -514,12 +524,12 @@ private fun KeyFileRow(keyFile: KeyFileLine?) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(Icons.Rounded.Key, contentDescription = "Key file", Modifier.size(18.dp), tint = tint)
+        Icon(Icons.Rounded.Key, contentDescription = stringResource(R.string.unlock_key_file), Modifier.size(18.dp), tint = tint)
         // One text, cut in the middle: a long name and a long folder share the line.
         Text(
             buildAnnotatedString {
                 append(keyFile.name)
-                withStyle(SpanStyle(color = tint)) { append(" · ${keyFile.detail}") }
+                withStyle(SpanStyle(color = tint)) { append(" · ${keyFile.detail.resolve()}") }
             },
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
@@ -544,7 +554,7 @@ private fun NotFound(text: String, button: String, othersAbove: Boolean, onLocat
         Text(text, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
         Button(onClick = onLocate) { ButtonLabel(button, Icons.Rounded.Search, iconSize = 20.dp) }
         if (othersAbove) {
-            Text("or choose another database above", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.unlock_choose_another_above), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -557,6 +567,11 @@ private fun Purpose(text: String) {
         Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center)
     }
 }
+
+/** A problem another part of the app said, in its words: as a String until that part says it as a [UiText]. */
+private fun problemNotice(text: String) = LockNotice(uiPlain(text), isProblem = true)
+
+private fun problemNotice(text: UiText) = LockNotice(text, isProblem = true)
 
 /** The one button beside the field: the fingerprint ([fingerprint]: its [label] said to TalkBack), else Unlock. */
 private data class BesideField(val fingerprint: Boolean, val enabled: Boolean, val label: String, val onFingerprint: () -> Unit)
@@ -586,18 +601,19 @@ internal fun FingerprintQuestion(name: String, passwordless: Boolean, onAnswer: 
     AlertDialog(
         onDismissRequest = { onAnswer(null) },
         icon = { Icon(Icons.Rounded.Fingerprint, contentDescription = null) },
-        title = { Text("Use the fingerprint for “$name”?", textAlign = TextAlign.Center) },
+        title = { Text(stringResource(R.string.unlock_fingerprint_question_title, name), textAlign = TextAlign.Center) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    if (passwordless) "From now on your fingerprint opens it, with its key file."
-                    else "From now on your fingerprint opens it: the password you just typed is kept on this phone, sealed for your fingerprint.",
+                    stringResource(
+                        if (passwordless) R.string.unlock_fingerprint_question_key_file else R.string.unlock_fingerprint_question_password,
+                    ),
                 )
-                Text("Keething asks this once. You can turn it on later on the database’s page in Settings.")
+                Text(stringResource(R.string.unlock_fingerprint_question_once))
             }
         },
-        confirmButton = { TextButton(onClick = { onAnswer(true) }) { Text("Use fingerprint") } },
-        dismissButton = { TextButton(onClick = { onAnswer(false) }) { Text("No") } },
+        confirmButton = { TextButton(onClick = { onAnswer(true) }) { Text(stringResource(R.string.unlock_fingerprint_question_use)) } },
+        dismissButton = { TextButton(onClick = { onAnswer(false) }) { Text(stringResource(R.string.unlock_fingerprint_question_no)) } },
     )
 }
 
@@ -631,14 +647,14 @@ private fun DatabaseIdentity(line: DatabaseLine?, name: String, compact: Boolean
                             overflow = TextOverflow.MiddleEllipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        line.status?.let { Text(" · $it", style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 1, softWrap = false) }
+                        line.status?.let { Text(" · ${it.resolve()}", style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 1, softWrap = false) }
                     }
                 } else {
-                    Text(line?.detail.orEmpty().dotsAtLineEnd(), style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 2)
+                    Text(line?.detail?.resolve().orEmpty().dotsAtLineEnd(), style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 2)
                 }
             }
             if (onClick != null) {
-                Icon(Icons.Rounded.UnfoldMore, contentDescription = "Choose another database", Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Rounded.UnfoldMore, contentDescription = stringResource(R.string.unlock_choose_another), Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -665,7 +681,7 @@ private fun ReasonChip(notice: LockNotice) {
             else -> Icons.Rounded.Schedule
         }
         Icon(icon, contentDescription = null, Modifier.size(16.dp), tint = content)
-        Text(notice.text, style = MaterialTheme.typography.bodyMedium, color = content, textAlign = TextAlign.Center)
+        Text(notice.text.resolve(), style = MaterialTheme.typography.bodyMedium, color = content, textAlign = TextAlign.Center)
     }
 }
 
@@ -703,14 +719,14 @@ private fun PasswordRow(
                         IconButton(onClick = { revealed = !revealed }) {
                             Icon(
                                 if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                contentDescription = if (revealed) "Hide password" else "Show password",
+                                contentDescription = stringResource(if (revealed) R.string.unlock_hide_password else R.string.unlock_show_password),
                             )
                         }
                         onKeyFile?.let {
                             IconButton(onClick = it) {
                                 Icon(
                                     Icons.Rounded.Key,
-                                    contentDescription = keyFile?.let { file -> "Key file ${file.name}: remove" } ?: "Key file…",
+                                    contentDescription = keyFile?.let { file -> stringResource(R.string.unlock_key_file_remove, file.name) } ?: stringResource(R.string.unlock_key_file_choose),
                                     tint = when {
                                         keyFile == null -> LocalContentColor.current
                                         keyFile.isMissing -> MaterialTheme.colorScheme.error
@@ -756,7 +772,7 @@ private fun PasswordRow(
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = "Unlock")
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = stringResource(R.string.unlock_unlock))
                 }
             }
         }

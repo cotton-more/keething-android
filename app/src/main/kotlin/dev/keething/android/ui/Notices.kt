@@ -1,5 +1,6 @@
 package dev.keething.android.ui
 
+import android.content.res.Resources
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -23,9 +24,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -34,23 +38,23 @@ import kotlinx.coroutines.launch
  * or to do what [actionLabel] says.
  */
 internal data class Notice(
-    val text: String,
+    val text: UiText,
     val isProblem: Boolean = false,
     val undo: (() -> Unit)? = null,
-    val actionLabel: String = "Undo",
+    val actionLabel: UiText = uiText(R.string.notice_undo),
 ) {
     companion object {
-        /** "Password copied · clears in 30 s" (SPEC §6). */
-        fun copied(what: String) = Notice("$what copied · clears in 30 s")
+        /** "Password copied · clears in 30 s" (SPEC §6); [what] is the field's name, as the card shows it. */
+        fun copied(what: String) = Notice(uiText(R.string.notice_copied, what))
 
         /** The next one-time code, copied before its time (keething-spec card.code-timer). */
-        fun nextCodeCopied(seconds: Int) = Notice("Next code copied · works in $seconds s")
+        fun nextCodeCopied(seconds: Int) = Notice(uiPlural(R.plurals.notice_next_code_copied, seconds))
     }
 }
 
-private class NoticeVisuals(val notice: Notice) : SnackbarVisuals {
-    override val message: String get() = notice.text
-    override val actionLabel: String? get() = if (notice.undo != null) notice.actionLabel else null
+private class NoticeVisuals(val notice: Notice, resources: Resources) : SnackbarVisuals {
+    override val message: String = notice.text.resolve(resources)
+    override val actionLabel: String? = if (notice.undo != null) notice.actionLabel.resolve(resources) else null
     override val withDismissAction: Boolean get() = false
     override val duration: SnackbarDuration get() = if (notice.undo != null) SnackbarDuration.Long else SnackbarDuration.Short
 }
@@ -59,12 +63,13 @@ private class NoticeVisuals(val notice: Notice) : SnackbarVisuals {
 @Composable
 internal fun NoticeEffect(notices: Flow<Notice>, host: SnackbarHostState) {
     val haptics = LocalHapticFeedback.current
+    val resources = LocalResources.current
     LaunchedEffect(notices, host) {
         notices.collect { notice ->
             haptics.performHapticFeedback(if (notice.isProblem) HapticFeedbackType.Reject else HapticFeedbackType.Confirm)
             host.currentSnackbarData?.dismiss()
             launch {
-                if (host.showSnackbar(NoticeVisuals(notice)) == SnackbarResult.ActionPerformed) notice.undo?.invoke()
+                if (host.showSnackbar(NoticeVisuals(notice, resources)) == SnackbarResult.ActionPerformed) notice.undo?.invoke()
             }
         }
     }

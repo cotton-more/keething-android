@@ -64,6 +64,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.NetworkBadge
@@ -96,13 +99,15 @@ internal fun CryptoSection(section: CardSection, wallet: CryptoWallet, reveal: R
                 wallet.privateKeyRowId?.let { id ->
                     Note(
                         Icons.Rounded.WarningAmber,
-                        "“${rows[id]?.label.orEmpty()}” holds a private key: whoever has it has the wallet. It is shown, never copied.",
+                        stringResource(R.string.entry_wallet_private_key, rows[id]?.label.orEmpty()),
                         MaterialTheme.extraColors.warnContainer,
                         MaterialTheme.extraColors.onWarnContainer,
                     )
                 }
                 wallet.addresses.firstOrNull()?.let { first -> ReceiveCard(first, rows[first.rowId], actions) }
             }
+            val failsChecksum = stringResource(R.string.entry_wallet_fails_checksum)
+            val xpubNote = stringResource(R.string.entry_wallet_xpub_note)
             val details = buildList<@Composable (Shape) -> Unit> {
                 for (address in wallet.addresses.drop(1)) {
                     add { shape -> AddressRow(address, rows[address.rowId], shape, actions) }
@@ -111,7 +116,7 @@ internal fun CryptoSection(section: CardSection, wallet: CryptoWallet, reveal: R
                     add { shape ->
                         DetailRow(
                             label = key.label, value = key.text, row = rows[key.rowId], shape = shape, actions = actions,
-                            note = if (key.read?.passes == false) "Fails its checksum. A typo?" else "Shows every address and balance of the wallet: share it with care",
+                            note = if (key.read?.passes == false) failsChecksum else xpubNote,
                             noteColor = if (key.read?.passes == false) MaterialTheme.colorScheme.error else MaterialTheme.extraColors.warn,
                             ellipsize = true,
                         )
@@ -184,11 +189,12 @@ private fun SeedPlate(seed: FieldRow, passphrase: FieldRow?, reveal: RevealState
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Rivet()
-            Text("RECOVERY PHRASE", Modifier.weight(1f), color = Steel.label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, maxLines = 1)
+            Text(stringResource(R.string.entry_seed_heading), Modifier.weight(1f), color = Steel.label, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, maxLines = 1)
             phrase?.let {
                 val language = (it.check as? SeedPhrase.Check.Bip39)?.language?.displayName
                 Text(
-                    listOfNotNull("${it.words.size} words", language).joinToString(" · "),
+                    if (language == null) pluralStringResource(R.plurals.entry_seed_words, it.words.size, it.words.size)
+                    else pluralStringResource(R.plurals.entry_seed_words_language, it.words.size, it.words.size, language),
                     Modifier.clip(RoundedCornerShape(9.dp)).background(Steel.cell).padding(horizontal = 10.dp, vertical = 4.dp),
                     color = Steel.ink,
                     fontSize = 12.sp,
@@ -204,7 +210,7 @@ private fun SeedPlate(seed: FieldRow, passphrase: FieldRow?, reveal: RevealState
                     Icon(Icons.Rounded.Lock, contentDescription = null, tint = Steel.label)
                 }
                 Text(
-                    if (seed.isEmpty) "Empty" else "Whoever has these words has the wallet. They are shown here, never copied.",
+                    stringResource(if (seed.isEmpty) R.string.entry_seed_empty else R.string.entry_seed_warning),
                     Modifier.widthIn(max = 300.dp),
                     color = Steel.label,
                     style = MaterialTheme.typography.bodyMedium,
@@ -219,7 +225,7 @@ private fun SeedPlate(seed: FieldRow, passphrase: FieldRow?, reveal: RevealState
                         ) {
                             Icon(Icons.Rounded.Visibility, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text("Show")
+                            Text(stringResource(R.string.entry_face_show))
                         }
                         Button(
                             onClick = actions.onSeedWords,
@@ -228,7 +234,7 @@ private fun SeedPlate(seed: FieldRow, passphrase: FieldRow?, reveal: RevealState
                         ) {
                             Icon(Icons.Rounded.TextFields, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text("Word by word")
+                            Text(stringResource(R.string.entry_seed_word_by_word))
                         }
                     }
                 }
@@ -241,11 +247,11 @@ private fun SeedPlate(seed: FieldRow, passphrase: FieldRow?, reveal: RevealState
         HorizontalDivider(color = Steel.rule)
         // The note on a line of its own, the buttons under it at the end: beside them it would be squeezed.
         Column(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(top = 10.dp, bottom = if (phrase == null) 10.dp else 0.dp)) {
-            Text("Never copied · not in the clipboard, not in a QR code", color = Steel.label, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.entry_seed_never_copied), color = Steel.label, style = MaterialTheme.typography.bodySmall)
             if (phrase != null) {
                 Row(Modifier.align(Alignment.End)) {
-                    TextButton(onClick = actions.onSeedWords) { Text("Word by word", color = Steel.ink) }
-                    TextButton(onClick = { actions.onToggle(seed.id) }) { Text("Hide", color = Steel.ink) }
+                    TextButton(onClick = actions.onSeedWords) { Text(stringResource(R.string.entry_seed_word_by_word), color = Steel.ink) }
+                    TextButton(onClick = { actions.onToggle(seed.id) }) { Text(stringResource(R.string.entry_face_hide), color = Steel.ink) }
                 }
             }
         }
@@ -273,14 +279,16 @@ private fun WordGrid(phrase: SeedPhrase) {
         // The cell's number, the gap after it and the cell's padding beside the word.
         val needed = with(density) { longest.toDp() } + 18.dp + 6.dp + 16.dp
         val columns = if ((maxWidth - 12.dp) / 3 >= needed) 3 else 2
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics { contentDescription = "The ${phrase.words.size} words" }) {
+        val spoken = pluralStringResource(R.plurals.entry_seed_words_spoken, phrase.words.size, phrase.words.size)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.semantics { contentDescription = spoken }) {
             for (line in phrase.words.withIndex().chunked(columns)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for ((i, word) in line) {
+                        val spokenWord = stringResource(R.string.entry_seed_word_spoken, i + 1, word)
                         Row(
                             Modifier
                                 .weight(1f)
-                                .clearAndSetSemantics { contentDescription = "Word ${i + 1}, $word" }
+                                .clearAndSetSemantics { contentDescription = spokenWord }
                                 .heightIn(min = 36.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(Steel.cell)
@@ -321,7 +329,7 @@ private fun PassphraseLine(row: FieldRow, reveal: RevealState, actions: CardActi
     HorizontalDivider(color = Steel.rule)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).padding(start = 4.dp)) {
-            Text("+ PASSPHRASE", color = Steel.label, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+            Text(stringResource(R.string.entry_passphrase_heading), color = Steel.label, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
             Text(
                 reveal.displayValue(row),
                 if (shown) Modifier else Modifier.spokenMasked(reveal.displayValue(row)),
@@ -331,12 +339,12 @@ private fun PassphraseLine(row: FieldRow, reveal: RevealState, actions: CardActi
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = if (shown) 0.sp else 2.sp,
             )
-            Text("The 25th word: without it the phrase opens another wallet", color = Steel.label, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.entry_passphrase_note), color = Steel.label, style = MaterialTheme.typography.bodySmall)
         }
         IconButton(onClick = { actions.onToggle(row.id) }) {
             Icon(
                 if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                contentDescription = if (shown) "Hide the passphrase" else "Show the passphrase",
+                contentDescription = stringResource(if (shown) R.string.entry_passphrase_hide else R.string.entry_passphrase_show),
                 tint = Steel.label,
             )
         }
@@ -360,12 +368,12 @@ private fun CheckChip(address: CryptoWallet.Address) {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val (text, back, ink) = when (read.check) {
         AddressCheck.PASSES -> Triple(
-            if (read.network == CryptoNetwork.ETHEREUM) "EIP-55" else "checked",
+            stringResource(if (read.network == CryptoNetwork.ETHEREUM) R.string.entry_address_eip55 else R.string.entry_address_checked),
             if (dark) Color(0xFF1E3B27) else Color(0xFFDDF3E2),
             if (dark) Color(0xFFB5E8C2) else Color(0xFF1B5E33),
         )
-        AddressCheck.NONE -> Triple("no checksum", MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.onSurfaceVariant)
-        AddressCheck.FAILS -> Triple("fails its check", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+        AddressCheck.NONE -> Triple(stringResource(R.string.entry_address_no_checksum), MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.colorScheme.onSurfaceVariant)
+        AddressCheck.FAILS -> Triple(stringResource(R.string.entry_address_fails), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
     }
     Row(
         Modifier.clip(RoundedCornerShape(9.dp)).background(back).padding(horizontal = 9.dp, vertical = 4.dp),
@@ -396,7 +404,8 @@ private fun ReceiveCard(address: CryptoWallet.Address, row: FieldRow?, actions: 
                 NetworkBadge(read?.network, 32.dp)
                 Column(Modifier.weight(1f)) {
                     Text(
-                        listOfNotNull("RECEIVE", read?.network?.displayName?.uppercase()).joinToString(" · "),
+                        read?.network?.displayName?.uppercase()?.let { stringResource(R.string.entry_receive_heading_network, it) }
+                            ?: stringResource(R.string.entry_receive_heading),
                         style = MaterialTheme.typography.labelMedium,
                         letterSpacing = 1.4.sp,
                         color = colors.stickerLabel,
@@ -410,11 +419,11 @@ private fun ReceiveCard(address: CryptoWallet.Address, row: FieldRow?, actions: 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 QrCodeImage(
                     address.text,
-                    description = "QR code of the address; full screen",
+                    description = stringResource(R.string.entry_receive_qr),
                     modifier = Modifier
                         .size(128.dp)
                         .border(1.dp, colors.stickerEdge, RoundedCornerShape(12))
-                        .clickable(onClickLabel = "QR code full screen") { actions.onAddressQr(address.rowId) },
+                        .clickable(onClickLabel = stringResource(R.string.entry_qr_full_screen)) { actions.onAddressQr(address.rowId) },
                 )
                 Text(
                     groupedAddress(address.text, MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.onSurfaceVariant),
@@ -430,24 +439,24 @@ private fun ReceiveCard(address: CryptoWallet.Address, row: FieldRow?, actions: 
             }
             HorizontalDivider(color = colors.stickerEdge)
             Row(Modifier.heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Tap the address to copy it · start and end in bold, to check where it lands", style = MaterialTheme.typography.bodySmall, color = colors.stickerLabel)
+                Text(stringResource(R.string.entry_receive_tap), style = MaterialTheme.typography.bodySmall, color = colors.stickerLabel)
             }
         }
         if (read?.check == AddressCheck.FAILS) {
-            Note(Icons.Rounded.ErrorOutline, "The address fails its checksum (a typo?): check it before anyone sends to it", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+            Note(Icons.Rounded.ErrorOutline, stringResource(R.string.entry_receive_fails), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (row != null) {
                 Button(onClick = { actions.onCopy(row) }, Modifier.weight(1f).heightIn(min = 52.dp)) {
                     Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                    Text("Copy address", maxLines = 1)
+                    Text(stringResource(R.string.entry_receive_copy), maxLines = 1)
                 }
             }
             FilledTonalButton(onClick = { actions.onAddressQr(address.rowId) }, Modifier.weight(1f).heightIn(min = 52.dp)) {
                 Icon(Icons.Rounded.QrCode2, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                 Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                Text("Show QR", maxLines = 1)
+                Text(stringResource(R.string.entry_receive_show_qr), maxLines = 1)
             }
         }
     }
@@ -478,15 +487,15 @@ private fun AddressRow(address: CryptoWallet.Address, row: FieldRow?, shape: Sha
                 overflow = TextOverflow.Ellipsis,
             )
             if (address.read?.check == AddressCheck.FAILS) {
-                Text("Fails its checksum. A typo?", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.entry_wallet_fails_checksum), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
         }
         IconButton(onClick = { actions.onAddressQr(address.rowId) }) {
-            Icon(Icons.Rounded.QrCode2, contentDescription = "QR code of ${address.label}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.QrCode2, contentDescription = stringResource(R.string.entry_address_qr_of, address.label), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (row != null) {
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy ${address.label}", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, address.label), tint = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -520,7 +529,7 @@ private fun DetailRow(
         }
         if (row != null && row.isCopyable) {
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy ${row.noticeLabel.lowercase()}", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase()), tint = MaterialTheme.colorScheme.primary)
             }
         }
     }

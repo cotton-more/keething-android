@@ -9,6 +9,7 @@ import dev.keething.android.groups.GroupPickerSheet
 import dev.keething.card.editing.GroupChoice
 import dev.keething.card.editing.GroupTree
 import android.content.ActivityNotFoundException
+import androidx.annotation.StringRes
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
@@ -115,7 +116,11 @@ import dev.keething.vault.databases.EntryRef
 import dev.keething.android.recyclebin.DeleteForGoodDialog
 import dev.keething.android.sharing.SendToRequestSheet
 import dev.keething.android.theme.extraColors
+import dev.keething.android.R
 import dev.keething.android.ui.PathText
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
+import androidx.compose.ui.res.stringResource
 import dev.keething.android.ui.EntryMark
 import dev.keething.android.ui.NoticeEffect
 import dev.keething.android.ui.NoticeHost
@@ -185,7 +190,7 @@ internal fun EntryCardScreen(
             try {
                 context.startActivity(intent)
             } catch (_: ActivityNotFoundException) {
-                model.problem("No app opens this file; save it instead")
+                model.problem(uiText(R.string.entry_card_no_app_for_file))
             }
         }
     }
@@ -198,7 +203,7 @@ internal fun EntryCardScreen(
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
         } catch (_: ActivityNotFoundException) {
-            model.problem("No app opens this link")
+            model.problem(uiText(R.string.entry_card_no_app_for_link))
         }
     }
     val now = rememberSecondsNow()
@@ -210,13 +215,13 @@ internal fun EntryCardScreen(
         GroupPickerSheet(
             tree = tree,
             chosen = current,
-            made = "made with the move",
+            made = stringResource(R.string.entry_card_move_made),
             onChoose = { choice ->
                 movingTo = null
                 model.moveTo(choice)
             },
             onDismiss = { movingTo = null },
-            title = "Move to group",
+            title = stringResource(R.string.entry_card_move_title),
         )
     }
     var deletingForGood by rememberSaveable { mutableStateOf(false) }
@@ -281,7 +286,7 @@ internal fun EntryCardScreen(
                     try {
                         context.startActivity(intent)
                     } catch (_: ActivityNotFoundException) {
-                        model.problem("This phone offers no way to add the network")
+                        model.problem(uiText(R.string.entry_card_no_way_to_add_network))
                     }
                 }
             }
@@ -339,7 +344,7 @@ internal fun EntryCardScreen(
                 },
                 navigationIcon = {
                     if (!besideList) {
-                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") }
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.entry_card_back)) }
                     }
                 },
                 actions = {
@@ -347,7 +352,7 @@ internal fun EntryCardScreen(
                         FilledTonalButton(onClick = model::restore, enabled = !model.restoring) {
                             Icon(Icons.Rounded.RestoreFromTrash, contentDescription = null, Modifier.size(18.dp))
                             Spacer(Modifier.size(8.dp))
-                            Text("Restore")
+                            Text(stringResource(R.string.entry_card_restore))
                         }
                     }
                     val concealed = content.card.rows.filter { it.isConcealed && !it.isEmpty }
@@ -379,12 +384,13 @@ internal fun EntryCardScreen(
         snackbarHost = { NoticeHost(snackbar, Modifier.navigationBarsPadding()) },
         floatingActionButton = {
             if (!content.inRecycleBin) {
+                val edit = stringResource(R.string.entry_card_edit)
                 ExtendedFloatingActionButton(
                     onClick = onEdit,
                     icon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
-                    text = { Text("Edit") },
+                    text = { Text(stringResource(R.string.entry_card_edit)) },
                     // Material 3 1.5's extended button leaves its text out of what a screen reader gets.
-                    modifier = Modifier.navigationBarsPadding().semantics { contentDescription = "Edit" },
+                    modifier = Modifier.navigationBarsPadding().semantics { contentDescription = edit },
                 )
             }
         },
@@ -436,12 +442,12 @@ private fun CardMenu(
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.entry_card_more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            val item: @Composable (String, ImageVector, () -> Unit) -> Unit = { text, icon, act ->
+            val item: @Composable (Int, ImageVector, () -> Unit) -> Unit = { text, icon, act ->
                 DropdownMenuItem(
-                    text = { Text(text) },
+                    text = { Text(stringResource(text)) },
                     leadingIcon = { Icon(icon, contentDescription = null) },
                     onClick = {
                         open = false
@@ -450,20 +456,20 @@ private fun CardMenu(
                 )
             }
             when (reveal) {
-                true -> item("Show all", Icons.Rounded.Visibility, onToggleAll)
-                false -> item("Hide all", Icons.Rounded.VisibilityOff, onToggleAll)
+                true -> item(R.string.entry_card_menu_show_all, Icons.Rounded.Visibility, onToggleAll)
+                false -> item(R.string.entry_card_menu_hide_all, Icons.Rounded.VisibilityOff, onToggleAll)
                 null -> {}
             }
-            item("History", Icons.Rounded.History, onHistory)
+            item(R.string.entry_card_menu_history, Icons.Rounded.History, onHistory)
             if (!inRecycleBin) {
-                item("Move to group…", Icons.AutoMirrored.Rounded.DriveFileMove, onMove)
-                item("Send to a request", Icons.AutoMirrored.Rounded.Send, onSend)
+                item(R.string.entry_card_menu_move, Icons.AutoMirrored.Rounded.DriveFileMove, onMove)
+                item(R.string.entry_card_menu_send, Icons.AutoMirrored.Rounded.Send, onSend)
             }
             HorizontalDivider()
             if (forGood) {
-                item("Delete for good…", Icons.Rounded.DeleteForever, onDeleteForGood)
+                item(R.string.entry_card_menu_delete_for_good, Icons.Rounded.DeleteForever, onDeleteForGood)
             } else {
-                item("Move to the recycle bin", Icons.Rounded.DeleteOutline, onDelete)
+                item(R.string.entry_card_menu_to_bin, Icons.Rounded.DeleteOutline, onDelete)
             }
         }
     }
@@ -519,7 +525,7 @@ private fun PlaceChip(mark: DatabaseMark?, path: List<String>, readOnly: Boolean
     val colors = mark?.let { databaseColors(it.colorIndex) }
     Row(
         Modifier.height(32.dp).clip(RoundedCornerShape(10.dp)).background(colors?.soft ?: MaterialTheme.colorScheme.secondaryContainer)
-            .clickable(onClickLabel = "Search there", onClick = onClick).padding(horizontal = 12.dp),
+            .clickable(onClickLabel = stringResource(R.string.entry_card_place_search), onClick = onClick).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
@@ -537,7 +543,8 @@ private fun PlaceChip(mark: DatabaseMark?, path: List<String>, readOnly: Boolean
         }
         val color = if (mark != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer
         if (path.isEmpty()) {
-            Text(lead!!, Modifier.semantics { contentDescription = "Database ${mark.label.full}" }, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val spoken = stringResource(R.string.entry_card_place_database, mark!!.label.full)
+            Text(lead!!, Modifier.semantics { contentDescription = spoken }, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         } else {
             PathText(path, style = MaterialTheme.typography.labelLarge, color = color, lead = lead)
         }
@@ -563,66 +570,72 @@ private fun SuggestionBanner(suggestion: TypeSuggestion, saving: Boolean, onAcce
                 Icon(offer.icon, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Looks like ${suggestion.kind.noun}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                Text(offer.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(stringResource(offer.title), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(stringResource(offer.text), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
         Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onDismiss, enabled = !saving) { Text("Not now") }
-            Button(onClick = onAccept, enabled = !saving) { Text(offer.button) }
+            TextButton(onClick = onDismiss, enabled = !saving) { Text(stringResource(R.string.entry_suggestion_not_now)) }
+            Button(onClick = onAccept, enabled = !saving) { Text(stringResource(offer.button)) }
         }
     }
 }
 
 /** What the offer to type the fields says, per kind. */
-private class Offer(val icon: ImageVector, val text: String, val button: String) {
+private class Offer(val icon: ImageVector, @StringRes val title: Int, @StringRes val text: Int, @StringRes val button: Int) {
     companion object {
         fun of(kind: TypeSuggestion.Kind): Offer = when (kind) {
             TypeSuggestion.Kind.PAYMENT_CARD -> Offer(
                 Icons.Rounded.CreditCard,
-                "Show these fields as a card. Their types are saved in the entry, so the Mac shows the card too.",
-                "Show as card",
+                R.string.entry_suggestion_card_title,
+                R.string.entry_suggestion_card_text,
+                R.string.entry_suggestion_card_button,
             )
             TypeSuggestion.Kind.WIFI -> Offer(
                 Icons.Rounded.Wifi,
-                "Show these fields as a network, with its QR code. Their types are saved in the entry, so the Mac shows the network too.",
-                "Show as network",
+                R.string.entry_suggestion_wifi_title,
+                R.string.entry_suggestion_wifi_text,
+                R.string.entry_suggestion_wifi_button,
             )
             TypeSuggestion.Kind.BANK_ACCOUNT -> Offer(
                 Icons.Rounded.AccountBalance,
-                "Show these fields as an account: the number grouped and checked, the country's flag. Their types are saved in the entry.",
-                "Show as account",
+                R.string.entry_suggestion_bank_title,
+                R.string.entry_suggestion_bank_text,
+                R.string.entry_suggestion_bank_button,
             )
             TypeSuggestion.Kind.DOCUMENT -> Offer(
                 Icons.Rounded.Badge,
-                "Show these fields as a document: its number, its dates and the country's flag. Their types are saved in the entry.",
-                "Show as document",
+                R.string.entry_suggestion_document_title,
+                R.string.entry_suggestion_document_text,
+                R.string.entry_suggestion_document_button,
             )
             TypeSuggestion.Kind.SSH -> Offer(
                 Icons.Rounded.Terminal,
-                "Show these fields with the ssh command and a ~/.ssh/config block. Their types are saved in the entry.",
-                "Show as SSH",
+                R.string.entry_suggestion_ssh_title,
+                R.string.entry_suggestion_ssh_text,
+                R.string.entry_suggestion_ssh_button,
             )
             TypeSuggestion.Kind.CRYPTO -> Offer(
                 Icons.Rounded.AccountBalanceWallet,
-                "Show these fields as a wallet: the recovery phrase checked and never copied, the address with its QR code. Their types are saved in the entry.",
-                "Show as wallet",
+                R.string.entry_suggestion_crypto_title,
+                R.string.entry_suggestion_crypto_text,
+                R.string.entry_suggestion_crypto_button,
             )
         }
     }
 }
 
 /** The app that opens `ssh://` links on this phone, by its name ("an SSH app" when several do); null when none does. */
-private fun sshApp(context: android.content.Context, uri: String, problem: (String) -> Unit): SshApp? {
+private fun sshApp(context: android.content.Context, uri: String, problem: (UiText) -> Unit): SshApp? {
     val intent = Intent(Intent.ACTION_VIEW, uri.toUri())
     val apps = context.packageManager.queryIntentActivities(intent, 0)
     if (apps.isEmpty()) return null
-    val label = apps.singleOrNull()?.loadLabel(context.packageManager)?.toString() ?: "an SSH app"
+    val label = apps.singleOrNull()?.loadLabel(context.packageManager)?.toString() ?: context.getString(R.string.entry_card_ssh_app_several)
     return SshApp(label) {
         try {
             context.startActivity(intent)
         } catch (_: ActivityNotFoundException) {
-            problem("No app opens SSH links")
+            problem(uiText(R.string.entry_card_no_app_for_ssh))
         }
     }
 }
@@ -652,7 +665,7 @@ private fun Banners(content: CardContent) {
     val card = content.card
     val dates = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault())
     if (content.inRecycleBin) {
-        Banner(Icons.Rounded.Delete, "In the recycle bin", problem = false)
+        Banner(Icons.Rounded.Delete, stringResource(R.string.entry_card_in_bin), problem = false)
     }
     when (val expiry = card.entryExpiry) {
         // The same words as a field's end date (keething-spec card.dates AC8), then the day.
@@ -690,14 +703,17 @@ private fun Banner(icon: ImageVector, text: String, problem: Boolean, warning: B
 @Composable
 private fun Footer(card: EntryCard) {
     val dates = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault())
-    val parts = listOfNotNull(
-        // A date is not broken over two lines ("Mar 18, / 2024").
-        card.lastModified?.let { "Changed ${dates.format(it).replace(' ', '\u00A0')}" },
-        card.created?.let { "created ${dates.format(it).replace(' ', '\u00A0')}" },
-    )
-    if (parts.isEmpty()) return
+    // A date is not broken over two lines ("Mar 18, / 2024").
+    val changed = card.lastModified?.let { dates.format(it).replace(' ', '\u00A0') }
+    val created = card.created?.let { dates.format(it).replace(' ', '\u00A0') }
+    val text = when {
+        changed != null && created != null -> stringResource(R.string.entry_card_changed_created, changed, created)
+        changed != null -> stringResource(R.string.entry_card_changed, changed)
+        created != null -> stringResource(R.string.entry_card_created, created)
+        else -> return
+    }
     Text(
-        parts.joinToString(" · ").replaceFirstChar(Char::uppercase).dotsAtLineEnd(),
+        text.dotsAtLineEnd(),
         Modifier.padding(horizontal = 8.dp),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -713,18 +729,15 @@ private fun ShareWarning(onShare: () -> Unit, onShowQrCode: () -> Unit, onDismis
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Rounded.WarningAmber, contentDescription = null) },
-        title = { Text("Share the password?") },
+        title = { Text(stringResource(R.string.entry_share_title)) },
         text = {
-            Text(
-                "It goes to the app you choose, as plain text, and maybe to that app's cloud and history. " +
-                    "To another phone, Show as QR is safer: nothing leaves this one.",
-            )
+            Text(stringResource(R.string.entry_share_text))
         },
-        confirmButton = { TextButton(onClick = onShare) { Text("Share") } },
+        confirmButton = { TextButton(onClick = onShare) { Text(stringResource(R.string.entry_share_share)) } },
         dismissButton = {
             Row {
-                TextButton(onClick = onShowQrCode) { Text("Show as QR") }
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onShowQrCode) { Text(stringResource(R.string.entry_share_qr)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.entry_share_cancel)) }
             }
         },
     )
@@ -741,7 +754,7 @@ internal class CardActions(
     val onToggleRows: (List<FieldRow>) -> Unit,
     val onOpenLink: (String) -> Unit,
     /** Another app started (an app the entry names, its store page), with what to say when it cannot be. */
-    val onStart: (Intent, failure: String) -> Unit = { _, _ -> },
+    val onStart: (Intent, failure: UiText) -> Unit = { _, _ -> },
     val onOpenAttachment: (FieldRow) -> Unit,
     val onSaveAttachment: (FieldRow) -> Unit,
     val onPasswordMenu: (PasswordAction) -> Unit,
@@ -766,6 +779,7 @@ internal class CardActions(
 )
 
 /** Tapping anywhere on a row copies it (SPEC §6.2). */
+@Composable
 internal fun Modifier.copyOnTap(row: FieldRow, actions: CardActions): Modifier =
-    if (row.isCopyable) clickable(onClickLabel = "Copy ${row.noticeLabel.lowercase()}") { actions.onCopy(row) } else this
+    if (row.isCopyable) clickable(onClickLabel = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase())) { actions.onCopy(row) } else this
 

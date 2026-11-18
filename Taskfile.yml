@@ -246,6 +246,11 @@ tasks:
 
   # keething-spec
 
+  texts:check:
+    desc: "Texts the user sees written into the code instead of res/values/strings*.xml: task texts:check -- [--count] [dir] (tools/check-texts.py)"
+    cmds:
+      - tools/check-texts.py {{.CLI_ARGS}}
+
   spec:
     desc: "The spec's status: task spec -- [area or id]"
     dir: '{{.SPEC}}'

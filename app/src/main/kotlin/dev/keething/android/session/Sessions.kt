@@ -13,6 +13,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import dev.keething.android.settings.AppSettings
 import dev.keething.android.storage.FileDatabaseBackups
+import dev.keething.android.ui.UiText
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
 import dev.keething.domain.settings.SettingsStore
@@ -120,10 +121,10 @@ internal class Sessions(
     /** The question a KDBX 3.1 database asks, and its upgrade (keething-spec kdbx.kdbx3 AC5–AC8). */
     val kdbx3 = Kdbx3Question(scope)
 
-    private val mutableReadOnlySaid = MutableStateFlow<String?>(null)
+    private val mutableReadOnlySaid = MutableStateFlow<UiText?>(null)
 
     /** Why a change was refused before it started, shown over every screen until OK (keething-spec app.large-database AC3). */
-    val readOnlySaid: StateFlow<String?> = mutableReadOnlySaid.asStateFlow()
+    val readOnlySaid: StateFlow<UiText?> = mutableReadOnlySaid.asStateFlow()
 
     /**
      * A change tried on [database] open read-only, before anything is typed or chosen (Edit, New, Move to group…, a
@@ -354,7 +355,7 @@ internal class Sessions(
         scope.launch {
             state.collect {
                 Log.i(TAG, "app: " + when (it) {
-                    is SessionsState.NothingOpen -> "nothing open, " + SessionState.Locked(it.reason).describe()
+                    is SessionsState.NothingOpen -> "nothing open, " + SessionState.Locked(it.reason).describe() // not user text
                     SessionsState.Opening -> "opening"
                     is SessionsState.Open -> "${it.vaults.size} open"
                 })
@@ -474,15 +475,15 @@ internal class Sessions(
 
     private fun BiometricState.describe(): String = "fingerprint: " + listOfNotNull(
         if (appEnabled) "on" else "off",
-        if (databaseEnabled) "on for it" else "off for it",
-        "opens with its key file alone".takeIf { passwordless },
+        if (databaseEnabled) "on for it" else "off for it", // not user text
+        "opens with its key file alone".takeIf { passwordless }, // not user text
         when (val availability = availability) {
-            null -> "not checked"
+            null -> "not checked" // not user text
             BiometricAvailability.Available -> "available"
             is BiometricAvailability.Unavailable -> "unavailable (${availability.reason})"
         },
-        if (stored) "stored" else "nothing stored",
-        setupFailure?.let { "setup failed ($it)" },
+        if (stored) "stored" else "nothing stored", // not user text
+        setupFailure?.let { "setup failed ($it)" }, // not user text
     ).joinToString(", ")
 
     private fun SessionState.describe(): String = when (this) {
@@ -490,30 +491,30 @@ internal class Sessions(
             LockReason.Initial -> "initial"
             LockReason.Manual -> "manual"
             LockReason.Timeout -> "timeout"
-            LockReason.PasswordChanged -> "password changed"
-            LockReason.RestoredOlderKey -> "backup restored, older key"
-            LockReason.AfterQuickTask -> "after a quick task, its reminder due"
-            is LockReason.UnlockFailed -> "unlock failed, " + when (val failure = reason.failure) {
-                OpenFailure.WrongPassword -> "wrong password"
-                OpenFailure.WrongPasswordOrKeyFile -> "wrong password or key file"
-                OpenFailure.WrongKeyFile -> "wrong key file"
-                is OpenFailure.KeyFileMissing -> "key file missing"
-                is OpenFailure.KeyFileUnusable -> "key file unusable: ${failure.why}"
+            LockReason.PasswordChanged -> "password changed" // not user text
+            LockReason.RestoredOlderKey -> "backup restored, older key" // not user text
+            LockReason.AfterQuickTask -> "after a quick task, its reminder due" // not user text
+            is LockReason.UnlockFailed -> "unlock failed, " + when (val failure = reason.failure) { // not user text
+                OpenFailure.WrongPassword -> "wrong password" // not user text
+                OpenFailure.WrongPasswordOrKeyFile -> "wrong password or key file" // not user text
+                OpenFailure.WrongKeyFile -> "wrong key file" // not user text
+                is OpenFailure.KeyFileMissing -> "key file missing" // not user text
+                is OpenFailure.KeyFileUnusable -> "key file unusable: ${failure.why}" // not user text
                 OpenFailure.Missing -> "missing"
-                OpenFailure.AccessDenied -> "access denied"
+                OpenFailure.AccessDenied -> "access denied" // not user text
                 is OpenFailure.Unsupported -> "unsupported"
                 is OpenFailure.Damaged -> "damaged: ${failure.detail}"
-                OpenFailure.OutOfMemory -> "out of memory"
-                OpenFailure.Locked -> "locked meanwhile"
+                OpenFailure.OutOfMemory -> "out of memory" // not user text
+                OpenFailure.Locked -> "locked meanwhile" // not user text
             }
         }
         SessionState.Unlocking -> "unlocking"
         // Times and counts only (keething-spec app.large-database).
-        is SessionState.Unlocked -> "unlocked: ${vault.entries.size} entries" + (keyDerivation?.let { ", key derived in ${it.inWholeMilliseconds} ms" } ?: "") +
-            ", ${size.fileBytes shr 20} MiB, room $room"
+        is SessionState.Unlocked -> "unlocked: ${vault.entries.size} entries" + (keyDerivation?.let { ", key derived in ${it.inWholeMilliseconds} ms" } ?: "") + // not user text
+            ", ${size.fileBytes shr 20} MiB, room $room" // not user text
     }
 
     private companion object {
-        const val TAG = "Session"
+        const val TAG = "Session" // not user text
     }
 }

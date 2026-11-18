@@ -1,6 +1,11 @@
 package dev.keething.android.list
 
+import androidx.annotation.StringRes
+import dev.keething.android.R
 import dev.keething.android.databases.DatabaseMark
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import dev.keething.search.DatabaseCount
 import dev.keething.search.EntrySearch
 import dev.keething.search.FilterCompletion
@@ -13,7 +18,8 @@ import dev.keething.search.Narrowing
  * with its entry count. A tap makes the query [query].
  */
 internal data class SearchChip(
-    val label: String,
+    /** Its name: a filter's word, or a group's, tag's, file's or database's name. */
+    val label: UiText,
     val query: String,
     val sigil: Char? = null,
     val count: Int? = null,
@@ -49,14 +55,14 @@ internal fun searchChips(query: String, listing: VaultListing, codesOnly: Boolea
         val partial = active.partial
         fun complete(name: String) = FilterCompletion.complete(query, name)
         fun chip(label: String, name: String, count: Int, databases: List<DatabaseCount>) =
-            SearchChip(label, complete(name), count = count, shares = shares(databases, marks))
+            SearchChip(uiPlain(label), complete(name), count = count, shares = shares(databases, marks))
         val chips = when (active.kind) {
             FilterKind.GROUP -> from.groups(partial).map { chip(it.path.joinToString(" › "), it.name, it.count, it.databases) }
             FilterKind.TAG -> from.tags(partial).map { chip(it.name, it.name, it.count, it.databases) }
             FilterKind.ATTACHMENT -> {
                 // A bare `+` lists every entry with files: choosing it leaves `+ `.
                 val any = if (partial.isBlank() && from.entriesWithAttachments > 0) {
-                    listOf(SearchChip("Any file", complete(""), count = from.entriesWithAttachments))
+                    listOf(SearchChip(uiText(R.string.list_chip_any_file), complete(""), count = from.entriesWithAttachments))
                 } else {
                     emptyList()
                 }
@@ -64,7 +70,7 @@ internal fun searchChips(query: String, listing: VaultListing, codesOnly: Boolea
             }
             // Only while two or more are open: with one, `!` offers nothing.
             FilterKind.DATABASE -> from.databases(partial).mapNotNull { facet ->
-                marks[facet.name]?.let { SearchChip(facet.name, complete(facet.name), count = facet.count, database = it) }
+                marks[facet.name]?.let { SearchChip(uiPlain(facet.name), complete(facet.name), count = facet.count, database = it) }
             }
         }
         return ChipLine(chips)
@@ -74,19 +80,19 @@ internal fun searchChips(query: String, listing: VaultListing, codesOnly: Boolea
         if (narrowing.isNotEmpty()) return ChipLine(narrowing.map { narrowChip(query, it, marks) }, narrowing = true)
     }
     val base = if (query.isEmpty() || query.last().isWhitespace()) query else "$query "
-    fun filter(label: String, kind: FilterKind) = SearchChip(label, base + kind.sigil, sigil = kind.sigil)
+    fun filter(@StringRes label: Int, kind: FilterKind) = SearchChip(uiText(label), base + kind.sigil, sigil = kind.sigil)
     val filters = listOfNotNull(
-        filter("group", FilterKind.GROUP),
-        filter("tag", FilterKind.TAG),
-        filter("database", FilterKind.DATABASE).takeIf { marks.isNotEmpty() },
-        filter("file", FilterKind.ATTACHMENT),
+        filter(R.string.list_chip_group, FilterKind.GROUP),
+        filter(R.string.list_chip_tag, FilterKind.TAG),
+        filter(R.string.list_chip_database, FilterKind.DATABASE).takeIf { marks.isNotEmpty() },
+        filter(R.string.list_chip_file, FilterKind.ATTACHMENT),
     )
     if (codesOnly) return ChipLine(filters)
     val rest = query.trim()
     val bin = when {
-        inBin -> SearchChip("bin", rest.removePrefix("-").trimStart(), sigil = '-', selected = true)
-        rest.isEmpty() -> SearchChip("bin", "-", sigil = '-')
-        else -> SearchChip("bin", "- $rest", sigil = '-')
+        inBin -> SearchChip(uiText(R.string.list_chip_bin), rest.removePrefix("-").trimStart(), sigil = '-', selected = true)
+        rest.isEmpty() -> SearchChip(uiText(R.string.list_chip_bin), "-", sigil = '-')
+        else -> SearchChip(uiText(R.string.list_chip_bin), "- $rest", sigil = '-')
     }
     return ChipLine(filters + bin)
 }
@@ -95,7 +101,7 @@ internal fun searchChips(query: String, listing: VaultListing, codesOnly: Boolea
 private fun narrowChip(query: String, narrowing: Narrowing, marks: Map<String, DatabaseMark>): SearchChip {
     val database = if (narrowing.kind == FilterKind.DATABASE) marks[narrowing.name] else null
     return SearchChip(
-        label = narrowing.name,
+        label = uiPlain(narrowing.name),
         query = FilterCompletion.narrow(query, narrowing.kind, narrowing.name),
         sigil = if (database == null) narrowing.kind.sigil else null,
         count = narrowing.count,

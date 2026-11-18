@@ -99,13 +99,13 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
     override fun create(folder: String, name: String): String = provider(folder) {
         val parent = documentUri(folder)
         val created = try {
-            orMissing(folder, { throw NoSuchFileException(folder, null, "no folder there") }) {
+            orMissing(folder, { throw NoSuchFileException(folder, null, "no folder there") }) { // not user text
                 DocumentsContract.createDocument(resolver, parent, MIME_TYPE, name)
             }
         } catch (_: FileNotFoundException) {
-            throw NoSuchFileException(folder, null, "no folder there")
+            throw NoSuchFileException(folder, null, "no folder there") // not user text
         }
-        nameOf(DocumentsContract.getDocumentId(created ?: throw IOException("the provider made no file $name")))
+        nameOf(DocumentsContract.getDocumentId(created ?: throw IOException("the provider made no file $name"))) // not user text
     }
 
     override fun write(path: String, bytes: ByteArray): Unit = provider(path) {
@@ -126,7 +126,7 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
             throw NoSuchFileException(path)
         }
         // Null only for a failure the platform kept to itself: an id that did not change gives the same address back.
-        nameOf(DocumentsContract.getDocumentId(renamed ?: throw IOException("the provider did not rename $path")))
+        nameOf(DocumentsContract.getDocumentId(renamed ?: throw IOException("the provider did not rename $path"))) // not user text
     }
 
     override fun delete(path: String): Boolean = provider(path) {
@@ -138,10 +138,10 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
     }
 
     override fun watch(folder: String, onChange: () -> Unit): FolderWatch = provider(folder) {
-        val client = resolver.acquireUnstableContentProviderClient(tree.authority ?: throw IOException("no provider"))
-            ?: throw IOException("the storage provider is not there")
+        val client = resolver.acquireUnstableContentProviderClient(tree.authority ?: throw IOException("no provider")) // not user text
+            ?: throw IOException("the storage provider is not there") // not user text
         try {
-            orMissing(folder, { throw NoSuchFileException(folder, null, "no folder there") }) {
+            orMissing(folder, { throw NoSuchFileException(folder, null, "no folder there") }) { // not user text
                 ProviderWatch(client, DocumentsContract.buildChildDocumentsUriUsingTree(tree, documentId(folder)), documentUri(folder), onChange)
             }
         } catch (failure: Exception) {
@@ -165,7 +165,7 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
         private val onChange: () -> Unit,
     ) : FolderWatch {
         private val cursor: Cursor = client.query(children, arrayOf(Document.COLUMN_DOCUMENT_ID), null, null, null)
-            ?: throw NoSuchFileException(children.toString(), null, "no folder there")
+            ?: throw NoSuchFileException(children.toString(), null, "no folder there") // not user text
         private val thread = HandlerThread("folder-watch").apply { start() }
         private val handler = Handler(thread.looper)
         private val now = Runnable { onChange() }
@@ -214,7 +214,7 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
         path.isEmpty() -> treeId
         // A card's top: "1234-5678:".
         treeId.endsWith(':') -> treeId + path
-        else -> "$treeId/$path"
+        else -> "$treeId/$path" // not user text
     }
 
     private fun documentUri(path: String): Uri = DocumentsContract.buildDocumentUriUsingTree(tree, documentId(path))
@@ -245,7 +245,7 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
     private fun fstat(descriptor: ParcelFileDescriptor): StructStat = try {
         Os.fstat(descriptor.fileDescriptor)
     } catch (failure: ErrnoException) {
-        throw IOException("the file's attributes could not be read", failure)
+        throw IOException("the file's attributes could not be read", failure) // not user text
     }
 
     /** The real file's size, time to the nanosecond and identity, as `Os.fstat` gives them through the provider (AC8, S0). */
@@ -268,7 +268,7 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
     }
 
     companion object {
-        private const val TAG = "ProviderFolder"
+        private const val TAG = "ProviderFolder" // not user text
 
         /** The phone's own storage and its cards (keething-spec databases.saf AC12). */
         const val AUTHORITY = "com.android.externalstorage.documents"
@@ -293,7 +293,7 @@ internal class ProviderFolder(private val resolver: ContentResolver, private val
 
 /** A grant that is not of the phone's storage (AC12): nothing in it can be reached, as with a grant gone (AC10). */
 internal class UnreachableFolder(override val id: String) : GrantedFolder {
-    private fun denied(path: String): Nothing = throw AccessDeniedException(path, null, "not a folder of the phone's storage")
+    private fun denied(path: String): Nothing = throw AccessDeniedException(path, null, "not a folder of the phone's storage") // not user text
 
     override fun list(folder: String): List<FolderItem>? = denied(folder)
 

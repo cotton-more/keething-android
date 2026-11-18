@@ -25,10 +25,17 @@ import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import dev.keething.android.groups.GroupPickerSheet
 import dev.keething.android.groups.GroupTexts
 import dev.keething.android.ui.PathText
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.spokenMasked
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import dev.keething.card.editing.GroupTree
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Visibility
@@ -113,7 +120,7 @@ internal fun ReceivedScreen(
         topBar = {
             TopAppBar(
                 title = {},
-                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close") } },
+                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.sharing_close)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
@@ -121,7 +128,7 @@ internal fun ReceivedScreen(
             if (model.opening is ReceivedModel.Opening.Sealed) {
                 BottomActions {
                     if (model.wrongPictures) {
-                        Button(onClick = model::tapAgain, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text("Tap them again") }
+                        Button(onClick = model::tapAgain, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text(stringResource(R.string.sharing_tap_again)) }
                     } else {
                         FilledTonalButton(
                             onClick = {
@@ -131,7 +138,7 @@ internal fun ReceivedScreen(
                             enabled = !model.unsealing,
                             modifier = Modifier.fillMaxWidth().height(56.dp),
                         ) {
-                            ButtonLabel("Paste the pictures", Icons.Rounded.ContentPaste)
+                            ButtonLabel(stringResource(R.string.sharing_received_paste_pictures), Icons.Rounded.ContentPaste)
                         }
                     }
                 }
@@ -142,15 +149,19 @@ internal fun ReceivedScreen(
                     is ReceivedModel.Saving.Saved -> {
                         saving.refs.firstOrNull()?.let { first ->
                             Button(onClick = { onOpenEntry(first) }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                                Text(if (saving.refs.size == 1) "Open the entry" else "Open the first entry")
+                                Text(pluralStringResource(R.plurals.sharing_received_open, saving.refs.size))
                             }
                         }
-                        TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("Done") }
+                        TextButton(onClick = onClose, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text(stringResource(R.string.sharing_done)) }
                     }
                     else -> {
                         (saving as? ReceivedModel.Saving.Failed)?.let {
                             Text(
-                                (if (it.saved > 0) "Saved ${it.saved} of ${opened.payload.entries.size}; then: " else "") + it.problem,
+                                if (it.saved > 0) {
+                                    stringResource(R.string.sharing_received_saved_then, it.saved, opened.payload.entries.size, it.problem.resolve())
+                                } else {
+                                    it.problem.resolve()
+                                },
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -160,20 +171,20 @@ internal fun ReceivedScreen(
                             if (busy != null) {
                                 LoadingIndicator(Modifier.size(28.dp))
                                 Spacer(Modifier.size(10.dp))
-                                Text(if (busy.of == 1) "Saving and checking…" else "Saving and checking ${busy.done + 1} of ${busy.of}…")
+                                Text(pluralStringResource(R.plurals.sharing_received_saving, busy.of, busy.done + 1, busy.of))
                             } else {
                                 val count = opened.payload.entries.size
-                                Text(if (count == 1) "Save to the database" else "Save the $count entries")
+                                Text(pluralStringResource(R.plurals.sharing_received_save, count, count))
                             }
                         }
                         if (opened.request != null) {
                             TextButton(onClick = { closing = true }, enabled = busy == null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                                Text("Close the request without saving")
+                                Text(stringResource(R.string.sharing_received_close_request))
                             }
                         } else {
                             // Nothing to close: until it expires, the envelope opens again with its pictures.
                             TextButton(onClick = onClose, enabled = busy == null, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                                Text("Not now")
+                                Text(stringResource(R.string.sharing_not_now))
                             }
                         }
                     }
@@ -185,16 +196,16 @@ internal fun ReceivedScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (val opening = model.opening) {
                 ReceivedModel.Opening.NotHere -> Explanation(
-                    "Not for a request on this phone",
-                    "It answers a request that was closed, expired, or made on another phone. Ask again.",
+                    stringResource(R.string.sharing_not_here_title),
+                    stringResource(R.string.sharing_not_here_text),
                 )
                 ReceivedModel.Opening.Lost -> Explanation(
-                    "Its request was lost",
-                    "This phone could not read its saved requests and started them again, so it cannot open answers to the ones asked before. Ask for it again.",
+                    stringResource(R.string.sharing_received_lost_title),
+                    stringResource(R.string.sharing_received_lost_text),
                 )
                 ReceivedModel.Opening.Broken -> Explanation(
-                    "This code does not open",
-                    "It was changed on the way, or it is not really for your request. Ask for it again, and check the pictures by a call.",
+                    stringResource(R.string.sharing_received_broken_title),
+                    stringResource(R.string.sharing_received_broken_text),
                 )
                 is ReceivedModel.Opening.Unavailable -> Unavailable(opening.arrival)
                 is ReceivedModel.Opening.Sealed -> EnvelopePictures(model, opening)
@@ -209,16 +220,16 @@ internal fun ReceivedScreen(
     if (closing) {
         AlertDialog(
             onDismissRequest = { closing = false },
-            title = { Text("Close without saving?") },
-            text = { Text("This phone forgets the request's key: the answer can no longer be opened.") },
+            title = { Text(stringResource(R.string.sharing_received_close_title)) },
+            text = { Text(stringResource(R.string.sharing_received_close_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     closing = false
                     model.close()
                     onClose()
-                }) { Text("Close it") }
+                }) { Text(stringResource(R.string.sharing_received_close_it)) }
             },
-            dismissButton = { TextButton(onClick = { closing = false }) { Text("Keep it") } },
+            dismissButton = { TextButton(onClick = { closing = false }) { Text(stringResource(R.string.sharing_keep_it)) } },
         )
     }
 }
@@ -231,22 +242,16 @@ private fun Opened(model: ReceivedModel, opened: ReceivedModel.Opening.Opened) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         val count = payload.entries.size
-        val entries = if (count == 1) "1 entry" else "$count entries"
         val request = opened.request
         if (request != null) {
-            TitleBlock("From ${payload.from}", "Answer to “${request.request.reason}” · $entries")
-            InfoBox(
-                Icons.Rounded.Info,
-                "Only this phone could open it, but anyone who saw your request could have made it, and the name is theirs to " +
-                    "choose. Save it if it is what you expected: saved entries are tagged #${Receiving.TAG}.",
+            TitleBlock(
+                stringResource(R.string.sharing_from, payload.from),
+                pluralStringResource(R.plurals.sharing_received_answer_subtitle, count, count, request.request.reason),
             )
+            InfoBox(Icons.Rounded.Info, stringResource(R.string.sharing_received_answer_info, Receiving.TAG))
         } else {
-            TitleBlock("From ${payload.from}", "Sent without a request · $entries")
-            InfoBox(
-                Icons.Rounded.Info,
-                "Only these pictures open it, so it comes from whoever gave you them. Anyone who had both the code and the " +
-                    "pictures could open it too. Save it if it is what you expected: saved entries are tagged #${Receiving.TAG}.",
-            )
+            TitleBlock(stringResource(R.string.sharing_from, payload.from), pluralStringResource(R.plurals.sharing_received_envelope_subtitle, count, count))
+            InfoBox(Icons.Rounded.Info, stringResource(R.string.sharing_received_envelope_info, Receiving.TAG))
         }
         // An address in an answer may be anyone's who saw the request; an envelope's comes from whoever gave its pictures.
         val sender = payload.from.takeIf { request != null }
@@ -264,19 +269,22 @@ private fun EnvelopePictures(model: ReceivedModel, sealed: ReceivedModel.Opening
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         TitleBlock(
-            "Entries sent to you",
-            "Made ${SharingTexts.moment(sealed.envelope.created, now)} · ${SharingTexts.expires(sealed.envelope.expires, now)}",
+            stringResource(R.string.sharing_received_envelope_title),
+            stringResource(
+                R.string.sharing_received_made,
+                SharingTexts.moment(sealed.envelope.created, now).resolve(),
+                SharingTexts.expires(sealed.envelope.expires, now).resolve(),
+            ),
         )
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("The ten pictures", Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.sharing_received_ten_pictures), Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.titleMedium)
             Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Rounded.Call, contentDescription = null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    "The sender gives them to you another way than the code: by a call, or in another app. Tap them below in " +
-                        "their order, or copy their message and paste it.",
+                    stringResource(R.string.sharing_received_ten_pictures_text),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -285,8 +293,7 @@ private fun EnvelopePictures(model: ReceivedModel, sealed: ReceivedModel.Opening
             when {
                 model.unsealing -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
                 model.wrongPictures -> Text(
-                    "These pictures do not open it. A picture misheard? Take the last ones back, or tap them again. Check " +
-                        "with the sender that these pictures belong to this code.",
+                    stringResource(R.string.sharing_received_wrong_pictures),
                     Modifier.padding(horizontal = 4.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
@@ -300,14 +307,17 @@ private fun EnvelopePictures(model: ReceivedModel, sealed: ReceivedModel.Opening
 @Composable
 private fun Unavailable(arrival: ShareRequests.Arrival) {
     when (arrival) {
-        ShareRequests.Arrival.Own -> Explanation("These are your own", "This phone sent these entries. Send the code to the one they are for.")
-        ShareRequests.Arrival.Expired -> Explanation("These entries have expired", "Ask the sender to send them again.")
-        ShareRequests.Arrival.BadDates -> Explanation(
-            "The dates are wrong",
-            "It says it was made later than now, or lasts longer than a week. Check both phones' clocks, or ask for it again.",
+        ShareRequests.Arrival.Own -> Explanation(stringResource(R.string.sharing_own_entries_title), stringResource(R.string.sharing_own_entries_text))
+        ShareRequests.Arrival.Expired -> Explanation(stringResource(R.string.sharing_expired_entries_title), stringResource(R.string.sharing_received_expired_text))
+        ShareRequests.Arrival.BadDates -> Explanation(stringResource(R.string.sharing_bad_dates_title), stringResource(R.string.sharing_bad_dates_text))
+        ShareRequests.Arrival.Saved -> Explanation(
+            stringResource(R.string.sharing_saved_already_title),
+            stringResource(R.string.sharing_received_saved_already_text, Receiving.TAG),
         )
-        ShareRequests.Arrival.Saved -> Explanation("Saved already", "These entries were saved on this phone: look for #${Receiving.TAG}.")
-        ShareRequests.Arrival.Closed, ShareRequests.Arrival.ToOpen -> Explanation("Not now", "Unlock the database and read the code again.")
+        ShareRequests.Arrival.Closed, ShareRequests.Arrival.ToOpen -> Explanation(
+            stringResource(R.string.sharing_not_now),
+            stringResource(R.string.sharing_received_not_now_text),
+        )
     }
 }
 
@@ -316,32 +326,32 @@ private fun Unavailable(arrival: ShareRequests.Arrival) {
  * until shown and copied as one; shown, it is a password's coloured characters, or plain lines when it is [text].
  */
 internal data class ReceivedRow(
-    val label: String,
+    val label: UiText,
     val value: String,
     val secret: Boolean,
     val copyable: Boolean = true,
-    val note: String? = null,
+    val note: UiText? = null,
     val text: Boolean = false,
 )
 
 /** [sender]: set for an answer, whose addresses are to be checked with them (SPEC §10.1). */
 internal fun receivedRows(entry: SharedEntry, sender: String?): List<ReceivedRow> = buildList {
-    if (entry.username.isNotEmpty()) add(ReceivedRow("Username", entry.username, false))
-    if (!entry.password.isEmpty()) add(ReceivedRow("Password", entry.password.reveal(), true))
-    if (entry.url.isNotEmpty()) add(ReceivedRow("Website", entry.url, false))
+    if (entry.username.isNotEmpty()) add(ReceivedRow(uiText(R.string.sharing_field_username), entry.username, false))
+    if (!entry.password.isEmpty()) add(ReceivedRow(uiText(R.string.sharing_field_password), entry.password.reveal(), true))
+    if (entry.url.isNotEmpty()) add(ReceivedRow(uiText(R.string.sharing_field_website), entry.url, false))
     if (entry.notes.isNotEmpty()) {
         // As on the card: a note's text is its "Note"; Notes sent protected stay masked until shown.
-        val label = if (entry.isNote) "Note" else "Notes"
+        val label = uiText(if (entry.isNote) R.string.sharing_field_note else R.string.sharing_field_notes)
         add(ReceivedRow(label, entry.notes, entry.notesProtected, text = true))
     }
     entry.customFields.forEach { field ->
         val copyable = !Receiving.isNeverCopied(entry, field)
         when (val value = field.value) {
             is FieldValue.Plain -> {
-                val note = if (sender != null && Receiving.isAddress(entry, field)) "Check it with $sender another way before paying to it." else null
-                add(ReceivedRow(field.name, value.text, false, copyable, note))
+                val note = if (sender != null && Receiving.isAddress(entry, field)) uiText(R.string.sharing_received_address_note, sender) else null
+                add(ReceivedRow(uiPlain(field.name), value.text, false, copyable, note))
             }
-            is FieldValue.Protected -> add(ReceivedRow(field.name, value.secret.reveal(), true, copyable))
+            is FieldValue.Protected -> add(ReceivedRow(uiPlain(field.name), value.secret.reveal(), true, copyable))
         }
     }
 }
@@ -350,11 +360,13 @@ internal fun receivedRows(entry: SharedEntry, sender: String?): List<ReceivedRow
 @Composable
 private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, sender: String?) {
     val rows = receivedRows(entry, sender)
-    val summary = listOfNotNull(
-        if (rows.size == 1) "1 field" else "${rows.size} fields",
-        entry.totp?.let { "a one-time code" },
-        entry.tags.takeIf { it.isNotEmpty() }?.joinToString(" ") { "#$it" },
-    ).joinToString(" · ")
+    val fields = pluralStringResource(
+        if (entry.totp != null) R.plurals.sharing_received_fields_code else R.plurals.sharing_received_fields,
+        rows.size,
+        rows.size,
+    )
+    val tags = entry.tags.takeIf { it.isNotEmpty() }?.joinToString(" ") { "#$it" }
+    val summary = if (tags != null) stringResource(R.string.sharing_received_summary_tags, fields, tags) else fields
     val total = rows.size + 1
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
@@ -364,11 +376,13 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, send
         ) {
             EntryIcon(EntryAvatar.of(entry.title.ifEmpty { entry.url }), null, 44.dp)
             Column(Modifier.weight(1f)) {
-                Text(entry.title.ifEmpty { "(Untitled)" }, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(entry.title.ifEmpty { stringResource(R.string.sharing_received_untitled) }, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        rows.forEachIndexed { row, (label, value, secret, copyable, note, text) ->
+        rows.forEachIndexed { row, (rowLabel, value, secret, copyable, rowNote, text) ->
+            val label = rowLabel.resolve()
+            val note = rowNote?.resolve()
             val key = "$index/$row"
             val empty = value.isEmpty()
             val shown = !secret || empty || key in model.revealed
@@ -379,7 +393,7 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, send
                 Column(Modifier.weight(1f)) {
                     Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     when {
-                        empty -> Text("empty", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        empty -> Text(stringResource(R.string.sharing_received_empty), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         !shown -> Text("••••••••••••", Modifier.spokenMasked("••••••••••••"), style = MaterialTheme.typography.bodyLarge)
                         secret && !text -> Text(colouredSecret(value), fontFamily = MonospaceFamily, style = MaterialTheme.typography.bodyLarge)
                         else -> Text(value, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
@@ -398,14 +412,14 @@ private fun EntryView(index: Int, entry: SharedEntry, model: ReceivedModel, send
                     IconButton(onClick = { model.toggle(key) }) {
                         Icon(
                             if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                            contentDescription = if (shown) "Hide $label" else "Show $label",
+                            contentDescription = stringResource(if (shown) R.string.sharing_received_hide else R.string.sharing_received_show, label),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
                 if (copyable) {
                     IconButton(onClick = { model.copy(label, value, sensitive = secret) }, enabled = !empty) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy $label", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.sharing_received_copy, label), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -426,21 +440,21 @@ private fun GroupChoice(model: ReceivedModel) {
     val offered = model.offered
     val into = model.database?.takeIf { offered.isNotEmpty() }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Save into", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        if (into != null) DatabaseChoice(into, offered, model.notOpen, model::saveInto)
+        Text(stringResource(R.string.sharing_received_save_into), Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        if (into != null) DatabaseChoice(into, offered, model.notOpen?.resolve(), model::saveInto)
         Surface(onClick = { open = true }, enabled = tree != null && model.groupChangeable, shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 16.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Rounded.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Column(Modifier.weight(1f)) {
                     val levels = chosen?.let { tree?.levels(it) }?.map { it.name }
                     when {
-                        levels == null -> Text("Choose a group", maxLines = 1)
-                        levels.isEmpty() -> Text(GroupTexts.TOP_LEVEL, maxLines = 1)
+                        levels == null -> Text(stringResource(R.string.sharing_received_choose_group), maxLines = 1)
+                        levels.isEmpty() -> Text(GroupTexts.TOP_LEVEL.resolve(), maxLines = 1)
                         else -> PathText(levels)
                     }
                     if (tree != null && chosen != null) {
-                        GroupTexts.note(tree, chosen, movedFrom = null, saved = "the entries are saved")?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        GroupTexts.note(tree, chosen, movedFrom = null, entries = true)?.let {
+                            Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -452,7 +466,7 @@ private fun GroupChoice(model: ReceivedModel) {
         GroupPickerSheet(
             tree = tree,
             chosen = chosen,
-            made = "made when the entries are saved",
+            made = stringResource(R.string.sharing_received_group_made_when),
             onChoose = {
                 open = false
                 model.chooseGroup(it)
@@ -479,7 +493,7 @@ private fun DatabaseChoice(chosen: NewEntryDatabase, offered: List<NewEntryDatab
                 DropdownMenuItem(
                     leadingIcon = { DatabaseDot(database.mark.colorIndex) },
                     text = { DatabaseName(database) },
-                    trailingIcon = if (database.id == chosen.id) ({ Icon(Icons.Rounded.Check, contentDescription = "Chosen") }) else null,
+                    trailingIcon = if (database.id == chosen.id) ({ Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.sharing_received_chosen)) }) else null,
                     onClick = {
                         onChoose(database.id)
                         open = false
@@ -512,15 +526,16 @@ private fun Saved(saved: ReceivedModel.Saving.Saved, fromRequest: Boolean) {
             Icon(Icons.Rounded.Check, contentDescription = null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
         }
         Spacer(Modifier.height(16.dp))
-        Text("Saved and checked", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.sharing_received_saved_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         Text(
-            (if (saved.refs.size == 1) "The entry is" else "The ${saved.refs.size} entries are") + " in ${saved.group}, tagged " +
-                "#${Receiving.TAG}. " + if (fromRequest) {
-                    "The request is closed: this phone has forgotten its key, so the code can't be opened again."
-                } else {
-                    "This phone will not save ${if (saved.refs.size == 1) "it" else "them"} again from the same code."
-                },
+            pluralStringResource(
+                if (fromRequest) R.plurals.sharing_received_saved_request else R.plurals.sharing_received_saved_envelope,
+                saved.refs.size,
+                saved.refs.size,
+                saved.group.resolve(),
+                Receiving.TAG,
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

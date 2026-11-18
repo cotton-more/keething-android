@@ -1,5 +1,6 @@
 package dev.keething.android.editor
 
+import dev.keething.android.ui.english
 import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseMark
 import dev.keething.domain.vault.Vault
@@ -58,7 +59,7 @@ class NewEntryDatabasesTest {
         assertEquals(emptyList(), NewEntryDatabases.offered(listOf(p)), "one open: nothing of this shows")
         assertEquals(listOf(p, w), NewEntryDatabases.offered(listOf(p, w)))
         val window = listOf(p.mark, DatabaseMark(DatabaseId("F"), DatabaseLabel("Family Shared"), 4), w.mark, DatabaseMark(DatabaseId("C"), DatabaseLabel("Crypto"), 5))
-        assertEquals("Not open: Family Shared, Crypto", NewEntryDatabases.notOpen(window, listOf(p, w)))
+        assertEquals("Not open: Family Shared, Crypto", NewEntryDatabases.notOpen(window, listOf(p, w))?.english())
         assertNull(NewEntryDatabases.notOpen(listOf(p.mark, w.mark), listOf(p, w)), "all open")
         assertEquals("Sync/KeePass", p.detail, "its folder under its label")
         val alike = NewEntryDatabase(work, 2, w.vault, DatabaseMark(work, DatabaseLabel("Work", "Sync/KeePass"), 2), "Sync/KeePass")

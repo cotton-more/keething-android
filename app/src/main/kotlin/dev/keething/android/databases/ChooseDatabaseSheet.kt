@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,6 +60,8 @@ import java.io.IOException
 import java.nio.file.AccessDeniedException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 
 /** A folder the user granted: its grant and where it is on the storage. */
 internal data class GrantedPlace(val grant: String, val place: StoragePlace)
@@ -192,7 +195,7 @@ internal fun ChooseDatabaseSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (at != null) {
                     IconButton(onClick = { browse(if (at.path.isEmpty()) null else at.copy(path = folderOf(at.path))) }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Up")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.databases_choose_up))
                     }
                 }
                 Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
@@ -215,25 +218,26 @@ internal fun ChooseDatabaseSheet(
                 }
             } else {
                 when (val shown = listing) {
-                    null -> Note("Looking…")
-                    FolderListing.Gone -> Note("This folder is not there any more.")
-                    FolderListing.NoAccess -> Note("Keething can no longer reach this folder: renamed, moved or deleted on a device, or its access taken back. Choose it again.")
-                    is FolderListing.Failed -> Note("The folder could not be read (${shown.why}).")
+                    null -> Note(stringResource(R.string.databases_choose_looking))
+                    FolderListing.Gone -> Note(stringResource(R.string.databases_choose_folder_gone))
+                    FolderListing.NoAccess -> Note(stringResource(R.string.databases_choose_no_access))
+                    is FolderListing.Failed -> Note(stringResource(R.string.databases_choose_folder_failed, shown.why))
                     is FolderListing.Items -> {
+                        val resources = LocalResources.current
                         val rows = shown.folders.map { name -> Item(Icons.Rounded.Folder, name) { browse(at.copy(path = pathIn(at.path, name))) } } +
                             shown.files.map { name ->
                                 val file = FileLocation.InFolder(at.folder.grant, at.folder.place, pathIn(at.path, name))
                                 val listed = databases.records.firstOrNull { it.file.isSameFile(file) }
-                                Item(Icons.Rounded.Description, name, listed?.let { "In the list as “${it.displayName}”" }) {
+                                Item(Icons.Rounded.Description, name, listed?.let { resources.getString(R.string.databases_choose_in_list, it.displayName) }) {
                                     close { onChosen(file) }
                                 }
                             }
-                        if (rows.isEmpty()) Note("No KeePass files here (.kdbx).") else Rows(rows)
+                        if (rows.isEmpty()) Note(stringResource(R.string.databases_choose_no_files)) else Rows(rows)
                     }
                 }
             }
             ChooseFolder(
-                text = if (folders.isEmpty() && at == null) "Choose a folder…" else "Choose another folder…",
+                text = stringResource(if (folders.isEmpty() && at == null) R.string.databases_choose_folder else R.string.databases_choose_another_folder),
                 cancelled = cancelled,
                 onClick = { pick(at?.folder?.place?.resolve(at.path) ?: pickAt) },
             )
@@ -306,7 +310,7 @@ private fun ChooseFolder(text: String, cancelled: Boolean, onClick: () -> Unit) 
         Column(Modifier.weight(1f)) {
             Text(text, style = MaterialTheme.typography.bodyLarge)
             Text(
-                REFUSED_FOLDERS,
+                stringResource(R.string.databases_refused_folders),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (cancelled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -314,6 +318,3 @@ private fun ChooseFolder(text: String, cancelled: Boolean, onClick: () -> Unit) 
     }
 }
 
-/** Android's picker gives no app the storage's top level or `Download` itself (stage S0): what works instead. */
-internal const val REFUSED_FOLDERS =
-    "Android gives no app the whole storage or Download itself: keep databases in a folder of their own, such as Download/KeePass or Sync/KeePass."

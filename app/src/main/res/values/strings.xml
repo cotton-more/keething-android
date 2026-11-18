@@ -1,4 +1,6 @@
 <resources>
+    <!-- Every text the user sees is a resource (keething-spec plans T13): the app's own in this file, each package's
+         in strings_<package>.xml. A count is a <plurals>; a name goes in by a placeholder, never by joining pieces. -->
     <string name="app_name">Keething</string>
     <string name="shortcut_codes">Codes</string>
     <string name="shortcut_codes_long">One-time codes</string>
@@ -8,4 +10,8 @@
     <string name="shortcut_note_from_clipboard_long">Quick note from the clipboard</string>
     <string name="tile_quick_note">Quick note</string>
     <string name="tile_quick_note_subtitle">Keething · from the clipboard</string>
+
+    <!-- "A, B and C" (ui/UiText.kt Listed) -->
+    <string name="list_separator">,\u0020</string>
+    <string name="list_last">%1$s and %2$s</string>
 </resources>

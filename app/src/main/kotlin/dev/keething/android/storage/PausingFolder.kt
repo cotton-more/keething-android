@@ -61,7 +61,7 @@ internal class PausingFolder(private val folder: GrantedFolder, private val mark
     }
 
     private companion object {
-        const val TAG = "KeethingPause"
+        const val TAG = "KeethingPause" // not user text
         const val PAUSE_SECONDS = 120
     }
 }

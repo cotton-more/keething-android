@@ -1,6 +1,9 @@
 package dev.keething.android.quicknote
 
+import dev.keething.android.R
 import dev.keething.android.clipboard.SystemClipboard
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 import dev.keething.card.editing.QuickNoteSource
 import dev.keething.domain.vault.NoteText
 import dev.keething.vault.databases.DatabaseId
@@ -27,12 +30,12 @@ internal class QuickNoteRun(
          * share's page), which waits for the unlock with it.
          */
         class Given(val text: String, val source: QuickNoteSource = QuickNoteSource()) : Source {
-            override fun toString(): String = "Given"
+            override fun toString(): String = "Given" // not user text
         }
 
         /** The clipboard's, read only once the database is open. */
         class Clipboard(val clipboard: SystemClipboard) : Source {
-            override fun toString(): String = "Clipboard"
+            override fun toString(): String = "Clipboard" // not user text
         }
     }
 
@@ -55,10 +58,10 @@ internal class QuickNoteRun(
         data object GivenUp : State
 
         /** What the screen says for it (a toast); null when it has nothing to say. */
-        val message: String?
+        val message: UiText?
             get() = when (this) {
-                is NoText -> if (fromClipboard) NO_TEXT_ON_CLIPBOARD else NO_TEXT
-                NoDatabase -> NO_DATABASE
+                is NoText -> uiText(if (fromClipboard) R.string.quicknote_no_text_on_clipboard else R.string.quicknote_no_text)
+                NoDatabase -> uiText(R.string.quicknote_no_database)
                 else -> null
             }
     }
@@ -125,11 +128,5 @@ internal class QuickNoteRun(
         // The clipboard says no app, and no browser's clip carries a page (plans/done/android-notes.md AQ0).
         openEditor(database, text, (source as? Source.Given)?.source ?: QuickNoteSource())
         state = State.Opened(database)
-    }
-
-    companion object {
-        const val NO_TEXT: String = "No text to save"
-        const val NO_TEXT_ON_CLIPBOARD: String = "No text on the clipboard"
-        const val NO_DATABASE: String = "No database to put the quick note in"
     }
 }

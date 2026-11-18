@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -50,12 +51,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CodeValue
 import dev.keething.android.ui.CustomIconImages
 import dev.keething.android.ui.EntryIcon
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.secondsLeft
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.TotpDisplay
@@ -91,7 +94,7 @@ internal fun CodeTiles(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         for (banner in state.banners) {
-            item(key = banner.key, span = { GridItemSpan(maxLineSpan) }) { Banner(title = banner.title, text = banner.text, onDismiss = banner.onDismiss, action = banner.action) }
+            item(key = banner.key, span = { GridItemSpan(maxLineSpan) }) { Banner(title = banner.title.resolve(), text = banner.text.resolve(), onDismiss = banner.onDismiss, action = banner.action?.let { (label, act) -> label.resolve() to act }) }
         }
         if (state.preparing) {
             item(key = "preparing", span = { GridItemSpan(maxLineSpan) }) {
@@ -113,8 +116,8 @@ internal fun CodeTiles(
             item(key = "nothing", span = { GridItemSpan(maxLineSpan) }) {
                 // Bare signs alone (`@`, `!`) list nothing and say nothing: the chips offer what they can be.
                 val text = when {
-                    searched -> "No code matches “$query”."
-                    query.isBlank() -> "No entry has a one-time code."
+                    searched -> stringResource(R.string.list_codes_no_match, query)
+                    query.isBlank() -> stringResource(R.string.list_codes_none)
                     else -> null
                 }
                 text?.let {
@@ -147,16 +150,19 @@ private fun CodeTileView(
     modifier: Modifier = Modifier,
 ) {
     val display = TotpDisplay.of(tile.totp, now.value)
+    val left = secondsLeft(display.secondsRemaining)
+    val copyCode = stringResource(R.string.list_copy_code)
+    val separator = stringResource(R.string.list_separator)
     Box(modifier.fillMaxWidth().clip(shape).background(MaterialTheme.extraColors.row)) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clickable(onClickLabel = "Copy code", onClick = onCopy)
+                .clickable(onClickLabel = copyCode, onClick = onCopy)
                 // The code and its seconds too: the description is all a screen reader says of the tile (keething-spec
                 // app.accessibility AC4).
                 .semantics {
-                    contentDescription = listOf(tile.title, tile.subtitle, display.formatted, secondsLeft(display.secondsRemaining))
-                        .filter { it.isNotBlank() }.joinToString(", ")
+                    contentDescription = listOf(tile.title, tile.subtitle, display.formatted, left)
+                        .filter { it.isNotBlank() }.joinToString(separator)
                 }
                 .padding(start = 16.dp, end = 56.dp, top = 14.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -172,7 +178,7 @@ private fun CodeTileView(
             Box(Modifier.padding(start = 54.dp)) { CodeValue(display, onCopyNext, fontSize = 30.sp) }
         }
         IconButton(onClick = onMore, modifier = Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 4.dp)) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = "More for ${tile.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.list_more_for, tile.title), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -182,7 +188,7 @@ private fun CodeTileView(
 private fun CodeSubtitle(tile: CodeTile) {
     if (tile.subtitle.isEmpty()) return
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        if (tile.further) Icon(Icons.Rounded.Title, contentDescription = "Field", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (tile.further) Icon(Icons.Rounded.Title, contentDescription = stringResource(R.string.list_field), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(tile.subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -206,14 +212,23 @@ internal fun CodeSheet(
     onDismiss: () -> Unit,
 ) {
     val delete = when {
-        deletesEntry -> SheetItem("Move entry to the recycle bin", Icons.Rounded.Delete, "Its one-time code is all “${tile.title}” holds", danger = true, act = onDelete)
-        tile.further -> SheetItem("Delete from the entry", Icons.Rounded.Delete, "The field “${tile.subtitle}” goes from ${tile.title}", danger = true, act = onDelete)
-        else -> SheetItem("Delete from the entry", Icons.Rounded.Delete, "Its one-time code goes from ${tile.title}", danger = true, act = onDelete)
+        deletesEntry -> SheetItem(
+            stringResource(R.string.list_code_move_entry), Icons.Rounded.Delete,
+            stringResource(R.string.list_code_move_entry_detail, tile.title), danger = true, act = onDelete,
+        )
+        tile.further -> SheetItem(
+            stringResource(R.string.list_code_delete), Icons.Rounded.Delete,
+            stringResource(R.string.list_code_delete_field_detail, tile.subtitle, tile.title), danger = true, act = onDelete,
+        )
+        else -> SheetItem(
+            stringResource(R.string.list_code_delete), Icons.Rounded.Delete,
+            stringResource(R.string.list_code_delete_detail, tile.title), danger = true, act = onDelete,
+        )
     }
     val actions = listOf(
-        SheetItem("Copy code", Icons.Rounded.ContentCopy, act = onCopy),
-        SheetItem("Open entry", Icons.Rounded.Description, act = onOpenEntry),
-        SheetItem("Edit code…", Icons.Rounded.Edit, act = onEdit),
+        SheetItem(stringResource(R.string.list_copy_code), Icons.Rounded.ContentCopy, act = onCopy),
+        SheetItem(stringResource(R.string.list_code_open_entry), Icons.Rounded.Description, act = onOpenEntry),
+        SheetItem(stringResource(R.string.list_code_edit), Icons.Rounded.Edit, act = onEdit),
         delete,
     )
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {

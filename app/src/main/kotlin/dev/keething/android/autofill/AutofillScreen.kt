@@ -33,15 +33,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.list.EntryRowView
 import dev.keething.android.list.SearchField
 import dev.keething.android.list.SectionTitle
 import dev.keething.android.list.title
+import dev.keething.android.ui.uiText
 import dev.keething.search.EntrySearch
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.Notice
@@ -90,15 +93,15 @@ private fun NoDatabase(onClose: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("No database chosen yet", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.autofill_no_database_title), style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Open Keething and choose the database first.",
+            stringResource(R.string.autofill_no_database_text),
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
-        FilledTonalButton(onClick = onClose) { Text("Close") }
+        FilledTonalButton(onClick = onClose) { Text(stringResource(R.string.autofill_close)) }
     }
 }
 
@@ -110,8 +113,9 @@ private fun EntryPicker(
     onFill: (Entry) -> Boolean,
     onClose: () -> Unit,
 ) {
+    val unnamedCode = stringResource(R.string.list_one_time_code)
     val model = viewModel(key = "picker") {
-        AutofillPickerModel(container.sessions.open, container.recents, container.autofillEntries, request)
+        AutofillPickerModel(container.sessions.open, container.recents, container.autofillEntries, request, unnamedCode)
     }
     val state by model.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -122,8 +126,8 @@ private fun EntryPicker(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { BarTitle("Choose an entry", "to fill $target") },
-                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close without filling") } },
+                title = { BarTitle(stringResource(R.string.autofill_pick_title), stringResource(R.string.autofill_pick_subtitle, target)) },
+                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.autofill_pick_close)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
@@ -150,13 +154,13 @@ private fun EntryPicker(
                         onOpen = {
                             val entry = model.entry(row.id)
                             if (entry != null && !onFill(entry)) {
-                                val what = if (request.form.asksOnlyForCode) "no one-time code" else "nothing for these fields"
-                                notices.trySend(Notice("${entry.displayTitle} has $what", isProblem = true))
+                                val what = if (request.form.asksOnlyForCode) R.string.autofill_pick_no_code else R.string.autofill_pick_nothing_for_fields
+                                notices.trySend(Notice(uiText(what, entry.displayTitle), isProblem = true))
                             }
                         },
                         onLongPress = null,
                         onCode = null,
-                        onOpenLabel = "Fill",
+                        onOpenLabel = stringResource(R.string.autofill_pick_fill),
                         modifier = Modifier.padding(bottom = SegmentGap),
                     )
                 }
@@ -166,7 +170,7 @@ private fun EntryPicker(
             if (!state.preparing && state.sections.isEmpty() && !EntrySearch.isEmpty(model.query.text.toString())) {
                 item(key = "nothing") {
                     Text(
-                        "Nothing matches “${model.query.text}”.",
+                        stringResource(R.string.autofill_pick_nothing_matches, model.query.text),
                         Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

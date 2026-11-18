@@ -47,7 +47,7 @@ internal class Keyring private constructor(
         return try {
             encoded.useBytes { KeyFactory.getInstance(ALGORITHM).generatePrivate(PKCS8EncodedKeySpec(it)) }
         } catch (failure: GeneralSecurityException) {
-            throw UnreadableSealException("not a private key", failure)
+            throw UnreadableSealException("not a private key", failure) // not user text
         } finally {
             encoded.wipe()
         }
@@ -77,12 +77,12 @@ internal class Keyring private constructor(
             val buffer = ByteBuffer.wrap(bytes, HEADER.size, bytes.size - HEADER.size)
             val keystoreKey = ByteArray(HASH_BYTES).also { buffer.get(it) }
             val publicSize = buffer.short.toInt() and 0xFFFF
-            if (buffer.remaining() <= publicSize) throw UnreadableSealException("cut short")
+            if (buffer.remaining() <= publicSize) throw UnreadableSealException("cut short") // not user text
             val public = ByteArray(publicSize).also { buffer.get(it) }
             val publicKey = try {
                 KeyFactory.getInstance(ALGORITHM).generatePublic(X509EncodedKeySpec(public))
             } catch (failure: GeneralSecurityException) {
-                throw UnreadableSealException("not a public key", failure)
+                throw UnreadableSealException("not a public key", failure) // not user text
             }
             return Keyring(keystoreKey, publicKey, ByteArray(buffer.remaining()).also { buffer.get(it) })
         }

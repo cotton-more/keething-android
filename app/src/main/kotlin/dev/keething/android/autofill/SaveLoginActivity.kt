@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -46,10 +47,14 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.keething.android.AppContainer
 import dev.keething.android.KeethingApplication
+import dev.keething.android.R
 import dev.keething.android.editor.EntryEditorScreen
 import dev.keething.android.editor.deletedGroupsNote
 import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.session.OpenDatabase
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiText
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.EntryRef
 import dev.keething.android.theme.KeethingTheme
@@ -87,7 +92,7 @@ class SaveLoginActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val save = model.save
         if (save == null) {
-            Toast.makeText(this, "Nothing to save: the login was typed too long ago", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.autofill_save_nothing, Toast.LENGTH_LONG).show()
             return finish()
         }
         // Autofill's: what it opens asks nothing (keething-spec unlock.reminder-not-a-lock AC5).
@@ -100,7 +105,7 @@ class SaveLoginActivity : ComponentActivity() {
                 SaveLoginScreen(
                     container, model, save, label,
                     onDone = { text ->
-                        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, text.resolve(resources), Toast.LENGTH_SHORT).show()
                         finish()
                     },
                     onClose = ::finish,
@@ -127,7 +132,7 @@ private fun SaveLoginScreen(
     model: SaveLoginModel,
     save: PendingSave,
     label: String,
-    onDone: (String) -> Unit,
+    onDone: (UiText) -> Unit,
     onClose: () -> Unit,
 ) {
     val database by container.sessions.current.collectAsStateWithLifecycle()
@@ -142,7 +147,7 @@ private fun SaveLoginScreen(
         val plan = remember(model.asNew) { plan(container, open, save, label, model.asNew) }
         val password = remember { save.password.reveal() }
         when (plan) {
-            is SavePlan.Unchanged -> LaunchedEffect(plan) { onDone("Already saved in Keething: ${plan.entry.displayTitle}") }
+            is SavePlan.Unchanged -> LaunchedEffect(plan) { onDone(uiText(R.string.autofill_save_already_saved, plan.entry.displayTitle)) }
             is SavePlan.Update -> EntryEditorScreen(
                 // The entry's own database; once it is not open (locked alone meanwhile), the editor and its password go.
                 database = EntryRef.of(plan.entry.id).database.takeIf { id -> open.any { it.database.id == id } }?.let(container.sessions::session)
@@ -152,13 +157,18 @@ private fun SaveLoginScreen(
                 generator = container::passwordGenerator,
                 copySecret = { container.clipboard.copy(it, sensitive = true) },
                 onClose = onClose,
-                onSaved = { _, deleted -> onDone(listOfNotNull("Password updated in Keething", deletedGroupsNote(deleted)).joinToString(". ")) },
+                onSaved = { _, deleted ->
+                    onDone(
+                        deletedGroupsNote(deleted)?.let { uiText(R.string.autofill_save_password_updated_groups_deleted, it) }
+                            ?: uiText(R.string.autofill_save_password_updated),
+                    )
+                },
                 prefill = { it.copy(password = password) },
                 banner = {
                     Banner(
-                        "Update the password of “${plan.entry.displayTitle}”?",
-                        "The password typed in $label is new for this account.",
-                        action = "Save as a new entry instead" to { model.asNew = true },
+                        stringResource(R.string.autofill_save_update_title, plan.entry.displayTitle),
+                        stringResource(R.string.autofill_save_update_text, label),
+                        action = stringResource(R.string.autofill_save_as_new) to { model.asNew = true },
                     )
                 },
             )
@@ -169,9 +179,9 @@ private fun SaveLoginScreen(
                 generator = container::passwordGenerator,
                 copySecret = { container.clipboard.copy(it, sensitive = true) },
                 onClose = onClose,
-                onSaved = { _, _ -> onDone("Saved to Keething") },
+                onSaved = { _, _ -> onDone(uiText(R.string.autofill_save_saved)) },
                 prefill = { it.copy(title = plan.title, url = plan.url, username = save.username.ifEmpty { it.username }, password = password) },
-                banner = { Banner("Save the login typed in $label", "A new entry; check its name and group.") },
+                banner = { Banner(stringResource(R.string.autofill_save_new_title, label), stringResource(R.string.autofill_save_new_text)) },
                 places = remember { container.newEntryPlaces() },
                 showing = showing,
             )
@@ -221,10 +231,10 @@ private fun NoDatabase(onClose: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("No database chosen yet", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.autofill_no_database_title), style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
-        Text("Open Keething and choose the database first.", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.autofill_no_database_text), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
-        FilledTonalButton(onClick = onClose) { Text("Close") }
+        FilledTonalButton(onClick = onClose) { Text(stringResource(R.string.autofill_close)) }
     }
 }

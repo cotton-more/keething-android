@@ -1,5 +1,6 @@
 package dev.keething.android.sharing
 
+import dev.keething.android.ui.english
 import dev.keething.domain.vault.Entry
 import dev.keething.sharing.payload.EntryPart
 import kotlin.test.Test
@@ -9,7 +10,7 @@ import kotlin.test.assertEquals
 class PartPreviewTest {
     @Test
     fun protectedNotesAreMaskedUnprotectedOnesShowTheirFirstLine() {
-        assertEquals("Dune", EntryPart.Notes.preview(Entry("n", title = "Films", notes = "Dune\nArrival")))
-        assertEquals("••••••••", EntryPart.Notes.preview(Entry("p", title = "Films", notes = "Zanzibar\nArrival", notesProtected = true)))
+        assertEquals("Dune", EntryPart.Notes.preview(Entry("n", title = "Films", notes = "Dune\nArrival")).english())
+        assertEquals("••••••••", EntryPart.Notes.preview(Entry("p", title = "Films", notes = "Zanzibar\nArrival", notesProtected = true)).english())
     }
 }

@@ -1,5 +1,6 @@
 package dev.keething.android.editor
 
+import dev.keething.android.ui.english
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultGroup
@@ -18,10 +19,10 @@ class SaveTextsTest {
 
     @Test
     fun theSaveNamesTheEmptyGroupsItDeletedByTheirPaths() {
-        assertEquals("Saved and checked", savedText(emptyList()))
-        assertEquals("Saved and checked. The empty group “Work › Old” was deleted.", savedText(listOf(old)))
-        assertEquals("Saved and checked. The empty groups “Work › Old › Deep” and “Work › Old” were deleted.", savedText(listOf(deep, old)))
-        assertEquals("The empty groups “Work › Old › Deep”, “Work › Old” and “Spare” were deleted.", deletedGroupsNote(listOf(deep, old, spare)))
+        assertEquals("Saved and checked", savedText(emptyList()).english())
+        assertEquals("Saved and checked. The empty group “Work › Old” was deleted.", savedText(listOf(old)).english())
+        assertEquals("Saved and checked. The empty groups “Work › Old › Deep” and “Work › Old” were deleted.", savedText(listOf(deep, old)).english())
+        assertEquals("The empty groups “Work › Old › Deep”, “Work › Old” and “Spare” were deleted.", deletedGroupsNote(listOf(deep, old, spare))?.english())
         assertNull(deletedGroupsNote(emptyList()))
     }
 
@@ -29,13 +30,13 @@ class SaveTextsTest {
     fun aGroupChangeRefusedSaysWhyAndThatNothingWasSaved() {
         val file = File("Work.kdbx")
 
-        assertEquals("A group of that name is already there (made elsewhere?). Nothing was saved.", SaveFailure.GroupNameTaken.describe(file))
-        assertEquals("The group is not empty any more (changed elsewhere?). Nothing was deleted.", SaveFailure.GroupNotEmpty.describe(file))
-        assertEquals("A group needs a name. Nothing was saved.", SaveFailure.InvalidName.describe(file))
+        assertEquals("A group of that name is already there (made elsewhere?). Nothing was saved.", SaveFailure.GroupNameTaken.describe(file).english())
+        assertEquals("The group is not empty any more (changed elsewhere?). Nothing was deleted.", SaveFailure.GroupNotEmpty.describe(file).english())
+        assertEquals("A group needs a name. Nothing was saved.", SaveFailure.InvalidName.describe(file).english())
         assertEquals(
             "This group cannot be changed so (the top level, the recycle bin or a group in it, or a move into itself or " +
                 "where it is; changed elsewhere?). Nothing was saved.",
-            SaveFailure.GroupNotChangeable.describe(file),
+            SaveFailure.GroupNotChangeable.describe(file).english(),
         )
     }
 
@@ -46,7 +47,7 @@ class SaveTextsTest {
             entries = listOf(Entry("g", title = "GitHub")),
             groups = listOf(VaultGroup("r", "Root", emptyList()), old),
         )
-        fun said(vararg changes: UnsavedChange) = unsavedText(changes.toList(), vault)
+        fun said(vararg changes: UnsavedChange) = unsavedText(changes.toList(), vault)?.english()
 
         assertNull(said())
         assertEquals(

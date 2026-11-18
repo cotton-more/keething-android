@@ -19,14 +19,16 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.core.content.IntentCompat
 import dev.keething.android.KeethingApplication
+import dev.keething.android.ui.UiText
 import dev.keething.android.ui.qrCodeOf
+import dev.keething.android.ui.resolve
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.util.UUID
 
 /** One QR code of a request or an answer as a picture to send or keep, with what it is written under it. */
-internal class CodePicture(val qrText: String, val fileName: String, val caption: List<String>)
+internal class CodePicture(val qrText: String, val fileName: String, val caption: List<UiText>)
 
 /**
  * The pictures a request or an answer travels as (SPEC §10): the QR code black on white, each module whole pixels, the
@@ -45,7 +47,7 @@ internal class CodePictures(private val context: Context) {
     }
 
     fun png(picture: CodePicture): ByteArray {
-        val code = qrCodeOf(picture.qrText) ?: throw IOException("too large for a QR code")
+        val code = qrCodeOf(picture.qrText) ?: throw IOException("too large for a QR code") // not user text (a detail after "Could not make the picture:", as the system's own are)
         val modules = code.size + 2 * QUIET_ZONE
         val scale = maxOf(4, WIDTH / modules)
         val side = modules * scale
@@ -68,7 +70,7 @@ internal class CodePictures(private val context: Context) {
             }
         }
         picture.caption.forEachIndexed { index, line ->
-            val fitted = TextUtils.ellipsize(line, paint, side - 2f * QUIET_ZONE * scale, TextUtils.TruncateAt.END).toString()
+            val fitted = TextUtils.ellipsize(line.resolve(context.resources), paint, side - 2f * QUIET_ZONE * scale, TextUtils.TruncateAt.END).toString()
             canvas.drawText(fitted, (side - paint.measureText(fitted)) / 2, side - scale * QUIET_ZONE / 2f + lineHeight * (index + 0.8f), paint)
         }
         return ByteArrayOutputStream().use { out ->
@@ -122,13 +124,13 @@ internal class CodePictures(private val context: Context) {
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, picture.fileName)
                 put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Keething")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Keething") // not user text
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
             val uri = resolver.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
-                ?: throw IOException("the gallery refused the picture")
+                ?: throw IOException("the gallery refused the picture") // not user text (a detail after "Could not save the picture:", as the system's own are)
             try {
-                resolver.openOutputStream(uri)?.use { it.write(png(picture)) } ?: throw IOException("the gallery refused the picture")
+                resolver.openOutputStream(uri)?.use { it.write(png(picture)) } ?: throw IOException("the gallery refused the picture") // not user text (as above)
                 resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null)
             } catch (failure: IOException) {
                 resolver.delete(uri, null, null)
@@ -138,8 +140,8 @@ internal class CodePictures(private val context: Context) {
     }
 
     /** The share sheet with [text]: a few words for the person and the code itself, or an envelope's pictures. */
-    fun sendTextIntent(text: String, route: Route? = null): Intent =
-        chooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), route)
+    fun sendTextIntent(text: UiText, route: Route? = null): Intent =
+        chooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text.resolve(context.resources)), route)
 
     private companion object {
         /** Readers need four modules of white around a code. */

@@ -1,5 +1,8 @@
 package dev.keething.android.editor
 
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 import dev.keething.android.clipboard.SystemClipboard
 import dev.keething.card.editing.EntryDraft
 import dev.keething.card.editing.EntryEditor
@@ -27,7 +30,7 @@ internal class NewNote(
     val source: QuickNoteSource = QuickNoteSource(),
 ) {
     /** Its own after a process died too, when the activity's saved state comes back under the screens' names. */
-    private val name = "NewNote#" + UUID.randomUUID()
+    private val name = "NewNote#" + UUID.randomUUID() // not user text
 
     override fun toString(): String = name
 
@@ -54,7 +57,7 @@ internal class NewNote(
  * the clipboard's text read once, on the tap (the app in front), outer blank lines trimmed; the clipboard left as it was.
  */
 internal object NoteFromClipboard {
-    const val NO_TEXT: String = "No text on the clipboard"
+    val NO_TEXT: UiText = uiText(R.string.editor_note_no_text_on_clipboard)
 
     /** The text the note starts with; null when the clipboard holds none, or only blank lines. */
     fun read(clipboard: SystemClipboard): String? =

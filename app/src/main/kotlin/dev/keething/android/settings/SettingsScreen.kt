@@ -1,5 +1,7 @@
 package dev.keething.android.settings
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import dev.keething.android.about.BuildInfo
@@ -70,6 +72,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.R
+import dev.keething.android.ui.resolve
 import dev.keething.android.databases.DatabasesSetting
 import dev.keething.android.list.seconds
 import dev.keething.vault.databases.DatabaseSession
@@ -107,20 +111,20 @@ internal fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(Modifier.height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
-            Text("Settings", style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.settings_back)) }
+            Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge)
         }
         DatabasesSetting(container, onDatabase)
-        Group("Quick notes") {
+        Group(stringResource(R.string.settings_quick_notes)) {
             QuickNotesSetting(container)
         }
-        Group("Fingerprint") {
+        Group(stringResource(R.string.settings_fingerprint)) {
             FingerprintSetting(container)
         }
-        Group("Autofill") {
+        Group(stringResource(R.string.settings_autofill)) {
             AutofillSetting()
         }
-        Group("Lock after this long in the background") {
+        Group(stringResource(R.string.settings_lock_timeout)) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 AppSettings.LOCK_TIMEOUTS.forEachIndexed { index, option ->
                     SegmentedButton(
@@ -128,20 +132,26 @@ internal fun SettingsScreen(
                         onClick = { container.settings.chooseLockTimeout(option) },
                         shape = SegmentedButtonDefaults.itemShape(index, AppSettings.LOCK_TIMEOUTS.size),
                     ) {
-                        FitText(if (option.inWholeMinutes < 60) "${option.inWholeMinutes} min" else "1 h")
+                        FitText(
+                            if (option.inWholeMinutes < 60) {
+                                pluralStringResource(R.plurals.settings_minutes, option.inWholeMinutes.toInt(), option.inWholeMinutes.toInt())
+                            } else {
+                                pluralStringResource(R.plurals.settings_hours, option.inWholeHours.toInt(), option.inWholeHours.toInt())
+                            },
+                        )
                     }
                 }
             }
             Text(
-                "Turning the screen off counts as the background. The clipboard is cleared 30 s after a copy.",
+                stringResource(R.string.settings_lock_timeout_detail),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Group("Theme") {
+        Group(stringResource(R.string.settings_theme)) {
             ThemeSetting(container)
         }
-        Group("Sharing: requests and pictures last") {
+        Group(stringResource(R.string.settings_request_validity)) {
             val validity by container.settings.requestValidity.collectAsStateWithLifecycle()
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 AppSettings.REQUEST_VALIDITIES.forEachIndexed { index, option ->
@@ -150,42 +160,42 @@ internal fun SettingsScreen(
                         onClick = { container.settings.chooseRequestValidity(option) },
                         shape = SegmentedButtonDefaults.itemShape(index, AppSettings.REQUEST_VALIDITIES.size),
                     ) {
-                        FitText(if (option.inWholeDays == 1L) "1 day" else "${option.inWholeDays} days")
+                        FitText(pluralStringResource(R.plurals.settings_days, option.inWholeDays.toInt(), option.inWholeDays.toInt()))
                     }
                 }
             }
             Text(
-                "Then the phone that asked forgets its key, and an answer can no longer be opened; the phone that sent " +
-                    "entries without a request forgets their pictures. New ones only.",
+                stringResource(R.string.settings_request_validity_detail),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Group("This phone") {
+        Group(stringResource(R.string.settings_this_phone)) {
             val keyDerivation = (session as? SessionState.Unlocked)?.keyDerivation
             Text(
-                keyDerivation?.let { "The last unlock derived the key in ${it.seconds()}." }
-                    ?: "The last read of the file reused the derived key.",
+                keyDerivation?.let { stringResource(R.string.settings_key_derived_in, it.seconds().resolve()) }
+                    ?: stringResource(R.string.settings_key_reused),
                 style = MaterialTheme.typography.bodyMedium,
             )
             val runtime = Runtime.getRuntime()
             Text(
-                "Memory: ${usedMemory.longValue / MIB}\u00A0MiB used of ${runtime.maxMemory() / MIB}\u00A0MiB.",
+                stringResource(R.string.settings_memory, usedMemory.longValue / MIB, runtime.maxMemory() / MIB),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
-            Group("Debug build") {
-                FilledTonalButton(onClick = onStorageProbe) { Text("Storage probe") }
+            // Only the debug build has this group (and the probe it opens).
+            Group("Debug build") { // not user text: the debug build's
+                FilledTonalButton(onClick = onStorageProbe) { Text("Storage probe") } // not user text: the debug build's
             }
         }
-        Group("About") {
+        Group(stringResource(R.string.settings_about)) {
             val info = remember { BuildInfo.read(context.assets) }
-            Text("Keething for Android ${info.versionText}.", style = MaterialTheme.typography.bodyMedium)
-            Text("Passwords and codes are set in Google Sans Code (SIL Open Font License 1.1).", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.settings_about_version, info.versionText.resolve()), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.settings_about_typeface), style = MaterialTheme.typography.bodyMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = { container.about.shown = true }) { Text("About Keething") }
-                FilledTonalButton(onClick = { ProblemReport.open(context) }) { Text("Report a problem") }
+                FilledTonalButton(onClick = { container.about.shown = true }) { Text(stringResource(R.string.settings_about_keething)) }
+                FilledTonalButton(onClick = { ProblemReport.open(context) }) { Text(stringResource(R.string.settings_report_problem)) }
             }
         }
     }
@@ -208,7 +218,7 @@ private fun ThemeSetting(container: AppContainer) {
                 },
                 shape = SegmentedButtonDefaults.itemShape(index, ThemeChoice.entries.size),
             ) {
-                FitText(option.label)
+                FitText(option.label.resolve())
             }
         }
     }
@@ -230,10 +240,10 @@ private fun QuickNotesSetting(container: AppContainer) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Quick notes go to", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.settings_quick_notes_go_to), style = MaterialTheme.typography.bodyLarge)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     chosen?.colorIndex?.let { DatabaseDot(it) }
-                    Text(destination.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(destination.summary.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Icon(Icons.Rounded.ExpandMore, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -247,11 +257,11 @@ private fun QuickNotesSetting(container: AppContainer) {
                     },
                     text = {
                         Column {
-                            Text(choice.title)
-                            choice.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Text(choice.title.resolve())
+                            choice.detail?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                     },
-                    trailingIcon = if (choice.id == destination.selected) ({ Icon(Icons.Rounded.Check, contentDescription = "Chosen") }) else null,
+                    trailingIcon = if (choice.id == destination.selected) ({ Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.settings_chosen)) }) else null,
                     onClick = {
                         container.settings.chooseQuickNoteDatabase(choice.id)
                         open = false
@@ -260,11 +270,9 @@ private fun QuickNotesSetting(container: AppContainer) {
             }
         }
     }
-    destination.note?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+    destination.note?.let { Text(it.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
     Text(
-        "Text shared to Keething note or picked from a text's menu, the tile and the launcher's Note from clipboard " +
-            "open a new note in that database's Inbox, made with the note when there is none. Nothing is saved until " +
-            "you save it.",
+        stringResource(R.string.settings_quick_notes_detail),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -273,7 +281,7 @@ private fun QuickNotesSetting(container: AppContainer) {
     FilledTonalButton(onClick = { QuickNoteTile.requestAdd(context) { Toast.makeText(context.applicationContext, it, Toast.LENGTH_LONG).show() } }) {
         Icon(Icons.Rounded.DashboardCustomize, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
-        Text("Add the Quick note tile")
+        Text(stringResource(R.string.settings_quick_note_tile_add))
     }
 }
 
@@ -285,12 +293,7 @@ private fun AutofillSetting() {
     var enabled by remember { mutableStateOf(manager?.hasEnabledAutofillServices() == true) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { enabled = manager?.hasEnabledAutofillServices() == true }
     Text(
-        if (enabled) {
-            "On: apps and browsers offer the matching entries. In Chrome, also choose Settings › Autofill services › " +
-                "Autofill using another service; Firefox needs nothing."
-        } else {
-            "Off: another service fills, or none."
-        },
+        stringResource(if (enabled) R.string.settings_autofill_on else R.string.settings_autofill_off),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -298,7 +301,7 @@ private fun AutofillSetting() {
         FilledTonalButton(onClick = {
             val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).setData(Uri.parse("package:${context.packageName}"))
             runCatching { context.startActivity(intent) }
-        }) { Text("Use Keething for autofill") }
+        }) { Text(stringResource(R.string.settings_autofill_use)) }
     }
 }
 
@@ -321,14 +324,13 @@ private fun FingerprintSetting(container: AppContainer) {
         ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Unlock with the fingerprint", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.settings_fingerprint_unlock), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Switch(checked = state.enabled, onCheckedChange = null, enabled = state.enabled || unavailable == null)
     }
-    val problem = deleteFailure?.let { "The stored passwords could not be deleted: $it." }
+    val problem = deleteFailure?.let { stringResource(R.string.settings_fingerprint_not_deleted, it) }
     Text(
-        problem ?: unavailable?.let { "Not available: ${it.reason}." }
-            ?: "Each database whose Use fingerprint is on opens with it: its lock screen offers it once, by the fingerprint " +
-                "beside the password, and its page in Databases turns it on or off. Turning this off deletes all their stored passwords.",
+        problem ?: unavailable?.let { stringResource(R.string.settings_fingerprint_unavailable, it.reason) }
+            ?: stringResource(R.string.settings_fingerprint_detail),
         style = MaterialTheme.typography.bodyMedium,
         color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -342,7 +344,7 @@ private fun FingerprintSetting(container: AppContainer) {
 @Composable
 private fun PasswordReminderSetting(setup: BiometricSetup, reminderDays: Int?) {
     Spacer(Modifier.height(4.dp))
-    Text("Ask about each master key every", style = MaterialTheme.typography.bodyLarge)
+    Text(stringResource(R.string.settings_reminder), style = MaterialTheme.typography.bodyLarge)
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         BiometricState.REMINDER_CHOICES.forEachIndexed { index, days ->
             SegmentedButton(
@@ -350,14 +352,13 @@ private fun PasswordReminderSetting(setup: BiometricSetup, reminderDays: Int?) {
                 onClick = { setup.setReminderDays(days) },
                 shape = SegmentedButtonDefaults.itemShape(index, BiometricState.REMINDER_CHOICES.size),
             ) {
-                FitText(if (days == null) "Never" else "$days days")
+                FitText(if (days == null) stringResource(R.string.settings_reminder_never) else pluralStringResource(R.plurals.settings_days, days, days))
             }
         }
     }
     if (reminderDays != null) {
         Text(
-            "After this long without its master password typed, Keething asks once, after an unlock, whether you still " +
-                "remember it (or keep its key file safe). The fingerprint opens it all the same.",
+            stringResource(R.string.settings_reminder_detail),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -371,8 +372,7 @@ private fun PasswordReminderSetting(setup: BiometricSetup, reminderDays: Int?) {
     ) {
         Icon(Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
         Text(
-            "Keething never asks. A forgotten master password, or a lost key file, opens its database for nobody, not " +
-                "even with Keething.",
+            stringResource(R.string.settings_reminder_never_detail),
             style = MaterialTheme.typography.bodyMedium,
         )
     }

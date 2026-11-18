@@ -5,6 +5,7 @@ import dev.keething.android.clipboard.SystemClipboard
 import dev.keething.android.list.NewChoice
 import dev.keething.android.navigation.NavigationState
 import dev.keething.android.navigation.Screen
+import dev.keething.android.ui.english
 import dev.keething.card.editing.EditorLayout
 import dev.keething.card.editing.EntryDraft
 import dev.keething.card.editing.GroupChoice
@@ -46,8 +47,8 @@ class NewNoteTest {
 
     @Test
     fun thePlusMenuOffersANewEntryANoteAndANoteFromTheClipboard() {
-        assertEquals(listOf("New entry", "New note", "New note from clipboard"), NewChoice.entries.map { it.title })
-        assertEquals("Opens it with the copied text", NewChoice.NOTE_FROM_CLIPBOARD.subtitle)
+        assertEquals(listOf("New entry", "New note", "New note from clipboard"), NewChoice.entries.map { it.title.english() })
+        assertEquals("Opens it with the copied text", NewChoice.NOTE_FROM_CLIPBOARD.subtitle?.english())
     }
 
     @Test
@@ -62,7 +63,7 @@ class NewNoteTest {
     fun noTextOrABlankOneIsNone() {
         assertNull(NoteFromClipboard.read(FakeSystemClipboard(null)), "nothing, or not text (a picture), or the app not in front")
         assertNull(NoteFromClipboard.read(FakeSystemClipboard(" \n\t\n")), "blank is no text")
-        assertEquals("No text on the clipboard", NoteFromClipboard.NO_TEXT)
+        assertEquals("No text on the clipboard", NoteFromClipboard.NO_TEXT.english())
     }
 
     @Test

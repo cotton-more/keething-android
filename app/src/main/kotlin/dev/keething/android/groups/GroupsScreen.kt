@@ -30,12 +30,19 @@ import dev.keething.android.editor.NewEntryDatabase
 import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.SaveIntoSheet
 import dev.keething.android.editor.problem
+import androidx.annotation.StringRes
+import dev.keething.android.R
 import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.Notice
 import dev.keething.android.ui.NoticeEffect
 import dev.keething.android.ui.NoticeHost
 import dev.keething.android.ui.PathText
+import dev.keething.android.ui.UiText
 import dev.keething.android.ui.keepOutOfAutofill
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiText
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import dev.keething.card.editing.GroupChanges
 import dev.keething.card.editing.GroupTree
 import dev.keething.domain.vault.Entry
@@ -181,7 +188,7 @@ internal class GroupsViewModel(
         private set
 
     /** Under the dialog's field: why the name is refused, or why its save failed. */
-    var dialogProblem: String? by mutableStateOf(null)
+    var dialogProblem: UiText? by mutableStateOf(null)
         private set
     var moving: GroupRef? by mutableStateOf(null)
         private set
@@ -329,7 +336,7 @@ internal class GroupsViewModel(
         save(database, VaultEdit.DeleteEmptyGroup(ref.groupId), ref.groupId, GroupTexts.deleted(group))
     }
 
-    private fun save(database: OpenDatabase, edit: VaultEdit, row: String, done: String) {
+    private fun save(database: OpenDatabase, edit: VaultEdit, row: String, done: UiText) {
         val inDialog = dialog != null
         val pending = database.database.session.save(edit)
         if (pending == null) {
@@ -351,12 +358,12 @@ internal class GroupsViewModel(
         }
     }
 
-    private fun notice(problem: String) {
+    private fun notice(problem: UiText) {
         mutableNotices.trySend(Notice(problem, isProblem = true))
     }
 
     private companion object {
-        const val GONE = "That group is no longer there as it was (changed elsewhere?). Nothing was saved."
+        val GONE: UiText = uiText(R.string.groups_gone)
     }
 }
 
@@ -394,13 +401,13 @@ internal fun GroupsScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { BarTitle("Groups & tags", null) },
+                title = { BarTitle(stringResource(R.string.groups_title), null) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.groups_back)) }
                 },
                 actions = {
                     IconButton(onClick = model::newGroupInBar, enabled = !blocks.isNullOrEmpty()) {
-                        Icon(Icons.Rounded.CreateNewFolder, contentDescription = "New group")
+                        Icon(Icons.Rounded.CreateNewFolder, contentDescription = stringResource(R.string.groups_new_group))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -428,12 +435,13 @@ internal fun GroupsScreen(
                 val foldable = current.size >= 2
                 for (block in current) {
                     val isOpen = !foldable || block.id !in foldedIds
-                    stickyHeader(key = "head/${block.id.value}", contentType = "block header") {
+                    stickyHeader(key = "head/${block.id.value}", contentType = "block header") { // not user text
                         BlockHeader(block, foldable, isOpen, readOnly = block.id in readOnlyIds, onFold = { folded.update { if (isOpen) it + block.id else it - block.id } })
                     }
                     if (isOpen) content(block, model.saving, announceSaving = model.dialog == null, onSearch, onHold = { model.openSheet(GroupsViewModel.GroupRef(block.id, it)) })
                     item(key = "end/${block.id.value}", contentType = "gap") { Spacer(Modifier.height(20.dp)) }
                 }
+                // not user text
                 if (notOpen.isNotEmpty()) item(key = "not open") { NotOpenRow(notOpen, onLockScreen) }
             }
         }
@@ -459,8 +467,8 @@ internal fun GroupsScreen(
                 made = "",
                 onChoose = { model.move(it.groupId) },
                 onDismiss = model::closeMove,
-                title = GroupTexts.moveTitle(group),
-                subtitle = GroupTexts.moveSubtitle(group, tree.node(group.id)?.total ?: 0),
+                title = GroupTexts.moveTitle(group).resolve(),
+                subtitle = GroupTexts.moveSubtitle(group, tree.node(group.id)?.total ?: 0).resolve(),
                 refusal = { target -> changes.moveRefusal(group.id, target)?.let { GroupTexts.moveRefusal(group, it) } },
             )
         }
@@ -469,11 +477,13 @@ internal fun GroupsScreen(
         SaveIntoSheet(
             offered = databases(open.value),
             chosen = null,
-            notOpen = notOpen.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Not open: ") { it.line.label.full },
+            notOpen = notOpen.takeIf { it.isNotEmpty() }?.let { databases ->
+                stringResource(R.string.groups_not_open_list, databases.joinToString(stringResource(R.string.list_separator)) { it.line.label.full })
+            },
             onChoose = model::chooseDatabase,
             onDismiss = model::dismissDatabases,
-            title = "New group",
-            subtitle = "At the top level of the database chosen.",
+            title = stringResource(R.string.groups_new_group),
+            subtitle = stringResource(R.string.groups_new_group_where),
         )
     }
 }
@@ -506,7 +516,7 @@ private fun GroupSheet(block: GroupsBlock, row: GroupsOverview.GroupRow, model: 
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     if (row.isRoot) {
-                        Text(GroupTexts.TOP_LEVEL, style = MaterialTheme.typography.titleLarge)
+                        Text(GroupTexts.TOP_LEVEL.resolve(), style = MaterialTheme.typography.titleLarge)
                     } else {
                         PathText(row.path, style = MaterialTheme.typography.titleLarge, prefixStyle = SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant))
                     }
@@ -516,7 +526,7 @@ private fun GroupSheet(block: GroupsBlock, row: GroupsOverview.GroupRow, model: 
                             Spacer(Modifier.width(8.dp))
                         }
                         Text(
-                            GroupTexts.sheetMeta(block.mark.label.full, row.total, row.here, subgroups),
+                            GroupTexts.sheetMeta(block.mark.label.full, row.total, row.here, subgroups).resolve(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -524,12 +534,18 @@ private fun GroupSheet(block: GroupsBlock, row: GroupsOverview.GroupRow, model: 
                 }
             }
             val actions = buildList {
-                add(SheetAction(if (row.isRoot) "New group…" else "New group inside…", null, Icons.Rounded.CreateNewFolder) { model.startNewGroup(ref) })
+                add(
+                    SheetAction(
+                        if (row.isRoot) R.string.groups_sheet_new_group else R.string.groups_sheet_new_group_inside,
+                        null,
+                        Icons.Rounded.CreateNewFolder,
+                    ) { model.startNewGroup(ref) },
+                )
                 if (changes.canChange(row.id)) {
-                    add(SheetAction("Rename…", null, Icons.Rounded.Edit) { model.startRename(ref) })
-                    add(SheetAction("Move to…", "With everything in it", Icons.AutoMirrored.Rounded.DriveFileMove) { model.startMove(ref) })
+                    add(SheetAction(R.string.groups_sheet_rename, null, Icons.Rounded.Edit) { model.startRename(ref) })
+                    add(SheetAction(R.string.groups_sheet_move, R.string.groups_sheet_move_detail, Icons.AutoMirrored.Rounded.DriveFileMove) { model.startMove(ref) })
                     if (changes.canDelete(row.id)) {
-                        add(SheetAction("Delete", "It is empty: deleted at once", Icons.Rounded.DeleteOutline, destructive = true) { model.delete(ref) })
+                        add(SheetAction(R.string.groups_sheet_delete, R.string.groups_sheet_delete_detail, Icons.Rounded.DeleteOutline, destructive = true) { model.delete(ref) })
                     }
                 }
             }
@@ -549,8 +565,8 @@ private fun GroupSheet(block: GroupsBlock, row: GroupsOverview.GroupRow, model: 
                     Icon(action.icon, contentDescription = null, Modifier.size(22.dp), tint = if (action.destructive) color else MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(16.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(action.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = color)
-                        action.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Text(stringResource(action.label), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = color)
+                        action.detail?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
             }
@@ -558,7 +574,7 @@ private fun GroupSheet(block: GroupsBlock, row: GroupsOverview.GroupRow, model: 
     }
 }
 
-private class SheetAction(val label: String, val detail: String?, val icon: ImageVector, val destructive: Boolean = false, val act: () -> Unit)
+private class SheetAction(@StringRes val label: Int, @StringRes val detail: Int?, val icon: ImageVector, val destructive: Boolean = false, val act: () -> Unit)
 
 /**
  * The name's dialog (G5; the AG3 mock-up): Rename "Rename “Work”", New "New group in “Work”"; Save and Cancel. A name
@@ -578,7 +594,7 @@ private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, m
     val problem = model.dialogProblem
     AlertDialog(
         onDismissRequest = model::closeDialog,
-        title = { Text(title) },
+        title = { Text(title.resolve()) },
         text = {
             NoLearningKeyboard {
                 OutlinedTextField(
@@ -588,10 +604,10 @@ private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, m
                         field = it
                     },
                     modifier = Modifier.keepOutOfAutofill().fillMaxWidth().focusRequester(focus),
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.groups_name_label)) },
                     singleLine = true,
                     isError = problem != null,
-                    supportingText = problem?.let { { Text(it) } },
+                    supportingText = problem?.let { { Text(it.resolve()) } },
                     enabled = !saving,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { model.submitName(field.text) }),
@@ -601,10 +617,10 @@ private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, m
         confirmButton = {
             TextButton(onClick = { model.submitName(field.text) }, enabled = !saving) {
                 // Announced once (keething-spec app.accessibility AC6).
-                Text(if (saving) "Saving…" else "Save", if (saving) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier)
+                Text(stringResource(if (saving) R.string.groups_saving else R.string.groups_save), if (saving) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier)
             }
         },
-        dismissButton = { TextButton(onClick = model::closeDialog, enabled = !saving) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = model::closeDialog, enabled = !saving) { Text(stringResource(R.string.groups_cancel)) } },
     )
     LaunchedEffect(dialog) { focus.requestFocus() }
 }
@@ -612,7 +628,9 @@ private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, m
 /** A block's header: its database's dot and label, how many entries it has; with two or more open, a tap folds it. */
 @Composable
 private fun BlockHeader(block: GroupsBlock, foldable: Boolean, isOpen: Boolean, readOnly: Boolean, onFold: () -> Unit) {
-    val entries = NumberFormat.getIntegerInstance().format(block.entries) + if (block.entries == 1) " entry" else " entries"
+    val entries = pluralStringResource(R.plurals.groups_block_entries, block.entries, NumberFormat.getIntegerInstance().format(block.entries))
+    val foldLabel = stringResource(if (isOpen) R.string.groups_fold else R.string.groups_unfold)
+    val foldState = stringResource(if (isOpen) R.string.groups_unfolded else R.string.groups_folded)
     Row(
         Modifier
             .fillMaxWidth()
@@ -621,8 +639,8 @@ private fun BlockHeader(block: GroupsBlock, foldable: Boolean, isOpen: Boolean, 
             .then(
                 if (foldable) {
                     Modifier
-                        .clickable(onClickLabel = if (isOpen) "Fold" else "Unfold", onClick = onFold)
-                        .semantics { stateDescription = if (isOpen) "Unfolded" else "Folded" }
+                        .clickable(onClickLabel = foldLabel, onClick = onFold)
+                        .semantics { stateDescription = foldState }
                 } else {
                     Modifier
                 },
@@ -663,19 +681,20 @@ private fun BlockHeader(block: GroupsBlock, foldable: Boolean, isOpen: Boolean, 
 @Composable
 private fun NotOpenRow(notOpen: List<NotOpenDatabase>, onLockScreen: (DatabaseId) -> Unit) {
     val single = notOpen.singleOrNull()
+    val unlock = stringResource(R.string.groups_unlock)
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .clip(segmentShape(0, 1))
             .background(MaterialTheme.extraColors.row)
-            .then(if (single != null) Modifier.clickable(onClickLabel = "Unlock") { onLockScreen(single.id) } else Modifier)
+            .then(if (single != null) Modifier.clickable(onClickLabel = unlock) { onLockScreen(single.id) } else Modifier)
             .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         FlowRow(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "Not open:",
+                stringResource(R.string.groups_not_open),
                 Modifier.align(Alignment.CenterVertically).padding(end = 4.dp),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -685,7 +704,7 @@ private fun NotOpenRow(notOpen: List<NotOpenDatabase>, onLockScreen: (DatabaseId
                     Modifier
                         .heightIn(min = if (single != null) 0.dp else 40.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .then(if (single == null) Modifier.clickable(onClickLabel = "Unlock") { onLockScreen(database.id) } else Modifier)
+                        .then(if (single == null) Modifier.clickable(onClickLabel = unlock) { onLockScreen(database.id) } else Modifier)
                         .padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -704,12 +723,12 @@ private fun NotOpenRow(notOpen: List<NotOpenDatabase>, onLockScreen: (DatabaseId
 private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.GroupRef?, announceSaving: Boolean, onSearch: (String) -> Unit, onHold: (groupId: String) -> Unit) {
     val overview = block.overview
     val id = block.id.value
-    item(key = "groups/$id", contentType = "header") { Box(Modifier.padding(top = 6.dp)) { SectionTitle("Groups") } }
+    item(key = "groups/$id", contentType = "header") { Box(Modifier.padding(top = 6.dp)) { SectionTitle(stringResource(R.string.groups_section_groups)) } }
     itemsIndexed(overview.groups, key = { _, row -> "group/$id/${row.id}" }, contentType = { _, _ -> "row" }) { index, row ->
         OverviewRow(
             icon = if (row.isRoot) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
-            title = if (row.isRoot) "Top level" else row.name,
-            supporting = if (saving == GroupsViewModel.GroupRef(block.id, row.id)) "Saving…" else groupCounts(row),
+            title = if (row.isRoot) GroupTexts.TOP_LEVEL.resolve() else row.name,
+            supporting = if (saving == GroupsViewModel.GroupRef(block.id, row.id)) stringResource(R.string.groups_saving) else groupCounts(row),
             // A dialog open says it on its button instead (the row is behind it).
             announced = announceSaving && saving == GroupsViewModel.GroupRef(block.id, row.id),
             count = row.total,
@@ -723,7 +742,7 @@ private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.Gr
         item(key = "bin/$id", contentType = "row") {
             OverviewRow(
                 icon = Icons.Rounded.Delete,
-                title = "Recycle bin",
+                title = stringResource(R.string.groups_recycle_bin),
                 supporting = null,
                 count = overview.recycleBin,
                 shape = segmentShape(0, 1),
@@ -738,7 +757,7 @@ private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.Gr
             OverviewRow(
                 icon = Icons.Rounded.Description,
                 title = name,
-                supporting = "Templates · another app's forms, not listed",
+                supporting = stringResource(R.string.groups_templates),
                 count = count,
                 shape = segmentShape(0, 1),
                 onClick = null,
@@ -747,11 +766,11 @@ private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.Gr
         }
     }
     item(key = "gap/$id", contentType = "gap") { Spacer(Modifier.height(18.dp)) }
-    item(key = "tags/$id", contentType = "header") { SectionTitle("Tags") }
+    item(key = "tags/$id", contentType = "header") { SectionTitle(stringResource(R.string.groups_section_tags)) }
     if (overview.tags.isEmpty()) {
-        item(key = "no tags/$id") {
+        item(key = "no tags/$id") { // not user text
             Text(
-                "No entry has a tag.",
+                stringResource(R.string.groups_no_tags),
                 Modifier.padding(start = 8.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -762,7 +781,9 @@ private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.Gr
         OverviewRow(
             icon = Icons.Rounded.Sell,
             title = row.name,
-            supporting = row.otherSpellings.takeIf { it.isNotEmpty() }?.let { "also ${it.joinToString(", ")}" },
+            supporting = row.otherSpellings.takeIf { it.isNotEmpty() }?.let {
+                stringResource(R.string.groups_tag_also, it.joinToString(stringResource(R.string.list_separator)))
+            },
             count = row.count,
             shape = segmentShape(index, overview.tags.size),
             onClick = { onSearch(block.search(row.search)) },
@@ -771,10 +792,11 @@ private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.Gr
 }
 
 /** The total is the row's number; under the name, how many of them are right in it when some are in its groups. */
+@Composable
 private fun groupCounts(row: GroupsOverview.GroupRow): String? = when {
     row.here == row.total -> null
-    row.here == 0 -> "None here, all in its groups"
-    else -> "${NumberFormat.getIntegerInstance().format(row.here)} here"
+    row.here == 0 -> stringResource(R.string.groups_none_here)
+    else -> pluralStringResource(R.plurals.groups_here, row.here, NumberFormat.getIntegerInstance().format(row.here))
 }
 
 @Composable
@@ -793,6 +815,7 @@ private fun OverviewRow(
     /** [supporting] says what is happening by itself ("Saving…"): announced once (keething-spec app.accessibility AC6). */
     announced: Boolean = false,
 ) {
+    val entries = pluralStringResource(R.plurals.groups_entries, count, count)
     Row(
         modifier
             .padding(bottom = SegmentGap)
@@ -806,9 +829,9 @@ private fun OverviewRow(
                 } else {
                     Modifier.combinedClickable(
                         onClick = onClick,
-                        onClickLabel = "Show the entries",
+                        onClickLabel = stringResource(R.string.groups_show_entries),
                         onLongClick = onLongClick,
-                        onLongClickLabel = if (onLongClick != null) "Change the group" else null,
+                        onLongClickLabel = if (onLongClick != null) stringResource(R.string.groups_change_group) else null,
                     )
                 },
             )
@@ -833,7 +856,7 @@ private fun OverviewRow(
         Spacer(Modifier.width(12.dp))
         Text(
             NumberFormat.getIntegerInstance().format(count),
-            Modifier.semantics { contentDescription = if (count == 1) "1 entry" else "$count entries" },
+            Modifier.semantics { contentDescription = entries },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

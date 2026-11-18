@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A file picked to be attached (attachment/NewAttachments.kt) -->
+    <!-- Stands for a picked file whose name its app does not give, as %1$s of the texts below -->
+    <string name="attachment_picked_unnamed">The file</string>
+    <!-- %1$s: the file's name -->
+    <string name="attachment_picked_folder">%1$s is a folder; only files can be attached.</string>
+    <!-- %1$s: the file's name; %2$s: the reason, as the system words it -->
+    <string name="attachment_picked_unreadable">Could not read %1$s: %2$s.</string>
+    <!-- %1$s: the file's name -->
+    <string name="attachment_picked_nothing">Could not read %1$s: the app holding it gave nothing.</string>
+    <!-- %1$s: the file's name -->
+    <string name="attachment_picked_no_memory">Could not read %1$s: the phone has not enough memory for it now.</string>
+    <!-- %1$s: the file's name; %2$s: its size ("12 MB"); %3$s: the largest size allowed -->
+    <string name="attachment_picked_too_big_size">%1$s is too big (%2$s); attachments of up to %3$s can be added.</string>
+    <!-- %1$s: the file's name; %2$s: the largest size allowed -->
+    <string name="attachment_picked_too_big">%1$s is too big; attachments of up to %2$s can be added.</string>
+</resources>

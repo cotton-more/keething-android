@@ -43,10 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.BarTitle
 import dev.keething.android.ui.ButtonLabel
@@ -57,6 +59,7 @@ import dev.keething.android.ui.NoticeHost
 import dev.keething.android.ui.QrCodeImage
 import dev.keething.android.ui.dotsAtLineEnd
 import dev.keething.android.ui.readableInset
+import dev.keething.android.ui.uiText
 import dev.keething.sharing.message.ShareCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -90,25 +93,25 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
                     try {
                         context.startActivity(intent)
                     } catch (_: ActivityNotFoundException) {
-                        notices.send(Notice("No app can take it", isProblem = true))
+                        notices.send(Notice(uiText(R.string.sharing_no_app), isProblem = true))
                     }
                 }
-                .onFailure { notices.send(Notice("Could not make the picture: ${it.message}", isProblem = true)) }
+                .onFailure { notices.send(Notice(uiText(R.string.sharing_picture_not_made, it.message.toString()), isProblem = true)) }
         }
     }
 
     if (deleting) {
         AlertDialog(
             onDismissRequest = { deleting = false },
-            title = { Text("Delete the request?") },
-            text = { Text("This phone forgets its key: an answer to it can no longer be opened.") },
+            title = { Text(stringResource(R.string.sharing_my_delete_title)) },
+            text = { Text(stringResource(R.string.sharing_my_delete_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     deleting = false
                     container.shareRequests.delete(id)
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.sharing_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleting = false }) { Text("Keep it") } },
+            dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.sharing_keep_it)) } },
         )
     }
 
@@ -116,11 +119,11 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
-                title = { BarTitle("Your request", request.reason) },
-                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close") } },
+                title = { BarTitle(stringResource(R.string.sharing_my_title), request.reason) },
+                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.sharing_close)) } },
                 actions = {
                     IconButton(onClick = { deleting = true }) {
-                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete the request", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.sharing_delete_request), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -132,26 +135,38 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
                     onClick = { send { container.codePictures.sendIntent(listOf(SharingTexts.requestPicture(request))) } },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                 ) {
-                    ButtonLabel("Send the picture", Icons.AutoMirrored.Rounded.Send)
+                    ButtonLabel(stringResource(R.string.sharing_send_picture), Icons.AutoMirrored.Rounded.Send)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     FilledTonalButton(
                         onClick = { send { container.codePictures.sendTextIntent(SharingTexts.requestMessage(request)) } },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
-                        ButtonLabel("Send as text", Icons.AutoMirrored.Rounded.TextSnippet, short = "As text", iconSize = 20.dp, gap = 8.dp)
+                        ButtonLabel(
+                            stringResource(R.string.sharing_send_as_text),
+                            Icons.AutoMirrored.Rounded.TextSnippet,
+                            short = stringResource(R.string.sharing_send_as_text_short),
+                            iconSize = 20.dp,
+                            gap = 8.dp,
+                        )
                     }
                     FilledTonalButton(
                         onClick = {
                             scope.launch {
                                 runCatching { withContext(Dispatchers.IO) { container.codePictures.save(listOf(SharingTexts.requestPicture(request))) } }
-                                    .onSuccess { notices.send(Notice("Saved to Pictures › Keething")) }
-                                    .onFailure { notices.send(Notice("Could not save the picture: ${it.message}", isProblem = true)) }
+                                    .onSuccess { notices.send(Notice(uiText(R.string.sharing_saved_to_pictures))) }
+                                    .onFailure { notices.send(Notice(uiText(R.string.sharing_picture_not_saved, it.message.toString()), isProblem = true)) }
                             }
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) {
-                        ButtonLabel("Save picture", Icons.Rounded.Download, short = "Save", iconSize = 20.dp, gap = 8.dp)
+                        ButtonLabel(
+                            stringResource(R.string.sharing_save_picture),
+                            Icons.Rounded.Download,
+                            short = stringResource(R.string.sharing_save_short),
+                            iconSize = 20.dp,
+                            gap = 8.dp,
+                        )
                     }
                 }
             }
@@ -163,9 +178,9 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            QrCodeImage(ShareCode.text(request.encoded()), "QR code of the request", Modifier.widthIn(max = 280.dp).fillMaxWidth())
+            QrCodeImage(ShareCode.text(request.encoded()), stringResource(R.string.sharing_my_qr), Modifier.widthIn(max = 280.dp).fillMaxWidth())
             Text(
-                "In person: let them scan this screen · expires ${SharingTexts.dateTime(request.expires)}".dotsAtLineEnd(),
+                stringResource(R.string.sharing_my_in_person, SharingTexts.dateTime(request.expires)).dotsAtLineEnd(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -174,12 +189,10 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Your pictures", Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.sharing_my_pictures), Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.titleMedium)
                 PictureGrid(mine.pictures)
                 Text(
-                    "Whoever answers will ask you to read these out, in this order, and taps them on their phone. Tell them " +
-                        "by a call or in person, never in the chat that carries the code: if they do not match there, the code " +
-                        "was swapped on the way.",
+                    stringResource(R.string.sharing_my_pictures_text),
                     Modifier.padding(horizontal = 4.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

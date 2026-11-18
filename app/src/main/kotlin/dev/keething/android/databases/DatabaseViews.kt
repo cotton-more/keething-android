@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -47,8 +49,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.segmentShape
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseList
@@ -167,10 +171,10 @@ internal fun DatabaseLabelText(label: DatabaseLabel, style: TextStyle, modifier:
 internal fun RemoveFromListDialog(name: String, onRemove: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Remove “$name” from the list?") },
-        text = { Text("Keething forgets it on this phone, with its stored password. The file stays where it is.") },
-        confirmButton = { TextButton(onClick = onRemove) { Text("Remove") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = { Text(stringResource(R.string.databases_remove_title, name)) },
+        text = { Text(stringResource(R.string.databases_remove_text)) },
+        confirmButton = { TextButton(onClick = onRemove) { Text(stringResource(R.string.databases_remove)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.databases_cancel)) } },
     )
 }
 
@@ -191,7 +195,7 @@ internal fun DatabasesSheet(
     val current = lines.firstOrNull { it.isCurrent }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Databases", Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.databases_title), Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.titleLarge)
             val many = lines.size > MANY
             Column(
                 Modifier.then(if (many) Modifier.heightIn(max = 362.dp) else Modifier).clip(RoundedCornerShape(20.dp)).verticalScroll(rememberScrollState()),
@@ -213,29 +217,29 @@ internal fun DatabasesSheet(
                         Column(Modifier.weight(1f)) {
                             DatabaseLabelText(line.label, MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                             Text(
-                                line.sheetDetail,
+                                line.sheetDetail.resolve(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = if (line.isMissing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        if (line.isCurrent) Icon(Icons.Rounded.Check, contentDescription = "Shown now", tint = MaterialTheme.colorScheme.primary)
+                        if (line.isCurrent) Icon(Icons.Rounded.Check, contentDescription = stringResource(R.string.databases_shown_now), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
             if (many) {
                 Text(
-                    "${lines.size} databases · scroll for the rest",
+                    pluralStringResource(R.plurals.databases_chooser_count, lines.size, lines.size),
                     Modifier.padding(horizontal = 8.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant)
-            SheetAction(Icons.Rounded.FolderOpen, "Open other…", onOpenOther)
-            SheetAction(Icons.Rounded.Add, "New database…", onNew)
-            if (current != null) SheetAction(Icons.Rounded.PlaylistRemove, "Remove “${current.name}” from list…", onRemove)
+            SheetAction(Icons.Rounded.FolderOpen, stringResource(R.string.databases_chooser_open_other), onOpenOther)
+            SheetAction(Icons.Rounded.Add, stringResource(R.string.databases_new_database_button), onNew)
+            if (current != null) SheetAction(Icons.Rounded.PlaylistRemove, stringResource(R.string.databases_remove_named, current.name), onRemove)
         }
     }
 }

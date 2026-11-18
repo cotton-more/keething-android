@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -56,10 +57,13 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.AppLogo
 import dev.keething.android.ui.ButtonLabel
 import dev.keething.android.ui.SegmentGap
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.segmentShape
 import dev.keething.vault.databases.DatabaseId
 
@@ -74,7 +78,7 @@ import dev.keething.vault.databases.DatabaseId
 @Composable
 internal fun ChooserScreen(
     rows: List<ChooserRow>?,
-    note: String?,
+    note: UiText?,
     busy: Boolean,
     onToggle: (DatabaseId) -> Unit,
     onLocate: (DatabaseId) -> Unit,
@@ -119,11 +123,11 @@ internal fun ChooserScreen(
     ) {
         Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             AppLogo(Modifier.size(52.dp))
-            Text("Open your databases", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.databases_chooser_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
         }
-        note?.let { Text(it, Modifier.padding(start = 8.dp, end = 8.dp, top = 18.dp), style = MaterialTheme.typography.bodyLarge) }
+        note?.let { Text(it.resolve(), Modifier.padding(start = 8.dp, end = 8.dp, top = 18.dp), style = MaterialTheme.typography.bodyLarge) }
         Text(
-            ChooserRows.HOW,
+            ChooserRows.HOW.resolve(),
             Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 16.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -155,23 +159,23 @@ internal fun ChooserScreen(
                 }
             }
             ChooserRows.countText(shown)?.let {
-                Text(it, Modifier.padding(start = 16.dp, top = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(it.resolve(), Modifier.padding(start = 16.dp, top = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(16.dp))
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (ChooserRows.offersFingerprint(shown)) {
                 FilledTonalButton(onClick = onFingerprint, enabled = !busy, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                    ButtonLabel("Unlock with the fingerprint", Icons.Rounded.Fingerprint, iconSize = 20.dp)
+                    ButtonLabel(stringResource(R.string.databases_chooser_unlock_fingerprint), Icons.Rounded.Fingerprint, iconSize = 20.dp)
                 }
             }
             val checked = ChooserRows.checked(shown)
             Button(onClick = { onUnlock(checked) }, enabled = !busy && checked.isNotEmpty(), modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                ButtonLabel(ChooserRows.unlockTitle(shown), Icons.Rounded.LockOpen, iconSize = 20.dp)
+                ButtonLabel(ChooserRows.unlockTitle(shown).resolve(), Icons.Rounded.LockOpen, iconSize = 20.dp)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-                TextButton(onClick = onOpenOther, enabled = !busy) { Text("Open other…") }
-                TextButton(onClick = onNewDatabase, enabled = !busy) { Text("New database…") }
+                TextButton(onClick = onOpenOther, enabled = !busy) { Text(stringResource(R.string.databases_chooser_open_other)) }
+                TextButton(onClick = onNewDatabase, enabled = !busy) { Text(stringResource(R.string.databases_new_database_button)) }
             }
         }
     }
@@ -209,7 +213,7 @@ private fun ChooserRowView(
             .combinedClickable(
                 enabled = enabled,
                 role = Role.Checkbox.takeIf { row.canCheck },
-                onLongClickLabel = "Actions",
+                onLongClickLabel = stringResource(R.string.databases_actions),
                 onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onLongPress()
@@ -226,9 +230,9 @@ private fun ChooserRowView(
         Column(Modifier.weight(1f)) {
             val name = MaterialTheme.typography.titleMedium.copy(color = if (row.canCheck) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
             DatabaseLabelText(row.line.label, name)
-            Text(row.opensWith, style = MaterialTheme.typography.bodyMedium, color = how, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(row.opensWith.resolve(), style = MaterialTheme.typography.bodyMedium, color = how, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (row.offersLocate) TextButton(onClick = onLocate, enabled = enabled) { Text(if (row.line.reach == Reach.NEEDS_FOLDER) "Folder…" else "Locate…") }
+        if (row.offersLocate) TextButton(onClick = onLocate, enabled = enabled) { Text(stringResource(if (row.line.reach == Reach.NEEDS_FOLDER) R.string.databases_chooser_folder else R.string.databases_lock_locate)) }
     }
 }
 
@@ -239,7 +243,7 @@ private fun ChooserRowSheet(row: ChooserRow, onRemove: () -> Unit, onDismiss: ()
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             DatabaseSheetHeader(row.line)
-            SheetRow(Icons.Rounded.PlaylistRemove, "Remove from list…", detail = "The file stays where it is", onClick = onRemove)
+            SheetRow(Icons.Rounded.PlaylistRemove, stringResource(R.string.databases_remove_from_list), detail = stringResource(R.string.databases_remove_from_list_detail), onClick = onRemove)
         }
     }
 }

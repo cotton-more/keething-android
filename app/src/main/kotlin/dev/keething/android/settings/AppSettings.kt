@@ -120,12 +120,12 @@ internal class AppSettings(private val store: SettingsStore) {
         val DEFAULT_REQUEST_VALIDITY = 3.days
         val REQUEST_VALIDITIES = listOf(1.days, 3.days, 7.days)
 
-        private const val LOCK_TIMEOUT_MINUTES = "lockTimeoutMinutes"
-        private const val REQUEST_VALIDITY_DAYS = "requestValidityDays"
-        private const val REQUEST_NAME = "requestName"
+        private const val LOCK_TIMEOUT_MINUTES = "lockTimeoutMinutes" // not user text
+        private const val REQUEST_VALIDITY_DAYS = "requestValidityDays" // not user text
+        private const val REQUEST_NAME = "requestName" // not user text
         private const val THEME = "theme"
-        private const val DISMISSED_SUGGESTIONS = "dismissedTypeSuggestions"
-        private const val LAST_NEW_ENTRY_DATABASE = "lastNewEntryDatabase"
-        private const val QUICK_NOTE_DATABASE = "quickNoteDatabase"
+        private const val DISMISSED_SUGGESTIONS = "dismissedTypeSuggestions" // not user text
+        private const val LAST_NEW_ENTRY_DATABASE = "lastNewEntryDatabase" // not user text
+        private const val QUICK_NOTE_DATABASE = "quickNoteDatabase" // not user text
     }
 }

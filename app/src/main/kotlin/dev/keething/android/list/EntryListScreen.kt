@@ -113,6 +113,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -133,6 +135,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.generator.GeneratorUse
 import dev.keething.android.generator.PasswordGeneratorSheet
 import dev.keething.android.navigation.inTwoPanes
@@ -154,6 +157,9 @@ import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.PathText
 import androidx.compose.ui.text.AnnotatedString
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import dev.keething.android.databases.NotOpenDatabase
 import dev.keething.android.databases.NotOpenLine
 import dev.keething.android.databases.NotOpenSheet
@@ -227,13 +233,14 @@ internal fun EntryListScreen(
     // Beside the card (two panes), the open entry's rows are marked.
     val selected = selectedId?.takeIf { inTwoPanes() }
     val requests by container.shareRequests.book.collectAsStateWithLifecycle()
+    val unnamedCode = stringResource(R.string.list_one_time_code)
     val model = viewModel {
         val sessions = container.sessions
         EntryListViewModel(
             sessions.open, sessions.state, sessions::entry, container.recents, container.toldUnlocks, container.recycleBin,
             container.clipboard, query,
             codesOnlyAtStart = codesOnly, besideCardAtStart = selected != null, databases = sessions.list.state,
-            newEntryMade = { container.settings.lastNewEntryDatabase = it },
+            newEntryMade = { container.settings.lastNewEntryDatabase = it }, unnamedCode = unnamedCode,
         )
     }
     SideEffect {
@@ -253,7 +260,7 @@ internal fun EntryListScreen(
     NoticeEffect(remember { container.windowNotices.receiveAsFlow() }, snackbar)
     // A chip's long press: its sheet (keething-spec databases.not-open AC5).
     var sheetOf by rememberSaveable { mutableStateOf<String?>(null) }
-    val files = rememberFileActions(container, onProblem = { problem -> problem?.let { container.windowNotices.trySend(Notice(it, isProblem = true)) } })
+    val files = rememberFileActions(container, onProblem = { problem -> problem?.let { container.windowNotices.trySend(Notice(uiPlain(it), isProblem = true)) } })
     notOpen.firstOrNull { it.id.value == sheetOf }?.let { database ->
         NotOpenSheet(
             database,
@@ -295,7 +302,7 @@ internal fun EntryListScreen(
             },
             onShowOnly = {
                 readOnlySheetOf = null
-                query.setTextAndPlaceCursorAtEnd("$showOnly ")
+                query.setTextAndPlaceCursorAtEnd("$showOnly ") // not user text
             },
             onLock = {
                 readOnlySheetOf = null
@@ -332,8 +339,8 @@ internal fun EntryListScreen(
         FingerprintQuestion(name, passwordless = asked.questionNothingTyped) { use ->
             container.sessions.answerFingerprint(database, use) { answer ->
                 val notice = when (answer) {
-                    is FingerprintAnswer.Failed -> Notice("The fingerprint could not be set up: ${answer.reason}.", isProblem = true)
-                    FingerprintAnswer.TurnedOn -> Notice("Your fingerprint opens “$name” from now on.")
+                    is FingerprintAnswer.Failed -> Notice(uiText(R.string.list_fingerprint_failed, answer.reason), isProblem = true)
+                    FingerprintAnswer.TurnedOn -> Notice(uiText(R.string.list_fingerprint_on, name))
                     FingerprintAnswer.Declined, FingerprintAnswer.Nothing -> null
                 }
                 notice?.let(container.windowNotices::trySend)
@@ -428,7 +435,7 @@ internal fun EntryListScreen(
                         context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
                         model.opened(id)
                     } catch (_: ActivityNotFoundException) {
-                        problems.trySend(Notice("No app opens this link", isProblem = true))
+                        problems.trySend(Notice(uiText(R.string.list_no_app_for_link), isProblem = true))
                     }
                 }
             },
@@ -516,8 +523,8 @@ internal fun EntryListScreen(
         bottomBar = {
             SearchField(
                 query,
-                placeholder = if (codesOnly) "Search codes" else SEARCH_HINT,
-                label = if (codesOnly) "Search codes" else "Search entries",
+                placeholder = stringResource(if (codesOnly) R.string.list_search_codes else R.string.list_search),
+                label = stringResource(if (codesOnly) R.string.list_search_codes else R.string.list_search_entries),
                 onFocusChange = { searchFocused = it },
                 above = { if (searchFocused) SearchChipRow(chips) { query.setTextAndPlaceCursorAtEnd(it) } },
             ) {
@@ -543,7 +550,9 @@ internal fun EntryListScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
             ) {
                 for (banner in state.banners) {
-                    item(key = banner.key) { Banner(title = banner.title, text = banner.text, onDismiss = banner.onDismiss, action = banner.action) }
+                    item(key = banner.key) {
+                        Banner(banner.title.resolve(), banner.text.resolve(), banner.onDismiss, banner.action?.let { (label, act) -> label.resolve() to act })
+                    }
                 }
                 if (state.preparing) {
                     item(key = "preparing") {
@@ -588,8 +597,8 @@ internal fun EntryListScreen(
                         val emptyBin = EntrySearch.recycleBinQuery(query.text.toString())?.isBlank() == true
                         Text(
                             when {
-                                emptyBin -> "The recycle bin is empty."
-                                else -> "Nothing matches “${query.text}”."
+                                emptyBin -> stringResource(R.string.list_bin_empty)
+                                else -> stringResource(R.string.list_nothing_matches, query.text)
                             },
                             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
                             textAlign = TextAlign.Center,
@@ -602,19 +611,17 @@ internal fun EntryListScreen(
     }
 }
 
+@Composable
 internal fun ListSection.title(): String = when (kind) {
-    ListSection.Kind.SUGGESTED -> "Suggested"
-    ListSection.Kind.RECENT -> "Recent"
-    ListSection.Kind.ALL -> "All entries"
-    ListSection.Kind.RESULTS -> if (rows.size == 1) "1 entry" else "${NumberFormat.getIntegerInstance().format(rows.size)} entries"
-    ListSection.Kind.RECYCLE_BIN -> "Recycle bin"
+    ListSection.Kind.SUGGESTED -> stringResource(R.string.list_section_suggested)
+    ListSection.Kind.RECENT -> stringResource(R.string.list_section_recent)
+    ListSection.Kind.ALL -> stringResource(R.string.list_section_all)
+    ListSection.Kind.RESULTS -> pluralStringResource(R.plurals.list_section_results, rows.size, NumberFormat.getIntegerInstance().format(rows.size))
+    ListSection.Kind.RECYCLE_BIN -> stringResource(R.string.list_section_recycle_bin)
 }
 
 /** The card's origin for an entry opened from the Codes view: no row of the list to grow from. */
-private const val CODES_ORIGIN = "codes"
-
-/** The search field's hint; the filters are chips over the keyboard (SPEC §6.2). */
-internal const val SEARCH_HINT = "Search"
+private const val CODES_ORIGIN = "codes" // not user text
 
 /**
  * Whether a row's code goes under its title rather than beside it: when the pill beside it would leave the title
@@ -658,28 +665,33 @@ private fun Header(
     onDatabases: () -> Unit,
     openCount: Int,
 ) {
-    val count = if (codesOnly) {
-        if (state.preparing) "" else " · " + state.codes.size.let { if (it == 1) "1 code" else "${NumberFormat.getIntegerInstance().format(it)} codes" }
-    } else {
-        state.entryCount?.let { " · ${NumberFormat.getIntegerInstance().format(it)} entries" }.orEmpty()
+    val name = state.databaseName.resolve()
+    val counted = when {
+        codesOnly -> if (state.preparing) {
+            name
+        } else {
+            val codes = state.codes.size
+            pluralStringResource(R.plurals.list_header_code_count, codes, name, NumberFormat.getIntegerInstance().format(codes))
+        }
+        else -> state.entryCount?.let { pluralStringResource(R.plurals.list_header_entry_count, it, name, NumberFormat.getIntegerInstance().format(it)) } ?: name
     }
-    val title = @Composable { Text(if (codesOnly) "Codes" else "Keething", maxLines = 1, overflow = TextOverflow.Ellipsis) }
-    val subtitle = @Composable { FitText(state.databaseName + count) }
+    val title = @Composable { Text(stringResource(if (codesOnly) R.string.list_header_codes else R.string.app_name), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    val subtitle = @Composable { FitText(counted) }
     val navigationIcon = @Composable {
         if (codesOnly) {
-            IconButton(onClick = onLeaveCodes) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "All entries") }
+            IconButton(onClick = onLeaveCodes) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.list_section_all)) }
         }
     }
     // Lock first and set apart, so that a tap meant for another icon does not lock (SPEC §6.2).
     val actions = @Composable {
-        IconButton(onClick = onLock, modifier = Modifier.padding(end = 10.dp)) { Icon(Icons.Rounded.Lock, contentDescription = "Lock") }
+        IconButton(onClick = onLock, modifier = Modifier.padding(end = 10.dp)) { Icon(Icons.Rounded.Lock, contentDescription = stringResource(R.string.list_lock)) }
         if (!codesOnly) {
-            IconButton(onClick = onGroups) { Icon(Icons.Rounded.FolderOpen, contentDescription = "Groups and tags") }
+            IconButton(onClick = onGroups) { Icon(Icons.Rounded.FolderOpen, contentDescription = stringResource(R.string.list_groups_and_tags)) }
             // The Codes view, from the app as from the launcher (keething-spec app.codes-view AC3).
-            IconButton(onClick = onCodes) { Icon(CodesIcon, contentDescription = "Codes") }
+            IconButton(onClick = onCodes) { Icon(CodesIcon, contentDescription = stringResource(R.string.list_header_codes)) }
             IconButton(onClick = onSharing) {
                 BadgedBox(badge = { if (toAnswer > 0) Badge() }) {
-                    Icon(Icons.Rounded.People, contentDescription = if (toAnswer > 0) "Sharing, $toAnswer to answer" else "Sharing")
+                    Icon(Icons.Rounded.People, contentDescription = if (toAnswer > 0) pluralStringResource(R.plurals.list_sharing_to_answer, toAnswer, toAnswer) else stringResource(R.string.list_sharing))
                 }
             }
         }
@@ -724,10 +736,10 @@ private fun Header(
 private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit, onDatabases: () -> Unit, openCount: Int) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "More") }
+        IconButton(onClick = { open = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.list_more)) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
-                text = { Text("Generate a password") },
+                text = { Text(stringResource(R.string.list_generate_password)) },
                 leadingIcon = { Icon(Icons.Rounded.AutoFixHigh, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                 onClick = {
                     open = false
@@ -735,16 +747,16 @@ private fun MoreMenu(onGenerator: () -> Unit, onSettings: () -> Unit, onDatabase
                 },
             )
             DropdownMenuItem(
-                text = { Text("Databases") },
+                text = { Text(stringResource(R.string.list_databases)) },
                 leadingIcon = { Icon(Icons.Rounded.Storage, contentDescription = null) },
-                trailingIcon = { Text("$openCount open", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                trailingIcon = { Text(pluralStringResource(R.plurals.list_databases_open, openCount, openCount), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 onClick = {
                     open = false
                     onDatabases()
                 },
             )
             DropdownMenuItem(
-                text = { Text("Settings") },
+                text = { Text(stringResource(R.string.list_settings)) },
                 leadingIcon = { Icon(Icons.Rounded.Tune, contentDescription = null) },
                 onClick = {
                     open = false
@@ -771,7 +783,7 @@ internal fun Banner(title: String, text: String, onDismiss: (() -> Unit)? = null
             Text(title, style = MaterialTheme.typography.titleSmall, color = colors.onWarnContainer)
             Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.onWarnContainer)
             // Said once read: OK, and it is not said again (keething-spec databases.saf AC5).
-            onDismiss?.let { TextButton(onClick = it, modifier = Modifier.align(Alignment.End)) { Text("OK", color = colors.onWarnContainer) } }
+            onDismiss?.let { TextButton(onClick = it, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.list_ok), color = colors.onWarnContainer) } }
             action?.let { (label, act) -> TextButton(onClick = act, modifier = Modifier.align(Alignment.End)) { Text(label, color = colors.onWarnContainer) } }
         }
     }
@@ -808,6 +820,7 @@ internal fun EntryRowView(
     codeUnder: Boolean = false,
     selected: Boolean = false,
 ) {
+    val moreActions = stringResource(R.string.list_more_actions)
     Row(
         modifier
             .fillMaxWidth()
@@ -819,7 +832,7 @@ internal fun EntryRowView(
                 onClick = onOpen,
                 onClickLabel = onOpenLabel,
                 onLongClick = onLongPress,
-                onLongClickLabel = onLongPress?.let { "More actions" },
+                onLongClickLabel = onLongPress?.let { moreActions },
             )
             .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.Top,
@@ -843,7 +856,7 @@ internal fun EntryRowView(
                 if (row.hasAttachments) {
                     Icon(
                         Icons.Rounded.AttachFile,
-                        contentDescription = "Has attachments",
+                        contentDescription = stringResource(R.string.list_has_attachments),
                         Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -897,7 +910,7 @@ internal fun GroupLine(mark: DatabaseMark?, group: List<String>) {
         DatabaseLine(mark, group)
     } else if (group.isNotEmpty()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(Icons.Rounded.Folder, contentDescription = "Group", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
+            Icon(Icons.Rounded.Folder, contentDescription = stringResource(R.string.list_group), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
             PathText(group, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
         }
     }
@@ -936,14 +949,16 @@ private fun CodeButton(codes: List<CodeTile>, now: State<Instant>, onClick: () -
     val display = TotpDisplay.of(codes.first().totp, now.value)
     val several = codes.size > 1
     val colors = MaterialTheme.extraColors
+    val said = if (several) codeCount(codes.size) else stringResource(R.string.list_copy_one_time_code)
+    val showCodes = stringResource(R.string.list_show_codes)
     Box(
         modifier
             .minimumInteractiveComponentSize()
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.secondaryContainer)
             .codeFill(display.period, CircleShape)
-            .clickable(onClickLabel = if (several) "Show codes" else null, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = if (several) codeCount(codes.size) else "Copy one-time code" }
+            .clickable(onClickLabel = if (several) showCodes else null, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = said }
             .height(height)
             .padding(start = 12.dp, end = if (several) 6.dp else 12.dp),
         contentAlignment = Alignment.Center,
@@ -980,7 +995,7 @@ private fun AddCodeButton(onClick: () -> Unit) {
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ),
-    ) { Icon(Icons.Rounded.Add, contentDescription = "Add a code") }
+    ) { Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.list_add_a_code)) }
 }
 
 /**
@@ -999,14 +1014,14 @@ private fun NewButton(onChoose: (NewChoice) -> Unit) {
                 containerColor = if (open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
                 contentColor = if (open) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
             ),
-        ) { Icon(Icons.Rounded.Add, contentDescription = "New", Modifier.rotate(if (open) 45f else 0f)) }
+        ) { Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.list_new), Modifier.rotate(if (open) 45f else 0f)) }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(22.dp)) {
             for (choice in NewChoice.entries) {
                 DropdownMenuItem(
                     text = {
                         Column {
-                            Text(choice.title, style = MaterialTheme.typography.bodyLarge)
-                            choice.subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Text(choice.title.resolve(), style = MaterialTheme.typography.bodyLarge)
+                            choice.subtitle?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                     },
                     leadingIcon = { NewChoiceTile(choice) },
@@ -1051,16 +1066,16 @@ private fun SearchChipRow(line: ChipLine, onPick: (String) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (line.narrowing) {
-            item(key = "narrow to") {
+            item(key = "narrow to") { // not user text
                 Text(
-                    "Narrow to",
+                    stringResource(R.string.list_narrow_to),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        items(line.chips, key = { it.label + "/" + it.query }) { chip ->
+        items(line.chips, key = { "${it.label}/${it.query}" }) { chip ->
             FilterChip(
                 selected = chip.selected,
                 onClick = { onPick(chip.query) },
@@ -1078,9 +1093,14 @@ private fun SearchChipRow(line: ChipLine, onPick: (String) -> Unit) {
  */
 @Composable
 private fun SearchChipLabel(chip: SearchChip) {
+    val label = chip.label.resolve()
     val said = when {
-        chip.shares.isNotEmpty() -> chip.label + ": " + chip.shares.joinToString { "${it.database.label.full} ${it.count}" }
-        chip.database != null -> "Database ${chip.label}" + (chip.count?.let { ", $it" } ?: "")
+        chip.shares.isNotEmpty() -> stringResource(
+            R.string.list_chip_shares,
+            label,
+            chip.shares.map { stringResource(R.string.list_chip_share, it.database.label.full, it.count) }.joinToString(stringResource(R.string.list_separator)),
+        )
+        chip.database != null -> chip.count?.let { stringResource(R.string.list_chip_database_count_said, label, it) } ?: stringResource(R.string.list_chip_database_said, label)
         else -> null
     }
     Row(
@@ -1096,7 +1116,7 @@ private fun SearchChipLabel(chip: SearchChip) {
                     append(" ")
                 }
                 val name = chip.database?.let { SpanStyle(color = databaseColors(it.colorIndex).text) }
-                if (name != null) withStyle(name) { append(chip.label) } else append(chip.label)
+                if (name != null) withStyle(name) { append(label) } else append(label)
                 if (chip.shares.isEmpty()) {
                     chip.count?.let { count ->
                         append("  ")
@@ -1128,9 +1148,9 @@ private fun DatabaseDot(mark: DatabaseMark, size: Dp) {
 @Composable
 internal fun SearchField(
     query: TextFieldState,
-    placeholder: String = SEARCH_HINT,
+    placeholder: String = stringResource(R.string.list_search),
     /** What a screen reader calls the field. */
-    label: String = "Search entries",
+    label: String = stringResource(R.string.list_search_entries),
     onFocusChange: (Boolean) -> Unit = {},
     above: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
@@ -1200,7 +1220,7 @@ internal fun SearchField(
                     )
                 }
                 if (query.text.isNotEmpty()) {
-                    IconButton(onClick = { query.clearText() }) { Icon(Icons.Rounded.Close, contentDescription = "Clear the search") }
+                    IconButton(onClick = { query.clearText() }) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.list_clear_search)) }
                 }
             }
             trailing?.invoke()

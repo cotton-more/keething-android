@@ -64,13 +64,13 @@ internal class AutofillRequest(
         private const val ENTRY = "entry"
         private const val PACKAGE = "package"
         private const val SITE = "site"
-        private const val PORT_KNOWN = "portKnown"
+        private const val PORT_KNOWN = "portKnown" // not user text
         private const val FIELDS = "fields"
         private const val IDS = "ids"
         private const val USERNAMES = "usernames"
         private const val PASSWORDS = "passwords"
         private const val CODES = "codes"
-        private const val NEW_PASSWORDS = "newPasswords"
+        private const val NEW_PASSWORDS = "newPasswords" // not user text
 
         private val requestCodes = AtomicInteger()
 

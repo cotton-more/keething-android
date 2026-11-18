@@ -9,6 +9,9 @@ import android.graphics.drawable.Icon
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiText
 
 /**
  * The Quick Settings tile **Quick note** (SPEC §6.4; keething-spec app.quick-note AC3; plans/done/android-notes.md P1):
@@ -45,18 +48,18 @@ internal object QuickNoteTile {
      * user said no several times Android answers "not added" without asking, and nothing is said.
      */
     fun requestAdd(context: Context, said: (String) -> Unit) {
-        val statusBar = context.getSystemService(StatusBarManager::class.java) ?: return said(NOT_ASKED)
+        val statusBar = context.getSystemService(StatusBarManager::class.java) ?: return said(NOT_ASKED.resolve(context.resources))
         statusBar.requestAddTileService(
             ComponentName(context, QuickNoteTileService::class.java),
             context.getString(R.string.tile_quick_note),
             Icon.createWithResource(context, R.drawable.ic_tile_quick_note),
             context.mainExecutor,
-        ) { result -> requestMessage(result)?.let(said) }
+        ) { result -> requestMessage(result)?.let { said(it.resolve(context.resources)) } }
     }
 
     /** What Settings says after asking Android to add the tile; null when Android's own question said it all. */
-    fun requestMessage(result: Int): String? = when (result) {
-        StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "The Quick note tile is in Quick Settings already"
+    fun requestMessage(result: Int): UiText? = when (result) {
+        StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> uiText(R.string.quicknote_tile_already_added)
         StatusBarManager.TILE_ADD_REQUEST_ERROR_APP_NOT_IN_FOREGROUND,
         StatusBarManager.TILE_ADD_REQUEST_ERROR_REQUEST_IN_PROGRESS,
         StatusBarManager.TILE_ADD_REQUEST_ERROR_BAD_COMPONENT,
@@ -68,5 +71,5 @@ internal object QuickNoteTile {
         else -> null
     }
 
-    private const val NOT_ASKED = "Android did not ask. Add the tile from Quick Settings' edit button."
+    private val NOT_ASKED = uiText(R.string.quicknote_tile_not_asked)
 }

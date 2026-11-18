@@ -3,6 +3,7 @@ package dev.keething.android.list
 import dev.keething.domain.storage.StoppedSave
 import dev.keething.android.session.file
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,7 +33,11 @@ import dev.keething.vault.session.SaveRoom
 import dev.keething.vault.session.VaultSummary
 import dev.keething.vault.session.SessionState
 import dev.keething.android.ui.CustomIconImages
+import dev.keething.android.R
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiText
 import dev.keething.android.unlock.describe
 import dev.keething.card.OpenableUrl
 import dev.keething.card.TotpDisplay
@@ -63,7 +68,7 @@ import kotlin.time.TimeSource
 
 internal data class ListUiState(
     /** The header: the open database's name (SPEC §3.1), or the open ones' labels joined ("Personal and Work"). */
-    val databaseName: String,
+    val databaseName: UiText,
     val entryCount: Int? = null,
     val sections: List<ListSection> = emptyList(),
     /** The Codes view's tiles, in its place of the sections (keething-spec app.codes-view). */
@@ -78,10 +83,10 @@ internal data class ListUiState(
 /** A warning over the list about one open database; [action]: a button that does something about it, by its label. */
 internal data class ListBanner(
     val key: String,
-    val title: String,
-    val text: String,
+    val title: UiText,
+    val text: UiText,
     val onDismiss: (() -> Unit)? = null,
-    val action: Pair<String, () -> Unit>? = null,
+    val action: Pair<UiText, () -> Unit>? = null,
 ) {
     override fun equals(other: Any?): Boolean =
         other is ListBanner && other.key == key && other.title == title && other.text == text && other.action?.first == action?.first
@@ -135,6 +140,8 @@ internal class EntryListViewModel(
     databases: StateFlow<Databases> = MutableStateFlow(Databases(emptyList(), null)),
     /** A new entry was saved into this database (a code added, keething-spec app.codes-view AC7): the next one starts there. */
     private val newEntryMade: (DatabaseId) -> Unit = {},
+    /** What a further code with no name of its own is called (its field's name empty or generated): "One-time code". */
+    private val unnamedCode: String,
 ) : ViewModel() {
     /**
      * The Codes view, set by the screen; a change lists again. The model's own state, not the screen's: the model
@@ -159,7 +166,7 @@ internal class EntryListViewModel(
             if (databases.isEmpty()) return@mapLatest null
             withContext(Dispatchers.Default) {
                 val started = TimeSource.Monotonic.markNow()
-                val listing = listingOf(databases, Instant.now())
+                val listing = listingOf(databases, Instant.now(), unnamedCode)
                 Prepared(listing, CustomIconImages(listing.vault.customIcons))
                     // Times and counts only (keething-spec app.large-database).
                     .also { Log.i(TAG, "listing prepared in ${started.elapsedNow().inWholeMilliseconds} ms: ${listing.ids.size} entries") }
@@ -202,10 +209,10 @@ internal class EntryListViewModel(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), ChipLine(emptyList()))
 
-    private val names: Flow<String> = combine(open, databases) { open, databases ->
+    private val names: Flow<UiText> = combine(open, databases) { open, databases ->
         when {
-            open.isEmpty() -> databases.current?.displayName.orEmpty()
-            open.size == 1 -> open.single().mark.label.name
+            open.isEmpty() -> uiPlain(databases.current?.displayName.orEmpty())
+            open.size == 1 -> uiPlain(open.single().mark.label.name)
             else -> DatabaseText.joined(open.map { it.mark.label.full })
         }
     }.distinctUntilChanged()
@@ -227,7 +234,7 @@ internal class EntryListViewModel(
             banners = banners(open),
             preparing = false,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, ListUiState(databases.value.current?.displayName.orEmpty()))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, ListUiState(uiPlain(databases.value.current?.displayName.orEmpty())))
 
     /**
      * Each open database's size against the memory a save needs, its conflict copies and failed reload, named while two
@@ -236,18 +243,21 @@ internal class EntryListViewModel(
     private fun banners(open: List<OpenDatabase>): List<ListBanner> = open.flatMap { database ->
         val file = database.database.file
         val named = open.size >= 2
+        val name = database.mark.label.name
+        // The banner's title: alone with one database open, else naming it.
+        fun title(@StringRes alone: Int, @StringRes withName: Int) = if (named) uiText(withName, name) else uiText(alone)
         val unlocked = database.unlocked
         listOfNotNull(
             // keething-spec app.large-database AC3: read-only while it is shown; near the limit once an unlock, until OK.
             when (val room = unlocked.room) {
                 is SaveRoom.TooLarge -> ListBanner(
                     key = "too-large/${database.database.id}",
-                    title = if (named) "${database.mark.label.name}: read only, too large for this phone" else "Read only: too large for this phone",
+                    title = title(R.string.list_banner_too_large, R.string.list_banner_too_large_named),
                     text = SizeTexts.tooLarge(file.name, unlocked.size, room.alone),
                 )
                 SaveRoom.Near -> if (unlocked.changeableAgain) null else ListBanner(
                     key = "near-limit/${database.database.id}",
-                    title = if (named) "${database.mark.label.name}: near this phone's limit" else "Near this phone's limit",
+                    title = title(R.string.list_banner_near_limit, R.string.list_banner_near_limit_named),
                     text = SizeTexts.nearLimit(file.name, unlocked.size),
                     onDismiss = database.database.session::nearLimitSaid,
                 )
@@ -257,7 +267,7 @@ internal class EntryListViewModel(
             if (unlocked.changeableAgain) {
                 ListBanner(
                     key = "changeable-again/${database.database.id}",
-                    title = if (named) "${database.mark.label.name}: can be changed again" else "Can be changed again",
+                    title = title(R.string.list_banner_changeable_again, R.string.list_banner_changeable_again_named),
                     text = SizeTexts.changeableAgain(file.name, near = unlocked.room == SaveRoom.Near),
                     onDismiss = {
                         database.database.session.changeableAgainSaid()
@@ -271,20 +281,19 @@ internal class EntryListViewModel(
             database.unlocked.conflictCopies.firstOrNull()?.let { newest ->
                 ListBanner(
                     key = "conflict/${database.database.id}",
-                    title = if (named) "${database.mark.label.name}: Syncthing found two versions" else "Syncthing found two versions",
-                    text = "Open: ${file.name}. The other one is from ${newest.createdAt.format(CONFLICT_TIME)} " +
-                        "(device ${newest.deviceId}). Keep one of them here, or merge them in KeePassXC (Database › Merge).",
-                    action = "Resolve…" to { resolveConflict(database.database.id) },
+                    title = title(R.string.list_banner_conflict, R.string.list_banner_conflict_named),
+                    text = uiText(R.string.list_banner_conflict_text, file.name, newest.createdAt.format(CONFLICT_TIME), newest.deviceId),
+                    action = uiText(R.string.list_banner_conflict_resolve) to { resolveConflict(database.database.id) },
                 )
             },
             // keething-spec databases.saf AC5: which way, said until OK.
             database.unlocked.stoppedSave?.let { stopped ->
                 ListBanner(
                     key = "stopped-save/${database.database.id}",
-                    title = if (named) "${database.mark.label.name}: the last save was put right" else "The last save was put right",
-                    text = "Keething was closed while it saved ${file.name}. " + when (stopped) {
-                        StoppedSave.FINISHED -> "The save was finished: the file has the change."
-                        StoppedSave.UNDONE -> "It could not be finished, so the file is as it was before (or as a sync made it since): make the change again if it is missing."
+                    title = title(R.string.list_banner_stopped_save, R.string.list_banner_stopped_save_named),
+                    text = when (stopped) {
+                        StoppedSave.FINISHED -> uiText(R.string.list_banner_stopped_save_finished, file.name)
+                        StoppedSave.UNDONE -> uiText(R.string.list_banner_stopped_save_undone, file.name)
                     },
                     onDismiss = database.database.session::stoppedSaveSaid,
                 )
@@ -293,7 +302,7 @@ internal class EntryListViewModel(
             unsavedText(database.unlocked.unsaved, database.unlocked.vault)?.let { text ->
                 ListBanner(
                     key = "unsaved/${database.database.id}",
-                    title = if (named) "${database.mark.label.name}: not saved" else "Not saved",
+                    title = title(R.string.list_banner_unsaved, R.string.list_banner_unsaved_named),
                     text = text,
                     onDismiss = database.database.session::unsavedSaid,
                 )
@@ -301,7 +310,7 @@ internal class EntryListViewModel(
             database.unlocked.reloadFailure?.let { failure ->
                 ListBanner(
                     key = "reload/${database.database.id}",
-                    title = if (named) "${database.mark.label.name}: showing the version read before" else "Showing the version read before",
+                    title = title(R.string.list_banner_reload, R.string.list_banner_reload_named),
                     text = failure.describe(file.path),
                 )
             },
@@ -325,14 +334,18 @@ internal class EntryListViewModel(
                     if (list.isEmpty() || list.any { it.database === gone.database }) continue
                     val locked = gone.database.session.state.value as? SessionState.Locked ?: continue
                     if (locked.reason != LockReason.PasswordChanged) continue
-                    mutableNotices.send(Notice("${gone.mark.label.full} locked: its password was changed elsewhere", isProblem = true))
+                    mutableNotices.send(Notice(uiText(R.string.list_locked_password_changed, gone.mark.label.full), isProblem = true))
                 }
                 listed = list
                 for (database in list) {
                     val derivation = database.unlocked.keyDerivation ?: continue
                     if (!toldUnlocks.firstTime(ToldUnlocks.key(database.database.number, database.database.session.locks))) continue
-                    val what = if (list.size >= 2) "${database.mark.label.name} unlocked" else "Unlocked"
-                    mutableNotices.send(Notice("$what · key derivation ${derivation.seconds()}"))
+                    val said = if (list.size >= 2) {
+                        uiText(R.string.list_unlocked_named, database.mark.label.name, derivation.seconds())
+                    } else {
+                        uiText(R.string.list_unlocked, derivation.seconds())
+                    }
+                    mutableNotices.send(Notice(said))
                 }
             }
         }
@@ -349,8 +362,8 @@ internal class EntryListViewModel(
             copy = copy,
             open = VaultSummary.of(unlocked.vault),
             replaceRefused = when {
-                unlocked.viewOnly -> "This database is KDBX 3.1, viewed only: the other version can only be deleted here."
-                unlocked.room is SaveRoom.TooLarge -> "This database is read only on this phone: the other version can only be deleted here."
+                unlocked.viewOnly -> uiText(R.string.list_conflict_refused_kdbx3)
+                unlocked.room is SaveRoom.TooLarge -> uiText(R.string.list_conflict_refused_too_large)
                 else -> null
             },
             contents = { session.copyContents(copy) },
@@ -372,25 +385,25 @@ internal class EntryListViewModel(
     /** A row swiped right, or its quick actions (SPEC §6.2). */
     fun copyPassword(id: String) {
         val entry = entry(id) ?: return
-        if (entry.password.isEmpty()) return notice(Notice("No password to copy", isProblem = true))
+        if (entry.password.isEmpty()) return notice(Notice(uiText(R.string.list_no_password_to_copy), isProblem = true))
         clipboard.copy(entry.password.reveal(), sensitive = true)
         used(entry)
-        notice(Notice.copied("Password"))
+        notice(copied(R.string.list_field_password))
     }
 
     /** A row swiped left, or its quick actions (SPEC §6.2). */
     fun copyUsername(id: String) {
         val entry = entry(id) ?: return
-        if (entry.username.isEmpty()) return notice(Notice("No username to copy", isProblem = true))
+        if (entry.username.isEmpty()) return notice(Notice(uiText(R.string.list_no_username_to_copy), isProblem = true))
         clipboard.copy(entry.username, sensitive = false)
         used(entry)
-        notice(Notice.copied("Username"))
+        notice(copied(R.string.list_field_username))
     }
 
     /** A password made by the generator, without an entry (SPEC §6.2). */
     fun copyGenerated(password: String) {
         clipboard.copy(password, sensitive = true)
-        notice(Notice.copied("Password"))
+        notice(copied(R.string.list_field_password))
     }
 
     /**
@@ -401,7 +414,7 @@ internal class EntryListViewModel(
         val entry = entry(tile.entryId) ?: return
         clipboard.copy(TotpGenerator.code(tile.totp, Instant.now()), sensitive = true)
         used(entry)
-        notice(Notice.copied(if (tile.further) tile.subtitle else "One-time code"))
+        notice(if (tile.further) Notice.copied(tile.subtitle) else copied(R.string.list_one_time_code))
     }
 
     /** A tile's next code (keething-spec card.code-timer): the code its period after this one starts with. */
@@ -423,13 +436,18 @@ internal class EntryListViewModel(
      * Edit code (AC4): [tile]'s code becomes [config], a further one renamed [name]; saved as any edit, the old version
      * into the history. Why it cannot be saved as asked (a name taken), or null once the save is under way.
      */
-    fun editCode(tile: CodeTile, config: TotpConfig, name: String?): String? {
+    fun editCode(tile: CodeTile, config: TotpConfig, name: String?): UiText? {
         val found = openEntry(EntryRef.of(tile.entryId)) ?: return SAVE_LOCKED
         val field = tile.fieldName
-        if (field != null && name != null) CodeEdits.nameProblem(found.entry, field, name)?.let { return it }
-        val what = if (field == null) "One-time code" else "“${name?.trim()?.ifEmpty { null } ?: field}”"
+        if (field != null && name != null) CodeEdits.nameProblem(found.entry, field, name)?.let { return uiPlain(it) }
         save(found.database, VaultEdit.Update(found.entry.id, found.entry.lastModified, CodeEdits.edit(found.entry, field, config, name))) { problem ->
-            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice("$what changed in ${found.entry.displayTitle}"))
+            val title = found.entry.displayTitle
+            val changed = if (field == null) {
+                uiText(R.string.list_code_changed, title)
+            } else {
+                uiText(R.string.list_code_field_changed, name?.trim()?.ifEmpty { null } ?: field, title)
+            }
+            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(changed))
         }
         return null
     }
@@ -445,7 +463,7 @@ internal class EntryListViewModel(
         if (CodeEdits.isAllItHolds(before, field)) return recycleBin.moveToRecycleBin(found.database, before)
         val title = before.displayTitle
         save(found.database, VaultEdit.Update(before.id, before.lastModified, CodeEdits.delete(before, field))) { problem ->
-            val text = if (field == null) "One-time code deleted from $title" else "“${tile.subtitle}” deleted from $title"
+            val text = if (field == null) uiText(R.string.list_code_deleted, title) else uiText(R.string.list_code_field_deleted, tile.subtitle, title)
             notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(text, undo = { restoreCode(tile, before) }))
         }
     }
@@ -467,8 +485,8 @@ internal class EntryListViewModel(
         if (into != null) {
             val (changes, field) = CodeEdits.addTo(into, config)
             save(database, VaultEdit.Update(into.id, into.lastModified, changes)) { problem ->
-                val what = field?.let { "“$it”" } ?: "One-time code"
-                notice(problem?.let { Notice(it, isProblem = true) } ?: Notice("$what added to ${into.displayTitle}"))
+                val added = field?.let { uiText(R.string.list_code_field_added, it, into.displayTitle) } ?: uiText(R.string.list_code_added, into.displayTitle)
+                notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(added))
             }
             return
         }
@@ -477,12 +495,12 @@ internal class EntryListViewModel(
         val changes = CodeEdits.newEntry(title, username, config)
         save(database, VaultEdit.Create(Entry.newId(), GroupDestination(root.id), changes)) { problem ->
             if (problem == null) newEntryMade(database.id)
-            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice("“${changes.title.orEmpty().ifEmpty { "(Untitled)" }}” added with its code"))
+            notice(problem?.let { Notice(it, isProblem = true) } ?: Notice(uiText(R.string.list_code_entry_added, changes.title.orEmpty().ifEmpty { null } ?: uiText(R.string.list_untitled))))
         }
     }
 
     /** [edit] saved in [database]; [done] gets why it failed, or null. The change's secrets are wiped once it is over. */
-    private fun save(database: DatabaseSession, edit: VaultEdit, done: (problem: String?) -> Unit) {
+    private fun save(database: DatabaseSession, edit: VaultEdit, done: (problem: UiText?) -> Unit) {
         val changes = when (edit) {
             is VaultEdit.Update -> edit.changes
             is VaultEdit.Create -> edit.fields
@@ -534,7 +552,7 @@ internal class EntryListViewModel(
      */
     fun removeFromRecent(id: String) {
         val undo = recents.remove(id) ?: return
-        notice(Notice("Removed from Recent", undo = undo))
+        notice(Notice(uiText(R.string.list_removed_from_recent), undo = undo))
     }
 
     /** The entry of a row, a copy whose id is its ref; null once its database is not open. */
@@ -548,6 +566,9 @@ internal class EntryListViewModel(
         if (prepared.value?.listing?.inRecycleBin(entry.id) == false) recents.note(entry.id)
     }
 
+    /** "Password copied · clears in 30 s" (SPEC §6), [field] naming what was copied. */
+    private fun copied(@StringRes field: Int) = Notice(uiText(R.string.notice_copied, uiText(field)))
+
     private fun notice(notice: Notice) {
         mutableNotices.trySend(notice)
     }
@@ -556,7 +577,7 @@ internal class EntryListViewModel(
 private val CONFLICT_TIME: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
 
 /** `1.4 s`, `850 ms`, the unit kept with its number on a line. */
-internal fun Duration.seconds(): String =
-    if (inWholeMilliseconds < 1_000) "$inWholeMilliseconds\u00A0ms" else "%.1f\u00A0s".format(inWholeMilliseconds / 1_000.0)
+internal fun Duration.seconds(): UiText =
+    if (inWholeMilliseconds < 1_000) uiText(R.string.list_duration_ms, inWholeMilliseconds) else uiText(R.string.list_duration_s, inWholeMilliseconds / 1_000.0)
 
-private const val TAG = "List"
+private const val TAG = "List" // not user text

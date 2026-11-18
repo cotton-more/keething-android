@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -44,9 +45,11 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.keething.android.AppContainer
 import dev.keething.android.KeethingApplication
+import dev.keething.android.R
 import dev.keething.android.editor.EntryEditorScreen
 import dev.keething.android.quicknote.QuickNoteModel.Showing
 import dev.keething.android.theme.KeethingTheme
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.secureWindow
 import dev.keething.android.unlock.LockScreen
 import dev.keething.vault.databases.DatabaseId
@@ -117,7 +120,7 @@ class QuickNoteActivity : ComponentActivity() {
         }
         lifecycleScope.launch {
             val gone = model.showing.first { it is Showing.Gone } as Showing.Gone
-            gone.message?.let { Toast.makeText(applicationContext, it, Toast.LENGTH_SHORT).show() }
+            gone.message?.let { Toast.makeText(applicationContext, it.resolve(resources), Toast.LENGTH_SHORT).show() }
             finish()
         }
     }
@@ -175,7 +178,7 @@ class QuickNoteActivity : ComponentActivity() {
     }
 
     private companion object {
-        const val TAG = "QuickNote"
+        const val TAG = "QuickNote" // not user text
     }
 }
 
@@ -208,11 +211,11 @@ private fun Locked(container: AppContainer, database: DatabaseId, onClose: () ->
     BackHandler(onBack = onClose)
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 16.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close") }
-            Text("Keething note", style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.quicknote_close)) }
+            Text(stringResource(R.string.keething_note), style = MaterialTheme.typography.titleLarge)
         }
         Box(Modifier.fillMaxWidth().weight(1f)) {
-            LockScreen(container, session, onBack = null, onChose = {}, purpose = "Unlock to write the quick note")
+            LockScreen(container, session, onBack = null, onChose = {}, purpose = stringResource(R.string.quicknote_unlock_purpose))
         }
     }
 }

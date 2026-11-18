@@ -1,5 +1,7 @@
 package dev.keething.android.editor
 
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
@@ -35,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -61,18 +64,19 @@ internal class CodeImages(
 @Composable
 internal fun rememberCodeImages(onTexts: (List<String>) -> Unit, onProblem: (String) -> Unit, onCamera: () -> Unit): CodeImages {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val read = { uri: Uri ->
         scope.launch {
             val texts = withContext(Dispatchers.Default) { runCatching { QrReading.texts(context.contentResolver, uri) }.getOrNull() }
-            if (texts == null) onProblem("The image could not be read.") else onTexts(texts)
+            if (texts == null) onProblem(resources.getString(R.string.editor_code_image_unreadable)) else onTexts(texts)
         }
         Unit
     }
     // Any image file, from the phone or a cloud drive: GitHub's code is an SVG the photo picker does not offer.
     val chooseFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(read) }
     val askCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) onCamera() else onProblem("The camera is not allowed; allow it in the app's settings, or choose an image.")
+        if (granted) onCamera() else onProblem(resources.getString(R.string.editor_code_camera_not_allowed))
     }
     return CodeImages(
         chooseFile = { chooseFile.launch(arrayOf("image/*")) },
@@ -113,12 +117,12 @@ internal fun CodeCameraDialog(onTexts: (List<String>) -> String?, onClose: () ->
             CodeCamera(onTexts = { texts -> problem = onTexts(texts) }, modifier = Modifier.fillMaxSize())
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close", tint = Color.White) }
-                    Text("Scan the QR code", color = Color.White, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge)
+                    IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.editor_code_camera_close), tint = Color.White) }
+                    Text(stringResource(R.string.editor_code_camera_title), color = Color.White, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge)
                 }
                 Box(Modifier.weight(1f))
                 Text(
-                    problem ?: "Point at the QR code the site shows for two-step sign-in.",
+                    problem ?: stringResource(R.string.editor_code_camera_hint),
                     Modifier.padding(16.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xCC101112)).padding(16.dp),
                     color = Color.White,
                     textAlign = TextAlign.Center,

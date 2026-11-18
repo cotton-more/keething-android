@@ -32,9 +32,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CustomIconImages
@@ -85,27 +88,27 @@ internal fun QuickActionsSheet(
     val id = actions.id
     val done = { act: () -> Unit -> { onDismiss(); act() } }
     val copies = listOfNotNull(
-        Action("Copy username", Icons.Rounded.Person, detail = actions.username, act = done { handler.copyUsername(id) })
+        Action(stringResource(R.string.list_copy_username), Icons.Rounded.Person, detail = actions.username, act = done { handler.copyUsername(id) })
             .takeIf { row.hasUsername },
-        Action("Copy password", Icons.Rounded.Key, act = done { handler.copyPassword(id) }).takeIf { row.hasPassword },
+        Action(stringResource(R.string.list_copy_password), Icons.Rounded.Key, act = done { handler.copyPassword(id) }).takeIf { row.hasPassword },
         // One code is copied as from the row's button, two or more open their sheet (keething-spec search.row-codes AC5).
         row.codes.singleOrNull()?.let { tile ->
-            Action("Copy one-time code", Icons.Rounded.Timer, code = TotpDisplay.of(tile.totp, now.value).formatted, act = done { handler.copyCode(tile) })
+            Action(stringResource(R.string.list_copy_one_time_code), Icons.Rounded.Timer, code = TotpDisplay.of(tile.totp, now.value).formatted, act = done { handler.copyCode(tile) })
         } ?: row.codes.takeIf { it.size > 1 }?.let { codes ->
-            Action("Copy one-time code…", Icons.Rounded.Timer, detail = "${codes.size} codes", act = done { handler.showCodes(row) })
+            Action(stringResource(R.string.list_copy_one_time_code_more), Icons.Rounded.Timer, detail = pluralStringResource(R.plurals.list_codes_count, codes.size, codes.size), act = done { handler.showCodes(row) })
         },
-        actions.url?.let { url -> Action("Open ${actions.host}", Icons.AutoMirrored.Rounded.OpenInNew, act = done { handler.openSite(id, url) }) },
+        actions.url?.let { url -> Action(stringResource(R.string.list_open_site, actions.host.orEmpty()), Icons.AutoMirrored.Rounded.OpenInNew, act = done { handler.openSite(id, url) }) },
     )
     val changes = if (actions.inRecycleBin) {
         listOf(
-            Action("Restore", Icons.Rounded.RestoreFromTrash, act = done { handler.restore(id) }),
-            Action("Delete for good…", Icons.Rounded.DeleteForever, danger = true, act = done { handler.deleteForGood(id) }),
+            Action(stringResource(R.string.list_restore), Icons.Rounded.RestoreFromTrash, act = done { handler.restore(id) }),
+            Action(stringResource(R.string.list_delete_for_good_more), Icons.Rounded.DeleteForever, danger = true, act = done { handler.deleteForGood(id) }),
         )
     } else {
         listOfNotNull(
-            Action("Edit", Icons.Rounded.Edit, act = done { handler.edit(id) }),
-            Action("Remove from Recent", Icons.Rounded.HistoryToggleOff, act = done { handler.removeFromRecent(id) }).takeIf { fromRecent },
-            Action("Move to the recycle bin", Icons.Rounded.Delete, danger = true, act = done { handler.moveToRecycleBin(id) }),
+            Action(stringResource(R.string.list_edit), Icons.Rounded.Edit, act = done { handler.edit(id) }),
+            Action(stringResource(R.string.list_remove_from_recent), Icons.Rounded.HistoryToggleOff, act = done { handler.removeFromRecent(id) }).takeIf { fromRecent },
+            Action(stringResource(R.string.list_move_to_bin), Icons.Rounded.Delete, danger = true, act = done { handler.moveToRecycleBin(id) }),
         )
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {

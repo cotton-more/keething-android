@@ -5,7 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dev.keething.android.editor.describe
 import dev.keething.android.editor.problem
+import dev.keething.android.R
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.afterColon
+import dev.keething.android.ui.uiText
 import dev.keething.android.unlock.describe
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.vault.saving.SaveFailure
@@ -30,7 +34,7 @@ internal class ConflictCopyModel(
     /** The open database in brief. */
     val open: VaultSummary,
     /** Why the copy cannot take the database's place here (read-only), or null. */
-    val replaceRefused: String?,
+    val replaceRefused: UiText?,
     private val contents: suspend () -> CopyContents?,
     private val take: () -> Deferred<SaveOutcome>?,
     private val remove: () -> Deferred<SaveFailure?>?,
@@ -44,7 +48,7 @@ internal class ConflictCopyModel(
         data class Read(val summary: VaultSummary) : Other
 
         /** It does not open with the database's key, or at all: [why]. It can only be deleted here. */
-        data class NotOpened(val why: String) : Other
+        data class NotOpened(val why: UiText) : Other
     }
 
     enum class Choice { KEEP_OPEN, USE_OTHER }
@@ -57,7 +61,7 @@ internal class ConflictCopyModel(
         private set
 
     /** Why the last choice did nothing, said in the sheet. */
-    var problem: String? by mutableStateOf(null)
+    var problem: UiText? by mutableStateOf(null)
         private set
 
     /** Use the other one is offered: the copy opened, the database can be changed, nothing running. */
@@ -69,12 +73,12 @@ internal class ConflictCopyModel(
                 is CopyContents.Read -> Other.Read(read.summary)
                 is CopyContents.NotOpened -> Other.NotOpened(
                     if (read.failure.isWrongKey) {
-                        "It does not open with this database's password or key file (changed on another device?)."
+                        uiText(R.string.list_conflict_wrong_key)
                     } else {
                         read.failure.describe(copy.fileName)
                     },
                 )
-                null -> Other.NotOpened("The database is locked.")
+                null -> Other.NotOpened(uiText(R.string.list_conflict_locked))
             }
         }
     }
@@ -88,9 +92,9 @@ internal class ConflictCopyModel(
             val failure = removing.await()
             working = null
             if (failure == null) {
-                onDone(Notice("Kept ${file.name}. The other version was deleted (a copy is in Keething's backups)."))
+                onDone(Notice(uiText(R.string.list_conflict_kept, file.name)))
             } else {
-                problem = "The other version is still there: " + failure.describe(file).replaceFirstChar(Char::lowercase)
+                problem = uiText(R.string.list_conflict_still_there, failure.describe(file).afterColon())
             }
         }
     }
@@ -105,9 +109,9 @@ internal class ConflictCopyModel(
             working = null
             when {
                 outcome is SaveOutcome.Saved && outcome.copyLeft != null -> onDone(
-                    Notice("${file.name} is the other version now. Its file could not be deleted: keep the open one to delete it.", isProblem = true),
+                    Notice(uiText(R.string.list_conflict_used_copy_left, file.name), isProblem = true),
                 )
-                outcome is SaveOutcome.Saved -> onDone(Notice("${file.name} is the other version now (the one before is in Keething's backups)."))
+                outcome is SaveOutcome.Saved -> onDone(Notice(uiText(R.string.list_conflict_used, file.name)))
                 outcome == SaveOutcome.Interrupted -> onDone(Notice(outcome.problem(file)!!, isProblem = true))
                 else -> problem = outcome.problem(file)
             }
@@ -115,6 +119,6 @@ internal class ConflictCopyModel(
     }
 
     private companion object {
-        const val LOCKED = "The database is locked. Nothing was changed."
+        val LOCKED = uiText(R.string.list_conflict_locked_nothing_changed)
     }
 }

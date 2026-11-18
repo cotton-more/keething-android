@@ -39,11 +39,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.list.Banner
 import dev.keething.android.list.SectionTitle
 import dev.keething.android.theme.extraColors
@@ -54,6 +57,7 @@ import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.dotsAtLineEnd
 import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.rememberSecondsNow
+import dev.keething.android.ui.resolve
 import dev.keething.android.ui.segmentShape
 
 /**
@@ -84,12 +88,12 @@ internal fun SharingScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             LargeFlexibleTopAppBar(
-                title = { Text("Sharing") },
+                title = { Text(stringResource(R.string.sharing_title)) },
                 subtitle = {
-                    val days = validity.inWholeDays
-                    FitText("Encrypted for one phone · requests last ${if (days == 1L) "1 day" else "$days days"}")
+                    val days = validity.inWholeDays.toInt()
+                    FitText(pluralStringResource(R.plurals.sharing_subtitle, days, days))
                 },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to the list") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.sharing_back_to_list)) } },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -100,14 +104,14 @@ internal fun SharingScreen(
         bottomBar = {
             BottomActions {
                 FilledTonalButton(onClick = onSend, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                    ButtonLabel("Send entries without a request", Icons.AutoMirrored.Rounded.Send, iconSize = 20.dp, gap = 8.dp)
+                    ButtonLabel(stringResource(R.string.sharing_send_without), Icons.AutoMirrored.Rounded.Send, iconSize = 20.dp, gap = 8.dp)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     FilledTonalButton(onClick = onRead, modifier = Modifier.weight(1f).height(56.dp)) {
-                        ButtonLabel("Read a code", Icons.Rounded.QrCodeScanner)
+                        ButtonLabel(stringResource(R.string.sharing_read_a_code), Icons.Rounded.QrCodeScanner)
                     }
                     Button(onClick = onAsk, modifier = Modifier.weight(1f).height(56.dp)) {
-                        ButtonLabel("Ask for an entry", Icons.Rounded.Add, short = "Ask")
+                        ButtonLabel(stringResource(R.string.sharing_ask_for_entry), Icons.Rounded.Add, short = stringResource(R.string.sharing_ask_short))
                     }
                 }
             }
@@ -120,20 +124,20 @@ internal fun SharingScreen(
             if (lost?.told == false) {
                 item(key = "lost") {
                     Banner(
-                        "Saved requests could not be read",
-                        "This phone started its requests and envelopes again. If you were waiting for an answer, ask for it again.",
+                        stringResource(R.string.sharing_lost_title),
+                        stringResource(R.string.sharing_lost_text),
                         onDismiss = container.shareRequests::toldLost,
                     )
                 }
             }
             if (theirs.isNotEmpty()) {
-                item(key = "theirs") { SectionTitle("To answer") }
+                item(key = "theirs") { SectionTitle(stringResource(R.string.sharing_to_answer)) }
                 itemsIndexed(theirs, key = { _, it -> "theirs/${it.request.id}" }) { index, their ->
                     RequestRow(
                         shape = segmentShape(index, theirs.size),
                         leading = { PersonIcon(their.request.name, 44.dp) },
                         title = their.request.reason,
-                        subtitle = "${their.request.name} · ${SharingTexts.expires(their.request.expires, now)}",
+                        subtitle = stringResource(R.string.sharing_two_parts, their.request.name, SharingTexts.expires(their.request.expires, now).resolve()),
                         trailing = { CheckedChip(their.checked) },
                         onClick = { onTheirs(their.request.id) },
                         modifier = Modifier.animateItem().padding(bottom = SegmentGap),
@@ -142,7 +146,7 @@ internal fun SharingScreen(
                 item(key = "gap/theirs") { Spacer(Modifier.height(18.dp)) }
             }
             if (mine.isNotEmpty()) {
-                item(key = "mine") { SectionTitle("Waiting for an answer") }
+                item(key = "mine") { SectionTitle(stringResource(R.string.sharing_waiting)) }
                 itemsIndexed(mine, key = { _, it -> "mine/${it.request.id}" }) { index, my ->
                     RequestRow(
                         shape = segmentShape(index, mine.size),
@@ -153,7 +157,11 @@ internal fun SharingScreen(
                             ) { Icon(Icons.Rounded.QrCode2, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer) }
                         },
                         title = my.request.reason,
-                        subtitle = "Asked ${SharingTexts.moment(my.request.created, now)} · ${SharingTexts.expires(my.request.expires, now)}",
+                        subtitle = stringResource(
+                            R.string.sharing_row_asked,
+                            SharingTexts.moment(my.request.created, now).resolve(),
+                            SharingTexts.expires(my.request.expires, now).resolve(),
+                        ),
                         trailing = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                         onClick = { onMine(my.request.id) },
                         modifier = Modifier.animateItem().padding(bottom = SegmentGap),
@@ -162,7 +170,7 @@ internal fun SharingScreen(
                 item(key = "gap/mine") { Spacer(Modifier.height(18.dp)) }
             }
             if (sent.isNotEmpty()) {
-                item(key = "sent") { SectionTitle("Sent, pictures kept") }
+                item(key = "sent") { SectionTitle(stringResource(R.string.sharing_sent_kept)) }
                 itemsIndexed(sent, key = { _, it -> "sent/${it.envelope.id}" }) { index, one ->
                     RequestRow(
                         shape = segmentShape(index, sent.size),
@@ -172,12 +180,21 @@ internal fun SharingScreen(
                                 contentAlignment = Alignment.Center,
                             ) { Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer) }
                         },
-                        title = SharingTexts.titles(one.titles),
-                        subtitle = listOfNotNull(
-                            one.recipient.takeIf { it.isNotEmpty() }?.let { "For $it" },
-                            "sent ${SharingTexts.moment(one.envelope.created, now)}",
-                            SharingTexts.expires(one.envelope.expires, now),
-                        ).joinToString(" · ").replaceFirstChar { it.uppercase() },
+                        title = SharingTexts.titles(one.titles).resolve(),
+                        subtitle = if (one.recipient.isNotEmpty()) {
+                            stringResource(
+                                R.string.sharing_row_sent_for,
+                                one.recipient,
+                                SharingTexts.moment(one.envelope.created, now).resolve(),
+                                SharingTexts.expires(one.envelope.expires, now).resolve(),
+                            )
+                        } else {
+                            stringResource(
+                                R.string.sharing_row_sent,
+                                SharingTexts.moment(one.envelope.created, now).resolve(),
+                                SharingTexts.expires(one.envelope.expires, now).resolve(),
+                            )
+                        },
                         trailing = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                         onClick = { onSent(one.envelope.id) },
                         modifier = Modifier.animateItem().padding(bottom = SegmentGap),
@@ -187,10 +204,8 @@ internal fun SharingScreen(
             if (theirs.isEmpty() && mine.isEmpty() && sent.isEmpty()) {
                 item(key = "empty") {
                     Explanation(
-                        "Nothing to answer, nothing waiting",
-                        "To get an entry, ask for it: the answer comes back as a code only this phone can open. " +
-                            "To give one, read the code of someone's request, or send it without one: it opens with ten " +
-                            "pictures you give another way.",
+                        stringResource(R.string.sharing_empty_title),
+                        stringResource(R.string.sharing_empty_text),
                     )
                 }
             }

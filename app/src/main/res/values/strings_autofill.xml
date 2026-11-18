@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What autofill offers in the other app's dropdown or keyboard (autofill/Datasets.kt, AutofillActivity.kt) -->
+    <string name="autofill_offer_generate">Generate a password</string>
+    <string name="autofill_offer_unlock">Unlock Keething</string>
+    <string name="autofill_offer_search">Search Keething</string>
+    <string name="autofill_offer_another">Another entry</string>
+    <!-- Under an offer; %1$s: the app or website filled -->
+    <string name="autofill_offer_to_fill">to fill %1$s</string>
+    <string name="autofill_generated_password">Generated password</string>
+
+    <!-- No database chosen yet (autofill/AutofillScreen.kt, SaveLoginActivity.kt) -->
+    <string name="autofill_no_database_title">No database chosen yet</string>
+    <string name="autofill_no_database_text">Open Keething and choose the database first.</string>
+    <string name="autofill_close">Close</string>
+
+    <!-- Choosing an entry to fill (autofill/AutofillScreen.kt) -->
+    <string name="autofill_pick_title">Choose an entry</string>
+    <!-- %1$s: the app or website filled -->
+    <string name="autofill_pick_subtitle">to fill %1$s</string>
+    <string name="autofill_pick_close">Close without filling</string>
+    <!-- A row's action as a reader says it -->
+    <string name="autofill_pick_fill">Fill</string>
+    <!-- %1$s: the entry's title -->
+    <string name="autofill_pick_no_code">%1$s has no one-time code</string>
+    <!-- %1$s: the entry's title -->
+    <string name="autofill_pick_nothing_for_fields">%1$s has nothing for these fields</string>
+    <!-- %1$s: what was searched for -->
+    <string name="autofill_pick_nothing_matches">Nothing matches “%1$s”.</string>
+
+    <!-- Saving a login typed in another app (autofill/SaveLoginActivity.kt) -->
+    <string name="autofill_save_nothing">Nothing to save: the login was typed too long ago</string>
+    <!-- %1$s: the entry's title -->
+    <string name="autofill_save_already_saved">Already saved in Keething: %1$s</string>
+    <string name="autofill_save_password_updated">Password updated in Keething</string>
+    <!-- %1$s: which empty groups were deleted with the save, a sentence of its own -->
+    <string name="autofill_save_password_updated_groups_deleted">Password updated in Keething. %1$s</string>
+    <!-- %1$s: the entry's title -->
+    <string name="autofill_save_update_title">Update the password of “%1$s”?</string>
+    <!-- %1$s: the app or website the password was typed in -->
+    <string name="autofill_save_update_text">The password typed in %1$s is new for this account.</string>
+    <string name="autofill_save_as_new">Save as a new entry instead</string>
+    <string name="autofill_save_saved">Saved to Keething</string>
+    <!-- %1$s: the app or website the login was typed in -->
+    <string name="autofill_save_new_title">Save the login typed in %1$s</string>
+    <string name="autofill_save_new_text">A new entry; check its name and group.</string>
+</resources>

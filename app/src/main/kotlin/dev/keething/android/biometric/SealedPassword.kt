@@ -19,7 +19,7 @@ internal open class UnreadableSealException(message: String, cause: Throwable? =
  * The RSA step refused: the key does not open the wrapped AES key. Of a software key, the bytes are another key's; of
  * the Keystore's, that may be the Keystore failing for a moment as well.
  */
-internal class UnwrapRefusedException(cause: Throwable) : UnreadableSealException("the key did not unwrap it (${cause.javaClass.simpleName})", cause)
+internal class UnwrapRefusedException(cause: Throwable) : UnreadableSealException("the key did not unwrap it (${cause.javaClass.simpleName})", cause) // not user text
 
 /**
  * The stored master password (SPEC §5): a random AES-256 key encrypts it with GCM, and the Keystore's RSA
@@ -31,7 +31,7 @@ internal class UnwrapRefusedException(cause: Throwable) : UnreadableSealExceptio
  * its 16-byte tag. The magic and the version are the GCM's additional data.
  */
 internal object SealedPassword {
-    const val RSA_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
+    const val RSA_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding" // not user text
 
     /**
      * Given on both sides: providers assume different MGF1 digests for this transformation, and the Keystore
@@ -65,11 +65,11 @@ internal object SealedPassword {
      */
     fun open(sealed: ByteArray, rsa: Cipher): Secret {
         if (sealed.size < HEADER.size + 2 || !sealed.copyOf(HEADER.size).contentEquals(HEADER)) {
-            throw UnreadableSealException("not a sealed password")
+            throw UnreadableSealException("not a sealed password") // not user text
         }
         val buffer = ByteBuffer.wrap(sealed, HEADER.size, sealed.size - HEADER.size)
         val wrappedSize = buffer.short.toInt() and 0xFFFF
-        if (buffer.remaining() < wrappedSize + IV_BYTES + TAG_BITS / 8) throw UnreadableSealException("cut short")
+        if (buffer.remaining() < wrappedSize + IV_BYTES + TAG_BITS / 8) throw UnreadableSealException("cut short") // not user text
         val wrapped = ByteArray(wrappedSize).also { buffer.get(it) }
         val iv = ByteArray(IV_BYTES).also { buffer.get(it) }
         val encrypted = ByteArray(buffer.remaining()).also { buffer.get(it) }
@@ -80,16 +80,16 @@ internal object SealedPassword {
             } catch (refused: GeneralSecurityException) {
                 throw UnwrapRefusedException(refused)
             }
-            if (aesKey.size != KEY_BYTES) throw UnreadableSealException("not a sealed password")
+            if (aesKey.size != KEY_BYTES) throw UnreadableSealException("not a sealed password") // not user text
             return Secret.adopt(gcm(Cipher.DECRYPT_MODE, aesKey, iv).doFinal(encrypted))
         } catch (failure: GeneralSecurityException) {
-            throw UnreadableSealException("does not open (${failure.javaClass.simpleName})", failure)
+            throw UnreadableSealException("does not open (${failure.javaClass.simpleName})", failure) // not user text
         } finally {
             aesKey?.fill(0)
         }
     }
 
-    private fun gcm(mode: Int, key: ByteArray, iv: ByteArray): Cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
+    private fun gcm(mode: Int, key: ByteArray, iv: ByteArray): Cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { // not user text
         init(mode, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, iv))
         updateAAD(HEADER)
     }

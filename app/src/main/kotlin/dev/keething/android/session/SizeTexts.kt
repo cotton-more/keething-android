@@ -1,5 +1,9 @@
 package dev.keething.android.session
 
+import dev.keething.android.R
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.vault.opening.DatabaseSize
 import dev.keething.vault.session.AttachmentQuestion
 import dev.keething.vault.session.SaveRoom
@@ -13,78 +17,57 @@ internal object SizeTexts {
      * The list's banner while it is open read-only: said as long as it is shown. Beside others, what to do is to lock
      * them (making it smaller may not be what it needs).
      */
-    fun tooLarge(fileName: String, size: DatabaseSize, alone: Boolean): String = if (alone) {
-        "This phone does not give Keething enough memory to save $fileName safely, so it is open to read only: you can " +
-            "read and copy from it, not change it. ${size(size)} ${advice(size)}"
-    } else {
-        "With the other open databases beside it, this phone does not give Keething enough memory to save $fileName " +
-            "safely, so it is open to read only: you can read and copy from it, not change it. ${size(size)} Lock the " +
-            "others to change it: it becomes changeable once a save fits."
+    fun tooLarge(fileName: String, size: DatabaseSize, alone: Boolean): UiText = when {
+        alone && size.isAttachments -> uiText(R.string.session_size_too_large_attachments, fileName, mib(size.fileBytes), mib(size.attachmentBytes))
+        alone -> uiText(R.string.session_size_too_large_entries, fileName, mib(size.fileBytes))
+        size.isAttachments -> uiText(R.string.session_size_too_large_beside_attachments, fileName, mib(size.fileBytes), mib(size.attachmentBytes))
+        else -> uiText(R.string.session_size_too_large_beside_entries, fileName, mib(size.fileBytes))
     }
 
     /**
      * The list's banner once it became changeable, the others beside it locked (keething-spec app.large-database AC3):
      * said until OK. [near]: its save is near the limit all the same.
      */
-    fun changeableAgain(fileName: String, near: Boolean): String =
-        "With the other databases locked, this phone has the memory to save $fileName: you can change it again." +
-            if (near) " A save takes most of that memory, so keep the others locked while you change it." else ""
+    fun changeableAgain(fileName: String, near: Boolean): UiText =
+        uiText(if (near) R.string.session_size_changeable_again_near else R.string.session_size_changeable_again, fileName)
 
     /** The list's banner once at an unlock near the limit; it still saves. */
-    fun nearLimit(fileName: String, size: DatabaseSize): String =
-        "A save of $fileName takes most of the memory this phone gives Keething. It saves now, but not much larger. " +
-            "${size(size)} ${advice(size)}"
+    fun nearLimit(fileName: String, size: DatabaseSize): UiText = if (size.isAttachments) {
+        uiText(R.string.session_size_near_limit_attachments, fileName, mib(size.fileBytes), mib(size.attachmentBytes))
+    } else {
+        uiText(R.string.session_size_near_limit_entries, fileName, mib(size.fileBytes))
+    }
 
     /** A change tried on it before anything is typed (Edit, New). */
-    fun refused(name: String, room: SaveRoom.TooLarge): String =
-        "“$name” is open to read only: " + if (room.alone) "too large for this phone to save safely." else
-            "with the other databases open, too large for this phone to save safely. Lock them to change it."
+    fun refused(name: String, room: SaveRoom.TooLarge): UiText =
+        uiText(if (room.alone) R.string.session_size_refused else R.string.session_size_refused_beside, name)
 
     /** A save refused because it is read-only ([dev.keething.vault.saving.SaveFailure.TooLarge]). */
-    fun saveRefused(alone: Boolean): String =
-        "This database is open to read only: too large for this phone to save safely. Nothing was saved." +
-            if (alone) "" else " Lock the other databases to change it."
+    fun saveRefused(alone: Boolean): UiText =
+        uiText(if (alone) R.string.session_size_save_refused else R.string.session_size_save_refused_beside)
 
     /**
      * Asked before [name] is attached (keething-spec app.large-database AC4): how large it is ([size], in the system's
      * units as the editor's rows show it), what it does to the database [fileName] (its room with it,
      * [AttachmentQuestion.room], when worse), and the same advice. The user may attach it.
      */
-    fun largeAttachment(name: String, size: String, question: AttachmentQuestion, fileName: String): String {
-        val what = when (val room = question.room) {
-            SaveRoom.Near -> "With it, a save of $fileName takes most of the memory this phone gives Keething: it still saves, but not much larger."
-            is SaveRoom.TooLarge -> if (room.alone) {
-                "With it, this phone does not give Keething enough memory to save $fileName safely: the save may fail, and " +
-                    "from the next unlock it opens to read only."
-            } else {
-                "With it, this phone does not give Keething enough memory to save $fileName safely beside the other open " +
-                    "databases: lock them before you save."
-            }
-            SaveRoom.Enough, null -> "Every unlock and every save of $fileName reads and writes all of it: large files make it slower and take memory."
+    fun largeAttachment(name: String, size: String, question: AttachmentQuestion, fileName: String): UiText {
+        val text = when (val room = question.room) {
+            SaveRoom.Near -> R.string.session_size_attachment_near
+            is SaveRoom.TooLarge -> if (room.alone) R.string.session_size_attachment_too_large else R.string.session_size_attachment_too_large_beside
+            SaveRoom.Enough, null -> R.string.session_size_attachment
         }
-        return "$name is $size. $what Keep large files outside the database, or split it into two databases."
+        return uiText(text, name, size, fileName)
     }
 
     /** A save that ran out of memory all the same. */
-    const val OUT_OF_MEMORY: String =
-        "Not enough memory to write the database. Nothing was saved. Lock the other open databases and try again; " +
-            "if it still fails, keep large files outside the database or split it into two."
+    val OUT_OF_MEMORY: UiText = uiText(R.string.session_size_out_of_memory)
 
-    private fun size(size: DatabaseSize): String {
-        val total = "It is ${mib(size.fileBytes)}"
-        return if (size.attachmentBytes * 2 >= size.fileBytes) "$total; its attachments are ${mib(size.attachmentBytes)}." else "$total."
-    }
-
-    private fun advice(size: DatabaseSize): String =
-        if (size.attachmentBytes * 2 >= size.fileBytes) {
-            "To make it smaller, keep large files outside the database or split it into two databases. An attachment " +
-                "removed stays in its entry's history until KeePassXC on a computer clears that."
-        } else {
-            "To make it smaller, split it into two databases, or remove old history in KeePassXC on a computer."
-        }
+    /** Its attachments make it so: half of it or more. */
+    private val DatabaseSize.isAttachments: Boolean get() = attachmentBytes * 2 >= fileBytes
 
     /** Whole MiB, at least 1. */
-    fun mib(bytes: Long): String = "${maxOf(1, (bytes + MIB / 2) / MIB)} MiB"
+    fun mib(bytes: Long): UiText = maxOf(1, (bytes + MIB / 2) / MIB).toInt().let { uiPlural(R.plurals.session_size_mib, it) }
 
     private const val MIB = 1L shl 20
 }

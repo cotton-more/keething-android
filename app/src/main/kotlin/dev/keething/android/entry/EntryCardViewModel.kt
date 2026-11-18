@@ -32,7 +32,10 @@ import dev.keething.android.recyclebin.RecycleBinMoves
 import dev.keething.vault.databases.DatabaseSession
 import dev.keething.vault.databases.EntryRef
 import dev.keething.android.settings.AppSettings
+import dev.keething.android.R
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiText
 import dev.keething.card.CardSection
 import dev.keething.card.EntryCard
 import dev.keething.card.EntryCardBuilder
@@ -68,7 +71,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** What the SSH face says of the entry's key (SPEC §6.2): where it is, and its public half when it can be read. */
-internal data class SshKeyView(val location: SshKeyLocation, val publicKey: SshPublicKey?, val problem: String?)
+internal data class SshKeyView(val location: SshKeyLocation, val publicKey: SshPublicKey?, val problem: UiText?)
 
 /** The open card: built from the entry in the vault shown now. */
 internal data class CardContent(
@@ -176,11 +179,13 @@ internal class EntryCardViewModel(
             mutableNotices.trySend(
                 failure?.let { Notice(it, isProblem = true) }
                     ?: Notice(
-                        when (suggestion.kind) {
-                            TypeSuggestion.Kind.PAYMENT_CARD -> "Saved · the Mac shows it as a card too"
-                            TypeSuggestion.Kind.WIFI -> "Saved · the Mac shows the network too"
-                            else -> "Saved"
-                        },
+                        uiText(
+                            when (suggestion.kind) {
+                                TypeSuggestion.Kind.PAYMENT_CARD -> R.string.entry_saved_card
+                                TypeSuggestion.Kind.WIFI -> R.string.entry_saved_network
+                                else -> R.string.entry_saved
+                            },
+                        ),
                     ),
             )
         }
@@ -203,7 +208,7 @@ internal class EntryCardViewModel(
                 }
             }.build()
         } catch (_: IllegalArgumentException) {
-            problem("This phone cannot add the network: its name or key is not one Android accepts")
+            problem(uiText(R.string.entry_network_refused))
             return null
         }
         return Intent(Settings.ACTION_WIFI_ADD_NETWORKS).putParcelableArrayListExtra(Settings.EXTRA_WIFI_NETWORK_LIST, arrayListOf(suggestion))
@@ -224,12 +229,12 @@ internal class EntryCardViewModel(
         if (content.value?.inRecycleBin == false) recents.note(ref.text)
         // A code of a list is copied to be used: the notice offers to mark it so.
         val copied = when {
-            row.copiesCompact -> Notice("${row.noticeLabel} copied without spaces · clears in 30 s")
+            row.copiesCompact -> Notice(uiText(R.string.entry_copied_compact, row.noticeLabel))
             // Malware swaps addresses on the clipboard: the start and end are what to check.
-            row.type == FieldType.CRYPTO_ADDRESS -> Notice("${row.noticeLabel} copied · check its start and end where you paste it")
+            row.type == FieldType.CRYPTO_ADDRESS -> Notice(uiText(R.string.entry_copied_address, row.noticeLabel))
             else -> Notice.copied(row.noticeLabel)
         }
-        mutableNotices.trySend(if (canMarkUsed(row) && row.usedOn == null) copied.copy(undo = { setUsed(row, true) }, actionLabel = "Mark as used") else copied)
+        mutableNotices.trySend(if (canMarkUsed(row) && row.usedOn == null) copied.copy(undo = { setUsed(row, true) }, actionLabel = uiText(R.string.entry_codes_mark_used)) else copied)
     }
 
     /** A code row's next code (keething-spec card.code-timer): copied as the code is, said with when it starts to work. */
@@ -249,7 +254,7 @@ internal class EntryCardViewModel(
         val selection = content.value?.card?.selectionToCopy(rowId, text, reveal.value) ?: return
         clipboard.copy(selection.text, sensitive = selection.sensitive)
         if (content.value?.inRecycleBin == false) recents.note(ref.text)
-        mutableNotices.trySend(Notice("Copied · clears in 30 s"))
+        mutableNotices.trySend(Notice(uiText(R.string.entry_copied_selection)))
     }
 
     /** Text the card makes rather than a row holds (an ssh command, a config block, a public key): nothing secret. */
@@ -293,10 +298,10 @@ internal class EntryCardViewModel(
         }
         location ?: return null
         if (location !is SshKeyLocation.InAttachment) return SshKeyView(location, null, null)
-        val bytes = database.session.attachment(entryId, location.name) ?: return SshKeyView(location, null, "${location.name} is not in the database")
+        val bytes = database.session.attachment(entryId, location.name) ?: return SshKeyView(location, null, uiText(R.string.entry_ssh_key_missing, location.name))
         return try {
             val key = bytes.useBytes(SshPublicKey::ofPrivateKey)
-            SshKeyView(location, key, if (key == null) "Only keys in the OpenSSH format can be read" else null)
+            SshKeyView(location, key, if (key == null) uiText(R.string.entry_ssh_key_not_openssh) else null)
         } finally {
             bytes.wipe()
         }
@@ -345,8 +350,8 @@ internal class EntryCardViewModel(
             mutableNotices.trySend(
                 when {
                     failure != null -> Notice(failure, isProblem = true)
-                    used -> Notice("${row.noticeLabel} marked as used", undo = { setUsed(row, false) })
-                    else -> Notice("${row.noticeLabel} marked as not used", undo = { setUsed(row, true) })
+                    used -> Notice(uiText(R.string.entry_code_marked_used, row.noticeLabel), undo = { setUsed(row, false) })
+                    else -> Notice(uiText(R.string.entry_code_marked_not_used, row.noticeLabel), undo = { setUsed(row, true) })
                 },
             )
         }
@@ -355,13 +360,13 @@ internal class EntryCardViewModel(
     /** Writes the attachment to a file of its own and hands it to the app the user picks. */
     fun openAttachment(row: FieldRow) {
         val name = row.label
-        val bytes = database.session.attachment(entryId, name) ?: return problem("Could not read $name")
+        val bytes = database.session.attachment(entryId, name) ?: return problem(uiText(R.string.entry_attachment_could_not_read, name))
         val generation = files.generation(database.id)
         viewModelScope.launch {
             val intent = try {
                 withContext(Dispatchers.IO) { files.write(database.id, generation, name, bytes)?.let { android.viewIntent(it, bytes) } }
             } catch (_: Exception) {
-                return@launch problem("Could not open $name")
+                return@launch problem(uiText(R.string.entry_attachment_could_not_open, name))
             } finally {
                 bytes.wipe()
             }
@@ -393,7 +398,13 @@ internal class EntryCardViewModel(
             } finally {
                 bytes?.wipe()
             }
-            mutableNotices.trySend(if (written) Notice("Saved $name") else Notice("Could not save ${name ?: "the attachment"}", isProblem = true))
+            mutableNotices.trySend(
+                when {
+                    written -> Notice(uiText(R.string.entry_attachment_saved, name.orEmpty()))
+                    name != null -> Notice(uiText(R.string.entry_attachment_could_not_save, name), isProblem = true)
+                    else -> Notice(uiText(R.string.entry_attachment_could_not_save_unnamed), isProblem = true)
+                },
+            )
         }
     }
 
@@ -464,7 +475,10 @@ internal class EntryCardViewModel(
             val group = unlockedVault()?.entries?.firstOrNull { it.id == entryId }?.groupPath.orEmpty()
             mutableNotices.trySend(
                 problem?.let { Notice(it, isProblem = true) }
-                    ?: Notice("Restored to " + GroupPathFormatter.text(group).ifEmpty { "the top group" }),
+                    ?: Notice(
+                        GroupPathFormatter.text(group).takeIf { it.isNotEmpty() }?.let { uiText(R.string.entry_restored_to, it) }
+                            ?: uiText(R.string.entry_restored_to_top),
+                    ),
             )
         }
     }
@@ -475,7 +489,7 @@ internal class EntryCardViewModel(
     fun passwordToShare(): String? =
         content.value?.card?.rows?.firstOrNull { it.kind == FieldRow.Kind.PASSWORD && !it.isEmpty }?.storedText()
 
-    fun problem(text: String) {
+    fun problem(text: UiText) {
         mutableNotices.trySend(Notice(text, isProblem = true))
     }
 

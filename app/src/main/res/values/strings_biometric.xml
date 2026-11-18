@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The system's fingerprint dialog (biometric/FingerprintPrompt.kt) -->
+    <string name="biometric_prompt_title">Unlock Keething</string>
+    <string name="biometric_prompt_use_password">Use password</string>
+
+    <!-- Why the fingerprint cannot be used, said within "The fingerprint cannot be used: …." (biometric/KeystorePasswordStores.kt) -->
+    <string name="biometric_unavailable_none_enrolled">no fingerprint is set up on this phone</string>
+    <string name="biometric_unavailable_no_hardware">this phone has no strong fingerprint sensor</string>
+    <string name="biometric_unavailable_hardware">the fingerprint sensor is not available right now</string>
+    <string name="biometric_unavailable_security_update">the fingerprint sensor needs a security update</string>
+    <string name="biometric_unavailable_other">biometrics are not available</string>
+</resources>

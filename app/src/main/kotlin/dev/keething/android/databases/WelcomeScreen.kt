@@ -25,9 +25,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.ui.AppLogo
 import dev.keething.android.ui.ButtonLabel
 
@@ -52,12 +54,12 @@ internal fun WelcomeScreen(container: AppContainer) {
         Spacer(Modifier.height(48.dp))
         AppLogo(Modifier.size(104.dp))
         Spacer(Modifier.height(24.dp))
-        Text("Welcome to Keething", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+        Text(stringResource(R.string.databases_welcome_title), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
         // keething-spec app.upgrade-safety AC3: the list kept before could not be read.
         if (container.sessions.list.setAside) {
             Spacer(Modifier.height(12.dp))
             Text(
-                "Keething could not read its list of databases. Your databases themselves are untouched: open them again.",
+                stringResource(R.string.databases_welcome_list_unreadable),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
@@ -65,8 +67,7 @@ internal fun WelcomeScreen(container: AppContainer) {
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            "Your passwords live in a KeePass database: one encrypted file that stays yours. Keep it in a folder that " +
-                "syncs, and the same file opens on your computer too.",
+            stringResource(R.string.databases_welcome_lead),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -74,27 +75,24 @@ internal fun WelcomeScreen(container: AppContainer) {
         Spacer(Modifier.height(40.dp))
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = container.newDatabases::open, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                ButtonLabel("Create a new database…", Icons.Rounded.Add, iconSize = 20.dp)
+                ButtonLabel(stringResource(R.string.databases_welcome_create), Icons.Rounded.Add, iconSize = 20.dp)
             }
             FilledTonalButton(onClick = files.open, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
-                ButtonLabel("Open a database…", Icons.Rounded.FolderOpen, iconSize = 20.dp)
+                ButtonLabel(stringResource(R.string.databases_welcome_open), Icons.Rounded.FolderOpen, iconSize = 20.dp)
             }
         }
         Spacer(Modifier.height(24.dp))
         Hint(
-            "Already use KeePass, KeePassXC, KeePassDX or Strongbox? Open your database: it stays theirs too, and " +
-                "Keething writes it in their format.",
+            stringResource(R.string.databases_welcome_hint_keepass),
         )
         // Before any picker: why a folder, and what works for a cloud drive (keething-spec app.first-start AC1, AC2).
         Spacer(Modifier.height(12.dp))
         Hint(
-            "Keething asks for the folder your database is in. Android then gives it that folder and nothing else on " +
-                "the phone; with the folder Keething sees a sync replace the file, and saves beside it safely.",
+            stringResource(R.string.databases_welcome_hint_folder),
         )
         Spacer(Modifier.height(12.dp))
         Hint(
-            "On Google Drive, Dropbox or OneDrive? Keep the database in a folder on the phone that Syncthing or " +
-                "FolderSync keeps up to date, and choose that folder.",
+            stringResource(R.string.databases_welcome_hint_cloud),
         )
     }
 }

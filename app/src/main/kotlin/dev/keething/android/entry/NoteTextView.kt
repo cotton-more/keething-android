@@ -38,6 +38,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import dev.keething.android.theme.extraColors
 import dev.keething.android.ui.CopiedThroughTheApp
 import dev.keething.android.ui.SecretTextMenu
@@ -72,13 +74,13 @@ internal fun NoteTextView(row: FieldRow, reveal: RevealState, actions: CardActio
                 IconButton(onClick = { actions.onToggle(row.id) }) {
                     Icon(
                         if (hidden) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
-                        contentDescription = if (hidden) "Show the $noun" else "Hide the $noun",
+                        contentDescription = stringResource(if (hidden) R.string.entry_note_show else R.string.entry_note_hide, noun),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = "Copy the $noun", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_note_copy, noun), tint = MaterialTheme.colorScheme.primary)
             }
         }
         val text = @Composable { Text(row.revealedText(), style = style) }
@@ -117,13 +119,14 @@ private fun Well(scrolls: Boolean, lineHeight: Float, content: @Composable () ->
 /** A hidden text: one line, a lock and Hidden, the same for every text (types.note AC6). */
 @Composable
 private fun HiddenLine(label: String) {
+    val spoken = stringResource(R.string.entry_note_hidden_spoken, label)
     Row(
-        Modifier.clearAndSetSemantics { contentDescription = "$label hidden" },
+        Modifier.clearAndSetSemantics { contentDescription = spoken },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("Hidden", style = TextStyle(fontSize = 15.sp, lineHeight = 22.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.entry_note_hidden), style = TextStyle(fontSize = 15.sp, lineHeight = 22.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

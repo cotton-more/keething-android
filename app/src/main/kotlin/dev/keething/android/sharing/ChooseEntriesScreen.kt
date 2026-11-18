@@ -42,6 +42,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
+import dev.keething.android.R
 import dev.keething.android.list.RowSubtitle
 import dev.keething.android.list.EntryRow
 import dev.keething.android.list.ListSection
@@ -155,8 +158,8 @@ internal fun ChooseEntriesScreen(
     if (full) {
         AlertDialog(
             onDismissRequest = { full = false },
-            text = { Text("One code holds at most ${AnswerPayload.MAX_ENTRIES} entries. Send the rest in another one.") },
-            confirmButton = { TextButton(onClick = { full = false }) { Text("OK") } },
+            text = { Text(pluralStringResource(R.plurals.sharing_choose_full, AnswerPayload.MAX_ENTRIES, AnswerPayload.MAX_ENTRIES)) },
+            confirmButton = { TextButton(onClick = { full = false }) { Text(stringResource(R.string.sharing_ok)) } },
         )
     }
     Scaffold(
@@ -164,16 +167,23 @@ internal fun ChooseEntriesScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    BarTitle("Choose entries", if (their != null) "for ${their.request.name} · ${their.request.reason}" else "to send without a request")
+                    BarTitle(
+                        stringResource(R.string.sharing_choose_entries),
+                        if (their != null) {
+                            stringResource(R.string.sharing_choose_for, their.request.name, their.request.reason)
+                        } else {
+                            stringResource(R.string.sharing_choose_without)
+                        },
+                    )
                 },
-                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close") } },
+                navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.sharing_close)) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
         bottomBar = {
-            SearchField(model.query, placeholder = "Search") {
+            SearchField(model.query, placeholder = stringResource(R.string.sharing_search)) {
                 Button(onClick = { onNext(model.chosen.toList()) }, enabled = model.chosen.isNotEmpty(), modifier = Modifier.height(56.dp)) {
-                    Text(if (model.chosen.isEmpty()) "Next" else "Next · ${model.chosen.size}")
+                    Text(if (model.chosen.isEmpty()) stringResource(R.string.sharing_next) else pluralStringResource(R.plurals.sharing_next_count, model.chosen.size, model.chosen.size))
                 }
             }
         },
@@ -193,7 +203,7 @@ internal fun ChooseEntriesScreen(
             }
             // Bare signs alone (`@`, `!`) list nothing and say nothing (SPEC §6.2).
             if (!state.preparing && state.sections.isEmpty() && !EntrySearch.isEmpty(model.query.text.toString())) {
-                item(key = "nothing") { Explanation("Nothing matches", "Search for another title, user name or site.") }
+                item(key = "nothing") { Explanation(stringResource(R.string.sharing_choose_nothing_title), stringResource(R.string.sharing_choose_nothing_text)) }
             }
         }
     }

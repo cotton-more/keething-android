@@ -27,13 +27,13 @@ internal class SharingKey(private val file: File) {
         val key = ByteArray(KEY_SIZE).also(SecureRandom()::nextBytes)
         val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, keystoreKey(create = true)) }
         val wrapped = cipher.iv + cipher.doFinal(key)
-        val folder = file.parentFile ?: throw IOException("no folder for ${file.name}")
+        val folder = file.parentFile ?: throw IOException("no folder for ${file.name}") // not user text (an exception's detail)
         folder.mkdirs()
         val temporary = File(folder, file.name + ".tmp")
         temporary.writeBytes(wrapped)
         if (!temporary.renameTo(file)) {
             temporary.delete()
-            throw IOException("could not keep the sharing key")
+            throw IOException("could not keep the sharing key") // not user text (an exception's detail)
         }
         return Secret.adopt(key)
     }
@@ -69,9 +69,9 @@ internal class SharingKey(private val file: File) {
     }
 
     private companion object {
-        const val KEYSTORE = "AndroidKeyStore"
+        const val KEYSTORE = "AndroidKeyStore" // not user text
         const val ALIAS = "keething-sharing-requests"
-        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val TRANSFORMATION = "AES/GCM/NoPadding" // not user text
         const val KEY_SIZE = 32
         const val IV_SIZE = 12
         const val TAG_SIZE = 16

@@ -2,6 +2,9 @@ package dev.keething.android.list
 
 import dev.keething.android.list.ConflictCopyModel.Other
 import dev.keething.android.ui.Notice
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.english
+import dev.keething.android.ui.uiPlain
 import dev.keething.domain.storage.ConflictCopy
 import dev.keething.vault.opening.OpenFailure
 import dev.keething.vault.saving.SaveFailure
@@ -29,7 +32,7 @@ class ConflictCopyModelTest {
     private class Fixture(
         scope: TestScope,
         contents: CopyContents? = CopyContents.Read(VaultSummary(13, null)),
-        replaceRefused: String? = null,
+        replaceRefused: UiText? = null,
         copy: ConflictCopy,
         summary: VaultSummary,
     ) {
@@ -51,7 +54,7 @@ class ConflictCopyModelTest {
         )
     }
 
-    private fun TestScope.fixture(contents: CopyContents? = CopyContents.Read(VaultSummary(13, null)), replaceRefused: String? = null) =
+    private fun TestScope.fixture(contents: CopyContents? = CopyContents.Read(VaultSummary(13, null)), replaceRefused: UiText? = null) =
         Fixture(this, contents, replaceRefused, copy, summary).also { runCurrent() }
 
     // spec: kdbx.conflict-copies/AC6
@@ -69,14 +72,14 @@ class ConflictCopyModelTest {
         runCurrent()
 
         assertEquals(1, f.takes)
-        assertEquals(listOf("Personal.kdbx is the other version now (the one before is in Keething's backups)."), f.done.map { it.text })
+        assertEquals(listOf("Personal.kdbx is the other version now (the one before is in Keething's backups)."), f.done.map { it.text.english() })
     }
 
     @Test
     fun aCopyThatDoesNotOpenCanOnlyBeDeleted() = runTest {
         val f = fixture(CopyContents.NotOpened(OpenFailure.WrongPassword))
 
-        assertEquals(Other.NotOpened("It does not open with this database's password or key file (changed on another device?)."), f.model.other)
+        assertEquals("It does not open with this database's password or key file (changed on another device?).", (f.model.other as Other.NotOpened).why.english())
         assertFalse(f.model.canUseOther)
         f.model.useOther()
         assertEquals(0, f.takes)
@@ -84,12 +87,12 @@ class ConflictCopyModelTest {
         f.model.keepOpen()
         f.removed.complete(null)
         runCurrent()
-        assertEquals(listOf("Kept Personal.kdbx. The other version was deleted (a copy is in Keething's backups)."), f.done.map { it.text })
+        assertEquals(listOf("Kept Personal.kdbx. The other version was deleted (a copy is in Keething's backups)."), f.done.map { it.text.english() })
     }
 
     @Test
     fun aReadOnlyDatabaseDoesNotTakeTheCopy() = runTest {
-        val f = fixture(replaceRefused = "read only")
+        val f = fixture(replaceRefused = uiPlain("read only"))
 
         assertFalse(f.model.canUseOther)
         f.model.useOther()
@@ -104,7 +107,7 @@ class ConflictCopyModelTest {
         f.taken.complete(SaveOutcome.Failed(SaveFailure.CopyGone))
         runCurrent()
 
-        assertEquals("The other version is not there any more (deleted or synced away). Nothing was changed.", f.model.problem)
+        assertEquals("The other version is not there any more (deleted or synced away). Nothing was changed.", f.model.problem?.english())
         assertNull(f.model.working)
         assertEquals(emptyList(), f.done)
     }

@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.english
 import dev.keething.domain.storage.StoragePlace
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.DatabaseRecord
@@ -56,15 +57,15 @@ class DatabaseLinesTest {
 
         assertEquals("Personal", lock.line.name)
         assertEquals("P", lock.line.initial)
-        assertEquals("Sync/KeePass · changed 2 hours ago", lock.line.detail)
+        assertEquals("Sync/KeePass · changed 2 hours ago", lock.line.detail.english())
         assertEquals("$root/Sync/KeePass/Personal.kdbx", lock.line.path)
         assertTrue(lock.line.isCurrent)
         assertNull(lock.line.keyFile)
         assertFalse(lock.line.isMissing)
-        assertNull(lock.problem)
+        assertNull(lock.problem?.english())
         assertTrue(lock.showsPasswordField && !lock.showsLocate && lock.needsPassword && lock.offersFingerprint && lock.offersKeyFile)
         assertFalse(lock.opensWithKeyFileAlone)
-        assertEquals("Master password", lock.passwordPlaceholder)
+        assertEquals("Master password", lock.passwordPlaceholder?.english())
     }
 
     @Test
@@ -84,8 +85,8 @@ class DatabaseLinesTest {
             "2026-03-02T09:00:00Z" to "changed in March",
             "2025-11-30T09:00:00Z" to "changed in November 2025",
         )
-        for ((date, said) in cases) assertEquals(said, DatabaseText.changed(Instant.parse(date), now, ZoneOffset.UTC), date)
-        assertEquals("yesterday", DatabaseText.ago(Instant.parse("2026-10-26T01:00:00Z"), now, ZoneId.of("America/New_York")), "the local day")
+        for ((date, said) in cases) assertEquals(said, DatabaseText.changed(Instant.parse(date), now, ZoneOffset.UTC).english(), date)
+        assertEquals("yesterday", DatabaseText.ago(Instant.parse("2026-10-26T01:00:00Z"), now, ZoneId.of("America/New_York")).english(), "the local day")
     }
 
     @Test
@@ -108,10 +109,10 @@ class DatabaseLinesTest {
         val lock = lockScreen(work, personal)
 
         assertEquals(KeyFileLine("work.keyx", "Documents/Keys", "$root/Documents/Keys/work.keyx", reach = Reach.THERE), lock.line.keyFile)
-        assertNull(lock.problem)
+        assertNull(lock.problem?.english())
         assertTrue(lock.showsPasswordField && lock.offersFingerprint)
         assertFalse(lock.needsPassword || lock.offersKeyFile)
-        assertEquals("Master password", lock.passwordPlaceholder)
+        assertEquals("Master password", lock.passwordPlaceholder?.english())
     }
 
     @Test
@@ -121,7 +122,7 @@ class DatabaseLinesTest {
 
         val lock = lockScreen(work)
 
-        assertEquals("Work needs its key file: work.keyx is not in Documents/Keys.", lock.problem)
+        assertEquals("Work needs its key file: work.keyx is not in Documents/Keys.", lock.problem?.english())
         assertTrue(lock.line.keyFile!!.isMissing)
         assertTrue(lock.showsPasswordField)
         assertFalse(lock.offersFingerprint, "no fingerprint for what cannot open")
@@ -138,7 +139,7 @@ class DatabaseLinesTest {
         assertFalse(lock.showsPasswordField || lock.needsPassword || lock.showsLocate)
         assertTrue(lock.opensWithKeyFileAlone)
         assertTrue(lock.offersFingerprint, "it opens after the fingerprint with nothing stored (plan AD5)")
-        assertNull(lock.problem)
+        assertNull(lock.problem?.english())
     }
 
     // A file not found
@@ -149,14 +150,14 @@ class DatabaseLinesTest {
 
         val lock = lockScreen(crypto, personal)
 
-        assertEquals("Crypto.kdbx is not in Download any more. Locate the file, or choose another database.", lock.missingText)
+        assertEquals("Crypto.kdbx is not in Download any more. Locate the file, or choose another database.", lock.missingText?.english())
         assertTrue(lock.showsLocate && lock.line.isMissing)
         assertFalse(lock.showsPasswordField || lock.offersFingerprint || lock.offersKeyFile || lock.opensWithKeyFileAlone)
         assertNull(lock.problem, "the file first: its key file is said once it is back")
-        assertEquals("Download · not found", lock.line.detail)
+        assertEquals("Download · not found", lock.line.detail.english())
 
         val card = DatabaseRecord(DatabaseId("s"), at("/storage/1234-5678/Crypto.kdbx"))
-        assertEquals("Crypto.kdbx is not in /storage/1234-5678. Put the card in, or locate the file.", lockScreen(card).missingText)
+        assertEquals("Crypto.kdbx is not in /storage/1234-5678. Put the card in, or locate the file.", lockScreen(card).missingText?.english())
     }
 
     @Test
@@ -170,21 +171,21 @@ class DatabaseLinesTest {
         val lock = lockScreen(work)
         assertEquals(Reach.NO_ACCESS, lock.line.reach)
         assertTrue(lock.showsLocate && lock.line.isMissing)
-        assertEquals("Locate…", lock.locateLabel)
+        assertEquals("Locate…", lock.locateLabel?.english())
         assertEquals(
             "Keething can no longer reach Sync/Work: renamed, moved or deleted on a device, or its access taken back. Locate the file to choose its folder again.",
-            lock.missingText,
+            lock.missingText?.english(),
         )
-        assertEquals("Sync/Work · no access", lock.line.detail)
-        assertEquals("No access · Sync/Work", lock.line.settingsDetail)
+        assertEquals("Sync/Work · no access", lock.line.detail.english())
+        assertEquals("No access · Sync/Work", lock.line.settingsDetail.english())
 
         gone.clear()
         gone += "grant-key"
         val key = lockScreen(work)
         assertFalse(key.line.isMissing)
         assertEquals(Reach.NO_ACCESS, key.line.keyFile?.reach)
-        assertEquals("no access · k", key.line.keyFile?.detail)
-        assertEquals("Keething may not read work.keyx any more: choose it again.", key.problem)
+        assertEquals("no access · k", key.line.keyFile?.detail?.english())
+        assertEquals("Keething may not read work.keyx any more: choose it again.", key.problem?.english())
         assertFalse(key.offersFingerprint)
     }
 
@@ -198,10 +199,10 @@ class DatabaseLinesTest {
         assertEquals(emptyList(), looked, "nothing by its path (AC1)")
         assertEquals(Reach.NEEDS_FOLDER, lock.line.reach)
         assertTrue(lock.showsLocate && !lock.showsPasswordField && !lock.offersFingerprint)
-        assertEquals("Choose its folder…", lock.locateLabel)
-        assertEquals("Keething now opens files only in folders you choose. Choose Sync/KeePass, the folder of Old.kdbx: it is asked once.", lock.missingText)
-        assertEquals("Sync/KeePass · needs its folder", lock.line.detail)
-        assertEquals("needs its folder", lock.line.sheetDetail)
+        assertEquals("Choose its folder…", lock.locateLabel?.english())
+        assertEquals("Keething now opens files only in folders you choose. Choose Sync/KeePass, the folder of Old.kdbx: it is asked once.", lock.missingText?.english())
+        assertEquals("Sync/KeePass · needs its folder", lock.line.detail.english())
+        assertEquals("needs its folder", lock.line.sheetDetail.english())
         assertEquals(Reach.NO_ACCESS, lock.line.keyFile?.reach, "its folder may hold it; else Choose key file… (AC10)")
     }
 
@@ -217,8 +218,8 @@ class DatabaseLinesTest {
 
         assertEquals(listOf("Personal", "Work", "Crypto"), lines.map { it.name })
         assertEquals(listOf(true, false, false), lines.map { it.isCurrent })
-        assertEquals(listOf("Sync/KeePass", "Sync/Work", "not found"), lines.map { it.sheetDetail })
-        assertEquals(listOf("Sync/KeePass", "Sync/Work", "Not found · Download"), lines.map { it.settingsDetail })
+        assertEquals(listOf("Sync/KeePass", "Sync/Work", "not found"), lines.map { it.sheetDetail.english() })
+        assertEquals(listOf("Sync/KeePass", "Sync/Work", "Not found · Download"), lines.map { it.settingsDetail.english() })
         assertEquals(listOf(false, true, false), lines.map { it.keyFile != null })
     }
 
@@ -269,10 +270,10 @@ class DatabaseLinesTest {
 
     @Test
     fun namesAreJoinedAsASentenceSaysThem() {
-        assertEquals("", DatabaseText.joined(emptyList()))
-        assertEquals("Personal", DatabaseText.joined(listOf("Personal")))
-        assertEquals("Personal and Work", DatabaseText.joined(listOf("Personal", "Work")))
-        assertEquals("Personal, Work and Family Shared", DatabaseText.joined(listOf("Personal", "Work", "Family Shared")))
+        assertEquals("", DatabaseText.joined(emptyList()).english())
+        assertEquals("Personal", DatabaseText.joined(listOf("Personal")).english())
+        assertEquals("Personal and Work", DatabaseText.joined(listOf("Personal", "Work")).english())
+        assertEquals("Personal, Work and Family Shared", DatabaseText.joined(listOf("Personal", "Work", "Family Shared")).english())
     }
 
     @Test
@@ -325,15 +326,15 @@ class DatabaseLinesTest {
 
         val lock = lockScreen(work)
 
-        assertEquals("Sync/Work · not found", lock.line.detail, "looked at through its grant")
+        assertEquals("Sync/Work · not found", lock.line.detail.english(), "looked at through its grant")
         there[pathOf(work.file)] = now.minusSeconds(60)
         there[pathOf(work.keyFile)] = now
         val found = lockScreen(work)
-        assertEquals("Sync/Work · changed 1 minute ago", found.line.detail)
+        assertEquals("Sync/Work · changed 1 minute ago", found.line.detail.english())
         assertEquals("$root/Sync/Work/Work.kdbx", found.line.path, "its words")
         assertFalse(found.line.isMissing)
         assertEquals(KeyFileLine("work.keyx", "Sync/Keys", "$root/Sync/Keys/work.keyx", reach = Reach.THERE), found.line.keyFile)
-        assertEquals("Master password", found.passwordPlaceholder)
+        assertEquals("Master password", found.passwordPlaceholder?.english())
     }
 
     @Test
@@ -343,14 +344,14 @@ class DatabaseLinesTest {
 
         val top = DatabaseRecord(DatabaseId("t"), FileLocation.InFolder("grant-top", StoragePlace(StoragePlace.PRIMARY, ""), "Top.kdbx"))
         there[pathOf(top.file)] = now.minusSeconds(3 * 86_400)
-        assertEquals("Internal storage · changed 3 days ago", lockScreen(top).line.detail)
+        assertEquals("Internal storage · changed 3 days ago", lockScreen(top).line.detail.english())
 
         val card = DatabaseRecord(DatabaseId("s"), FileLocation.InFolder("grant-card", StoragePlace("1234-5678", "KeePass"), "Crypto.kdbx"))
         assertEquals("/storage/1234-5678/KeePass/Crypto.kdbx", lockScreen(card).line.path)
         assertEquals("Crypto.kdbx", lockScreen(card).line.fileName)
         assertEquals(
             "Crypto.kdbx is not in /storage/1234-5678/KeePass. Put the card in, or locate the file.",
-            card.lockScreen(lockScreen(card).line.copy(reach = Reach.NOT_FOUND)).missingText,
+            card.lockScreen(lockScreen(card).line.copy(reach = Reach.NOT_FOUND)).missingText?.english(),
         )
     }
 }

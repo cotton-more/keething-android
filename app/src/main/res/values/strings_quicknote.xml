@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The quick note's sheet over another app (quicknote/QuickNoteActivity.kt); its title is keething_note -->
+    <string name="quicknote_close">Close</string>
+    <string name="quicknote_unlock_purpose">Unlock to write the quick note</string>
+
+    <!-- What the quick note says as it goes (a toast; quicknote/QuickNoteModel.kt, QuickNoteRun.kt) -->
+    <!-- %1$s: the group the note was saved in -->
+    <string name="quicknote_saved_to">Saved to %1$s</string>
+    <string name="quicknote_saved">Saved</string>
+    <string name="quicknote_no_text">No text to save</string>
+    <string name="quicknote_no_text_on_clipboard">No text on the clipboard</string>
+    <string name="quicknote_no_database">No database to put the quick note in</string>
+
+    <!-- Adding the Quick Settings tile from Settings (quicknote/QuickNoteTile.kt) -->
+    <string name="quicknote_tile_already_added">The Quick note tile is in Quick Settings already</string>
+    <string name="quicknote_tile_not_asked">Android did not ask. Add the tile from Quick Settings\' edit button.</string>
+</resources>

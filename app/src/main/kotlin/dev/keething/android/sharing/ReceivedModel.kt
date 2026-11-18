@@ -1,5 +1,6 @@
 package dev.keething.android.sharing
 
+import dev.keething.android.R
 import dev.keething.android.session.file
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -11,6 +12,10 @@ import androidx.lifecycle.viewModelScope
 import dev.keething.android.clipboard.SensitiveClipboard
 import dev.keething.android.editor.SAVE_LOCKED
 import dev.keething.android.editor.problem
+import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.uiPlural
+import dev.keething.android.ui.uiText
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.EntryRef
 import dev.keething.android.editor.NewEntryDatabase
@@ -78,10 +83,10 @@ internal class ReceivedModel(
         data class Busy(val done: Int, val of: Int) : Saving
 
         /** All saved, the request closed; [refs] of the new entries. */
-        data class Saved(val refs: List<EntryRef>, val group: String) : Saving
+        data class Saved(val refs: List<EntryRef>, val group: UiText) : Saving
 
         /** Stopped at [saved] of them: the rest is not saved, the request kept. */
-        data class Failed(val saved: Int, val problem: String) : Saving
+        data class Failed(val saved: Int, val problem: UiText) : Saving
     }
 
     var opening by mutableStateOf(open(codeText))
@@ -131,7 +136,7 @@ internal class ReceivedModel(
     val offered: List<NewEntryDatabase> get() = if (!tried && saving !is Saving.Busy) NewEntryDatabases.offered(open) else emptyList()
 
     /** Under the databases offered: "Not open: Family Shared, Crypto". */
-    val notOpen: String? get() = NewEntryDatabases.notOpen(places.window(), open)
+    val notOpen: UiText? get() = NewEntryDatabases.notOpen(places.window(), open)
 
     var saving by mutableStateOf<Saving>(Saving.Not)
         private set
@@ -177,7 +182,7 @@ internal class ReceivedModel(
                 val before = database
                 database = next
                 if (before != null && next != null && next.id != before.id) {
-                    mutableNotices.trySend(Notice("${before.mark.label.full} locked: the entries go into ${next.mark.label.full} now"))
+                    mutableNotices.trySend(Notice(uiText(R.string.sharing_received_locked_moved, before.mark.label.full, next.mark.label.full)))
                 }
                 // Another database: its top level; the same one read again keeps the group while it is there.
                 if (next?.id != before?.id || next?.vault?.groups?.none { it.id == group?.groupId } == true) putGroup(next?.let(::rootGroupId)?.let(::GroupChoice))
@@ -235,8 +240,8 @@ internal class ReceivedModel(
             mutableNotices.trySend(
                 Notice(
                     when (found.longest) {
-                        0 -> "No pictures in what was copied"
-                        else -> "Ten pictures in a row are needed; that has ${found.longest}"
+                        0 -> uiText(R.string.sharing_received_paste_none)
+                        else -> uiPlural(R.plurals.sharing_received_paste_short, found.longest)
                     },
                     isProblem = true,
                 ),
@@ -296,7 +301,7 @@ internal class ReceivedModel(
                 // Its database locked since: the rest wait for it (they never go into another one).
                 val database = places.session(place.id)?.takeIf { NewEntryDatabases.isOpen(place.id, it.number, open) }
                 if (database == null) {
-                    saving = Saving.Failed(index, "${place.mark.label.full} is locked. Unlock it to save the rest.")
+                    saving = Saving.Failed(index, uiText(R.string.sharing_received_locked, place.mark.label.full))
                     return@launch
                 }
                 saving = Saving.Busy(index, entries.size)
@@ -336,13 +341,13 @@ internal class ReceivedModel(
         opened.request?.let { requests.delete(it.request.id) }
     }
 
-    private fun groupName(database: NewEntryDatabase, choice: GroupChoice): String {
+    private fun groupName(database: NewEntryDatabase, choice: GroupChoice): UiText {
         val vault = (places.session(database.id)?.session?.state?.value as? SessionState.Unlocked)?.vault
         val levels = vault?.let { GroupTree.of(it).levels(choice) }
         return when {
-            levels == null -> "the database"
-            levels.isEmpty() -> "the top level"
-            else -> levels.joinToString(" › ") { it.name }
+            levels == null -> uiText(R.string.sharing_received_in_database)
+            levels.isEmpty() -> uiText(R.string.sharing_received_in_top_level)
+            else -> uiPlain(levels.joinToString(" › ") { it.name })
         }
     }
 
@@ -352,6 +357,6 @@ internal class ReceivedModel(
     }
 
     private companion object {
-        const val TAG = "Sharing"
+        const val TAG = "Sharing" // not user text
     }
 }

@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import dev.keething.android.R
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -81,7 +83,7 @@ internal fun NoEntryChosen() {
                 Icon(Icons.Rounded.Key, contentDescription = null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.outline)
             }
             Text(
-                "Choose an entry: its card opens here.",
+                stringResource(R.string.navigation_no_entry_chosen),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

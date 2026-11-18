@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The entry editor (editor/EntryEditorScreen.kt) -->
+    <string name="editor_title_quick_note">Quick note</string>
+    <string name="editor_title_new_entry">New entry</string>
+    <string name="editor_title_new_note">New note</string>
+    <string name="editor_title_edit_entry">Edit entry</string>
+    <string name="editor_title_edit_note">Edit note</string>
+    <string name="editor_discard_changes">Discard changes</string>
+    <string name="editor_close">Close</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_ok">OK</string>
+    <string name="editor_cancel">Cancel</string>
+    <string name="editor_add">Add</string>
+    <string name="editor_back">Back</string>
+    <string name="editor_undo">Undo</string>
+    <string name="editor_chosen">Chosen</string>
+    <!-- %1$s: a name, quoted -->
+    <string name="editor_quoted">“%1$s”</string>
+    <!-- Two sentences one after the other. %1$s: the first; %2$s: the next -->
+    <string name="editor_sentences">%1$s %2$s</string>
+
+    <!-- Discard the changes? -->
+    <string name="editor_discard_title">Discard the changes?</string>
+    <string name="editor_discard_text_new_entry">The new entry is not saved.</string>
+    <string name="editor_discard_text_new_note">The new note is not saved.</string>
+    <string name="editor_discard_text_changed_entry">What you changed in this entry is not saved.</string>
+    <string name="editor_discard_text_changed_note">What you changed in this note is not saved.</string>
+    <string name="editor_discard">Discard</string>
+    <string name="editor_keep_editing">Keep editing</string>
+
+    <!-- Attaching a file -->
+    <string name="editor_attach_large_title">Attach a large file?</string>
+    <!-- The file's name in the large-file question when it has none -->
+    <string name="editor_attach_large_the_file">The file</string>
+    <string name="editor_attach_large_attach">Attach</string>
+    <string name="editor_attach_large_skip">Don\'t attach</string>
+    <!-- %1$s: the attachment's name -->
+    <string name="editor_attach_same_name_title">“%1$s” is attached already</string>
+    <!-- %1$s: the name the new one gets beside it -->
+    <string name="editor_attach_same_name_text">Replace it with the new file, or keep both, the new one as “%1$s”?</string>
+    <!-- %1$s: the name the new one gets beside it -->
+    <string name="editor_attach_same_name_text_history">Replace it with the new file, or keep both, the new one as “%1$s”? A replaced attachment stays in the entry\'s history.</string>
+    <string name="editor_attach_same_name_replace">Replace</string>
+    <string name="editor_attach_same_name_keep_both">Keep both</string>
+
+    <!-- The fields -->
+    <string name="editor_field_title">Title</string>
+    <string name="editor_field_username">Username</string>
+    <string name="editor_field_password">Password</string>
+    <string name="editor_field_website">Website</string>
+    <string name="editor_field_notes">Notes</string>
+    <!-- The button that adds the Website field -->
+    <string name="editor_add_website">Website</string>
+    <string name="editor_generate_password">Generate a password</string>
+    <string name="editor_show_password">Show password</string>
+    <string name="editor_hide_password">Hide password</string>
+    <string name="editor_show_value">Show value</string>
+    <string name="editor_hide_value">Hide value</string>
+    <string name="editor_show_secret">Show secret</string>
+    <string name="editor_hide_secret">Hide secret</string>
+    <string name="editor_expires">Expires</string>
+    <!-- %1$s: the problems, each a sentence -->
+    <string name="editor_save_is_off">Save is off. %1$s</string>
+
+    <!-- A note's text -->
+    <string name="editor_note_text">Text</string>
+    <string name="editor_note_text_protected">protected</string>
+    <string name="editor_note_placeholder">What to keep</string>
+    <string name="editor_note_protect">Protect text</string>
+    <string name="editor_note_protect_detail">Hidden on the card until shown, and not searched</string>
+
+    <!-- Tags (editor/TagsField.kt) -->
+    <string name="editor_tags">Tags</string>
+    <string name="editor_tags_add">Add a tag</string>
+    <string name="editor_tags_add_another">Add another</string>
+    <!-- %1$s: the tag -->
+    <string name="editor_tags_remove">Remove the tag %1$s</string>
+
+    <!-- Save into and the group -->
+    <string name="editor_save_into">Save into</string>
+    <string name="editor_save_into_choose">Choose the database</string>
+    <string name="editor_save_into_subtitle">The group, tags and username follow the database chosen.</string>
+    <!-- %1$s: the databases not open, by name (editor_names_more) -->
+    <string name="editor_not_open">Not open: %1$s</string>
+    <!-- Names one after the other. %1$s: the names before; %2$s: the next -->
+    <string name="editor_names_more">%1$s, %2$s</string>
+    <string name="editor_group">Group</string>
+    <string name="editor_group_choose">Choose the group</string>
+    <string name="editor_group_gone">No longer in the file: choose another</string>
+    <string name="editor_group_made">made when the entry is saved</string>
+    <string name="editor_badge_new">NEW</string>
+    <string name="editor_badge_replaced">REPLACED</string>
+
+    <!-- Attachments -->
+    <string name="editor_section_attachments">Attachments</string>
+    <string name="editor_attachment_no_content">No content</string>
+    <!-- %1$s: the attachment's name -->
+    <string name="editor_attachment_remove">Remove attachment %1$s</string>
+    <string name="editor_attachment_reading">Reading the files…</string>
+    <string name="editor_attachment_add">Add files</string>
+
+    <!-- Custom fields -->
+    <string name="editor_section_fields">Fields</string>
+    <string name="editor_code_list_fold">Fold the codes</string>
+    <string name="editor_code_list_show">Show the codes</string>
+    <!-- %1$d: how many codes the list has -->
+    <plurals name="editor_code_list_count">
+        <item quantity="one">%1$d code</item>
+        <item quantity="other">%1$d codes</item>
+    </plurals>
+    <!-- %1$d: how many codes the list has -->
+    <plurals name="editor_code_list_count_protected">
+        <item quantity="one">%1$d code · protected</item>
+        <item quantity="other">%1$d codes · protected</item>
+    </plurals>
+    <string name="editor_custom_name">Name</string>
+    <string name="editor_custom_value">Value</string>
+    <string name="editor_choose_day">Choose a day</string>
+    <!-- %1$s: the field's name -->
+    <string name="editor_custom_remove">Remove field %1$s</string>
+    <string name="editor_protected">Protected</string>
+    <!-- %1$s: the type the value is read as -->
+    <string name="editor_type_auto">%1$s · auto</string>
+    <!-- %1$s: the type the value is read as -->
+    <string name="editor_type_automatic">Automatic (%1$s)</string>
+    <!-- %1$s: the type's name in the file -->
+    <string name="editor_type_unknown">“%1$s” (not known here, kept)</string>
+    <string name="editor_add_field">Add field</string>
+    <string name="editor_add_codes_item">Codes…</string>
+    <string name="editor_add_code_item">One-time code…</string>
+    <string name="editor_add_another_code_item">Another one-time code…</string>
+
+    <!-- The entry's one-time code -->
+    <string name="editor_code">One-time code</string>
+    <string name="editor_code_removed">The one-time code is removed with the save.</string>
+    <string name="editor_code_settings">The code\'s settings</string>
+    <string name="editor_code_settings_hide">Hide the code\'s settings</string>
+    <string name="editor_code_back">Back to the code the entry had</string>
+    <string name="editor_code_remove">Remove the one-time code</string>
+    <string name="editor_code_new_check">New: check that the site accepts this code before saving.</string>
+    <string name="editor_code_changed_check">Changed: check that the site accepts this code before saving.</string>
+    <string name="editor_code_digits">Digits</string>
+    <string name="editor_code_period">Period</string>
+    <!-- %1$d: the code's period in seconds -->
+    <plurals name="editor_code_period_seconds">
+        <item quantity="one">%1$d s</item>
+        <item quantity="other">%1$d s</item>
+    </plurals>
+    <string name="editor_code_algorithm">Algorithm</string>
+    <string name="editor_code_settings_hint">Change them only when the site says so: a wrong one gives codes the site refuses.</string>
+    <string name="editor_code_in_field">A one-time code. To change it, remove the field and add the code again.</string>
+
+    <!-- Adding a one-time code -->
+    <string name="editor_add_code_title">One-time code</string>
+    <string name="editor_add_another_code_title">Another one-time code</string>
+    <string name="editor_add_code_text">The secret the site shows when you turn on two-step sign-in (often under “Can’t scan it?”), or its otpauth:// link.</string>
+    <string name="editor_add_code_field">Secret or link</string>
+    <string name="editor_add_code_clipboard_empty">The clipboard holds no text or image.</string>
+    <string name="editor_add_code_paste">Paste</string>
+    <string name="editor_add_code_image">Image</string>
+    <string name="editor_add_code_scan">Scan</string>
+
+    <!-- A one-time code's QR code (editor/OneTimeCodeImages.kt) -->
+    <string name="editor_code_image_unreadable">The image could not be read.</string>
+    <string name="editor_code_camera_not_allowed">The camera is not allowed; allow it in the app\'s settings, or choose an image.</string>
+    <string name="editor_code_camera_close">Close</string>
+    <string name="editor_code_camera_title">Scan the QR code</string>
+    <string name="editor_code_camera_hint">Point at the QR code the site shows for two-step sign-in.</string>
+
+    <!-- Adding codes -->
+    <string name="editor_add_codes_title">Add codes</string>
+    <string name="editor_add_codes_text">Paste or type them, one per line. Each becomes a protected field; the card shows them as a numbered list.</string>
+    <string name="editor_add_codes_name">Name of the list</string>
+    <!-- The list's name to start with -->
+    <string name="editor_add_codes_default_name">Recovery codes</string>
+    <string name="editor_add_codes_field">Codes</string>
+
+    <!-- The save sheet -->
+    <string name="editor_saving_title">Saving and checking…</string>
+    <string name="editor_saving_text">Writing a new file, reading it back, comparing every entry. The old file is kept as a backup.</string>
+    <string name="editor_not_saved">Not saved</string>
+    <string name="editor_back_to_editing">Back to editing</string>
+
+    <!-- New note from clipboard (editor/NewNote.kt) -->
+    <string name="editor_note_no_text_on_clipboard">No text on the clipboard</string>
+
+    <!-- Why a save wrote nothing (editor/SaveTexts.kt) -->
+    <string name="editor_save_failure_changed_elsewhere">This entry was changed elsewhere (KeePassXC or another device) after it was loaded. Nothing was saved; the new version is loaded now.</string>
+    <string name="editor_save_failure_entry_not_found">This entry no longer exists in the file (deleted elsewhere). Nothing was saved.</string>
+    <string name="editor_save_failure_group_not_found">That group no longer exists in the file (deleted elsewhere). Nothing was saved; choose another.</string>
+    <string name="editor_save_failure_recycle_bin_disabled">This database has the recycle bin turned off. Nothing was deleted; delete the entry for good from its card.</string>
+    <string name="editor_save_failure_wrong_place">This entry was moved elsewhere (into or out of the recycle bin). Nothing was saved.</string>
+    <string name="editor_save_failure_version_gone">That version is not in the entry\'s history any more (changed elsewhere?). Nothing was changed.</string>
+    <!-- %1$s: what did not check out (from the save's check, in English) -->
+    <string name="editor_save_failure_verification_failed">The new file did not check out (%1$s), so the database was not replaced.</string>
+    <!-- %1$s: what KeePass would not accept (from the save, in English) -->
+    <string name="editor_save_failure_breaks_format">The change would leave the file in a form KeePass does not accept (%1$s), so the database was not replaced.</string>
+    <string name="editor_save_failure_view_only">This database is KDBX 3.1, viewed only until it is upgraded to KDBX 4. Nothing was saved.</string>
+    <!-- %1$s: why the copy could not be kept (from the system) -->
+    <string name="editor_save_failure_copy_not_kept">The KDBX 3.1 file could not be kept beside the database (%1$s), so nothing was changed.</string>
+    <string name="editor_save_failure_copy_gone">The other version is not there any more (deleted or synced away). Nothing was changed.</string>
+    <string name="editor_save_failure_copy_wrong_key">The other version does not open with this database\'s password or key file (changed on another device?). Nothing was changed.</string>
+    <!-- %1$s: why it did not open, as the rest of the sentence -->
+    <string name="editor_save_failure_copy_not_opened">The other version could not be opened, so nothing was changed: %1$s</string>
+    <string name="editor_save_failure_backup_gone">That backup is not there any more. Nothing was changed.</string>
+    <string name="editor_save_failure_backup_damaged">That backup\'s file is damaged, so it would not open. Nothing was changed.</string>
+    <!-- %1$s: why it did not open, as the rest of the sentence -->
+    <string name="editor_save_failure_backup_not_opened">That backup could not be opened, so nothing was changed: %1$s</string>
+    <string name="editor_save_failure_file_keeps_changing">The database file keeps changing (a sync?). Nothing was saved; try again in a moment.</string>
+    <!-- %1$s: why it could not be written (from the system) -->
+    <string name="editor_save_failure_write_failed">Could not write the database: %1$s.</string>
+    <string name="editor_save_failure_locked">The database locked before the change was saved. Nothing was saved; the file is as it was.</string>
+    <string name="editor_save_failure_invalid_name">A group needs a name. Nothing was saved.</string>
+    <string name="editor_save_failure_group_name_taken">A group of that name is already there (made elsewhere?). Nothing was saved.</string>
+    <string name="editor_save_failure_group_not_changeable">This group cannot be changed so (the top level, the recycle bin or a group in it, or a move into itself or where it is; changed elsewhere?). Nothing was saved.</string>
+    <string name="editor_save_failure_group_not_empty">The group is not empty any more (changed elsewhere?). Nothing was deleted.</string>
+    <string name="editor_save_failure_password_changed">The database\'s password was changed elsewhere. Nothing was saved.</string>
+    <!-- %1$s: why it did not open, as the rest of the sentence -->
+    <string name="editor_save_failure_cannot_open">Nothing was saved: %1$s</string>
+    <string name="editor_save_interrupted">The database was locked; the change may not have been saved.</string>
+    <string name="editor_save_locked">The database is locked. Nothing was saved.</string>
+
+    <!-- A save that went through (editor/SaveTexts.kt) -->
+    <string name="editor_saved">Saved and checked</string>
+    <!-- %1$s: the empty groups deleted with it (editor_deleted_groups) -->
+    <string name="editor_saved_with_note">Saved and checked. %1$s</string>
+    <!-- %1$s: the groups' paths in quotes, listed ("“Work › Old” and “Spare”") -->
+    <plurals name="editor_deleted_groups">
+        <item quantity="one">The empty group %1$s was deleted.</item>
+        <item quantity="other">The empty groups %1$s were deleted.</item>
+    </plurals>
+    <!-- %1$s: a name or path, quoted -->
+
+    <!-- What a lock kept out of the file, said after the next unlock (editor/SaveTexts.kt). Each change has a form
+         that starts the sentence (…_first) and one within the list. %1$s: an entry's title or a group's path in
+         quotes, or editor_unsaved_an_entry / _a_group / _top_level. -->
+    <!-- %1$s: the changes, listed ("A new entry, moving “GitHub” to the recycle bin and renaming the group “Work”") -->
+    <plurals name="editor_unsaved">
+        <item quantity="one">%1$s was not saved: the database locked while it was being saved. The file is as it was; make the change again.</item>
+        <item quantity="other">%1$s were not saved: the database locked while it was being saved. The file is as it was; make the change again.</item>
+    </plurals>
+    <string name="editor_unsaved_an_entry">an entry</string>
+    <string name="editor_unsaved_a_group">a group</string>
+    <string name="editor_unsaved_top_level">the top level</string>
+    <string name="editor_unsaved_entry_changed_first">The change to %1$s</string>
+    <string name="editor_unsaved_entry_changed">the change to %1$s</string>
+    <string name="editor_unsaved_entry_created_first">A new entry</string>
+    <string name="editor_unsaved_entry_created">a new entry</string>
+    <string name="editor_unsaved_entry_to_recycle_bin_first">Moving %1$s to the recycle bin</string>
+    <string name="editor_unsaved_entry_to_recycle_bin">moving %1$s to the recycle bin</string>
+    <string name="editor_unsaved_entry_restored_first">Restoring %1$s</string>
+    <string name="editor_unsaved_entry_restored">restoring %1$s</string>
+    <string name="editor_unsaved_entry_deleted_first">Deleting %1$s for good</string>
+    <string name="editor_unsaved_entry_deleted">deleting %1$s for good</string>
+    <string name="editor_unsaved_version_restored_first">Going back to an earlier version of %1$s</string>
+    <string name="editor_unsaved_version_restored">going back to an earlier version of %1$s</string>
+    <string name="editor_unsaved_group_renamed_first">Renaming the group %1$s</string>
+    <string name="editor_unsaved_group_renamed">renaming the group %1$s</string>
+    <string name="editor_unsaved_group_created_first">A new group in %1$s</string>
+    <string name="editor_unsaved_group_created">a new group in %1$s</string>
+    <string name="editor_unsaved_group_moved_first">Moving the group %1$s</string>
+    <string name="editor_unsaved_group_moved">moving the group %1$s</string>
+    <string name="editor_unsaved_group_deleted_first">Deleting the group %1$s</string>
+    <string name="editor_unsaved_group_deleted">deleting the group %1$s</string>
+    <string name="editor_unsaved_name_and_color_first">The database\'s new name and colour</string>
+    <string name="editor_unsaved_name_and_color">the database\'s new name and colour</string>
+    <!-- Used by session/Kdbx3Question.kt: an upgrade to KDBX 4 that did not happen. %1$s: why (editor_save_failure_…) -->
+    <string name="editor_kdbx3_not_upgraded">Not upgraded: %1$s</string>
+</resources>
