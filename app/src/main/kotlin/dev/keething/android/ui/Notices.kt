@@ -47,6 +47,8 @@ internal data class Notice(
         /** "Password copied · clears in 30 s" (SPEC §6); [what] is the field's name, as the card shows it. */
         fun copied(what: String) = Notice(uiText(R.string.notice_copied, what))
 
+        fun copied(what: UiText) = Notice(uiText(R.string.notice_copied, what))
+
         /** The next one-time code, copied before its time (keething-spec card.code-timer). */
         fun nextCodeCopied(seconds: Int) = Notice(uiPlural(R.plurals.notice_next_code_copied, seconds))
     }

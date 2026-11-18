@@ -1,6 +1,8 @@
 package dev.keething.card.editing
 
+import dev.keething.card.CardText
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
@@ -17,10 +19,10 @@ import dev.keething.totp.TotpSetupException
 public sealed interface ReadCode {
     /** [config]'s key is the caller's: wipe it once used. */
     public data class Code(val config: TotpConfig, val label: TotpLabel) : ReadCode {
-        override fun toString(): String = "Code(•••, $label)"
+        override fun toString(): String = "Code(•••, $label)" // not user text
     }
 
-    public data class Refused(val problem: String) : ReadCode
+    public data class Refused(val problem: UserText) : ReadCode
 }
 
 /**
@@ -53,11 +55,11 @@ public object CodeEdits {
      * Why a further code cannot be named [name] (AC4), as the editor says it of any field; null when it can. Its own
      * name is fine.
      */
-    public fun nameProblem(entry: Entry, field: String, name: String): String? {
+    public fun nameProblem(entry: Entry, field: String, name: String): UserText? {
         val trimmed = name.trim()
-        if (trimmed.isEmpty()) return "Give the code a name: KeePass cannot keep a value without one."
-        if (trimmed in EntryChanges.RESERVED_FIELD_NAMES) return "“$trimmed” is a name KeePass uses itself."
-        return if (trimmed != field && entry.customFields.any { it.name == trimmed }) "Another field has this name." else null
+        if (trimmed.isEmpty()) return UserText.of(CardText.CODE_NO_NAME)
+        if (trimmed in EntryChanges.RESERVED_FIELD_NAMES) return UserText.of(CardText.NAME_RESERVED, trimmed)
+        return if (trimmed != field && entry.customFields.any { it.name == trimmed }) UserText.of(CardText.NAME_TAKEN) else null
     }
 
     /**

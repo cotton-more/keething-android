@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.english
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.Entry
 import kotlin.test.Test
@@ -67,22 +68,22 @@ class MoreFacesTest {
         val built = build(bank, bankTypes)
         val account = built.bankAccount!!
         assertEquals("DE", account.country)
-        assertEquals("IBAN", account.numberLabel)
+        assertEquals("IBAN", account.numberLabel.text.english())
         assertEquals("DE89 3704 0044 0532 0130 00", account.numberShown)
-        assertEquals(listOf("BIC" to "COBADEFFXXX", "BANK" to "Commerzbank"), account.items.map { it.label to it.value })
-        assertNull(account.problem)
+        assertEquals(listOf("BIC" to "COBADEFFXXX", "BANK" to "Commerzbank"), account.items.map { it.label.text.english() to it.value })
+        assertNull(account.problem?.english())
         assertEquals(setOf("custom-0", "custom-1", "custom-2", "custom-3"), account.faceRowIds)
         val row = built.rows.first { it.id == "custom-1" }
         assertEquals("DE89370400440532013000", row.clipboardText())
-        assertEquals("Alex Morgan\nIBAN DE89 3704 0044 0532 0130 00\nBIC COBADEFFXXX\nCommerzbank", account.shareText())
+        assertEquals("Alex Morgan\nIBAN DE89 3704 0044 0532 0130 00\nBIC COBADEFFXXX\nCommerzbank", account.shareText()?.english())
         assertEquals(EntryFace.Bank("DE", "DE89 •• 3000", "Commerzbank"), EntryFace.of(typed(bank, bankTypes)))
-        assertEquals("DE89 •• 3000 · Commerzbank", EntryFace.of(typed(bank, bankTypes))!!.subtitle)
+        assertEquals("DE89 •• 3000 · Commerzbank", EntryFace.of(typed(bank, bankTypes))!!.subtitle.english())
     }
 
     @Test
     fun aMistypedIbanSaysSo() {
         val fields = bank.customFields.toMutableList().apply { this[1] = field("IBAN", "DE89 3704 0044 0532 0131 00") }
-        assertEquals("The IBAN fails its check digits (a typo?)", build(bank.copy(customFields = fields), bankTypes).bankAccount!!.problem)
+        assertEquals("The IBAN fails its check digits (a typo?)", build(bank.copy(customFields = fields), bankTypes).bankAccount!!.problem?.english())
     }
 
     private val russianTypes = "Получатель = bank.holder\nСчёт = bank.account\nБИК = bank.code\nКорр. счёт = bank.corr\nБанк = bank.name"
@@ -99,28 +100,28 @@ class MoreFacesTest {
         val built = build(russian, russianTypes)
         val account = built.bankAccount!!
         assertEquals("RU", account.country)
-        assertEquals("ACCOUNT", account.numberLabel)
+        assertEquals("ACCOUNT", account.numberLabel.text.english())
         assertEquals("40817 810 5 0000 1234567", account.numberShown)
-        assertEquals(listOf("BIK", "CORR. ACCOUNT", "BANK"), account.items.map { it.label })
+        assertEquals(listOf("BIK", "CORR. ACCOUNT", "BANK"), account.items.map { it.label.text.english() })
         assertEquals("30101 810 9 0000 0000974", account.items[1].value)
-        assertNull(account.problem)
-        assertEquals("30101810900000000974", built.rows.first { it.label == "Корр. счёт" }.clipboardText())
-        assertEquals(listOf("ИНН"), built.sections.first { it.kind == CardSection.Kind.Custom }.rows.map { it.label }, "the recipient's numbers stay rows")
-        assertEquals("Морган Алекс\nСчёт 40817810500001234567\nБИК 044525974\nК/с 30101810900000000974\nАО «Тестбанк»", account.shareText())
-        assertEquals("40817 •• 4567 · АО «Тестбанк»", EntryFace.of(typed(russian, russianTypes))!!.subtitle)
+        assertNull(account.problem?.english())
+        assertEquals("30101810900000000974", built.rows.first { it.label.english() == "Корр. счёт" }.clipboardText())
+        assertEquals(listOf("ИНН"), built.sections.first { it.kind == CardSection.Kind.Custom }.rows.map { it.label.english() }, "the recipient's numbers stay rows")
+        assertEquals("Морган Алекс\nСчёт 40817810500001234567\nБИК 044525974\nК/с 30101810900000000974\nАО «Тестбанк»", account.shareText()?.english())
+        assertEquals("40817 •• 4567 · АО «Тестбанк»", EntryFace.of(typed(russian, russianTypes))!!.subtitle.english())
 
         val wrong = russian.customFields.toMutableList().apply { this[1] = field("Счёт", "40817810500001234568") }
-        assertEquals("The account does not match the BIK (a typo?)", build(russian.copy(customFields = wrong), russianTypes).bankAccount!!.problem)
+        assertEquals("The account does not match the BIK (a typo?)", build(russian.copy(customFields = wrong), russianTypes).bankAccount!!.problem?.english())
     }
 
     @Test
     fun anIbanWithoutATypeIsGroupedWithItsFlagAndCopiedWithoutSpaces() {
         val built = EntryCardBuilder.build(Entry("u", customFields = listOf(field("Konto", "de89 3704 0044 0532 0130 00"), field("Note", "DE12"))), now, de)
-        val row = built.rows.first { it.label == "Konto" }
+        val row = built.rows.first { it.label.english() == "Konto" }
         assertEquals("🇩🇪  DE89 3704 0044 0532 0130 00", row.revealedText())
         assertEquals("DE89370400440532013000", row.clipboardText().uppercase())
-        assertEquals("Note", built.rows.first { !it.copiesCompact }.label)
-        assertEquals(listOf(FieldType.BANK_IBAN, FieldType.TEXT), EntryCardBuilder.guessedTypes(built.rows.map { field(it.label, it.storedText()) }))
+        assertEquals("Note", built.rows.first { !it.copiesCompact }.label.english())
+        assertEquals(listOf(FieldType.BANK_IBAN, FieldType.TEXT), EntryCardBuilder.guessedTypes(built.rows.map { field(it.label.english(), it.storedText()) }))
     }
 
     // Identity document
@@ -138,15 +139,15 @@ class MoreFacesTest {
     fun theDocumentsFaceShowsItsPartsAndItsExpiryIsADeadline() {
         val built = build(passport, docTypes)
         val document = built.document!!
-        assertEquals("PASSPORT", document.heading())
+        assertEquals("PASSPORT", document.heading.english().uppercase())
         assertEquals("Germany", document.country, "a code is named")
         assertEquals("DE", document.countryCode)
         assertEquals(day(1990, 8, 12), document.birth!!.date)
         assertEquals(ExpiryHint.Status.SOON, document.expiryHint!!.status)
         assertEquals((0..6).map { "custom-$it" }.toSet(), document.faceRowIds)
-        assertEquals(listOf("Authority"), built.sections.first { it.kind == CardSection.Kind.Custom }.rows.map { it.label })
+        assertEquals(listOf("Authority"), built.sections.first { it.kind == CardSection.Kind.Custom }.rows.map { it.label.english() })
         assertNotNull(built.deadline, "the document's expiry is a deadline")
-        assertEquals("Passport · Germany · until 03/2027", EntryFace.of(typed(passport, docTypes))!!.subtitle)
+        assertEquals("Passport · Germany · until 03/2027", EntryFace.of(typed(passport, docTypes))!!.subtitle.english())
     }
 
     // SSH
@@ -162,7 +163,7 @@ class MoreFacesTest {
         assertEquals("ssh://alex@db.example.com:2222", login.uri)
         assertEquals(RowIds.USERNAME, login.userRowId, "the user is the entry's username")
         assertEquals(setOf("custom-0", "custom-1"), login.faceRowIds)
-        assertEquals("alex@db.example.com:2222", EntryFace.of(typed(server, sshTypes))!!.subtitle)
+        assertEquals("alex@db.example.com:2222", EntryFace.of(typed(server, sshTypes))!!.subtitle.english())
     }
 
     @Test

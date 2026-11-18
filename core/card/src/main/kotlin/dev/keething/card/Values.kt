@@ -12,7 +12,7 @@ import java.time.Instant
  * refused.
  */
 public object OpenableUrl {
-    private val hostLike = Regex("""^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(:[0-9]{1,5})?([/?#].*)?$""")
+    private val hostLike = Regex("""^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(:[0-9]{1,5})?([/?#].*)?$""") // not user text
 
     public fun of(text: String): String? {
         val trimmed = text.trim()
@@ -34,7 +34,7 @@ internal object ValueShape {
         if (trimmed.lowercase().startsWith("otpauth://")) return true
         if (!trimmed.startsWith("-----BEGIN ")) return false
         val label = pemLabel(trimmed) ?: return false
-        return "PRIVATE KEY" in label || label == "PEM block"
+        return "PRIVATE KEY" in label || label == "PEM block" // not user text
     }
 
     private fun pemLabel(value: String): String? {
@@ -42,10 +42,10 @@ internal object ValueShape {
         if (!value.startsWith(start)) return null
         val rest = value.substring(start.length)
         val end = rest.indexOf("-----")
-        if (end < 0) return "PEM block"
+        if (end < 0) return "PEM block" // not user text
         val label = rest.substring(0, end)
         val allowed = label.all { (it.code < 128 && (it.isUpperCase() || it.isDigit())) || it == ' ' }
-        return if (allowed && label.isNotEmpty() && label.none { it == '\n' || it == '\r' }) "PEM ($label)" else "PEM block"
+        return if (allowed && label.isNotEmpty() && label.none { it == '\n' || it == '\r' }) "PEM ($label)" else "PEM block" // not user text
     }
 }
 
@@ -139,8 +139,9 @@ public data class TotpDisplay(
 internal object AppAddressStyle {
     private val generic = Regex("""(?i)url( [0-9]+)?|kp2a_url.*""")
 
-    fun of(text: String, label: String): ValueStyle.App? {
+    /** [fieldName]: the row's name when it is the user's own (null for the entry's URL and the further URLs). */
+    fun of(text: String, fieldName: String?): ValueStyle.App? {
         val packageName = AndroidAppAddress.packageOf(text) ?: return null
-        return ValueStyle.App(packageName, label.trim().takeUnless { it.isEmpty() || generic.matches(it) })
+        return ValueStyle.App(packageName, fieldName?.trim()?.takeUnless { it.isEmpty() || generic.matches(it) })
     }
 }

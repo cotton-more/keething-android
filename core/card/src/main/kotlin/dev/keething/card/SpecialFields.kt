@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.FieldValue
 import java.time.Instant
@@ -140,15 +141,15 @@ public data class PaymentCard(
 
 /** Card networks, by their leading digits (IIN ranges), most specific first (Mac `CardBrand`). */
 public enum class CardBrand(public val displayName: String) {
-    VISA("Visa"),
-    MASTERCARD("Mastercard"),
-    AMEX("American Express"),
-    MIR("Mir"),
-    MAESTRO("Maestro"),
-    DISCOVER("Discover"),
-    UNION_PAY("UnionPay"),
+    VISA("Visa"), // not user text
+    MASTERCARD("Mastercard"), // not user text
+    AMEX("American Express"), // not user text
+    MIR("Mir"), // not user text
+    MAESTRO("Maestro"), // not user text
+    DISCOVER("Discover"), // not user text
+    UNION_PAY("UnionPay"), // not user text
     JCB("JCB"),
-    DINERS("Diners Club"),
+    DINERS("Diners Club"), // not user text
     ;
 
     public companion object {
@@ -182,14 +183,14 @@ public enum class CardBrand(public val displayName: String) {
         /** The network a card type field names, when it is a known one. */
         public fun known(typeText: String): CardBrand? = when (typeText.trim().lowercase()) {
             "visa" -> VISA
-            "mc", "mastercard", "master card" -> MASTERCARD
-            "amex", "american express" -> AMEX
+            "mc", "mastercard", "master card" -> MASTERCARD // not user text
+            "amex", "american express" -> AMEX // not user text
             "mir", "мир" -> MIR
             "maestro" -> MAESTRO
             "discover" -> DISCOVER
             "unionpay" -> UNION_PAY
             "jcb" -> JCB
-            "diners", "diners club" -> DINERS
+            "diners", "diners club" -> DINERS // not user text
             else -> null
         }
 
@@ -237,7 +238,7 @@ public data class WiFiNetwork(
     /** `WPA` (also WPA2/WPA3), `WEP`, or `nopass`. */
     val security: String,
     /** How the security field says it ("WPA2"); "Open" for a network without a password, else [security]. */
-    val securityLabel: String = security,
+    val securityLabel: UserText = UserText.plain(security),
     /** The rows the face shows (SPEC §6.2), besides the password: the card shows the other rows under it. */
     val ssidRowId: String? = null,
     val securityRowId: String? = null,
@@ -272,8 +273,8 @@ public data class WiFiNetwork(
                 else -> "WPA"
             }
             val label = when {
-                kind == "nopass" -> "Open"
-                else -> security?.plainText?.trim()?.takeIf { it.isNotEmpty() && it.length <= 24 } ?: kind
+                kind == "nopass" -> UserText.of(CardText.WIFI_OPEN)
+                else -> UserText.plain(security?.plainText?.trim()?.takeIf { it.isNotEmpty() && it.length <= 24 } ?: kind)
             }
             return WiFiNetwork(name, if (hasPassword) password?.second else null, kind, label)
         }

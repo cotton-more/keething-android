@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.CustomField
 import java.util.Locale
 
@@ -42,42 +43,61 @@ public data class BankAccount(
     val country: String?,
     val holder: String?,
     val holderRowId: String?,
-    /** "IBAN" or "ACCOUNT". */
-    val numberLabel: String,
+    /** [Label.IBAN] or [Label.ACCOUNT]. */
+    val numberLabel: Label,
     val numberRowId: String,
     /** Grouped as printed; null when the number is protected. */
     val numberShown: String?,
     /** BIC, bank code (БИК), correspondent account, another account, the bank's name: small lines under the number. */
     val items: List<Item>,
     /** What fails its check ("The IBAN fails its check digits (a typo?)"); null when all pass or nothing is checked. */
-    val problem: String?,
+    val problem: UserText?,
 ) {
-    public data class Item(val label: String, val value: String, val rowId: String, val monospace: Boolean, val compact: Boolean = false)
+    /** The face's names of its lines ("IBAN", "BIK", "CORR. ACCOUNT"). */
+    public enum class Label(private val key: CardText) {
+        IBAN(CardText.BANK_IBAN),
+        ACCOUNT(CardText.BANK_ACCOUNT),
+        BIC(CardText.BANK_BIC),
+        BIK(CardText.BANK_BIK),
+        BANK_CODE(CardText.BANK_CODE),
+        CORR_ACCOUNT(CardText.BANK_CORR),
+        BANK(CardText.BANK_NAME),
+        ;
 
-    val isRussian: Boolean get() = country == "RU" && numberLabel == "ACCOUNT"
+        public val text: UserText get() = UserText.of(key)
+    }
+
+    public data class Item(val label: Label, val value: String, val rowId: String, val monospace: Boolean, val compact: Boolean = false)
+
+    val isRussian: Boolean get() = country == "RU" && numberLabel == Label.ACCOUNT
 
     /** The rows drawn on the face; the others are rows under it. */
     val faceRowIds: Set<String> get() = setOfNotNull(numberRowId, holderRowId) + items.map { it.rowId }
 
     /**
      * The details as text for someone who sends money (the face's Share): the holder, the number, the codes, the bank;
-     * Russian details with their Russian names, as such details are written.
+     * Russian details with their Russian names, as such details are written, whatever the phone's language.
      */
-    public fun shareText(): String? {
+    public fun shareText(): UserText? {
         val number = numberShown ?: return null
-        return buildList {
-            holder?.let(::add)
-            add((if (isRussian) "Счёт " else "$numberLabel ") + number.filterNot(Char::isWhitespace).let { if (numberLabel == "IBAN") Iban.grouped(it) else it })
-            for (item in items) {
-                val label = when (item.label) {
-                    "BANK" -> null
-                    "BIK" -> "БИК"
-                    "CORR. ACCOUNT" -> if (isRussian) "К/с" else "Correspondent account"
-                    else -> item.label
+        fun line(label: UserText?, value: String) = if (label == null) UserText.plain(value) else UserText.Joined(listOf(label, UserText.plain(value)), " ")
+        return UserText.Joined(
+            buildList {
+                holder?.let { add(UserText.plain(it)) }
+                val digits = number.filterNot(Char::isWhitespace).let { if (numberLabel == Label.IBAN) Iban.grouped(it) else it }
+                add(line(if (isRussian) UserText.plain("Счёт") else numberLabel.text, digits)) // not user text: Russian details' own name
+                for (item in items) {
+                    val label = when (item.label) {
+                        Label.BANK -> null
+                        Label.BIK -> UserText.plain("БИК") // not user text: Russian details' own name
+                        Label.CORR_ACCOUNT -> if (isRussian) UserText.plain("К/с") else UserText.of(CardText.BANK_SHARE_CORR) // not user text: Russian details' own name
+                        else -> item.label.text
+                    }
+                    add(line(label, if (item.compact) item.value.filterNot(Char::isWhitespace) else item.value))
                 }
-                add(if (label == null) item.value else "$label ${if (item.compact) item.value.filterNot(Char::isWhitespace) else item.value}")
-            }
-        }.joinToString("\n")
+            },
+            "\n",
+        )
     }
 
     internal companion object {
@@ -91,45 +111,45 @@ public data class BankAccount(
             val bik = codeText?.takeIf(RussianAccount::isBik)
             val items = mutableListOf<Item>()
             var shown = text
-            var problem: String? = null
+            var problem: UserText? = null
             var country: String? = null
             if (isIban) {
                 val compact = text?.let(Iban::compact)
                 if (compact != null && Iban.isShaped(compact)) {
                     shown = Iban.grouped(compact)
                     country = Iban.country(compact)
-                    if (!Iban.checks(compact)) problem = "The IBAN fails its check digits (a typo?)"
+                    if (!Iban.checks(compact)) problem = UserText.of(CardText.BANK_IBAN_FAILS)
                 } else if (text != null) {
-                    problem = "This is not an IBAN: it has the wrong length or country"
+                    problem = UserText.of(CardText.BANK_NOT_IBAN)
                 }
             } else {
                 val digits = text?.let(RussianAccount::digits)
                 if (digits != null && bik != null) {
                     shown = RussianAccount.grouped(digits)
                     country = "RU"
-                    if (!RussianAccount.accountChecks(digits, bik)) problem = "The account does not match the BIK (a typo?)"
+                    if (!RussianAccount.accountChecks(digits, bik)) problem = UserText.of(CardText.BANK_ACCOUNT_BIK)
                 }
             }
-            bic?.let { items += Item("BIC", it.value.plainText!!.trim(), RowIds.custom(it.index), monospace = true) }
-            code?.let { items += Item(if (bik != null) "BIK" else "BANK CODE", codeText!!, RowIds.custom(it.index), monospace = true) }
+            bic?.let { items += Item(Label.BIC, it.value.plainText!!.trim(), RowIds.custom(it.index), monospace = true) }
+            code?.let { items += Item(if (bik != null) Label.BIK else Label.BANK_CODE, codeText!!, RowIds.custom(it.index), monospace = true) }
             corr?.let { field ->
                 val t = field.value.plainText!!.trim()
                 val digits = RussianAccount.digits(t)
-                items += Item("CORR. ACCOUNT", if (digits != null && bik != null) RussianAccount.grouped(digits) else t, RowIds.custom(field.index), monospace = true, compact = true)
+                items += Item(Label.CORR_ACCOUNT, if (digits != null && bik != null) RussianAccount.grouped(digits) else t, RowIds.custom(field.index), monospace = true, compact = true)
                 if (digits != null && bik != null && !RussianAccount.correspondentChecks(digits, bik) && problem == null) {
-                    problem = "The correspondent account does not match the BIK (a typo?)"
+                    problem = UserText.of(CardText.BANK_CORR_BIK)
                 }
             }
             otherAccount?.value?.plainText?.trim()?.takeIf { it.isNotEmpty() }?.let {
-                items += Item("ACCOUNT", it, RowIds.custom(otherAccount.index), monospace = true, compact = true)
+                items += Item(Label.ACCOUNT, it, RowIds.custom(otherAccount.index), monospace = true, compact = true)
             }
-            name?.let { items += Item("BANK", it.value.plainText!!.trim(), RowIds.custom(it.index), monospace = false) }
+            name?.let { items += Item(Label.BANK, it.value.plainText!!.trim(), RowIds.custom(it.index), monospace = false) }
             if (country == null) country = bic?.value?.plainText?.let(Bic::country) ?: if (bik != null) "RU" else null
             return BankAccount(
                 country = country,
                 holder = holder?.value?.plainText?.trim(),
                 holderRowId = holder?.let { RowIds.custom(it.index) },
-                numberLabel = if (isIban) "IBAN" else "ACCOUNT",
+                numberLabel = if (isIban) Label.IBAN else Label.ACCOUNT,
                 numberRowId = RowIds.custom(number.index),
                 numberShown = shown,
                 items = items,
@@ -198,8 +218,8 @@ public data class IdentityDocument(
     /** The rows drawn on the face; the others are rows under it. */
     val faceRowIds: Set<String> get() = setOfNotNull(kindRowId, numberRowId, nameRowId, countryRowId, birthRowId, issuedRowId, expiryRowId)
 
-    /** The heading on the face ("PASSPORT"; "IDENTITY DOCUMENT" when no type says). */
-    public fun heading(locale: Locale = Locale.getDefault()): String = (kind ?: "Identity document").uppercase(locale)
+    /** The heading on the face, as the field says it ("Passport"; "Identity document" when no type says); shown in capitals. */
+    public val heading: UserText get() = kind?.let(UserText::plain) ?: UserText.of(CardText.DOCUMENT_HEADING)
 }
 
 /**
@@ -238,8 +258,8 @@ internal object SshSection : TypedSection {
 /** A host as an `ssh.host` field may write it: `host`, `user@host`, `host:port`, `[2001:db8::1]:22`, `ssh://user@host:port`. */
 internal data class SshTarget(val host: String, val user: String?, val port: Int?) {
     companion object {
-        private val HOST = Regex("^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$")
-        private val IPV6 = Regex("^[0-9A-Fa-f:.]+(%[A-Za-z0-9]+)?$")
+        private val HOST = Regex("^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$") // not user text
+        private val IPV6 = Regex("^[0-9A-Fa-f:.]+(%[A-Za-z0-9]+)?$") // not user text
 
         fun parse(text: String): SshTarget? {
             var t = text.trim()
@@ -310,16 +330,16 @@ public data class SshLogin(
 
     /** A `Host` block for `~/.ssh/config`; a key in a file as its `IdentityFile`, an attachment's key named in a comment. */
     public fun config(key: SshKeyLocation? = keyLocation): String = buildList {
-        add("Host $alias")
-        add("  HostName $host")
-        user?.let { add("  User ${configWord(it)}") }
-        otherPort?.let { add("  Port $it") }
+        add("Host $alias") // not user text
+        add("  HostName $host") // not user text
+        user?.let { add("  User ${configWord(it)}") } // not user text
+        otherPort?.let { add("  Port $it") } // not user text
         when (key) {
             is SshKeyLocation.InFile -> {
-                add("  IdentityFile ${configWord(key.path)}")
-                add("  IdentitiesOnly yes")
+                add("  IdentityFile ${configWord(key.path)}") // not user text
+                add("  IdentitiesOnly yes") // not user text
             }
-            is SshKeyLocation.InAttachment -> add("  # key ${key.name} via the SSH agent")
+            is SshKeyLocation.InAttachment -> add("  # key ${key.name} via the SSH agent") // not user text
             null -> Unit
         }
     }.joinToString("\n")
@@ -331,7 +351,7 @@ public data class SshLogin(
             return slug.ifEmpty { host }
         }
 
-        private val PLAIN = Regex("^[A-Za-z0-9._@%+=:,/-]+$")
+        private val PLAIN = Regex("^[A-Za-z0-9._@%+=:,/-]+$") // not user text
 
         /** Quoted for a POSIX shell when it needs it. */
         private fun shellWord(word: String): String = if (PLAIN.matches(word)) word else "'" + word.replace("'", "'\\''") + "'"

@@ -1,5 +1,6 @@
 package dev.keething.card.editing
 
+import dev.keething.domain.text.english
 import dev.keething.card.now
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Attachment
@@ -52,9 +53,9 @@ class AttachmentEditorTest {
         val editor = EntryEditor.edit(odd, now)
         val start = editor.start.addAttachment("b.txt", Secret.of("b"))
 
-        assertEquals("Another attachment has this name.", editor.attachmentProblem(start, start.attachments[0]))
-        assertEquals("Give the attachment a name.", editor.attachmentProblem(start, start.attachments[2]))
-        assertEquals(listOf("Every attachment needs a name.", "Attachment names must differ: a.txt."), editor.attachmentProblems(start))
+        assertEquals("Another attachment has this name.", editor.attachmentProblem(start, start.attachments[0])?.english())
+        assertEquals("Give the attachment a name.", editor.attachmentProblem(start, start.attachments[2])?.english())
+        assertEquals(listOf("Every attachment needs a name.", "Attachment names must differ: a.txt."), editor.attachmentProblems(start).map { it.english() })
         assertFalse(editor.canSave(start))
 
         val fixed = start.removeAttachment(start.attachments[1].id).removeAttachment(start.attachments[2].id)

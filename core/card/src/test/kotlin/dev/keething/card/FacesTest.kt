@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.english
 import dev.keething.domain.vault.Entry
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,8 +35,8 @@ class FacesTest {
         assertEquals("custom-0", p.cvcRowId)
         assertEquals("custom-5", p.typeRowId, "a type naming a known network is the face's brand")
         val section = built.sections.first { it.kind is CardSection.Kind.PaymentCard }
-        assertEquals(listOf("PIN"), section.rows.filter { it.id !in p.faceRowIds }.map { it.label })
-        assertEquals(listOf("Bank hotline"), built.sections.first { it.kind == CardSection.Kind.Custom }.rows.map { it.label })
+        assertEquals(listOf("PIN"), section.rows.filter { it.id !in p.faceRowIds }.map { it.label.english() })
+        assertEquals(listOf("Bank hotline"), built.sections.first { it.kind == CardSection.Kind.Custom }.rows.map { it.label.english() })
     }
 
     @Test
@@ -51,7 +52,7 @@ class FacesTest {
         assertNull(p.expiryRowId, "no date: no expiry on the face")
         assertNull(p.typeRowId, "the number names the network; the type says more")
         val rows = built.sections.first { it.kind is CardSection.Kind.PaymentCard }.rows.filter { it.id !in p.faceRowIds }
-        assertEquals(listOf("Cardholder", "Expiry", "PIN", "Type"), rows.map { it.label })
+        assertEquals(listOf("Cardholder", "Expiry", "PIN", "Type"), rows.map { it.label.english() })
     }
 
     @Test
@@ -65,10 +66,10 @@ class FacesTest {
     @Test
     fun theNetworksFaceShowsNameSecurityAndPassword() {
         val network = build(wifi, wifiTypes).wifi!!
-        assertEquals("WPA2", network.securityLabel)
+        assertEquals("WPA2", network.securityLabel.english())
         assertEquals(setOf("custom-0", "custom-1", "custom-2"), network.faceRowIds)
         val open = build(Entry("o", customFields = listOf(field("SSID", "Cafe"), field("Security", "WPA2"))), wifiTypes).wifi!!
-        assertEquals("Open", open.securityLabel, "no password: anyone may join, whatever the field says")
+        assertEquals("Open", open.securityLabel.english(), "no password: anyone may join, whatever the field says")
         assertEquals(true, open.isOpen)
     }
 
@@ -77,10 +78,10 @@ class FacesTest {
     @Test
     fun theListSaysWhichCardOrNetworkItIs() {
         assertEquals(EntryFace.Card(CardBrand.VISA, "Visa", "1111", CalendarDate(2027, 2)), EntryFace.of(typed(card, cardTypes)))
-        assertEquals("Visa •• 1111 · 02/27", EntryFace.of(typed(card, cardTypes))!!.subtitle)
+        assertEquals("Visa •• 1111 · 02/27", EntryFace.of(typed(card, cardTypes))!!.subtitle.english())
         val hidden = card.copy(customFields = cardFields.toMutableList().apply { this[1] = field("Card number", "4111111111111111", protected = true) })
-        assertEquals("Visa · 02/27", EntryFace.of(typed(hidden, cardTypes))!!.subtitle, "a protected number: the type's brand, no digits")
-        assertEquals("WPA2 · FRITZ!Box 7590 KX", EntryFace.of(typed(wifi, wifiTypes))!!.subtitle)
+        assertEquals("Visa · 02/27", EntryFace.of(typed(hidden, cardTypes))!!.subtitle.english(), "a protected number: the type's brand, no digits")
+        assertEquals("WPA2 · FRITZ!Box 7590 KX", EntryFace.of(typed(wifi, wifiTypes))!!.subtitle.english())
         assertNull(EntryFace.of(card), "no types: no face")
         assertNull(EntryFace.of(typed(card, "Bank hotline = text")))
     }

@@ -110,7 +110,7 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                             Text(account.holder.orEmpty(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    StickerLine(account.numberLabel, number, actions) {
+                    StickerLine(account.numberLabel.text.resolve(), number, actions) {
                         val text = if (shown) account.numberShown ?: number?.let(reveal::displayValue).orEmpty() else RevealState.MASK
                         val accent = MaterialTheme.extraColors.digit
                         // One line, never wrapped (keething-spec types.bank-account AC2): smaller first, down to 13 sp,
@@ -121,7 +121,7 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                                 groups.forEachIndexed { i, group ->
                                     if (i > 0) append(' ')
                                     // An IBAN's country and check digits in the accent; not a whole ungrouped value that is no IBAN.
-                                    if (i == 0 && groups.size > 1 && shown && account.numberLabel == "IBAN") withStyle(SpanStyle(color = accent)) { append(group) } else append(group)
+                                    if (i == 0 && groups.size > 1 && shown && account.numberLabel == BankAccount.Label.IBAN) withStyle(SpanStyle(color = accent)) { append(group) } else append(group)
                                 }
                             },
                             if (shown) Modifier else Modifier.spokenMasked(text),
@@ -137,7 +137,7 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                     if (account.items.isNotEmpty()) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             for (item in account.items) {
-                                FaceItem(item.label, rows[item.rowId], actions) {
+                                FaceItem(item.label.text.resolve(), rows[item.rowId], actions) {
                                     Text(item.value, style = MaterialTheme.typography.bodyLarge, fontFamily = if (item.monospace) MonospaceFamily else null)
                                 }
                             }
@@ -150,14 +150,14 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                     }
                 }
                 account.problem?.let {
-                    Note(Icons.Rounded.ErrorOutline, it, MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+                    Note(Icons.Rounded.ErrorOutline, it.resolve(), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (number != null && !number.isEmpty) {
                         Button(onClick = { actions.onCopy(number) }, Modifier.weight(1f).heightIn(min = 52.dp)) {
                             Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text(stringResource(if (account.numberLabel == "IBAN") R.string.entry_bank_copy_iban else R.string.entry_bank_copy_account), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(stringResource(if (account.numberLabel == BankAccount.Label.IBAN) R.string.entry_bank_copy_iban else R.string.entry_bank_copy_account), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     if (account.shareText() != null) {
@@ -208,7 +208,7 @@ internal fun DocumentSection(section: CardSection, document: IdentityDocument, r
                         Guilloche(colors.paperWave, Modifier.matchParentSize())
                         Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(document.heading(locale), Modifier.weight(1f), color = ink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(document.heading.resolve().uppercase(locale), Modifier.weight(1f), color = ink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 document.country?.let { country ->
                                     Text(
                                         listOf(document.countryCode?.let(Countries::flag) ?: Countries.UNKNOWN_FLAG, country.uppercase(locale)).joinToString(" "),

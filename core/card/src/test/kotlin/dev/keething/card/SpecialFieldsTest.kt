@@ -1,5 +1,7 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
+import dev.keething.domain.text.english
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import java.time.Instant
@@ -64,8 +66,8 @@ class SpecialFieldsTest {
         assertEquals(listOf(CardSection.Kind.PaymentCard(p), CardSection.Kind.Custom), card.sections.map { it.kind })
         assertEquals(6, card.sections[0].rows.size)
         assertNull(card.sections[0].title, "the fields come from different sections: full names")
-        assertEquals(listOf("Bank"), card.sections[1].rows.map { it.label })
-        assertEquals("Additional Details › PIN", card.sections[0].rows.first { it.type == FieldType.CARD_PIN }.label)
+        assertEquals(listOf("Bank"), card.sections[1].rows.map { it.label.english() })
+        assertEquals("Additional Details › PIN", card.sections[0].rows.first { it.type == FieldType.CARD_PIN }.label.english())
         assertEquals("Visa", p.brand)
         assertEquals("4111 1111 1111 1111", p.groupedNumber)
         assertEquals("•••• •••• •••• 1111", p.maskedNumber)
@@ -116,7 +118,7 @@ class SpecialFieldsTest {
         assertNull(EntryCardBuilder.build(visa, now, de).paymentCard, "without types nothing is a card")
         val noNumber = build(visa, "expiry date = card.expiry")
         assertNull(noNumber.paymentCard)
-        assertEquals(ExpiryHint.Status.SOON, noNumber.rows.first { it.label == "expiry date" }.expiry?.status, "card.expiry alone still ends something")
+        assertEquals(ExpiryHint.Status.SOON, noNumber.rows.first { it.label.english() == "expiry date" }.expiry?.status, "card.expiry alone still ends something")
     }
 
     @Test
@@ -143,8 +145,8 @@ class SpecialFieldsTest {
         val section = card.sections.first { it.kind is CardSection.Kind.PaymentCard }
 
         assertEquals("Karte", section.title)
-        assertEquals(listOf("Kartennummer", "Karteninhaber", "gültig bis"), section.rows.map { it.label })
-        assertEquals("Karte › Karteninhaber", section.rows[1].noticeLabel, "the notice still says which field")
+        assertEquals(listOf("Kartennummer", "Karteninhaber", "gültig bis"), section.rows.map { it.label.english() })
+        assertEquals("Karte › Karteninhaber", section.rows[1].noticeLabel.english(), "the notice still says which field")
     }
 
     // Wi-Fi
@@ -166,7 +168,7 @@ class SpecialFieldsTest {
             customFields = listOf(field("network name", "ExampleNet"), field("wireless network password", "pw", protected = true), field("security", "WEP"), field("router", "Fritz")),
         )
         val card = build(e, wifiTypes)
-        val network = WiFiNetwork("ExampleNet", "custom-1", "WEP", "WEP", ssidRowId = "custom-0", securityRowId = "custom-2")
+        val network = WiFiNetwork("ExampleNet", "custom-1", "WEP", UserText.plain("WEP"), ssidRowId = "custom-0", securityRowId = "custom-2")
 
         assertEquals(listOf(CardSection.Kind.WiFi(network), CardSection.Kind.Custom), card.sections.map { it.kind })
         assertEquals(network, card.wifi)
@@ -202,7 +204,7 @@ class SpecialFieldsTest {
     fun untilFieldsAndKeePasssOwnExpiryEarliestFirst() {
         val all = DeadlineList.build(Vault(listOf(passport, contract, visa).map { typed(it, deadlineTypes) }), now)
 
-        assertEquals(listOf("Entry expires", "VERTRAG › Ende", "gültig bis", "Kündigungsfrist"), all.map { it.label })
+        assertEquals(listOf("Entry expires", "VERTRAG › Ende", "gültig bis", "Kündigungsfrist"), all.map { it.label.english() })
         assertEquals(listOf("DSL", "Reisepass", "Reisepass", "DSL"), all.map { it.entryTitle })
         assertEquals(
             listOf(ExpiryHint.Status.EXPIRED, ExpiryHint.Status.EXPIRED, ExpiryHint.Status.SOON, ExpiryHint.Status.VALID),
@@ -214,13 +216,13 @@ class SpecialFieldsTest {
 
     @Test
     fun withoutFieldTypesNamesDecide() {
-        assertEquals(listOf("VERTRAG › Ende", "gültig bis"), DeadlineList.build(Vault(listOf(passport)), now).map { it.label })
+        assertEquals(listOf("VERTRAG › Ende", "gültig bis"), DeadlineList.build(Vault(listOf(passport)), now).map { it.label.english() })
     }
 
     @Test
     fun theCardsBannerIsItsMostPressingFieldDeadline() {
-        assertEquals("VERTRAG › Ende", build(passport, deadlineTypes).deadline?.label)
-        assertEquals("Expired 45 days ago", build(passport, deadlineTypes).deadline?.hint?.text, "the banner says it as the field does")
+        assertEquals("VERTRAG › Ende", build(passport, deadlineTypes).deadline?.label?.english())
+        assertEquals("Expired 45 days ago", build(passport, deadlineTypes).deadline?.hint?.text?.english(), "the banner says it as the field does")
         assertNull(build(contract, deadlineTypes).deadline, "KeePass's own expiry has its own banner; the field is far off")
     }
 

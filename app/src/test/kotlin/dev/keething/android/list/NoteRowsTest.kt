@@ -1,7 +1,7 @@
 package dev.keething.android.list
 
+import dev.keething.android.ui.english
 import dev.keething.card.EntryFace
-import dev.keething.card.NoteLine
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryType
@@ -37,12 +37,12 @@ class NoteRowsTest {
     @Test
     fun aNoteShowsTheNoteIconAndItsOwnLineNeverTheUsernameOrHost() {
         assertIs<EntryFace.Note>(row("c").face, "the note's icon wins over the card's face")
-        assertEquals("", row("c").subtitle)
-        assertEquals("Films", row("u").subtitle, "not octocat · example.com")
-        assertEquals(NoteLine.PROTECTED, row("p").subtitle)
-        assertEquals("Dune", row("i").subtitle)
+        assertEquals("", row("c").subtitle.english())
+        assertEquals("Films", row("u").subtitle.english(), "not octocat · example.com")
+        assertEquals("Protected note", row("p").subtitle.english())
+        assertEquals("Dune", row("i").subtitle.english())
         assertIs<EntryFace.Note>(row("i").face, "notes only: a note at once")
-        assertEquals("octocat", row("o").subtitle)
+        assertEquals("octocat", row("o").subtitle.english())
         assertEquals(null, row("o").face)
     }
 

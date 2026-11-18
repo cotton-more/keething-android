@@ -1,5 +1,6 @@
 package dev.keething.card.editing
 
+import dev.keething.domain.text.english
 import dev.keething.card.field
 import dev.keething.card.now
 import dev.keething.domain.secret.Secret
@@ -55,7 +56,7 @@ class NoteEditorTest {
         draft = draft.copy(title = "", notes = "Dune\nArrival")
         assertTrue(editor.canSave(draft), "a text and no title")
         assertEquals(dated(now), editor.savedTitle(draft), "a protected text gives nothing of itself to the title, its date instead")
-        assertEquals("Title: ${dated(now)}", editor.titlePlaceholder(draft))
+        assertEquals("Title: ${dated(now)}", editor.titlePlaceholder(draft).english())
         val changes = EntryChanges(title = dated(now), notes = "Dune\nArrival", notesProtected = true, entryType = EntryTypeChange.Set(EntryType.NOTE))
         assertEquals(changes, editor.changes(draft))
         assertEquals(VaultEdit.Create("new", GroupDestination("work"), changes), editor.edit(draft))
@@ -66,9 +67,9 @@ class NoteEditorTest {
         val editor = newNote(groupId = null)
         assertEquals("root", editor.start.groupId)
         var draft = editor.protecting(editor.start, on = false)
-        assertEquals("Title: the first line", editor.titlePlaceholder(draft), "no text yet")
+        assertEquals("Title: the first line", editor.titlePlaceholder(draft).english(), "no text yet")
         draft = draft.copy(notes = "\n  Films to watch  \nDune")
-        assertEquals("Title: Films to watch", editor.titlePlaceholder(draft), "the line it will be")
+        assertEquals("Title: Films to watch", editor.titlePlaceholder(draft).english(), "the line it will be")
         assertEquals("Films to watch", editor.savedTitle(draft))
         assertEquals(
             EntryChanges(title = "Films to watch", notes = "\n  Films to watch  \nDune", notesProtected = false, entryType = EntryTypeChange.Set(EntryType.NOTE)),
@@ -106,7 +107,7 @@ class NoteEditorTest {
         val plain = editing(Entry("p", title = "Mail", username = "me", notes = "n", groupId = "root"))
         assertEquals(EditorLayout.ENTRY, plain.layout)
         assertEquals(EntryChanges(notes = "m"), plain.changes(plain.start.copy(notes = "m")), "an entry's editor sets neither the kind nor the protection")
-        assertEquals("Title", plain.titlePlaceholder(plain.start))
+        assertEquals("Title", plain.titlePlaceholder(plain.start).english())
         val protectedNotes = editing(Entry("r", title = "Router", password = Secret.of("pw"), notes = "admin", notesProtected = true, groupId = "root"))
         assertEquals(EditorLayout.ENTRY, protectedNotes.layout)
         assertEquals(EntryChanges(notes = "admin 2"), protectedNotes.changes(protectedNotes.start.copy(notes = "admin 2")), "an entry's protected Notes keep their own protection")
@@ -120,7 +121,7 @@ class NoteEditorTest {
         var draft = editor.protecting(editor.start, on = true)
         assertEquals("", draft.title, "the first line would stay in the unprotected Title")
         assertEquals(dated(made), editor.savedTitle(draft), "named by when the note was made, not by when it was edited")
-        assertEquals("Title: ${dated(made)}", editor.titlePlaceholder(draft))
+        assertEquals("Title: ${dated(made)}", editor.titlePlaceholder(draft).english())
         assertEquals(EntryChanges(title = dated(made), notesProtected = true), editor.changes(draft))
 
         draft = editor.protecting(editor.start.copy(notes = "Card PIN 1234"), on = true)

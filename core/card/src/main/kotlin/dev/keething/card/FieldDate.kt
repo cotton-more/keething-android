@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -39,7 +40,7 @@ public data class ExpiryHint(
      * The phrase, the same wherever an end date's status is said (keething-spec card.dates AC6, AC8): "Expires in 5
      * months", "Expires today", "Expired 45 days ago".
      */
-    val text: String,
+    val text: UserText,
 ) {
     public enum class Status { EXPIRED, SOON, VALID }
 
@@ -69,13 +70,14 @@ public data class FieldDate(val date: CalendarDate, val isStandard: Boolean) {
         val end = date.lastDay
         val days = ChronoUnit.DAYS.between(today, end)
         if (days < 0) {
-            return ExpiryHint(ExpiryHint.Status.EXPIRED, if (days == -1L) "Expired yesterday" else "Expired " + distance(end, today, -days) + " ago")
+            val text = if (days == -1L) UserText.of(CardText.EXPIRED_YESTERDAY) else UserText.of(CardText.EXPIRED_AGO, distance(end, today, -days))
+            return ExpiryHint(ExpiryHint.Status.EXPIRED, text)
         }
         val status = if (days <= ExpiryHint.SOON_DAYS) ExpiryHint.Status.SOON else ExpiryHint.Status.VALID
         return when (days) {
-            0L -> ExpiryHint(status, "Expires today")
-            1L -> ExpiryHint(status, "Expires tomorrow")
-            else -> ExpiryHint(status, "Expires in " + distance(today, end, days))
+            0L -> ExpiryHint(status, UserText.of(CardText.EXPIRES_TODAY))
+            1L -> ExpiryHint(status, UserText.of(CardText.EXPIRES_TOMORROW))
+            else -> ExpiryHint(status, UserText.of(CardText.EXPIRES_IN, distance(today, end, days)))
         }
     }
 
@@ -94,12 +96,11 @@ public data class FieldDate(val date: CalendarDate, val isStandard: Boolean) {
         }
 
         /** "36 days", "5 months", "4 years". */
-        private fun distance(start: LocalDate, end: LocalDate, days: Long): String {
-            if (days < 60) return "$days days"
+        private fun distance(start: LocalDate, end: LocalDate, days: Long): UserText {
+            if (days < 60) return UserText.counted(CardText.DAYS, days.toInt())
             val months = ChronoUnit.MONTHS.between(start, end)
-            if (months < 24) return "$months months"
-            val years = months / 12
-            return "$years year${if (years == 1L) "" else "s"}"
+            if (months < 24) return UserText.counted(CardText.MONTHS, months.toInt())
+            return UserText.counted(CardText.YEARS, (months / 12).toInt())
         }
 
         private val MONTHS = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
@@ -109,7 +110,7 @@ public data class FieldDate(val date: CalendarDate, val isStandard: Boolean) {
         private val ISO_DAY =
             Regex("""^([0-9]{4})-([0-9]{2})-([0-9]{2})(T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]+)?)?(Z|[+-][0-9]{2}:?[0-9]{2})?)?$""")
         private val QT_TEXT =
-            Regex("""^([A-Za-z]{3}) ([A-Za-z]{3}) +([0-9]{1,2}) [0-9]{2}:[0-9]{2}:[0-9]{2} ([0-9]{4})( [A-Za-z0-9+:-]+)?$""")
+            Regex("""^([A-Za-z]{3}) ([A-Za-z]{3}) +([0-9]{1,2}) [0-9]{2}:[0-9]{2}:[0-9]{2} ([0-9]{4})( [A-Za-z0-9+:-]+)?$""") // not user text
         private val ISO_MONTH = Regex("""^([0-9]{4})-([0-9]{2})$""")
         private val DOTTED_DAY = Regex("""^([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{4})$""")
         private val COMPACT_DAY = Regex("""^([0-9]{4})([0-9]{2})([0-9]{2})$""")

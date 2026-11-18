@@ -1,5 +1,6 @@
 package dev.keething.android.history
 
+import dev.keething.domain.text.UserText
 import dev.keething.android.session.file
 import androidx.compose.ui.res.stringResource
 import dev.keething.android.R
@@ -164,7 +165,7 @@ internal class EntryHistoryViewModel(
                     read = result.versions
                     val versions = result.versions
                     val list = withContext(Dispatchers.Default) {
-                        HistoryVersions.of(versions.history + versions.current, day = ::dayText, size = sizeText)
+                        HistoryVersions.of(versions.history + versions.current, day = ::dayText, size = { UserText.plain(sizeText(it)) })
                     }
                     HistoryState.Loaded(versions.current.displayTitle, list)
                 }
@@ -189,7 +190,7 @@ internal class EntryHistoryViewModel(
         if (restorable != Restorable.YES || version.isCurrent || restoring != null) return
         problem = null
         revealed.removeAll { it.startsWith("ask/") } // not user text
-        val changes = EntryVersionDiff.changes(versions.current, version.entry, ::dayText, sizeText)
+        val changes = EntryVersionDiff.changes(versions.current, version.entry, ::dayText) { UserText.plain(sizeText(it)) }
         question = RestoreQuestion(version, changes, trimmedText(versions, version.id))
     }
 
@@ -392,7 +393,7 @@ private fun RestoreDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    question.changes.forEach { change -> ChangeRow(change, isRevealed(change.field)) { onToggle(change.field) } }
+                    question.changes.forEach { change -> ChangeRow(change, isRevealed(change.key)) { onToggle(change.key) } }
                 }
                 question.trimmed?.let { Text(it.resolve()) }
             }
@@ -485,7 +486,7 @@ private fun VersionCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            else -> changes.forEach { change -> ChangeRow(change, isRevealed(change.field)) { onToggle(change.field) } }
+            else -> changes.forEach { change -> ChangeRow(change, isRevealed(change.key)) { onToggle(change.key) } }
         }
         if (restore != null) {
             val date = version.entry.lastModified?.let { WHEN.format(it.atZone(ZoneId.systemDefault())) }
@@ -515,18 +516,18 @@ private fun ChangeRow(change: VersionChange, revealed: Boolean, onToggle: () -> 
     Row(verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                stringResource(change.kindText(), change.field),
+                stringResource(change.kindText(), change.field.resolve()),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
-            change.old?.let { ValueText(it, change.isProtected, masked && !revealed, struck = true) }
-            change.new?.let { ValueText(it, change.isProtected, masked && !revealed, struck = false) }
+            change.old?.let { ValueText(it.resolve(), change.isProtected, masked && !revealed, struck = true) }
+            change.new?.let { ValueText(it.resolve(), change.isProtected, masked && !revealed, struck = false) }
         }
         if (masked) {
             IconButton(onClick = onToggle) {
                 Icon(
                     if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                    contentDescription = stringResource(if (revealed) R.string.history_hide else R.string.history_show, change.field),
+                    contentDescription = stringResource(if (revealed) R.string.history_hide else R.string.history_show, change.field.resolve()),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -553,6 +554,14 @@ private fun ValueText(value: String, secret: Boolean, masked: Boolean, struck: B
         overflow = TextOverflow.Ellipsis,
     )
 }
+
+/** What a change's reveal state is kept by: its field's name (a custom field's own, or the app's key for a standard one). */
+private val VersionChange.key: String
+    get() = when (val field = field) {
+        is UserText.Plain -> field.text
+        is UserText.Of -> field.key.resource + field.args
+        else -> field.toString()
+    }
 
 /** The change's line: its field and what happened to it. */
 private fun VersionChange.kindText(): Int = when (kind) {

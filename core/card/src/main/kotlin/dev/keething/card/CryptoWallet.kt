@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.CustomField
 
 /**
@@ -22,7 +23,7 @@ internal object CryptoSection : TypedSection {
             addresses = addresses,
             xpub = xpub,
             path = context.typed(FieldType.CRYPTO_PATH).firstOrNull(),
-            label = { labelOf.getValue(it).ifEmpty { "Address" } },
+            label = { labelOf.getValue(it).takeUnless { label -> label.isEmptyLabel } ?: UserText.of(CardText.ROW_ADDRESS) },
         )
         val rows = parts.zip(labels).map { (part, label) ->
             val row = context.row(part.index, part.value, label, ImportedFieldName.displayName(part.value.name))
@@ -46,11 +47,11 @@ public data class CryptoWallet(
     val privateKeyRowId: String?,
 ) {
     /** A receiving address: [read] is null when its format is none known here. */
-    public data class Address(val rowId: String, val label: String, val text: String, val read: CryptoAddress?)
+    public data class Address(val rowId: String, val label: UserText, val text: String, val read: CryptoAddress?)
 
-    public data class Key(val rowId: String, val label: String, val text: String, val read: ExtendedKey?)
+    public data class Key(val rowId: String, val label: UserText, val text: String, val read: ExtendedKey?)
 
-    public data class Path(val rowId: String, val text: String, val description: String?)
+    public data class Path(val rowId: String, val text: String, val description: UserText?)
 
     /** The network, from the first address the face recognises, else the path's coin, else a key's prefix that says it. */
     val network: CryptoNetwork?
@@ -77,7 +78,7 @@ public data class CryptoWallet(
 
         internal fun make(
             seed: IndexedValue<CustomField>?, passphrase: IndexedValue<CustomField>?, addresses: List<IndexedValue<CustomField>>,
-            xpub: IndexedValue<CustomField>?, path: IndexedValue<CustomField>?, label: (Int) -> String,
+            xpub: IndexedValue<CustomField>?, path: IndexedValue<CustomField>?, label: (Int) -> UserText,
         ): CryptoWallet {
             // A protected key is not read: it is masked and never copied as a row under the face (it may be a private one).
             val key = xpub?.value?.plainText?.trim()?.takeIf { it.isNotEmpty() }?.let { text -> Key(RowIds.custom(xpub.index), label(xpub.index), text, ExtendedKey.read(text)) }

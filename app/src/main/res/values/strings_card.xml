@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The texts core/card makes: CardText -->
+    <!-- The menus' names of field types -->
+    <string name="card_type_text">Text</string>
+    <string name="card_type_date">Date</string>
+    <string name="card_type_until">Date until (expiry)</string>
+    <string name="card_type_url">URL</string>
+    <string name="card_type_code">Code</string>
+    <string name="card_type_password">Password</string>
+    <string name="card_type_card_number">Number</string>
+    <string name="card_type_card_holder">Holder</string>
+    <string name="card_type_card_expiry">Expiry</string>
+    <string name="card_type_card_cvc">CVC</string>
+    <string name="card_type_card_pin">PIN</string>
+    <string name="card_type_card_type">Type</string>
+    <string name="card_type_wifi_ssid">Network name</string>
+    <string name="card_type_wifi_password">Password</string>
+    <string name="card_type_wifi_security">Security</string>
+    <string name="card_type_bank_iban">IBAN</string>
+    <string name="card_type_bank_bic">BIC / SWIFT</string>
+    <string name="card_type_bank_name">Bank</string>
+    <string name="card_type_bank_holder">Account holder</string>
+    <string name="card_type_bank_account">Account number</string>
+    <string name="card_type_bank_code">Bank code (BIK, routing…)</string>
+    <string name="card_type_bank_corr">Correspondent account</string>
+    <string name="card_type_doc_type">Type</string>
+    <string name="card_type_doc_number">Number</string>
+    <string name="card_type_doc_name">Name</string>
+    <string name="card_type_doc_country">Country</string>
+    <string name="card_type_doc_birth">Date of birth</string>
+    <string name="card_type_doc_issued">Issued</string>
+    <string name="card_type_doc_expiry">Expiry</string>
+    <string name="card_type_ssh_host">Host</string>
+    <string name="card_type_ssh_port">Port</string>
+    <string name="card_type_ssh_user">User</string>
+    <string name="card_type_crypto_seed">Recovery phrase</string>
+    <string name="card_type_crypto_passphrase">Passphrase (25th word)</string>
+    <string name="card_type_crypto_address">Receiving address</string>
+    <string name="card_type_crypto_xpub">Extended public key</string>
+    <string name="card_type_crypto_path">Derivation path</string>
+    <!-- A field type's name where it stands alone -->
+    <string name="card_full_card_number">Card number</string>
+    <string name="card_full_card_holder">Card holder</string>
+    <string name="card_full_card_expiry">Card expiry</string>
+    <string name="card_full_card_cvc">Card CVC</string>
+    <string name="card_full_card_pin">Card PIN</string>
+    <string name="card_full_card_type">Card type</string>
+    <string name="card_full_wifi_ssid">Wi-Fi network name</string>
+    <string name="card_full_wifi_password">Wi-Fi password</string>
+    <string name="card_full_wifi_security">Wi-Fi security</string>
+    <string name="card_full_bank_name">Bank name</string>
+    <string name="card_full_bank_code">Bank code</string>
+    <string name="card_full_doc_type">Document type</string>
+    <string name="card_full_doc_number">Document number</string>
+    <string name="card_full_doc_name">Document name</string>
+    <string name="card_full_doc_country">Document country</string>
+    <string name="card_full_doc_issued">Document issued</string>
+    <string name="card_full_doc_expiry">Document expiry</string>
+    <string name="card_full_ssh_host">SSH host</string>
+    <string name="card_full_ssh_port">SSH port</string>
+    <string name="card_full_ssh_user">SSH user</string>
+    <string name="card_full_crypto_passphrase">Wallet passphrase</string>
+    <!-- The kinds of entries whose parts the type menu offers -->
+    <string name="card_kind_card">Card</string>
+    <string name="card_kind_wifi">Wi-Fi</string>
+    <string name="card_kind_bank">Bank account</string>
+    <string name="card_kind_document">Document</string>
+    <string name="card_kind_ssh">SSH</string>
+    <string name="card_kind_crypto">Crypto</string>
+    <!-- How an end date stands -->
+    <string name="card_expired_yesterday">Expired yesterday</string>
+    <string name="card_expired_today">Expired today</string>
+    <string name="card_expired_ago">Expired %1$s ago</string>
+    <string name="card_expires_today">Expires today</string>
+    <string name="card_expires_tomorrow">Expires tomorrow</string>
+    <string name="card_expires_in">Expires in %1$s</string>
+    <plurals name="card_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="card_months">
+        <item quantity="one">%d month</item>
+        <item quantity="other">%d months</item>
+    </plurals>
+    <plurals name="card_years">
+        <item quantity="one">%d year</item>
+        <item quantity="other">%d years</item>
+    </plurals>
+    <string name="card_entry_expires">Entry expires</string>
+    <!-- The card's rows -->
+    <string name="card_row_username">Username</string>
+    <string name="card_row_password">Password</string>
+    <string name="card_row_url">URL</string>
+    <string name="card_row_url_numbered">URL %1$d</string>
+    <string name="card_row_one_time_code">One-time code</string>
+    <string name="card_row_note">Note</string>
+    <string name="card_row_notes">Notes</string>
+    <string name="card_row_value">Value</string>
+    <string name="card_row_address">Address</string>
+    <string name="card_no_name">(no name)</string>
+    <!-- The list's faces -->
+    <string name="card_face_card">Card</string>
+    <string name="card_face_bank_account">Bank account</string>
+    <string name="card_face_document">Document</string>
+    <string name="card_face_until">until %1$s</string>
+    <string name="card_face_crypto_wallet">Crypto wallet</string>
+    <string name="card_face_recovery_phrase">recovery phrase</string>
+    <string name="card_note_protected">Protected note</string>
+    <string name="card_wifi_open">Open</string>
+    <!-- A bank account's face -->
+    <string name="card_bank_iban">IBAN</string>
+    <string name="card_bank_account">ACCOUNT</string>
+    <string name="card_bank_bic">BIC</string>
+    <string name="card_bank_bik">BIK</string>
+    <string name="card_bank_code">BANK CODE</string>
+    <string name="card_bank_corr">CORR. ACCOUNT</string>
+    <string name="card_bank_name">BANK</string>
+    <string name="card_bank_iban_fails">The IBAN fails its check digits (a typo?)</string>
+    <string name="card_bank_not_iban">This is not an IBAN: it has the wrong length or country</string>
+    <string name="card_bank_account_bik">The account does not match the BIK (a typo?)</string>
+    <string name="card_bank_corr_bik">The correspondent account does not match the BIK (a typo?)</string>
+    <string name="card_bank_share_corr">Correspondent account</string>
+    <string name="card_document_heading">Identity document</string>
+    <!-- A crypto wallet -->
+    <string name="card_seed_bip39">The checksum is right: BIP-39, %1$s</string>
+    <string name="card_seed_electrum">An Electrum seed (%1$s), not BIP-39: restore it in Electrum</string>
+    <string name="card_seed_unknown_word">Word %1$d, “%2$s”, is not a BIP-39 word. A typo?</string>
+    <string name="card_seed_checksum_fails">The checksum fails: a word is wrong, or two are swapped</string>
+    <string name="card_seed_word_count">A BIP-39 phrase has 12, 15, 18, 21 or 24 words; this one has %1$d</string>
+    <string name="card_seed_not_a_phrase">Not a BIP-39 phrase: most of its words are in no BIP-39 list</string>
+    <string name="card_language_english">English</string>
+    <string name="card_language_japanese">Japanese</string>
+    <string name="card_language_korean">Korean</string>
+    <string name="card_language_spanish">Spanish</string>
+    <string name="card_language_chinese_simplified">Chinese (simplified)</string>
+    <string name="card_language_chinese_traditional">Chinese (traditional)</string>
+    <string name="card_language_french">French</string>
+    <string name="card_language_italian">Italian</string>
+    <string name="card_language_czech">Czech</string>
+    <string name="card_language_portuguese">Portuguese</string>
+    <string name="card_address_segwit">SegWit (%1$s)</string>
+    <string name="card_address_native_segwit">Native SegWit (%1$s)</string>
+    <string name="card_address_native_segwit_script">Native SegWit script (%1$s)</string>
+    <string name="card_address_taproot">Taproot (%1$s)</string>
+    <string name="card_address_segwit_version">SegWit v%1$d</string>
+    <string name="card_address_legacy">Legacy (%1$s)</string>
+    <string name="card_address_script">Script (%1$s)</string>
+    <string name="card_address_evm">or another EVM network: the same address</string>
+    <string name="card_address_no_checksum">no checksum in its addresses</string>
+    <string name="card_key_bip44_or_any">BIP-44, or any</string>
+    <string name="card_nested_segwit">nested SegWit</string>
+    <string name="card_native_segwit">native SegWit</string>
+    <string name="card_nested_segwit_multisig">nested SegWit multisig</string>
+    <string name="card_native_segwit_multisig">native SegWit multisig</string>
+    <string name="card_multisig">multisig</string>
+    <string name="card_path_account">account %1$d</string>
+    <!-- The editor -->
+    <string name="card_title">Title</string>
+    <string name="card_title_will_be">Title: %1$s</string>
+    <string name="card_title_first_line">Title: the first line</string>
+    <string name="card_field_no_name">Give the field a name: KeePass cannot keep a value without one.</string>
+    <string name="card_code_no_name">Give the code a name: KeePass cannot keep a value without one.</string>
+    <string name="card_name_reserved">“%1$s” is a name KeePass uses itself.</string>
+    <string name="card_name_taken">Another field has this name.</string>
+    <string name="card_month_warning">Not a date, shown as text. Write it as 2027-10.</string>
+    <string name="card_date_warning">Not a date, shown as text. Write it as 2027-10-31, or 2027-10 for a month.</string>
+    <string name="card_host_warning">Not a host name, shown as a row. Write it as host, user@host or host:port.</string>
+    <string name="card_port_warning">Not a port (1–65535), shown as a row.</string>
+    <string name="card_address_fails">The address fails its checksum. A typo?</string>
+    <string name="card_key_private">A private key (%1$s): whoever has it has the wallet. It is shown, never copied.</string>
+    <string name="card_key_fails">The key fails its checksum. A typo?</string>
+    <string name="card_path_warning">Not a derivation path: write it as m/84\'/0\'/0\'.</string>
+    <string name="card_attachment_no_name">Give the attachment a name.</string>
+    <string name="card_attachment_taken">Another attachment has this name.</string>
+    <string name="card_attachments_unnamed">Every attachment needs a name.</string>
+    <string name="card_attachments_same">Attachment names must differ: %1$s.</string>
+    <string name="card_codes_none">No codes: paste or type them, one per line.</string>
+    <plurals name="card_codes_too_many">
+        <item quantity="one">That is %1$d code; at most %2$d are added at once.</item>
+        <item quantity="other">That is %1$d codes; at most %2$d are added at once.</item>
+    </plurals>
+    <string name="card_codes_no_list_name">The codes need a name for their list.</string>
+    <string name="card_codes_underscore">The list\'s name cannot contain “_” (it separates the name from the number).</string>
+    <string name="card_no_qr_code">No QR code found in the image.</string>
+    <string name="card_code_empty">Paste the secret or the otpauth:// link the site shows.</string>
+    <string name="card_code_unreadable">That is not a one-time code secret (Base32 letters A–Z and digits 2–7) or an otpauth:// link.</string>
+    <string name="card_code_too_short">That secret is too short to be a real one; check that all of it was copied.</string>
+    <string name="card_code_unsupported">This code cannot be used here: %1$s.</string>
+    <!-- An entry's history -->
+    <string name="card_change_protected">protected</string>
+    <string name="card_change_not_protected">not protected</string>
+    <string name="card_change_kind">Kind</string>
+    <string name="card_change_no_type">no type</string>
+    <string name="card_change_type">type %1$s</string>
+    <string name="card_change_field_order">Custom field order</string>
+    <string name="card_change_tags">Tags</string>
+    <string name="card_change_expires">Expires</string>
+    <string name="card_change_yes">yes</string>
+    <string name="card_change_attachment">Attachment %1$s</string>
+    <plurals name="card_bytes">
+        <item quantity="one">%d byte</item>
+        <item quantity="other">%d bytes</item>
+    </plurals>
+    <string name="card_size_unknown">size unknown</string>
+</resources>

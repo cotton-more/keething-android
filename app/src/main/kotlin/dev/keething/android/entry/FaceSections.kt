@@ -1,5 +1,6 @@
 package dev.keething.android.entry
 
+import dev.keething.android.ui.resolve
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -347,7 +348,7 @@ internal fun ExpiryChip(hint: ExpiryHint) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Icon(Icons.Rounded.Schedule, contentDescription = null, Modifier.size(16.dp), tint = content)
-        Text(hint.text, style = MaterialTheme.typography.labelLarge, color = content)
+        Text(hint.text.resolve(), style = MaterialTheme.typography.labelLarge, color = content)
     }
 }
 
@@ -503,6 +504,6 @@ private fun SecurityChip(network: WiFiNetwork) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Icon(if (open) Icons.Rounded.LockOpen else Icons.Rounded.Lock, contentDescription = null, Modifier.size(14.dp), tint = content)
-        Text(if (open) stringResource(R.string.entry_wifi_open) else network.securityLabel, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
+        Text(if (open) stringResource(R.string.entry_wifi_open) else network.securityLabel.resolve(), style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
     }
 }

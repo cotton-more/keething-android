@@ -1,5 +1,6 @@
 package dev.keething.card.editing
 
+import dev.keething.domain.text.english
 import dev.keething.card.EntryCardBuilder
 import dev.keething.card.FieldRow
 import dev.keething.card.now
@@ -34,7 +35,7 @@ class OneTimeCodeEditorTest {
         val editor = EntryEditor.edit(Entry("e", title = "Shop", username = "me"), now)
         var draft = editor.start
         assertNull(draft.code)
-        assertTrue(assertIs<AddedCode.Refused>(editor.addOneTimeCode(draft, "nope!")).problem.contains("Base32"))
+        assertTrue(assertIs<AddedCode.Refused>(editor.addOneTimeCode(draft, "nope!")).problem.english().contains("Base32"))
 
         val own = added(editor.addOneTimeCode(draft, base32))
         assertNull(own.field)
@@ -54,7 +55,7 @@ class OneTimeCodeEditorTest {
         assertEquals(config(digits = 7), editor.oneTimeCode(draft.fields[0]))
         assertEquals("otpauth://totp/Shop:me?secret=$base32&period=30&digits=7&issuer=Shop", draft.fields[0].value)
         assertEquals(CodeDraft(base32), draft.code, "the entry's own stays")
-        assertEquals(null, editor.fieldProblem(draft, draft.fields[0]))
+        assertEquals(null, editor.fieldProblem(draft, draft.fields[0])?.english())
 
         // A name taken is skipped: 2 renamed by the user, the next is 3 only when 2 is still there.
         draft = added(editor.addOneTimeCode(draft, base32)).draft
@@ -113,7 +114,7 @@ class OneTimeCodeEditorTest {
 
         // The card shows it as a live code too.
         val card = EntryCardBuilder.build(Entry("e", title = "T", customFields = editor.changes(renamed).customFields!!), now)
-        assertEquals(listOf(FieldRow.Kind.TOTP), card.rows.filter { it.label == "Admin" }.map { it.kind })
+        assertEquals(listOf(FieldRow.Kind.TOTP), card.rows.filter { it.label.english() == "Admin" }.map { it.kind })
     }
 
     // spec: edit.one-time-code/AC4
@@ -123,9 +124,9 @@ class OneTimeCodeEditorTest {
         val own = added(editor.addOneTimeCode(editor.start, listOf("https://example.org", "otpauth://totp/X?secret=$base32&digits=7")))
         assertEquals(CodeDraft(base32, digits = 7), own.draft.code)
         assertEquals(EntryEditor.NO_QR_CODE, assertIs<AddedCode.Refused>(editor.addOneTimeCode(editor.start, emptyList())).problem)
-        assertEquals("No QR code found in the image.", EntryEditor.NO_QR_CODE)
+        assertEquals("No QR code found in the image.", EntryEditor.NO_QR_CODE.english())
         val refused = assertIs<AddedCode.Refused>(editor.addOneTimeCode(editor.start, listOf("otpauth://hotp/X?secret=$base32&counter=1", "nope!")))
-        assertTrue(refused.problem.startsWith("This code cannot be used here"), "the first one's problem")
+        assertTrue(refused.problem.english().startsWith("This code cannot be used here"), "the first one's problem")
     }
 
     @Test

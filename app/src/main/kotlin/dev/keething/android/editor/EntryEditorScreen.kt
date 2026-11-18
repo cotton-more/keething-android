@@ -6,6 +6,7 @@ import dev.keething.android.R
 import dev.keething.android.session.SizeTexts
 import dev.keething.android.ui.UiText
 import dev.keething.android.ui.resolve
+import dev.keething.android.ui.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -410,7 +411,7 @@ private fun EditorForm(
     val note = editor.layout == EditorLayout.NOTE
     EditorField(
         stringResource(R.string.editor_field_title), draft.title, { update(draft.copy(title = it)) }, highlighted = !note, capitalization = KeyboardCapitalization.Sentences,
-        placeholder = editor.titlePlaceholder(draft).takeIf { note },
+        placeholder = editor.titlePlaceholder(draft).takeIf { note }?.resolve(),
     )
     if (note) NoteTextBlock(editor, draft, update)
     // A note shows a username, a password and fields only when another app gave it them (keething-spec types.note AC3).
@@ -457,7 +458,7 @@ private fun EditorForm(
     if (editor.showsCustomFields) CustomFieldsSection(editor, draft, update, addCodes, generator)
     attachments()
 
-    val problems = draft.fields.mapNotNull { editor.fieldProblem(draft, it) }.distinct() + editor.attachmentProblems(draft)
+    val problems = (draft.fields.mapNotNull { editor.fieldProblem(draft, it) }.distinct() + editor.attachmentProblems(draft)).map { it.resolve() }
     AnimatedVisibility(problems.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
         Row(
             Modifier
@@ -518,18 +519,19 @@ private fun CustomFieldsSection(
     }
     if (addingCodes) AddCodesDialog(onAdd = addCodes, onDone = { addingCodes = false })
     if (addingCode) {
+        val resources = LocalResources.current
         AddOneTimeCodeDialog(
             another = draft.code != null,
             onAdd = { text ->
                 when (val added = editor.addOneTimeCode(draft, text)) {
                     is AddedCode.Added -> null.also { update(added.draft) }
-                    is AddedCode.Refused -> added.problem
+                    is AddedCode.Refused -> added.problem.ui().resolve(resources)
                 }
             },
             onAddAny = { texts ->
                 when (val added = editor.addOneTimeCode(draft, texts)) {
                     is AddedCode.Added -> null.also { update(added.draft) }
-                    is AddedCode.Refused -> added.problem
+                    is AddedCode.Refused -> added.problem.ui().resolve(resources)
                 }
             },
             onDone = { addingCode = false },
@@ -582,7 +584,7 @@ private fun AttachmentsSection(
             if (wrong != null) {
                 Row(Modifier.padding(start = 12.dp, bottom = 8.dp, end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Rounded.ErrorOutline, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
-                    Text(wrong, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Text(wrong.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -1054,8 +1056,8 @@ private fun CustomFields(
         FieldEditor(
             field,
             code = remember(field.value) { editor.oneTimeCode(field) },
-            problem = editor.fieldProblem(draft, field),
-            warning = editor.fieldWarning(field),
+            problem = editor.fieldProblem(draft, field)?.resolve(),
+            warning = editor.fieldWarning(field)?.resolve(),
             guessed = guesses[field.id] ?: FieldType.TEXT,
             generator = generator,
             focusNow = focusing == field.id,
@@ -1261,9 +1263,9 @@ private fun FieldTypeChip(field: FieldDraft, guessed: FieldType, onType: (FieldT
     val type = field.type
     val shown = type ?: guessed
     val label = when {
-        type != null -> type.fullTitle
+        type != null -> type.fullTitle.resolve()
         field.typeName != null -> stringResource(R.string.editor_quoted, field.typeName.orEmpty())
-        else -> stringResource(R.string.editor_type_auto, guessed.fullTitle)
+        else -> stringResource(R.string.editor_type_auto, guessed.fullTitle.resolve())
     }
     Box {
         AssistChip(
@@ -1289,7 +1291,7 @@ private fun FieldTypeChip(field: FieldDraft, guessed: FieldType, onType: (FieldT
                 open = false
             },
             top = { close ->
-                TypeItem(stringResource(R.string.editor_type_automatic, guessed.fullTitle), chosen = field.typeName == null) {
+                TypeItem(stringResource(R.string.editor_type_automatic, guessed.fullTitle.resolve()), chosen = field.typeName == null) {
                     onType(null)
                     close()
                 }
@@ -1370,13 +1372,13 @@ private fun FieldTypeMenu(
         val parts = group
         if (parts != null) {
             DropdownMenuItem(
-                text = { Text(FieldType.KINDS.first { it.second == parts }.first, style = MaterialTheme.typography.titleSmall) },
+                text = { Text(FieldType.KINDS.first { it.second == parts }.first.resolve(), style = MaterialTheme.typography.titleSmall) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.editor_back)) },
                 onClick = { group = null },
             )
             HorizontalDivider()
             for (type in parts) {
-                TypeItem(type.title, chosen = type == chosen, icon = type.icon()) {
+                TypeItem(type.title.resolve(), chosen = type == chosen, icon = type.icon()) {
                     group = null
                     onChoose(type)
                 }
@@ -1384,12 +1386,12 @@ private fun FieldTypeMenu(
         } else {
             top?.invoke(close)
             for (type in basic) {
-                TypeItem(type.title, chosen = type == chosen, icon = type.icon()) { onChoose(type) }
+                TypeItem(type.title.resolve(), chosen = type == chosen, icon = type.icon()) { onChoose(type) }
             }
             HorizontalDivider()
             for ((title, parts) in FieldType.KINDS) {
                 DropdownMenuItem(
-                    text = { Text(title) },
+                    text = { Text(title.resolve()) },
                     leadingIcon = { Icon(parts.first().icon(), contentDescription = null) },
                     trailingIcon = { Icon(Icons.Rounded.ChevronRight, contentDescription = null) },
                     onClick = { group = parts },

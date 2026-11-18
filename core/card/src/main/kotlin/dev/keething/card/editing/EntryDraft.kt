@@ -41,7 +41,7 @@ public data class CodeDraft(
     public fun config(): TotpConfig = TotpConfig(Secret.adopt(Base32.decode(secret) ?: ByteArray(0)), digits, period, algorithm)
 
     // The secret is the key: never in a log.
-    override fun toString(): String = "CodeDraft(•••, $digits, $period, $algorithm)"
+    override fun toString(): String = "CodeDraft(•••, $digits, $period, $algorithm)" // not user text
 
     public companion object {
         public fun of(config: TotpConfig): CodeDraft = CodeDraft(config.secret.useBytes(Base32::encode), config.digits, config.period, config.algorithm)
@@ -71,7 +71,7 @@ public class AttachmentDraft(
 
     override fun hashCode(): Int = (id * 31 + name.hashCode()) * 31 + (original?.hashCode() ?: 0)
 
-    override fun toString(): String = "AttachmentDraft($id, $name, ${original ?: "new"}, $size)"
+    override fun toString(): String = "AttachmentDraft($id, $name, ${original ?: "new"}, $size)" // not user text
 }
 
 /**
@@ -187,7 +187,8 @@ public data class EntryDraft(
         return generateSequence(2) { it + 1 }.map { "$stem $it$extension" }.first { it !in taken }
     }
 
-    private fun attachmentName(wanted: String): String = wanted.trim().ifEmpty { "Attachment" }
+    /** A name in the file: English, as the Mac's, whatever the phone's language. */
+    private fun attachmentName(wanted: String): String = wanted.trim().ifEmpty { "Attachment" } // not user text
 
     private fun nextAttachmentId(): Int = (attachments.maxOfOrNull { it.id } ?: 0) + 1
 

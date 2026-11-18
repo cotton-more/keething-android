@@ -21,12 +21,16 @@ class KotlinLibraryConventionPlugin : Plugin<Project> {
             "testImplementation"(kotlin("test"))
         }
 
-        // The fictitious databases the tests read (SPEC §9).
+        // The fictitious databases the tests read (SPEC §9), and the app's English texts the core's are read in
+        // (core:domain's test fixtures, english()).
         val fixtures = rootDir.resolve("fixtures")
+        val texts = rootDir.resolve("app/src/main/res/values")
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
             inputs.dir(fixtures).withPropertyName("fixtures")
             systemProperty("keething.fixtures", fixtures.absolutePath)
+            inputs.dir(texts).withPropertyName("texts")
+            systemProperty("keething.texts", texts.absolutePath)
         }
     }
 }

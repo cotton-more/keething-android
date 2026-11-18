@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import java.text.Collator
@@ -18,7 +19,7 @@ public data class Deadline(
     val entryTitle: String,
     val groupPath: List<String>,
     /** The field ("VERTRAG › Ende Mindestlaufzeit"), or "Entry expires" for KeePass's own expiry. */
-    val label: String,
+    val label: UserText,
     val date: CalendarDate,
     val hint: ExpiryHint,
 ) {
@@ -61,7 +62,7 @@ public object DeadlineList {
     /** KeePass's own expiry in a field's words (card.dates AC8); past its time on its last day, "Expired today". */
     internal fun entryExpiryHint(date: CalendarDate, expired: Boolean, now: Instant): ExpiryHint {
         val hint = FieldDate(date, true).expiry(now)
-        return if (expired && hint.status != ExpiryHint.Status.EXPIRED) ExpiryHint(ExpiryHint.Status.EXPIRED, "Expired today") else hint
+        return if (expired && hint.status != ExpiryHint.Status.EXPIRED) ExpiryHint(ExpiryHint.Status.EXPIRED, UserText.of(CardText.EXPIRED_TODAY)) else hint
     }
 
     internal fun deadlines(entry: Entry, interpreter: FieldInterpreter, now: Instant): List<Deadline> {
@@ -71,7 +72,7 @@ public object DeadlineList {
             entryExpiryDate(expiry)?.let { date ->
                 out += Deadline(
                     "${entry.id}/expiry", Deadline.Source.EntryExpiry, entry.id, entry.displayTitle, entry.groupPath,
-                    "Entry expires", date, entryExpiryHint(date, entry.isExpired(now), now),
+                    UserText.of(CardText.ENTRY_EXPIRES), date, entryExpiryHint(date, entry.isExpired(now), now),
                 )
             }
         }

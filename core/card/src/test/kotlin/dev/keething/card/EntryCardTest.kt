@@ -1,5 +1,7 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
+import dev.keething.domain.text.english
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.Attachment
@@ -50,7 +52,7 @@ class EntryCardTest {
         )
         assertEquals(
             listOf("Username", "Password", "URL", "One-time code", "Notes", "Recovery code", "Org", "Empty field", "scan.pdf", "mystery.bin"),
-            card.rows.map { it.label },
+            card.rows.map { it.label.english() },
         )
         assertEquals(Instant.parse("2026-10-03T10:00:00Z"), card.lastModified)
         assertEquals(Instant.parse("2019-03-12T10:00:00Z"), card.created)
@@ -100,9 +102,9 @@ class EntryCardTest {
         val day = Duration.ofDays(1)
         assertNull(build(Entry("1")).entryExpiry)
         assertNull(build(Entry("1", expires = true)).entryExpiry)
-        assertEquals(EntryExpiry.Expired(now - day, ExpiryHint(ExpiryHint.Status.EXPIRED, "Expired yesterday")), build(Entry("1", expires = true, expiryTime = now - day)).entryExpiry)
-        assertEquals(EntryExpiry.Expires(now + day, ExpiryHint(ExpiryHint.Status.SOON, "Expires tomorrow")), build(Entry("1", expires = true, expiryTime = now + day)).entryExpiry)
-        assertEquals("Expired today", build(Entry("1", expires = true, expiryTime = now - Duration.ofSeconds(1))).entryExpiry?.hint?.text, "past its time on its last day")
+        assertEquals(EntryExpiry.Expired(now - day, ExpiryHint(ExpiryHint.Status.EXPIRED, UserText.of(CardText.EXPIRED_YESTERDAY))), build(Entry("1", expires = true, expiryTime = now - day)).entryExpiry)
+        assertEquals(EntryExpiry.Expires(now + day, ExpiryHint(ExpiryHint.Status.SOON, UserText.of(CardText.EXPIRES_TOMORROW))), build(Entry("1", expires = true, expiryTime = now + day)).entryExpiry)
+        assertEquals("Expired today", build(Entry("1", expires = true, expiryTime = now - Duration.ofSeconds(1))).entryExpiry?.hint?.text?.english(), "past its time on its last day")
     }
 
     // Reveal state
@@ -120,7 +122,7 @@ class EntryCardTest {
 
     @Test
     fun theMaskDoesNotLeakTheLength() {
-        fun row(value: String) = FieldRow("a", FieldRow.Kind.PASSWORD, "P", dev.keething.domain.vault.FieldValue.Protected(Secret.of(value)), noticeLabel = "P")
+        fun row(value: String) = FieldRow("a", FieldRow.Kind.PASSWORD, UserText.plain("P"), dev.keething.domain.vault.FieldValue.Protected(Secret.of(value)), noticeLabel = UserText.plain("P"))
         assertEquals(RevealState().displayValue(row("x")), RevealState().displayValue(row("x".repeat(64))))
         assertEquals("", RevealState().displayValue(row("")), "nothing to hide in an empty value")
     }

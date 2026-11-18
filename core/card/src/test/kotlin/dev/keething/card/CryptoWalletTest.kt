@@ -1,5 +1,7 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
+import dev.keething.domain.text.english
 import dev.keething.card.editing.EntryEditor
 import dev.keething.domain.vault.Entry
 import kotlin.test.Test
@@ -56,7 +58,7 @@ class CryptoWalletTest {
         assertTrue(SeedPhrase.read(good)!!.passes)
         val typo = SeedPhrase.read(good.replace("worth", "worht"))!!
         assertEquals(SeedPhrase.Check.UnknownWord(6, Bip39Language.ENGLISH), typo.check)
-        assertEquals("Word 7, “worht”, is not a BIP-39 word. A typo?", typo.summary())
+        assertEquals("Word 7, “worht”, is not a BIP-39 word. A typo?", typo.summary().english())
         val swapped = SeedPhrase.read("legal winner year thank wave sausage worth useful legal winner thank yellow")!!
         assertEquals(SeedPhrase.Check.ChecksumFails(Bip39Language.ENGLISH), swapped.check)
         val short = SeedPhrase.read("legal winner thank year wave sausage worth useful legal winner thank")!!
@@ -112,11 +114,11 @@ class CryptoWalletTest {
     @Test
     fun bitcoinAddressesByTheirFormatAndChecksum() {
         fun read(text: String) = CryptoAddress.read(text)!!
-        assertEquals(CryptoAddress("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", CryptoNetwork.BITCOIN, "Legacy (1…)", AddressCheck.PASSES), read("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"))
+        assertEquals(CryptoAddress("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", CryptoNetwork.BITCOIN, UserText.of(CardText.ADDRESS_LEGACY, "1…"), AddressCheck.PASSES), read("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"))
         assertEquals(AddressCheck.FAILS, read("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNb").check)
-        assertEquals("Script (3…)", read("3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy").kind)
-        assertEquals("Native SegWit (bc1q…)", read("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4").kind)
-        assertEquals("Taproot (bc1p…)", read("bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0").kind)
+        assertEquals("Script (3…)", read("3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy").kind.english())
+        assertEquals("Native SegWit (bc1q…)", read("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4").kind.english())
+        assertEquals("Taproot (bc1p…)", read("bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0").kind.english())
         val testnet = read("tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7")
         assertEquals(CryptoNetwork.BITCOIN_TESTNET to AddressCheck.PASSES, testnet.network to testnet.check)
         // Bech32 where Bech32m belongs, and the reverse: BIP-350's invalid ones.
@@ -141,15 +143,15 @@ class CryptoWalletTest {
         val zpub = ExtendedKey.read("zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs")!!
         assertTrue(zpub.passes)
         assertFalse(zpub.isPrivate)
-        assertEquals("native SegWit", zpub.kind)
+        assertEquals("native SegWit", zpub.kind.english())
         val xprv = ExtendedKey.read("xprv9s21ZrQH143K3h3fDYiay8mocZ3afhfULfb5GX8kCBdno77K4HiA15Tg23wpbeF1pLfs1c5SPmYHrEpTuuRhxMwvKDwqdKiGJS9XFKzUsAF")!!
         assertTrue(xprv.passes && xprv.isPrivate)
         assertFalse(ExtendedKey.read("xprv9s21ZrQH143K3h3fDYiay8mocZ3afhfULfb5GX8kCBdno77K4HiA15Tg23wpbeF1pLfs1c5SPmYHrEpTuuRhxMwvKDwqdKiGJS9XFKzUsAG")!!.passes)
-        assertEquals("BIP-84 · Bitcoin, native SegWit · account 1", DerivationPath.describe("m/84'/0'/0'"))
-        assertEquals("BIP-44 · Ethereum · account 1", DerivationPath.describe("m/44h/60h/0h/0"))
+        assertEquals("BIP-84 · Bitcoin, native SegWit · account 1", DerivationPath.describe("m/84'/0'/0'")?.english())
+        assertEquals("BIP-44 · Ethereum · account 1", DerivationPath.describe("m/44h/60h/0h/0")?.english())
         assertEquals(CryptoNetwork.ETHEREUM, DerivationPath.network("m/44'/60'/0'/0/0"))
-        assertNull(DerivationPath.describe("m/84'/x"))
-        assertNull(DerivationPath.describe("44/0/0"))
+        assertNull(DerivationPath.describe("m/84'/x")?.english())
+        assertNull(DerivationPath.describe("44/0/0")?.english())
     }
 
     // spec: types.crypto-checks/AC9
@@ -194,10 +196,10 @@ class CryptoWalletTest {
         val card = EntryCardBuilder.build(typed(wallet, walletTypes), now, de)
         val crypto = assertNotNull(card.crypto)
         assertEquals(CryptoNetwork.BITCOIN, crypto.network)
-        assertEquals(listOf("BTC address", "Second address"), crypto.addresses.map { it.label })
-        assertEquals("Legacy (1…)", crypto.addresses[1].read?.kind)
-        assertEquals("BIP-84 · Bitcoin, native SegWit · account 1", crypto.path?.description)
-        val rows = card.rows.associateBy { it.label }
+        assertEquals(listOf("BTC address", "Second address"), crypto.addresses.map { it.label.english() })
+        assertEquals("Legacy (1…)", crypto.addresses[1].read?.kind?.english())
+        assertEquals("BIP-84 · Bitcoin, native SegWit · account 1", crypto.path?.description?.english())
+        val rows = card.rows.associateBy { it.label.english() }
         for (secret in listOf("Seed", "Passphrase")) {
             assertTrue(rows.getValue(secret).isConcealed, secret)
             assertFalse(rows.getValue(secret).isCopyable, "$secret is never copied")
@@ -207,7 +209,7 @@ class CryptoWalletTest {
         assertTrue(rows.getValue("PIN").isCopyable, "not a part of the wallet: a field as any")
         assertEquals(setOf("custom-0", "custom-1", "custom-2", "custom-3", "custom-4", "custom-5"), crypto.faceRowIds)
         assertEquals(EntryFace.Crypto(CryptoNetwork.BITCOIN, "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", hasPhrase = true), EntryFace.of(typed(wallet, walletTypes)))
-        assertEquals("Bitcoin · bc1qar…5mdq", EntryFace.of(typed(wallet, walletTypes))!!.subtitle)
+        assertEquals("Bitcoin · bc1qar…5mdq", EntryFace.of(typed(wallet, walletTypes))!!.subtitle.english())
     }
 
     @Test
@@ -252,9 +254,9 @@ class CryptoWalletTest {
     @Test
     fun aWatchOnlyWalletOrAPhraseAloneMakesAFaceToo() {
         val watch = typed(Entry("o", customFields = listOf(field("ETH", "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"))), "ETH = crypto.address")
-        assertEquals("Ethereum · 0x5aAe…eAed", EntryFace.of(watch)!!.subtitle)
+        assertEquals("Ethereum · 0x5aAe…eAed", EntryFace.of(watch)!!.subtitle.english())
         val seedOnly = typed(Entry("s", customFields = listOf(field("Words", phrase, protected = true))), "Words = crypto.seed")
-        assertEquals("Crypto wallet · recovery phrase", EntryFace.of(seedOnly)!!.subtitle)
+        assertEquals("Crypto wallet · recovery phrase", EntryFace.of(seedOnly)!!.subtitle.english())
         assertNotNull(EntryCardBuilder.build(seedOnly, now, de).crypto)
     }
 
@@ -296,7 +298,7 @@ class CryptoWalletTest {
     fun theHistoryMasksAPhraseThatIsNotProtected() {
         val old = Entry("h", customFields = listOf(field("Seed", phrase)), fieldTypes = mapOf("Seed" to "crypto.seed"))
         val new = old.copy(customFields = listOf(field("Seed", phrase.replace("yellow", "zoo"))))
-        assertTrue(dev.keething.card.history.EntryVersionDiff.changes(old, new).single { it.field == "Seed" }.isProtected)
+        assertTrue(dev.keething.card.history.EntryVersionDiff.changes(old, new).single { it.field.english() == "Seed" }.isProtected)
     }
 
     // The editor
@@ -321,7 +323,7 @@ class CryptoWalletTest {
                 "Word 7, “worht”, is not a BIP-39 word. A typo?", null, "The address fails its checksum. A typo?", null,
                 "A private key (xprv): whoever has it has the wallet. It is shown, never copied.", "Not a derivation path: write it as m/84'/0'/0'.",
             ),
-            editor.start.fields.map { editor.fieldWarning(it) },
+            editor.start.fields.map { editor.fieldWarning(it)?.english() },
         )
     }
 }

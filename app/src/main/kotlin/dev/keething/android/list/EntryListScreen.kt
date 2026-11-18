@@ -868,7 +868,7 @@ internal fun EntryRowView(
                 val colour = if (deadline.status == ExpiryHint.Status.EXPIRED) MaterialTheme.colorScheme.error else MaterialTheme.extraColors.warn
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Rounded.Schedule, contentDescription = null, Modifier.size(14.dp), tint = colour)
-                    Text(deadline.text, style = MaterialTheme.typography.labelLarge, color = colour, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(deadline.text.resolve(), style = MaterialTheme.typography.labelLarge, color = colour, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (codeUnder && onCode != null && row.codes.isNotEmpty()) CodeButton(row.codes, now, onCode, Modifier.padding(top = 6.dp), height = 32.dp)
@@ -885,13 +885,14 @@ private val ROW_FIRST_LINES = 48.dp
 /** A row's line under its title, if any; a protected note's with a lock before it (SPEC §6.4). */
 @Composable
 internal fun RowSubtitle(row: EntryRow) {
-    if (row.subtitle.isEmpty()) return
+    val subtitle = row.subtitle.resolve()
+    if (subtitle.isEmpty()) return
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         if ((row.face as? EntryFace.Note)?.protected == true) {
             Icon(Icons.Rounded.Lock, contentDescription = null, Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(
-            row.subtitle,
+            subtitle,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

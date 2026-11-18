@@ -13,14 +13,8 @@ import dev.keething.search.SearchNormalizer
  * look like one, an IBAN is one by its check, a host must be a host.
  */
 public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldType>) {
-    public enum class Kind(public val noun: String) {
-        PAYMENT_CARD("a payment card"),
-        WIFI("a Wi-Fi network"),
-        BANK_ACCOUNT("a bank account"),
-        DOCUMENT("an identity document"),
-        SSH("an SSH login"),
-        CRYPTO("a crypto wallet"),
-    }
+    /** What the entry would become; the app says it in its own words (`entry/EntryCardScreen.kt` `Offer`). */
+    public enum class Kind { PAYMENT_CARD, WIFI, BANK_ACCOUNT, DOCUMENT, SSH, CRYPTO }
 
     /** The entry's types with these added (Mac SPEC §3.12): saved as any edit. */
     public fun changes(entry: Entry): EntryChanges =

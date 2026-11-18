@@ -1,5 +1,9 @@
 package dev.keething.android.entry
 
+import dev.keething.android.ui.resolve
+import dev.keething.android.ui.ui
+import dev.keething.domain.text.UserText
+import android.content.res.Resources
 import android.util.Log
 import dev.keething.android.session.file
 import dev.keething.android.groups.GroupTexts
@@ -203,7 +207,7 @@ internal class EntryCardViewModel(
             WifiNetworkSuggestion.Builder().setSsid(network.ssid).apply {
                 when {
                     network.isOpen || password == null -> Unit
-                    network.securityLabel.contains("WPA3", ignoreCase = true) -> setWpa3Passphrase(password)
+                    (network.securityLabel as? UserText.Plain)?.text?.contains("WPA3", ignoreCase = true) == true -> setWpa3Passphrase(password)
                     else -> setWpa2Passphrase(password)
                 }
             }.build()
@@ -229,10 +233,10 @@ internal class EntryCardViewModel(
         if (content.value?.inRecycleBin == false) recents.note(ref.text)
         // A code of a list is copied to be used: the notice offers to mark it so.
         val copied = when {
-            row.copiesCompact -> Notice(uiText(R.string.entry_copied_compact, row.noticeLabel))
+            row.copiesCompact -> Notice(uiText(R.string.entry_copied_compact, row.noticeLabel.ui()))
             // Malware swaps addresses on the clipboard: the start and end are what to check.
-            row.type == FieldType.CRYPTO_ADDRESS -> Notice(uiText(R.string.entry_copied_address, row.noticeLabel))
-            else -> Notice.copied(row.noticeLabel)
+            row.type == FieldType.CRYPTO_ADDRESS -> Notice(uiText(R.string.entry_copied_address, row.noticeLabel.ui()))
+            else -> Notice.copied(row.noticeLabel.ui())
         }
         mutableNotices.trySend(if (canMarkUsed(row) && row.usedOn == null) copied.copy(undo = { setUsed(row, true) }, actionLabel = uiText(R.string.entry_codes_mark_used)) else copied)
     }
@@ -308,8 +312,8 @@ internal class EntryCardViewModel(
     }
 
     /** The account's details as text to send (holder, number, codes, bank: nothing secret), for the share sheet. */
-    fun bankShareIntent(): Intent? {
-        val text = content.value?.card?.bankAccount?.shareText() ?: return null
+    fun bankShareIntent(resources: Resources): Intent? {
+        val text = content.value?.card?.bankAccount?.shareText()?.ui()?.resolve(resources) ?: return null
         return Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
     }
 
@@ -350,8 +354,8 @@ internal class EntryCardViewModel(
             mutableNotices.trySend(
                 when {
                     failure != null -> Notice(failure, isProblem = true)
-                    used -> Notice(uiText(R.string.entry_code_marked_used, row.noticeLabel), undo = { setUsed(row, false) })
-                    else -> Notice(uiText(R.string.entry_code_marked_not_used, row.noticeLabel), undo = { setUsed(row, true) })
+                    used -> Notice(uiText(R.string.entry_code_marked_used, row.noticeLabel.ui()), undo = { setUsed(row, false) })
+                    else -> Notice(uiText(R.string.entry_code_marked_not_used, row.noticeLabel.ui()), undo = { setUsed(row, true) })
                 },
             )
         }
@@ -359,7 +363,7 @@ internal class EntryCardViewModel(
 
     /** Writes the attachment to a file of its own and hands it to the app the user picks. */
     fun openAttachment(row: FieldRow) {
-        val name = row.label
+        val name = row.ownName.orEmpty()
         val bytes = database.session.attachment(entryId, name) ?: return problem(uiText(R.string.entry_attachment_could_not_read, name))
         val generation = files.generation(database.id)
         viewModelScope.launch {
@@ -377,8 +381,9 @@ internal class EntryCardViewModel(
 
     /** What the save dialog starts with for an attachment; [saved] gets the document chosen. */
     fun saveRequest(row: FieldRow): SaveRequest {
-        saving = row.label
-        return SaveRequest(AttachmentNames.fileName(row.label), android.mimeType(row.label) ?: AttachmentTypes.GENERIC)
+        val name = row.ownName.orEmpty()
+        saving = name
+        return SaveRequest(AttachmentNames.fileName(name), android.mimeType(name) ?: AttachmentTypes.GENERIC)
     }
 
     /** The save dialog closed: writes the attachment into the document chosen, if any. */

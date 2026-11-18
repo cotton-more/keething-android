@@ -1,6 +1,7 @@
 package dev.keething.card.history
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.english
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.CustomField
@@ -37,21 +38,21 @@ class EntryVersionDiffTest {
 
         assertEquals(
             listOf("Title", "Password", "Notes", "Note", "PIN", "Empty", "Gone", "Tags", "Attachment a.txt", "Attachment c.txt", "Attachment b.txt"),
-            changes.map { it.field },
+            changes.map { it.field.english() },
         )
         val c = VersionChange.Kind.CHANGED
         val a = VersionChange.Kind.ADDED
         val r = VersionChange.Kind.REMOVED
         assertEquals(listOf(c, c, r, c, c, a, r, c, c, a, r), changes.map { it.kind })
-        assertEquals(VersionChange("Password", c, "old", "new", isProtected = true), changes[1])
-        assertEquals("not protected" to "protected", changes[3].old to changes[3].new)
+        assertEquals(Said("Password", c, "old", "new", isProtected = true), changes[1].english())
+        assertEquals("not protected" to "protected", changes[3].old?.english() to changes[3].new?.english())
         assertTrue(changes[4].isProtected)
-        assertEquals("a, b", changes[7].new)
-        assertEquals("10 bytes" to "12 bytes", changes[8].old to changes[8].new)
+        assertEquals("a, b", changes[7].new?.english())
+        assertEquals("10 bytes" to "12 bytes", changes[8].old?.english() to changes[8].new?.english())
         assertEquals(emptyList(), EntryVersionDiff.changes(old, old))
 
         val reordered = old.copy(customFields = listOf(old.customFields[2], old.customFields[0], old.customFields[1]))
-        assertEquals(listOf("Custom field order"), EntryVersionDiff.changes(old, reordered).map { it.field })
+        assertEquals(listOf("Custom field order"), EntryVersionDiff.changes(old, reordered).map { it.field.english() })
     }
 
     @Test
@@ -64,11 +65,11 @@ class EntryVersionDiffTest {
 
         assertEquals(
             listOf(
-                VersionChange("Ablauf", VersionChange.Kind.CHANGED, "type Date until (expiry)", "type Date", isProtected = false),
-                VersionChange("Expires", VersionChange.Kind.ADDED, null, "2 Jan 2027", isProtected = false),
-                VersionChange("One-time code", VersionChange.Kind.ADDED, null, null, isProtected = true),
+                Said("Ablauf", VersionChange.Kind.CHANGED, "type Date until (expiry)", "type Date", isProtected = false),
+                Said("Expires", VersionChange.Kind.ADDED, null, "2 Jan 2027", isProtected = false),
+                Said("One-time code", VersionChange.Kind.ADDED, null, null, isProtected = true),
             ),
-            changes,
+            changes.map { it.english() },
         )
     }
 
@@ -81,8 +82,13 @@ class EntryVersionDiffTest {
 
         assertEquals(listOf(2, 1, 0), versions.map { it.id })
         assertEquals(listOf(true, false, false), versions.map { it.isCurrent })
-        assertEquals(listOf("Password"), versions[0].changes?.map { it.field })
-        assertEquals(listOf("Title"), versions[1].changes?.map { it.field })
+        assertEquals(listOf("Password"), versions[0].changes?.map { it.field.english() })
+        assertEquals(listOf("Title"), versions[1].changes?.map { it.field.english() })
         assertNull(versions[2].changes, "nothing before the oldest")
     }
 }
+
+/** A change in the app's English: the words the history shows. */
+private data class Said(val field: String, val kind: VersionChange.Kind, val old: String?, val new: String?, val isProtected: Boolean)
+
+private fun VersionChange.english() = Said(field.english(), kind, old?.english(), new?.english(), isProtected)

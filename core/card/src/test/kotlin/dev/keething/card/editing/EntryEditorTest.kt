@@ -1,5 +1,6 @@
 package dev.keething.card.editing
 
+import dev.keething.domain.text.english
 import dev.keething.card.CardSection
 import dev.keething.card.EntryCardBuilder
 import dev.keething.card.FieldType
@@ -67,14 +68,14 @@ class EntryEditorTest {
     fun problemsKeepItFromSaving() {
         val editor = EntryEditor.edit(entry, now)
         var draft = editor.start.addField().rename(2, " ").value(2, "v")
-        assertEquals("Give the field a name: KeePass cannot keep a value without one.", editor.fieldProblem(draft, draft.fields[2]))
+        assertEquals("Give the field a name: KeePass cannot keep a value without one.", editor.fieldProblem(draft, draft.fields[2])?.english())
         assertTrue(editor.hasFieldProblems(draft) && !editor.canSave(draft), "said at the field")
         draft = draft.rename(2, "PIN")
-        assertEquals(listOf("Another field has this name.", null, "Another field has this name."), draft.fields.map { editor.fieldProblem(draft, it) })
+        assertEquals(listOf("Another field has this name.", null, "Another field has this name."), draft.fields.map { editor.fieldProblem(draft, it)?.english() })
         draft = draft.rename(2, "otp")
-        assertEquals("“otp” is a name KeePass uses itself.", editor.fieldProblem(draft, draft.fields[2]))
+        assertEquals("“otp” is a name KeePass uses itself.", editor.fieldProblem(draft, draft.fields[2])?.english())
         draft = draft.rename(2, "Password")
-        assertEquals("“Password” is a name KeePass uses itself.", editor.fieldProblem(draft, draft.fields[2]))
+        assertEquals("“Password” is a name KeePass uses itself.", editor.fieldProblem(draft, draft.fields[2])?.english())
         draft = draft.rename(2, "Fine")
         assertTrue(!editor.hasFieldProblems(draft) && editor.canSave(draft))
     }
@@ -293,16 +294,16 @@ class EntryEditorTest {
         draft = assertIs<AddedCodes.Added>(editor.addCodes(draft, "a1\nb2", "Backup codes")).draft
         assertEquals(listOf("Backup codes_5", "Backup codes_6"), draft.fields.takeLast(2).map { it.name }, "the list's numbers go on")
 
-        assertEquals(AddedCodes.Refused("No codes: paste or type them, one per line."), editor.addCodes(draft, "  \n ", "Backup codes"))
-        assertEquals(AddedCodes.Refused("The codes need a name for their list."), editor.addCodes(draft, "x", " "))
-        assertTrue(assertIs<AddedCodes.Refused>(editor.addCodes(draft, "x", "a_b")).problem.contains("“_”"))
-        assertTrue(assertIs<AddedCodes.Refused>(editor.addCodes(draft, (1..51).joinToString("\n"), "B")).problem.contains("at most 50"))
+        assertEquals("No codes: paste or type them, one per line.", assertIs<AddedCodes.Refused>(editor.addCodes(draft, "  \n ", "Backup codes")).problem.english())
+        assertEquals("The codes need a name for their list.", assertIs<AddedCodes.Refused>(editor.addCodes(draft, "x", " ")).problem.english())
+        assertTrue(assertIs<AddedCodes.Refused>(editor.addCodes(draft, "x", "a_b")).problem.english().contains("“_”"))
+        assertTrue(assertIs<AddedCodes.Refused>(editor.addCodes(draft, (1..51).joinToString("\n"), "B")).problem.english().contains("at most 50"))
 
         val fields = editor.changes(draft).customFields.orEmpty().take(4)
         val card = EntryCardBuilder.build(Entry("e", title = "Shop", customFields = fields), now)
         val section = card.sections.single { it.title == "Backup codes" }
         assertEquals(CardSection.Kind.Codes, section.kind)
-        assertEquals(listOf("1", "2", "3", "4"), section.rows.map { it.label })
+        assertEquals(listOf("1", "2", "3", "4"), section.rows.map { it.label.english() })
     }
 
     @Test
@@ -413,7 +414,7 @@ class EntryEditorTest {
                 "Not a date, shown as text. Write it as 2027-10-31, or 2027-10 for a month.",
                 "Not a date, shown as text. Write it as 2027-10.", null, null, null, null, null,
             ),
-            editor.start.fields.map { editor.fieldWarning(it) },
+            editor.start.fields.map { editor.fieldWarning(it)?.english() },
         )
         assertTrue(editor.canSave(editor.start.copy(notes = "changed")), "a warning keeps nothing from saving")
     }
@@ -426,7 +427,7 @@ class EntryEditorTest {
         val editor = EntryEditor.edit(Entry("e", customFields = fields, fieldTypes = types), now)
         assertEquals(
             listOf("Not a host name, shown as a row. Write it as host, user@host or host:port.", "Not a port (1–65535), shown as a row.", null, null, null),
-            editor.start.fields.map { editor.fieldWarning(it) },
+            editor.start.fields.map { editor.fieldWarning(it)?.english() },
         )
         val fixed = editor.start.fields[0].copy(value = "alex@db.example.com:2222")
         assertNull(editor.fieldWarning(fixed))

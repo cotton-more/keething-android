@@ -25,7 +25,7 @@ public data class QuickNoteSource(
         return applied
     }
 
-    override fun toString(): String = "QuickNoteSource"
+    override fun toString(): String = "QuickNoteSource" // not user text
 
     public companion object {
         /**

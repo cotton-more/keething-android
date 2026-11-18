@@ -183,16 +183,16 @@ class VaultListingTest {
 
         val gh = rows.getValue("gh")
         assertEquals("GitHub", gh.title)
-        assertEquals("octocat", gh.subtitle, "the username alone, the site only without one")
+        assertEquals("octocat", gh.subtitle.english(), "the username alone, the site only without one")
         assertTrue(gh.hasAttachments)
         assertEquals(1, gh.codes.size)
-        assertEquals("www.amazon.de", rows.getValue("az").subtitle, "no username: the site alone")
-        assertEquals("", rows.getValue("pp").subtitle)
+        assertEquals("www.amazon.de", rows.getValue("az").subtitle.english(), "no username: the site alone")
+        assertEquals("", rows.getValue("pp").subtitle.english())
         assertTrue(rows.getValue("db").codes.isEmpty())
 
         val app = Entry(id = "app", title = "Parking", url = "androidapp://com.example.parking")
         val withApp = VaultListing(Vault(entries = listOf(app)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
-        assertEquals("", withApp.sections("", emptyList()).single().rows.single().subtitle, "an app's address is no site")
+        assertEquals("", withApp.sections("", emptyList()).single().rows.single().subtitle.english(), "an app's address is no site")
     }
 
     // spec: search.row-codes/AC1
@@ -227,8 +227,8 @@ class VaultListingTest {
         val listing = VaultListing(Vault(entries = listOf(passport, expired, bahn)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
 
-        assertEquals(RowDeadline("expires · Expires in 23 days", ExpiryHint.Status.SOON), rows.getValue("pp").deadline)
-        assertEquals(RowDeadline("Expired yesterday", ExpiryHint.Status.EXPIRED), rows.getValue("x").deadline)
+        assertEquals("expires · Expires in 23 days" to ExpiryHint.Status.SOON, rows.getValue("pp").deadline?.let { it.text.english() to it.status })
+        assertEquals("Expired yesterday" to ExpiryHint.Status.EXPIRED, rows.getValue("x").deadline?.let { it.text.english() to it.status })
         assertNull(rows.getValue("db").deadline)
     }
 
@@ -301,7 +301,7 @@ class VaultListingTest {
 
         assertEquals(listOf(p("same"), w("same")), rows.map { it.id })
         assertEquals(listOf("Personal", "Work"), rows.map { it.database?.label?.name })
-        assertEquals(listOf("alex", "alex-work"), rows.map { it.subtitle })
+        assertEquals(listOf("alex", "alex-work"), rows.map { it.subtitle.english() })
         assertEquals("alex-work", listing.entry(w("same"))?.username, "each row is its own database's entry")
         assertEquals(5, listing.vault.entries.size)
         assertEquals(listOf(p("bank"), p("same"), p("tv"), w("same"), w("wbank")), listing.ids.sorted())

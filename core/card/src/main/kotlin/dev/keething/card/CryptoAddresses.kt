@@ -1,19 +1,20 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import java.math.BigInteger
 import java.security.MessageDigest
 
-/** The networks whose addresses the wallet's face recognises by their format (SPEC §6.2). */
+/** The networks whose addresses the wallet's face recognises by their format (SPEC §6.2), by their own names. */
 public enum class CryptoNetwork(public val displayName: String) {
-    BITCOIN("Bitcoin"),
-    BITCOIN_TESTNET("Bitcoin testnet"),
-    LITECOIN("Litecoin"),
-    DOGECOIN("Dogecoin"),
+    BITCOIN("Bitcoin"), // not user text
+    BITCOIN_TESTNET("Bitcoin testnet"), // not user text
+    LITECOIN("Litecoin"), // not user text
+    DOGECOIN("Dogecoin"), // not user text
 
     /** Also any other EVM network (Polygon, BNB Smart Chain, Arbitrum…): their addresses are the same. */
-    ETHEREUM("Ethereum"),
-    TRON("Tron"),
-    SOLANA("Solana"),
+    ETHEREUM("Ethereum"), // not user text
+    TRON("Tron"), // not user text
+    SOLANA("Solana"), // not user text
 }
 
 /** Whether an address's own checksum was checked. */
@@ -28,7 +29,7 @@ public enum class AddressCheck {
 }
 
 /** A receiving address, its network read from its format ("bc1q…", "0x…"), and its checksum. */
-public data class CryptoAddress(val text: String, val network: CryptoNetwork, val kind: String, val check: AddressCheck) {
+public data class CryptoAddress(val text: String, val network: CryptoNetwork, val kind: UserText, val check: AddressCheck) {
     public companion object {
         /** The address [text] is (outer spaces aside); null when it has no format known here. */
         public fun read(text: String): CryptoAddress? {
@@ -49,14 +50,14 @@ public data class CryptoAddress(val text: String, val network: CryptoNetwork, va
             if (decoded == null) {
                 // Its prefix and alphabet say what it is; the rest fails.
                 if (lower.length < 14 || lower.drop(separator + 1).any { it !in Bech32.CHARSET }) return null
-                return CryptoAddress(t, network, "SegWit ($prefix…)", AddressCheck.FAILS)
+                return CryptoAddress(t, network, UserText.of(CardText.ADDRESS_SEGWIT, "$prefix…"), AddressCheck.FAILS)
             }
             val (version, program) = decoded
             val kind = when {
-                version == 0 && program.size == 20 -> "Native SegWit (${prefix}q…)"
-                version == 0 -> "Native SegWit script (${prefix}q…)"
-                version == 1 && program.size == 32 -> "Taproot (${prefix}p…)"
-                else -> "SegWit v$version"
+                version == 0 && program.size == 20 -> UserText.of(CardText.ADDRESS_NATIVE_SEGWIT, "${prefix}q…")
+                version == 0 -> UserText.of(CardText.ADDRESS_NATIVE_SEGWIT_SCRIPT, "${prefix}q…")
+                version == 1 && program.size == 32 -> UserText.of(CardText.ADDRESS_TAPROOT, "${prefix}p…")
+                else -> UserText.of(CardText.ADDRESS_SEGWIT_VERSION, version)
             }
             return CryptoAddress(t, network, kind, AddressCheck.PASSES)
         }
@@ -67,7 +68,7 @@ public data class CryptoAddress(val text: String, val network: CryptoNetwork, va
         private fun ethereum(t: String): CryptoAddress? {
             if (!HEX40.matches(t)) return null
             val hex = t.substring(2)
-            val kind = "or another EVM network: the same address"
+            val kind = UserText.of(CardText.ADDRESS_EVM)
             if (hex == hex.lowercase() || hex == hex.uppercase()) return CryptoAddress(t, CryptoNetwork.ETHEREUM, kind, AddressCheck.NONE)
             return CryptoAddress(t, CryptoNetwork.ETHEREUM, kind, if (eip55(hex.lowercase()) == hex) AddressCheck.PASSES else AddressCheck.FAILS)
         }
@@ -93,20 +94,20 @@ public data class CryptoAddress(val text: String, val network: CryptoNetwork, va
                     return CryptoAddress(t, kind.first, kind.second, if (Base58.checks(bytes)) AddressCheck.PASSES else AddressCheck.FAILS)
                 }
             }
-            if (bytes.size == 32 && t.length >= 32) return CryptoAddress(t, CryptoNetwork.SOLANA, "no checksum in its addresses", AddressCheck.NONE)
+            if (bytes.size == 32 && t.length >= 32) return CryptoAddress(t, CryptoNetwork.SOLANA, UserText.of(CardText.ADDRESS_NO_CHECKSUM), AddressCheck.NONE)
             return null
         }
 
-        private val VERSIONS: Map<Int, Pair<CryptoNetwork, String>> = mapOf(
-            0x00 to (CryptoNetwork.BITCOIN to "Legacy (1…)"),
-            0x05 to (CryptoNetwork.BITCOIN to "Script (3…)"),
-            0x6F to (CryptoNetwork.BITCOIN_TESTNET to "Legacy (m… / n…)"),
-            0xC4 to (CryptoNetwork.BITCOIN_TESTNET to "Script (2…)"),
-            0x30 to (CryptoNetwork.LITECOIN to "Legacy (L…)"),
-            0x32 to (CryptoNetwork.LITECOIN to "Script (M…)"),
-            0x1E to (CryptoNetwork.DOGECOIN to "Legacy (D…)"),
-            0x16 to (CryptoNetwork.DOGECOIN to "Script (9… / A…)"),
-            0x41 to (CryptoNetwork.TRON to "Tron (T…)"),
+        private val VERSIONS: Map<Int, Pair<CryptoNetwork, UserText>> = mapOf(
+            0x00 to (CryptoNetwork.BITCOIN to UserText.of(CardText.ADDRESS_LEGACY, "1…")),
+            0x05 to (CryptoNetwork.BITCOIN to UserText.of(CardText.ADDRESS_SCRIPT, "3…")),
+            0x6F to (CryptoNetwork.BITCOIN_TESTNET to UserText.of(CardText.ADDRESS_LEGACY, "m… / n…")),
+            0xC4 to (CryptoNetwork.BITCOIN_TESTNET to UserText.of(CardText.ADDRESS_SCRIPT, "2…")),
+            0x30 to (CryptoNetwork.LITECOIN to UserText.of(CardText.ADDRESS_LEGACY, "L…")),
+            0x32 to (CryptoNetwork.LITECOIN to UserText.of(CardText.ADDRESS_SCRIPT, "M…")),
+            0x1E to (CryptoNetwork.DOGECOIN to UserText.of(CardText.ADDRESS_LEGACY, "D…")),
+            0x16 to (CryptoNetwork.DOGECOIN to UserText.of(CardText.ADDRESS_SCRIPT, "9… / A…")),
+            0x41 to (CryptoNetwork.TRON to UserText.plain("Tron (T…)")), // not user text
         )
     }
 }
@@ -117,7 +118,7 @@ public data class CryptoAddress(val text: String, val network: CryptoNetwork, va
  * prefix, or by what it holds (a private key written with a public prefix); [passes]: its checksum passes and it holds a
  * key of the kind its prefix says.
  */
-public data class ExtendedKey(val text: String, val prefix: String, val isPrivate: Boolean, val kind: String, val network: CryptoNetwork, val passes: Boolean) {
+public data class ExtendedKey(val text: String, val prefix: String, val isPrivate: Boolean, val kind: UserText, val network: CryptoNetwork, val passes: Boolean) {
     public companion object {
         public fun read(text: String): ExtendedKey? {
             val t = text.trim()
@@ -138,23 +139,27 @@ public data class ExtendedKey(val text: String, val prefix: String, val isPrivat
             return read(t)?.isPrivate ?: (PREFIXES[t.take(4)]?.second == true)
         }
 
-        private val PREFIXES: Map<String, Triple<CryptoNetwork, Boolean, String>> = buildMap {
+        private val PREFIXES: Map<String, Triple<CryptoNetwork, Boolean, UserText>> = buildMap {
             for ((pub, prv, kind) in listOf(
-                Triple("xpub", "xprv", "BIP-44, or any"),
-                Triple("ypub", "yprv", "nested SegWit"),
-                Triple("zpub", "zprv", "native SegWit"),
-                Triple("Ypub", "Yprv", "nested SegWit multisig"),
-                Triple("Zpub", "Zprv", "native SegWit multisig"),
-            )) {
+                Triple("xpub", "xprv", CardText.KEY_BIP44_OR_ANY),
+                Triple("ypub", "yprv", CardText.NESTED_SEGWIT),
+                Triple("zpub", "zprv", CardText.NATIVE_SEGWIT),
+                Triple("Ypub", "Yprv", CardText.NESTED_SEGWIT_MULTISIG), // not user text
+                Triple("Zpub", "Zprv", CardText.NATIVE_SEGWIT_MULTISIG), // not user text
+            ).map { (pub, prv, key) -> Triple(pub, prv, UserText.of(key)) }) {
                 put(pub, Triple(CryptoNetwork.BITCOIN, false, kind))
                 put(prv, Triple(CryptoNetwork.BITCOIN, true, kind))
             }
-            for ((pub, prv, kind) in listOf(Triple("tpub", "tprv", "BIP-44, or any"), Triple("upub", "uprv", "nested SegWit"), Triple("vpub", "vprv", "native SegWit"))) {
+            for ((pub, prv, kind) in listOf(
+                Triple("tpub", "tprv", CardText.KEY_BIP44_OR_ANY),
+                Triple("upub", "uprv", CardText.NESTED_SEGWIT),
+                Triple("vpub", "vprv", CardText.NATIVE_SEGWIT),
+            ).map { (pub, prv, key) -> Triple(pub, prv, UserText.of(key)) }) {
                 put(pub, Triple(CryptoNetwork.BITCOIN_TESTNET, false, kind))
                 put(prv, Triple(CryptoNetwork.BITCOIN_TESTNET, true, kind))
             }
-            put("Ltub", Triple(CryptoNetwork.LITECOIN, false, "BIP-44"))
-            put("Mtub", Triple(CryptoNetwork.LITECOIN, false, "SegWit"))
+            put("Ltub", Triple(CryptoNetwork.LITECOIN, false, UserText.plain("BIP-44"))) // not user text
+            put("Mtub", Triple(CryptoNetwork.LITECOIN, false, UserText.plain("SegWit"))) // not user text
         }
     }
 }
@@ -180,14 +185,16 @@ public object DerivationPath {
     public fun isPath(text: String): Boolean = PATH.matches(text.trim())
 
     /** "BIP-84 · Bitcoin, native SegWit · account 1"; null when it is no path, or says nothing known. */
-    public fun describe(text: String): String? {
+    public fun describe(text: String): UserText? {
         val t = text.trim()
         if (!PATH.matches(t)) return null
         val levels = t.split('/').drop(1).map { it.trimEnd('\'', 'h', 'H').toLongOrNull() ?: return null }
-        val purpose = PURPOSES[levels[0]] ?: return null
-        val coin = levels.getOrNull(1)?.let { COINS[it] }
-        val account = levels.getOrNull(2)?.let { "account ${it + 1}" }
-        return listOfNotNull("BIP-${levels[0]}", listOfNotNull(coin, purpose.takeIf { it.isNotEmpty() }).joinToString(", ").takeIf { it.isNotEmpty() }, account).joinToString(" · ")
+        if (levels[0] !in PURPOSES) return null
+        val purpose = PURPOSES[levels[0]]
+        val coin = levels.getOrNull(1)?.let { COINS[it] }?.let(UserText::plain)
+        val account = levels.getOrNull(2)?.let { UserText.of(CardText.PATH_ACCOUNT, it + 1) }
+        val what = listOfNotNull(coin, purpose).takeIf { it.isNotEmpty() }?.let { UserText.Joined(it, ", ") }
+        return UserText.Joined(listOfNotNull(UserText.plain("BIP-${levels[0]}"), what, account), " · ")
     }
 
     /** The network the path's coin type names; null for none known here. */
@@ -202,13 +209,24 @@ public object DerivationPath {
         0L to CryptoNetwork.BITCOIN, 1L to CryptoNetwork.BITCOIN_TESTNET, 2L to CryptoNetwork.LITECOIN, 3L to CryptoNetwork.DOGECOIN,
         60L to CryptoNetwork.ETHEREUM, 195L to CryptoNetwork.TRON, 501L to CryptoNetwork.SOLANA,
     )
-    private val PURPOSES = mapOf(44L to "", 49L to "nested SegWit", 84L to "native SegWit", 86L to "Taproot", 48L to "multisig")
-    private val COINS = mapOf(0L to "Bitcoin", 1L to "testnet", 2L to "Litecoin", 3L to "Dogecoin", 60L to "Ethereum", 195L to "Tron", 501L to "Solana")
+    /** What a path's purpose says besides its BIP's number (BIP-44's nothing). */
+    private val PURPOSES: Map<Long, UserText?> = mapOf(
+        44L to null,
+        49L to UserText.of(CardText.NESTED_SEGWIT),
+        84L to UserText.of(CardText.NATIVE_SEGWIT),
+        86L to UserText.plain("Taproot"), // not user text
+        48L to UserText.of(CardText.MULTISIG),
+    )
+
+    // The networks' own names.
+    private val COINS = mapOf(
+        0L to "Bitcoin", 1L to "testnet", 2L to "Litecoin", 3L to "Dogecoin", 60L to "Ethereum", 195L to "Tron", 501L to "Solana", // not user text
+    )
 }
 
 /** Base58 as Bitcoin writes it, and its check: the last 4 bytes are the first of the double SHA-256 of the rest. */
 internal object Base58 {
-    private const val ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    private const val ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz" // not user text
 
     fun decode(text: String): ByteArray? {
         var value = BigInteger.ZERO

@@ -1,5 +1,6 @@
 package dev.keething.card.history
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.Entry
 import java.time.Instant
 
@@ -18,7 +19,7 @@ public object HistoryVersions {
     public fun of(
         entries: List<Entry>,
         day: (Instant) -> String = { it.toString() },
-        size: (Int?) -> String = { it?.let { bytes -> "$bytes bytes" } ?: "size unknown" },
+        size: (Int?) -> UserText = EntryVersionDiff::sizeText,
     ): List<HistoryVersion> = entries.indices.map { i ->
         HistoryVersion(
             id = i,

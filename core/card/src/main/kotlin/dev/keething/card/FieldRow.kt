@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.FieldValue
 import java.time.LocalDate
@@ -43,15 +44,15 @@ public object RowIds {
 public data class FieldRow(
     val id: String,
     val kind: Kind,
-    /** May be empty (a field 1Password named only by its id). */
-    val label: String,
+    /** A field's name as the user's words; may be empty (a field 1Password named only by its id). */
+    val label: UserText,
     /** The value as stored: what copying puts on the clipboard. Empty for a code row and an attachment. */
     val value: FieldValue,
     val style: ValueStyle = ValueStyle.Text,
     /** What the card shows in clear instead of a plain value (a date formatted, a card number grouped). */
     val shownText: String? = null,
     /** The name used in "… copied" (never empty). */
-    val noticeLabel: String = label.ifEmpty { "Value" },
+    val noticeLabel: UserText = if (label.isEmptyLabel) UserText.of(CardText.ROW_VALUE) else label,
     /** For dates something ends on. */
     val expiry: ExpiryHint? = null,
     /** The custom field's declared type. */
@@ -77,6 +78,9 @@ public data class FieldRow(
     public enum class Kind { USERNAME, PASSWORD, URL, TOTP, NOTES, NOTE, CUSTOM, ATTACHMENT }
 
     val isProtected: Boolean get() = value is FieldValue.Protected
+
+    /** The row's name when it is the user's own words (a custom field's, an attachment's); null for the app's own ("Password"). */
+    val ownName: String? get() = (label as? UserText.Plain)?.text
 
     /** Masked until revealed: protected values and the concealed ones. */
     val isConcealed: Boolean get() = isProtected || concealed
@@ -120,6 +124,9 @@ public data class FieldRow(
     internal fun concealed(shownText: String? = null, maskedText: String? = null): FieldRow =
         copy(concealed = true, shownText = shownText ?: this.shownText, maskedText = maskedText ?: this.maskedText)
 }
+
+/** An empty name: a field 1Password named only by its id. */
+internal val UserText.isEmptyLabel: Boolean get() = this is UserText.Plain && text.isEmpty()
 
 /**
  * Which concealed rows of the open card are shown in clear (Mac `RevealState`). Immutable: each change gives

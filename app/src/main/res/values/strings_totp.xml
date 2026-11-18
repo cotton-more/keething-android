@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The texts core/totp makes: TotpText -->
+    <!-- Why a code cannot be used, said after "This code cannot be used here:" -->
+    <string name="totp_unsupported_not_totp">only time-based (TOTP) links are supported</string>
+    <string name="totp_unsupported_google_export">a Google Authenticator export; scan the site\'s own QR code instead</string>
+</resources>

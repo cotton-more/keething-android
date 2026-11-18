@@ -8,7 +8,7 @@ import dev.keething.android.attachment.PickedFile
 import dev.keething.domain.secret.Secret
 import dev.keething.android.R
 import dev.keething.android.ui.UiText
-import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.ui
 import dev.keething.android.ui.uiText
 import dev.keething.vault.session.AttachmentQuestion
 import dev.keething.vault.session.SaveMemory
@@ -216,7 +216,7 @@ internal class EntryEditorViewModel(
                 update(added.draft)
                 null
             }
-            is AddedCodes.Refused -> uiPlain(added.problem)
+            is AddedCodes.Refused -> added.problem.ui()
         }
     }
 

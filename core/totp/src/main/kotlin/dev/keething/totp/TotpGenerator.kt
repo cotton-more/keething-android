@@ -35,9 +35,9 @@ public object TotpGenerator {
 
     private fun hmac(config: TotpConfig, message: ByteArray): ByteArray {
         val name = when (config.algorithm) {
-            TotpConfig.Algorithm.SHA1 -> "HmacSHA1"
-            TotpConfig.Algorithm.SHA256 -> "HmacSHA256"
-            TotpConfig.Algorithm.SHA512 -> "HmacSHA512"
+            TotpConfig.Algorithm.SHA1 -> "HmacSHA1" // not user text
+            TotpConfig.Algorithm.SHA256 -> "HmacSHA256" // not user text
+            TotpConfig.Algorithm.SHA512 -> "HmacSHA512" // not user text
         }
         val mac = Mac.getInstance(name)
         config.secret.useBytes { mac.init(SecretKeySpec(it, name)) }

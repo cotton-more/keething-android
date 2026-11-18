@@ -41,11 +41,20 @@ composable reads it with `stringResource`; a view model or a plain function retu
 English with `english()` (`app/src/test/kotlin/dev/keething/android/ui/EnglishTexts.kt`), so the expected texts stay
 the words on the screen.
 
-    task texts:check            # texts still written into app/'s code (tools/check-texts.py); must print nothing
+    task texts:check            # texts still written into the code of app/ and the core modules done (tools/check-texts.py); must print nothing
 
 A literal that is not a text the user sees (a key, a tag, a MIME type) carries `// not user text` on its line; a whole
-file is left out in `tools/texts-allowed.txt`, with why. The core modules' texts are still English Strings (keething-spec
-plans/android-release-1.0.md T13b).
+file is left out in `tools/texts-allowed.txt`, with why.
+
+The core modules are plain JVM and have no resources: a text one makes is a `UserText`
+(`core/domain/src/main/kotlin/dev/keething/domain/text/UserText.kt`), a key and its arguments, never the words. Each
+module keeps its keys in one enum (`CardText`, `TotpText`); a key's resource is `<prefix><key in lower case>` in
+`app/src/main/res/values/strings_<module>.xml`, and `app/src/main/kotlin/dev/keething/android/ui/CoreTexts.kt` maps every
+key to it (`ui()` gives the `UiText`, `resolve()` the words). A new key goes into all three; `CoreTextsTest` fails on a
+key mapped to another resource. A core test reads a `UserText` in English with `english()` (core:domain's test
+fixtures, from the app's `res/values`). A name written into the file (a new field's, an attachment's) stays English, as
+the Mac writes it. So far `core/card` and `core/totp` (keething-spec plans/android-release-1.0.md T13b); the other core
+modules' texts are still English Strings, and `tools/check-texts.py` checks only the modules done (`DEFAULT_DIRS`).
 
 ## Building the APK
 

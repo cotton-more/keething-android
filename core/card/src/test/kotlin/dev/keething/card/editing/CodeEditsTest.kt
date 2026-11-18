@@ -1,5 +1,6 @@
 package dev.keething.card.editing
 
+import dev.keething.domain.text.english
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.Attachment
@@ -63,11 +64,11 @@ class CodeEditsTest {
 
     @Test
     fun aFurtherCodesNameIsCheckedAsAnyFieldsName() {
-        assertNull(CodeEdits.nameProblem(microsoft, "Work account", "Work account"))
-        assertNull(CodeEdits.nameProblem(microsoft, "Work account", "Office"))
-        assertEquals("Another field has this name.", CodeEdits.nameProblem(microsoft, "Work account", "Recovery"))
-        assertEquals("“otp” is a name KeePass uses itself.", CodeEdits.nameProblem(microsoft, "Work account", "otp"))
-        assertEquals("Give the code a name: KeePass cannot keep a value without one.", CodeEdits.nameProblem(microsoft, "Work account", " "))
+        assertNull(CodeEdits.nameProblem(microsoft, "Work account", "Work account")?.english())
+        assertNull(CodeEdits.nameProblem(microsoft, "Work account", "Office")?.english())
+        assertEquals("Another field has this name.", CodeEdits.nameProblem(microsoft, "Work account", "Recovery")?.english())
+        assertEquals("“otp” is a name KeePass uses itself.", CodeEdits.nameProblem(microsoft, "Work account", "otp")?.english())
+        assertEquals("Give the code a name: KeePass cannot keep a value without one.", CodeEdits.nameProblem(microsoft, "Work account", " ")?.english())
     }
 
     // spec: app.codes-view/AC5
@@ -127,7 +128,7 @@ class CodeEditsTest {
         assertEquals(8, read.config.digits)
         assertEquals(TotpLabel("", ""), assertIs<ReadCode.Code>(CodeEdits.read("JBSW Y3DP EHPK 3PXP")).label)
         assertIs<ReadCode.Refused>(CodeEdits.read("hello"))
-        assertEquals("No QR code found in the image.", assertIs<ReadCode.Refused>(CodeEdits.read(emptyList())).problem)
+        assertEquals("No QR code found in the image.", assertIs<ReadCode.Refused>(CodeEdits.read(emptyList())).problem?.english())
         assertEquals(TotpLabel("GitHub", "alex"), assertIs<ReadCode.Code>(CodeEdits.read(listOf("https://example.com", "otpauth://totp/GitHub:alex?secret=JBSWY3DPEHPK3PXP"))).label)
     }
 

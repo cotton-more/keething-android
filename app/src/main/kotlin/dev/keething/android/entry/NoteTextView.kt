@@ -1,5 +1,6 @@
 package dev.keething.android.entry
 
+import dev.keething.android.ui.resolve
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -62,14 +63,14 @@ private const val NOTES_LINES = 7
 @Composable
 internal fun NoteTextView(row: FieldRow, reveal: RevealState, actions: CardActions) {
     val note = row.kind == FieldRow.Kind.NOTE
-    val noun = row.label.lowercase()
+    val noun = row.label.resolve().lowercase()
     val hidden = row.isConcealed && !reveal.isRevealed(row.id)
     val style = if (note) MaterialTheme.typography.bodyLarge.copy(fontSize = 19.sp, lineHeight = 28.sp) else MaterialTheme.typography.bodyLarge
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(MaterialTheme.extraColors.row).padding(start = 18.dp, end = 6.dp, bottom = 16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(row.label, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(row.label.resolve(), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (row.isConcealed) {
                 IconButton(onClick = { actions.onToggle(row.id) }) {
                     Icon(
@@ -89,7 +90,7 @@ internal fun NoteTextView(row: FieldRow, reveal: RevealState, actions: CardActio
             !row.isConcealed && !note -> SelectionContainer(Modifier.padding(end = 12.dp)) { text() }
             !row.isConcealed -> CopiedThroughTheApp(row, actions, Modifier.padding(end = 12.dp), text)
             else -> Well(scrolls = !note && !hidden, lineHeight = style.lineHeight.value) {
-                if (hidden) HiddenLine(row.label) else CopiedThroughTheApp(row, actions, content = text)
+                if (hidden) HiddenLine(row.label.resolve()) else CopiedThroughTheApp(row, actions, content = text)
             }
         }
     }

@@ -1,6 +1,7 @@
 package dev.keething.totp
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.Base32
 import dev.keething.domain.totp.TotpConfig
 
@@ -12,10 +13,10 @@ public sealed class TotpSetupException(message: String) : Exception(message) {
     public class Unreadable : TotpSetupException("unreadable")
 
     /** Base32, but too short to be a real secret. */
-    public class TooShort : TotpSetupException("too short")
+    public class TooShort : TotpSetupException("too short") // not user text
 
-    /** A link the app cannot use (Steam, HOTP, …): [reason]. */
-    public class Unsupported(public val reason: String) : TotpSetupException("unsupported: $reason")
+    /** A link the app cannot use (Steam, HOTP, …): [reason], said after "This code cannot be used here:" (a parameter's name, or why). */
+    public class Unsupported(public val reason: UserText) : TotpSetupException("unsupported: $reason")
 }
 
 /**
@@ -40,14 +41,14 @@ public object TotpSetup {
                 return TotpParser.parseOtpAuthUri(trimmed)
             } catch (e: TotpParseException) {
                 throw when (e) {
-                    is TotpParseException.Unsupported -> TotpSetupException.Unsupported(e.what)
-                    is TotpParseException.InvalidUri -> TotpSetupException.Unsupported("only time-based (TOTP) links are supported")
+                    is TotpParseException.Unsupported -> TotpSetupException.Unsupported(UserText.plain(e.what))
+                    is TotpParseException.InvalidUri -> TotpSetupException.Unsupported(UserText.of(TotpText.UNSUPPORTED_NOT_TOTP))
                     is TotpParseException.MissingSecret, is TotpParseException.InvalidBase32 -> TotpSetupException.Unreadable()
                 }
             }
         }
         if (lower.startsWith("otpauth-migration://")) {
-            throw TotpSetupException.Unsupported("a Google Authenticator export; scan the site's own QR code instead")
+            throw TotpSetupException.Unsupported(UserText.of(TotpText.UNSUPPORTED_GOOGLE_EXPORT))
         }
         val secret = trimmed.filterNot { it.isWhitespace() || it == '-' }
         val bytes = Base32.decode(secret)?.takeIf { it.isNotEmpty() } ?: throw TotpSetupException.Unreadable()
@@ -71,7 +72,7 @@ public object TotpSetup {
      * percent-encoded, as KeePassXC's `QUrl::toPercentEncoding` does (the Mac keeps non-ASCII letters; both read back).
      */
     public fun otpauthUri(config: TotpConfig, title: String, username: String): String {
-        val issuer = if (title.isEmpty()) "KeePassXC" else percentEncoded(title)
+        val issuer = if (title.isEmpty()) "KeePassXC" else percentEncoded(title) // not user text
         val account = if (username.isEmpty()) "none" else percentEncoded(username)
         val secret = config.secret.useBytes(Base32::encode)
         var uri = "otpauth://totp/$issuer:$account?secret=$secret&period=${config.period}&digits=${config.digits}&issuer=$issuer"

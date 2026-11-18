@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.english
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import kotlin.test.Test
@@ -95,7 +96,7 @@ class CardFieldsTest {
 
     @Test
     fun theStatusTextCountsDaysThenMonthsThenYears() {
-        fun text(value: String) = FieldDate.parse(value, typed = false)?.expiry(now)?.text
+        fun text(value: String) = FieldDate.parse(value, typed = false)?.expiry(now)?.text?.english()
         assertEquals("Expires today", text("2027-01-15"))
         assertEquals("Expires tomorrow", text("2027-01-16"))
         assertEquals("Expires in 36 days", text("2027-02-20"))
@@ -150,7 +151,7 @@ class CardFieldsTest {
         assertEquals(listOf(null, "VERTRAG", "TARIF & PREISE", null), custom.map { it.title })
         assertEquals(
             listOf(listOf("Kundennummer"), listOf("Anbieter", "Kundennummer"), listOf("Rabatt", "Router"), listOf("issuing_country")),
-            custom.map { s -> s.rows.map { it.label } },
+            custom.map { s -> s.rows.map { it.label.english() } },
             "a prefix used once is part of the name",
         )
         assertEquals((0..5).map { "custom-$it" }, c.rows.filter { it.kind == FieldRow.Kind.CUSTOM }.map { it.id })
@@ -161,7 +162,7 @@ class CardFieldsTest {
         val c = card(listOf(field("A_x"), field("loose1"), field("A_y"), field("loose2"), field("B_1"), field("B_2")))
         val custom = c.sections.filter { it.kind == CardSection.Kind.Custom }
         assertEquals(listOf("A", null, "B"), custom.map { it.title })
-        assertEquals(listOf(listOf("x", "y"), listOf("loose1", "loose2"), listOf("1", "2")), custom.map { s -> s.rows.map { it.label } })
+        assertEquals(listOf(listOf("x", "y"), listOf("loose1", "loose2"), listOf("1", "2")), custom.map { s -> s.rows.map { it.label.english() } })
     }
 
     @Test
@@ -169,8 +170,8 @@ class CardFieldsTest {
         val rows = card(
             listOf(field("2iit44k5anegzf2dzpr3xhtdyq", "a"), field("Verification_Code", "1"), field("Verification_o55bsgnoecbjc46jbziwzgvxke", "2")),
         ).rows.filter { it.kind == FieldRow.Kind.CUSTOM }
-        assertEquals(listOf("", "Code", ""), rows.map { it.label })
-        assertEquals(listOf("Value", "Code", "Verification"), rows.map { it.noticeLabel })
+        assertEquals(listOf("", "Code", ""), rows.map { it.label.english() })
+        assertEquals(listOf("Value", "Code", "Verification"), rows.map { it.noticeLabel.english() })
     }
 
     @Test
@@ -187,8 +188,8 @@ class CardFieldsTest {
         val custom = c.sections.filter { it.kind == CardSection.Kind.Custom || it.kind == CardSection.Kind.Codes }
         assertEquals(listOf("Recovery Codes", "Wiederherstellungscodes", "Two"), custom.map { it.title })
         assertEquals(listOf(CardSection.Kind.Codes, CardSection.Kind.Codes, CardSection.Kind.Custom), custom.map { it.kind })
-        assertEquals("Recovery Codes 01", custom[0].rows.first().noticeLabel)
-        assertEquals(listOf("1", "2", "3"), custom[1].rows.map { it.label }, "id-named codes are numbered")
+        assertEquals("Recovery Codes 01", custom[0].rows.first().noticeLabel.english())
+        assertEquals(listOf("1", "2", "3"), custom[1].rows.map { it.label.english() }, "id-named codes are numbered")
     }
 
     @Test
@@ -204,7 +205,7 @@ class CardFieldsTest {
         val rows = c.sections.single { it.kind == CardSection.Kind.Codes }.rows
         assertEquals(listOf(java.time.LocalDate.of(2026, 10, 22), null, java.time.LocalDate.of(2026, 1, 5)), rows.map { it.usedOn })
         assertEquals(listOf("1111-2222", "3333-4444", "5555"), rows.map { it.storedText() })
-        val notCodes = card(listOf(field("Note", "used 2026-10-22 \u00B7 not a code"))).sections.flatMap { it.rows }.single { it.label == "Note" }
+        val notCodes = card(listOf(field("Note", "used 2026-10-22 \u00B7 not a code"))).sections.flatMap { it.rows }.single { it.label.english() == "Note" }
         assertNull(notCodes.usedOn, "only a list of codes has used ones")
         assertEquals("used 2026-10-22 \u00B7 not a code", notCodes.storedText())
     }
@@ -327,11 +328,11 @@ class CardFieldsTest {
             listOf(field("PIN Tresor", "1234"), field("Admin", "s3cret", protected = true), field("Note", "plain")),
             types = mapOf("PIN Tresor" to "password", "Admin" to "Password", "Note" to "text"),
         ).rows
-        val pin = rows.first { it.label == "PIN Tresor" }
+        val pin = rows.first { it.label.english() == "PIN Tresor" }
         assertTrue(pin.isConcealed && !pin.isProtected, "concealed on screen, not protected in the database")
         assertEquals(FieldType.PASSWORD, pin.type)
-        assertTrue(rows.first { it.label == "Admin" }.isConcealed)
-        assertFalse(rows.first { it.label == "Note" }.isConcealed)
+        assertTrue(rows.first { it.label.english() == "Admin" }.isConcealed)
+        assertFalse(rows.first { it.label.english() == "Note" }.isConcealed)
         assertTrue(FieldType.PASSWORD.isPassword && FieldType.WIFI_PASSWORD.isPassword && !FieldType.CARD_PIN.isPassword)
     }
 
@@ -382,13 +383,13 @@ class CardFieldsTest {
             url = "https://one.example",
         )
         val credentials = c.sections.first { it.kind == CardSection.Kind.Credentials }
-        assertEquals(listOf("URL", "URL 2", "URL 3", "URL 4"), credentials.rows.map { it.label })
+        assertEquals(listOf("URL", "URL 2", "URL 3", "URL 4"), credentials.rows.map { it.label.english() })
         // Unlike the Mac card, the URL row itself is a link too when it can be opened (the card's open button).
         assertEquals(
             listOf(ValueStyle.Link("https://one.example"), ValueStyle.Link("https://two.example"), ValueStyle.Link("https://three.example/login"), ValueStyle.Text),
             credentials.rows.map { it.style },
         )
-        assertEquals(listOf("Org"), c.sections.filter { it.kind == CardSection.Kind.Custom }.flatMap { s -> s.rows.map { it.label } })
+        assertEquals(listOf("Org"), c.sections.filter { it.kind == CardSection.Kind.Custom }.flatMap { s -> s.rows.map { it.label.english() } })
     }
 
     @Test

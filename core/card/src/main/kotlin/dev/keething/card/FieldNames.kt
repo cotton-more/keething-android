@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.CustomField
 import dev.keething.search.SearchNormalizer
 
@@ -61,8 +62,11 @@ public object ImportedFieldName {
     }
 
     /** A field's name without its section heading: `VERTRAG_Ende` → "VERTRAG › Ende"; an id stands for its section. */
-    public fun displayName(name: String): String {
-        if (isGeneratedId(name)) return "(no name)"
+    public fun displayName(name: String): UserText = shownName(name)?.let(UserText::plain) ?: UserText.of(CardText.NO_NAME)
+
+    /** [displayName] when it is the field's own words; null for a generated id. */
+    public fun shownName(name: String): String? {
+        if (isGeneratedId(name)) return null
         val (section, label) = split(name) ?: return name
         return if (isGeneratedId(label)) section else "$section › $label"
     }

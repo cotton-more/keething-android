@@ -9,11 +9,11 @@ import java.util.Base64
 
 /** Why a one-time code's fields cannot be used (Mac `TOTPConfig.ParseError`). */
 public sealed class TotpParseException(message: String) : Exception(message) {
-    public class InvalidUri : TotpParseException("not an otpauth://totp link")
+    public class InvalidUri : TotpParseException("not an otpauth://totp link") // not user text
 
-    public class MissingSecret : TotpParseException("no secret")
+    public class MissingSecret : TotpParseException("no secret") // not user text
 
-    public class InvalidBase32 : TotpParseException("the secret is not Base32")
+    public class InvalidBase32 : TotpParseException("the secret is not Base32") // not user text
 
     /** Something the app does not do, such as Steam codes: [what]. */
     public class Unsupported(public val what: String) : TotpParseException("unsupported: $what")
@@ -112,9 +112,9 @@ public object TotpParser {
     private fun keePassSecret(text: String, key: String): ByteArray? {
         val compact = text.filterNot { it.isWhitespace() }
         return when (key) {
-            "TimeOtp-Secret" -> text.encodeToByteArray()
-            "TimeOtp-Secret-Hex" -> hex(compact)
-            "TimeOtp-Secret-Base32" -> Base32.decode(compact)
+            "TimeOtp-Secret" -> text.encodeToByteArray() // not user text
+            "TimeOtp-Secret-Hex" -> hex(compact) // not user text
+            "TimeOtp-Secret-Base32" -> Base32.decode(compact) // not user text
             // As .NET's Convert.FromBase64String: the padding is not optional.
             else -> if (compact.length % 4 != 0) null else runCatching { Base64.getDecoder().decode(compact) }.getOrNull()
         }

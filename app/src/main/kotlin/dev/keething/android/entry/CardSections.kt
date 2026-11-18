@@ -1,5 +1,6 @@
 package dev.keething.android.entry
 
+import dev.keething.android.ui.resolve
 import android.text.format.Formatter
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -226,8 +227,8 @@ internal fun FieldRowView(
             Spacer(Modifier.width(14.dp))
         }
         Column(Modifier.weight(1f).heightIn(min = FIRST_LINE), verticalArrangement = Arrangement.Center) {
-            if (row.label.isNotEmpty()) {
-                Text(row.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (row.label.resolve().isNotEmpty()) {
+                Text(row.label.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (row.kind == FieldRow.Kind.TOTP) {
                 row.totp?.let { CodeValue(TotpDisplay.of(it, now.value), onCopyNext = { actions.onCopyNext(row) }) }
@@ -236,7 +237,7 @@ internal fun FieldRowView(
             }
             row.expiry?.let { hint ->
                 Text(
-                    hint.text,
+                    hint.text.resolve(),
                     style = MaterialTheme.typography.labelLarge,
                     color = when (hint.status) {
                         ExpiryHint.Status.EXPIRED -> MaterialTheme.colorScheme.error
@@ -251,7 +252,7 @@ internal fun FieldRowView(
             IconButton(onClick = { actions.onToggle(row.id) }) {
                 Icon(
                     if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                    contentDescription = stringResource(if (shown) R.string.entry_row_hide else R.string.entry_row_show, row.noticeLabel.lowercase()),
+                    contentDescription = stringResource(if (shown) R.string.entry_row_hide else R.string.entry_row_show, row.noticeLabel.resolve().lowercase()),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -264,7 +265,7 @@ internal fun FieldRowView(
         // Every row that copies on a tap says so with the same button.
         if (row.isCopyable) {
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase()), tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.resolve().lowercase()), tint = MaterialTheme.colorScheme.primary)
             }
         }
         if (row.kind == FieldRow.Kind.PASSWORD && !row.isEmpty) PasswordMenu(actions)
@@ -339,7 +340,7 @@ private fun AppRowView(row: FieldRow, app: ValueStyle.App, actions: CardActions,
         }
         if (row.isCopyable) {
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase()), tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.resolve().lowercase()), tint = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -432,7 +433,7 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
         ) {
             Icon(Icons.Rounded.ContentCopy, contentDescription = null, Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text(if (next == null) stringResource(R.string.entry_codes_none_left) else stringResource(R.string.entry_codes_copy_next, next.label), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (next == null) stringResource(R.string.entry_codes_none_left) else stringResource(R.string.entry_codes_copy_next, next.label.resolve()), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -470,7 +471,7 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
                 .then(if (isNext) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
                 .combinedClickable(
                     enabled = row.isCopyable,
-                    onClickLabel = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase()),
+                    onClickLabel = stringResource(R.string.entry_row_copy, row.noticeLabel.resolve().lowercase()),
                     onClick = { actions.onCopy(row) },
                     onLongClickLabel = stringResource(if (usedOn == null) R.string.entry_codes_mark_used else R.string.entry_codes_mark_not_used),
                     onLongClick = if (setUsed != null && actions.marking == null) ({ menu = true }) else null,
@@ -479,7 +480,7 @@ private fun CodeCell(row: FieldRow, reveal: RevealState, actions: CardActions, m
                 .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(row.label, Modifier.width(24.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(row.label.resolve(), Modifier.width(24.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Column(Modifier.weight(1f)) {
                 val text = reveal.displayValue(row)
                 val masked = row.isConcealed && !reveal.isRevealed(row.id)
@@ -542,17 +543,17 @@ private fun AttachmentRowView(row: FieldRow, actions: CardActions, shape: Shape)
         InFirstLine { TileView(Tile(Icons.Rounded.AttachFile, colors.secondaryContainer, colors.onSecondaryContainer)) }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f).heightIn(min = FIRST_LINE), verticalArrangement = Arrangement.Center) {
-            Text(row.label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(row.label.resolve(), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             row.size?.let {
                 Text(Formatter.formatShortFileSize(context, it.toLong()), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
         }
         if (row.size != null) {
             IconButton(onClick = { actions.onOpenAttachment(row) }) {
-                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = stringResource(R.string.entry_attachment_open, row.label), tint = colors.primary)
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = stringResource(R.string.entry_attachment_open, row.label.resolve()), tint = colors.primary)
             }
             IconButton(onClick = { actions.onSaveAttachment(row) }) {
-                Icon(Icons.Rounded.Download, contentDescription = stringResource(R.string.entry_attachment_save, row.label), tint = colors.primary)
+                Icon(Icons.Rounded.Download, contentDescription = stringResource(R.string.entry_attachment_save, row.label.resolve()), tint = colors.primary)
             }
         }
     }

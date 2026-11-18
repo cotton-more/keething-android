@@ -22,6 +22,7 @@ internal fun UiText.english(): String = when (this) {
         )
     }
     is UiText.Inside -> inside(text.english(), Locale.US)
+    is UiText.Joined -> items.joinToString(separator) { it.english() }
 }
 
 private fun String.formatted(args: List<Any>): String =

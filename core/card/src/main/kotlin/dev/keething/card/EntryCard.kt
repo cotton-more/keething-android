@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.CustomField
@@ -125,34 +126,34 @@ public object EntryCardBuilder {
     private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection, BankAccountSection, DocumentSection, SshSection, CryptoSection)
 
     public fun build(entry: Entry, now: Instant, locale: Locale = Locale.getDefault()): EntryCard {
-        fun row(id: String, kind: FieldRow.Kind, label: String, value: FieldValue) = FieldRow(id, kind, label, value)
+        fun row(id: String, kind: FieldRow.Kind, label: CardText, value: FieldValue) = FieldRow(id, kind, UserText.of(label), value)
         val context = CardContext(
             entry.customFields.withIndex().toList(), FieldInterpreter(entry), now, locale,
             title = entry.displayTitle, username = entry.username, attachments = entry.attachments,
         )
 
         val credentials = mutableListOf<FieldRow>()
-        if (entry.username.isNotEmpty()) credentials += row(RowIds.USERNAME, FieldRow.Kind.USERNAME, "Username", FieldValue.Plain(entry.username))
-        if (!entry.password.isEmpty()) credentials += row(RowIds.PASSWORD, FieldRow.Kind.PASSWORD, "Password", FieldValue.Protected(entry.password))
+        if (entry.username.isNotEmpty()) credentials += row(RowIds.USERNAME, FieldRow.Kind.USERNAME, CardText.ROW_USERNAME, FieldValue.Plain(entry.username))
+        if (!entry.password.isEmpty()) credentials += row(RowIds.PASSWORD, FieldRow.Kind.PASSWORD, CardText.ROW_PASSWORD, FieldValue.Protected(entry.password))
         if (entry.url.isNotEmpty()) {
-            credentials += FieldRow(RowIds.URL, FieldRow.Kind.URL, "URL", FieldValue.Plain(entry.url), style = addressStyle(entry.url, "URL"))
+            credentials += FieldRow(RowIds.URL, FieldRow.Kind.URL, UserText.of(CardText.ROW_URL), FieldValue.Plain(entry.url), style = addressStyle(entry.url, null))
         }
         // Additional URLs join the credentials.
         var urlNumber = if (entry.url.isEmpty()) 0 else 1
         for ((i, field) in context.fields) {
             if (!field.isAdditionalUrl) continue
             urlNumber++
-            val label = if (urlNumber == 1) "URL" else "URL $urlNumber"
-            credentials += FieldRow(RowIds.custom(i), FieldRow.Kind.CUSTOM, label, field.value, style = field.plainText?.let { addressStyle(it, label) } ?: ValueStyle.Text)
+            val label = if (urlNumber == 1) UserText.of(CardText.ROW_URL) else UserText.of(CardText.ROW_URL_NUMBERED, urlNumber)
+            credentials += FieldRow(RowIds.custom(i), FieldRow.Kind.CUSTOM, label, field.value, style = field.plainText?.let { addressStyle(it, null) } ?: ValueStyle.Text)
         }
         if (entry.totp != null) {
-            credentials += FieldRow(RowIds.TOTP, FieldRow.Kind.TOTP, "One-time code", FieldValue.Plain(""), totp = entry.totp)
+            credentials += FieldRow(RowIds.TOTP, FieldRow.Kind.TOTP, UserText.of(CardText.ROW_ONE_TIME_CODE), FieldValue.Plain(""), totp = entry.totp)
         }
 
         val sections = mutableListOf<CardSection>()
         // A note's text first, everything added to it under it (keething-spec types.note AC3, AC6).
         val isNote = entry.isNote
-        if (isNote) sections += CardSection("note", CardSection.Kind.Note, null, listOf(notesRow(entry, RowIds.NOTE, FieldRow.Kind.NOTE, "Note")))
+        if (isNote) sections += CardSection("note", CardSection.Kind.Note, null, listOf(notesRow(entry, RowIds.NOTE, FieldRow.Kind.NOTE, CardText.ROW_NOTE)))
         if (credentials.isNotEmpty()) sections += CardSection("credentials", CardSection.Kind.Credentials, null, credentials)
         val claimed = mutableSetOf<Int>()
         for (kind in typedSections) {
@@ -161,12 +162,12 @@ public object EntryCardBuilder {
             claimed += fields
         }
         if (!isNote && entry.notes.isNotEmpty()) {
-            sections += CardSection("notes", CardSection.Kind.Notes, null, listOf(notesRow(entry, RowIds.NOTES, FieldRow.Kind.NOTES, "Notes")))
+            sections += CardSection("notes", CardSection.Kind.Notes, null, listOf(notesRow(entry, RowIds.NOTES, FieldRow.Kind.NOTES, CardText.ROW_NOTES)))
         }
         sections += customSections(context.fields.filter { !it.value.isAdditionalUrl && it.index !in claimed }, context)
 
         val attachments = entry.attachments.mapIndexed { i, attachment ->
-            FieldRow(RowIds.attachment(i), FieldRow.Kind.ATTACHMENT, attachment.name, FieldValue.Plain(""), size = attachment.size)
+            FieldRow(RowIds.attachment(i), FieldRow.Kind.ATTACHMENT, UserText.plain(attachment.name), FieldValue.Plain(""), size = attachment.size)
         }
         if (attachments.isNotEmpty()) sections += CardSection("attachments", CardSection.Kind.Attachments, null, attachments)
 
@@ -224,14 +225,14 @@ public object EntryCardBuilder {
     }
 
     /** The text of Notes, a note's or an entry's: concealed while protected in the file (types.note AC6). */
-    private fun notesRow(entry: Entry, id: String, kind: FieldRow.Kind, label: String): FieldRow {
-        val row = FieldRow(id, kind, label, FieldValue.Plain(entry.notes))
+    private fun notesRow(entry: Entry, id: String, kind: FieldRow.Kind, label: CardText): FieldRow {
+        val row = FieldRow(id, kind, UserText.of(label), FieldValue.Plain(entry.notes))
         return if (entry.notesProtected) row.concealed() else row
     }
 
     /** An address in the URL or a `KP2A_URL…` field: an app's, else a link when the browser can open it. */
-    private fun addressStyle(text: String, label: String): ValueStyle =
-        AppAddressStyle.of(text, label) ?: OpenableUrl.of(text)?.let(ValueStyle::Link) ?: ValueStyle.Text
+    private fun addressStyle(text: String, fieldName: String?): ValueStyle =
+        AppAddressStyle.of(text, fieldName) ?: OpenableUrl.of(text)?.let(ValueStyle::Link) ?: ValueStyle.Text
 
     /**
      * A `Section_` prefix shared by two or more fields makes a titled section, placed where its first field
@@ -260,9 +261,13 @@ public object EntryCardBuilder {
             val rows = block.items.mapIndexed { n, item ->
                 var label = if (ImportedFieldName.isGeneratedId(item.label)) "" else item.label
                 if (isCodes && label.isEmpty()) label = "${n + 1}"
-                val title = block.title ?: "Value"
-                val notice = if (label.isEmpty()) title else if (isCodes) "$title $label" else label
-                context.row(item.index, item.field, label, notice).let { row ->
+                // A code's notice is its list's name and its number ("Backup codes 3"): the user's words, no sentence.
+                val notice = when {
+                    label.isNotEmpty() -> UserText.plain(if (isCodes) "${block.title} $label" else label)
+                    block.title != null -> UserText.plain(block.title)
+                    else -> UserText.of(CardText.ROW_VALUE)
+                }
+                context.row(item.index, item.field, UserText.plain(label), notice).let { row ->
                     if (isCodes) row.copy(usedOn = UsedCode.parse(row.storedText())?.day) else row
                 }
             }
@@ -297,11 +302,11 @@ internal class CardContext(
      * Title and labels for a kind's own section: when all its fields come from one 1Password section, that is
      * the title and the labels go without it; else each field's full name.
      */
-    fun sectionLabels(parts: List<IndexedValue<CustomField>>): Pair<String?, List<String>> {
+    fun sectionLabels(parts: List<IndexedValue<CustomField>>): Pair<String?, List<UserText>> {
         val splits = parts.map { ImportedFieldName.split(it.value.name) }
         val first = splits.firstOrNull()
         if (first != null && splits.all { it?.first == first.first }) {
-            return first.first to splits.map { s -> s?.second?.takeUnless(ImportedFieldName::isGeneratedId) ?: "" }
+            return first.first to splits.map { s -> UserText.plain(s?.second?.takeUnless(ImportedFieldName::isGeneratedId) ?: "") }
         }
         return null to parts.map { ImportedFieldName.displayName(it.value.name) }
     }
@@ -313,7 +318,7 @@ internal class CardContext(
      * unprotected value typed `password`, or plainly a secret (a private key, an `otpauth://` link), is masked
      * anyway.
      */
-    fun row(index: Int, field: CustomField, label: String, notice: String): FieldRow {
+    fun row(index: Int, field: CustomField, label: UserText, notice: UserText): FieldRow {
         val id = RowIds.custom(index)
         val type = interpreter.type(field)
         // A wallet's secret, wherever it stands (also outside a wallet's section): masked, never copied (SPEC §6.2).
@@ -323,8 +328,8 @@ internal class CardContext(
         // Another one-time code (1Password's second and later codes arrive so): a live code.
         OneTimeCodes.config(field)?.let { config ->
             return FieldRow(
-                id, FieldRow.Kind.TOTP, label.ifEmpty { "One-time code" }, FieldValue.Plain(""),
-                noticeLabel = if (label.isEmpty()) "One-time code" else notice, totp = config,
+                id, FieldRow.Kind.TOTP, if (label.isEmptyLabel) UserText.of(CardText.ROW_ONE_TIME_CODE) else label, FieldValue.Plain(""),
+                noticeLabel = if (label.isEmptyLabel) UserText.of(CardText.ROW_ONE_TIME_CODE) else notice, totp = config,
             )
         }
         val text = field.plainText
@@ -338,7 +343,7 @@ internal class CardContext(
             )
         }
         if (type == null || type == FieldType.URL) {
-            AppAddressStyle.of(text, label)?.let { app ->
+            AppAddressStyle.of(text, (label as? UserText.Plain)?.text)?.let { app ->
                 return FieldRow(id, FieldRow.Kind.CUSTOM, label, field.value, style = app, noticeLabel = notice, type = type)
             }
         }

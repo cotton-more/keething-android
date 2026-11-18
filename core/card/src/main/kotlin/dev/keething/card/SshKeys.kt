@@ -20,7 +20,7 @@ public sealed interface SshKeyLocation {
 
     public companion object {
         /** KeePassXC's marker of an entry with an SSH key. */
-        public const val SETTINGS_ATTACHMENT: String = "KeeAgent.settings"
+        public const val SETTINGS_ATTACHMENT: String = "KeeAgent.settings" // not user text
 
         public fun hasSettings(attachments: List<Attachment>): Boolean = attachments.any { it.name == SETTINGS_ATTACHMENT }
 
@@ -30,11 +30,11 @@ public sealed interface SshKeyLocation {
          * files, else the only one named `id_…`), as the Mac guesses it.
          */
         public fun of(settings: ByteArray?, attachments: List<Attachment>): SshKeyLocation? {
-            settings?.let(::decode)?.takeIf { "<EntrySettings" in it }?.let { text ->
-                val kind = value(text, "SelectedType") ?: "file"
+            settings?.let(::decode)?.takeIf { "<EntrySettings" in it }?.let { text -> // not user text
+                val kind = value(text, "SelectedType") ?: "file" // not user text
                 when (kind.lowercase()) {
-                    "attachment" -> value(text, "AttachmentName")?.takeIf { it.isNotEmpty() }?.let { return InAttachment(it) }
-                    "file" -> value(text, "FileName")?.takeIf { it.isNotEmpty() }?.let { return InFile(it) }
+                    "attachment" -> value(text, "AttachmentName")?.takeIf { it.isNotEmpty() }?.let { return InAttachment(it) } // not user text
+                    "file" -> value(text, "FileName")?.takeIf { it.isNotEmpty() }?.let { return InFile(it) } // not user text
                 }
             }
             val candidates = attachments.map { it.name }.filter { it != SETTINGS_ATTACHMENT && !it.lowercase().endsWith(".pub") }
@@ -94,10 +94,10 @@ public class SshPublicKey private constructor(private val blob: ByteArray) {
 
     override fun hashCode(): Int = blob.contentHashCode()
 
-    override fun toString(): String = "SshPublicKey($displayType $fingerprint)"
+    override fun toString(): String = "SshPublicKey($displayType $fingerprint)" // not user text
 
     public companion object {
-        private val HEADER = "-----BEGIN OPENSSH PRIVATE KEY-----".encodeToByteArray()
+        private val HEADER = "-----BEGIN OPENSSH PRIVATE KEY-----".encodeToByteArray() // not user text
         private val MAGIC = "openssh-key-v1\u0000".encodeToByteArray()
 
         /**

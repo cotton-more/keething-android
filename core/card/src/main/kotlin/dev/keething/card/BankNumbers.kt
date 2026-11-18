@@ -115,9 +115,9 @@ public object Countries {
     /** The flag shown where nothing says the country for sure: Antarctica's, no one's in particular. */
     public val UNKNOWN_FLAG: String = flag("AQ")!!
 
-    /** The English name ("Germany"). */
+    /** The English name ("Germany"), as keething-spec types.identity-document AC3 has it (whether it follows the phone's language is T14's). */
     public fun name(code: String): String =
-        if (code.uppercase(Locale.ROOT) == "XK") "Kosovo" else region(code).getDisplayCountry(Locale.ENGLISH)
+        if (code.uppercase(Locale.ROOT) == "XK") "Kosovo" else region(code).getDisplayCountry(Locale.ENGLISH) // not user text: English by AC3
 
     /**
      * The country a field names: an ISO 3166 alpha-2 or alpha-3 code, a passport's ICAO code (`D` for Germany), or a
@@ -149,7 +149,7 @@ public object Countries {
                 val name = region(code).getDisplayCountry(language)
                 if (name.isNotEmpty() && name != code) putIfAbsent(fold(name), code)
             }
-            // What documents and people commonly write besides the official names.
+            // What documents and people commonly write besides the official names (not user text).
             putAll(mapOf("usa" to "US", "united states of america" to "US", "uk" to "GB", "great britain" to "GB", "england" to "GB", "russia" to "RU", "россия" to "RU", "рф" to "RU", "deutschland" to "DE", "germany" to "DE"))
         }
     }

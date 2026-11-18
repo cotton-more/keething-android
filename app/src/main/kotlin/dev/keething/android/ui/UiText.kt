@@ -27,6 +27,9 @@ internal sealed interface UiText {
     /** "A", "A and B", "A, B and C" in the phone's language. */
     data class Listed(val items: List<UiText>) : UiText
 
+    /** [items] set one after another with [separator] between, a mark that is no word (" · ", "\n"). */
+    data class Joined(val items: List<UiText>, val separator: String) : UiText
+
     /**
      * [text], said on its own elsewhere, set inside another sentence: after a colon its first letter in lower case
      * (in the phone's language, [lowerFirst]: "Not upgraded: the file …"), before more words its full stop dropped
@@ -62,6 +65,7 @@ internal fun UiText.resolve(resources: Resources): String = when (this) {
         )
     }
     is UiText.Inside -> inside(text.resolve(resources), resources.configuration.locales[0])
+    is UiText.Joined -> items.joinToString(separator) { it.resolve(resources) }
 }
 
 internal fun UiText.Inside.inside(said: String, locale: Locale): String =

@@ -1,5 +1,6 @@
 package dev.keething.totp
 
+import dev.keething.domain.text.english
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.Base32
 import dev.keething.domain.totp.TotpConfig
@@ -39,13 +40,13 @@ class TotpSetupTest {
         assertFailsWith<TotpSetupException.Empty> { TotpSetup.parse("  ") }
         assertFailsWith<TotpSetupException.Unreadable> { TotpSetup.parse("not a secret!") }
         assertFailsWith<TotpSetupException.Unreadable> { TotpSetup.parse("otpauth://totp/S?issuer=x") }
-        assertEquals("steam", assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://totp/S?secret=$base32&encoder=steam") }.reason)
+        assertEquals("steam", assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://totp/S?secret=$base32&encoder=steam") }.reason.english())
         assertEquals(
             "only time-based (TOTP) links are supported",
-            assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://hotp/S?secret=$base32&counter=1") }.reason,
+            assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://hotp/S?secret=$base32&counter=1") }.reason.english(),
         )
         val export = assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth-migration://offline?data=abc") }
-        assertTrue(export.reason.contains("Google Authenticator"))
+        assertTrue(export.reason.english().contains("Google Authenticator"))
         assertEquals(null, TotpSetup.parseOrNull("https://example.org"))
     }
 

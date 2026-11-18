@@ -1,5 +1,6 @@
 package dev.keething.android.entry
 
+import dev.keething.android.ui.resolve
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -99,7 +100,7 @@ internal fun CryptoSection(section: CardSection, wallet: CryptoWallet, reveal: R
                 wallet.privateKeyRowId?.let { id ->
                     Note(
                         Icons.Rounded.WarningAmber,
-                        stringResource(R.string.entry_wallet_private_key, rows[id]?.label.orEmpty()),
+                        stringResource(R.string.entry_wallet_private_key, rows[id]?.label?.resolve().orEmpty()),
                         MaterialTheme.extraColors.warnContainer,
                         MaterialTheme.extraColors.onWarnContainer,
                     )
@@ -115,7 +116,7 @@ internal fun CryptoSection(section: CardSection, wallet: CryptoWallet, reveal: R
                 wallet.xpub?.let { key ->
                     add { shape ->
                         DetailRow(
-                            label = key.label, value = key.text, row = rows[key.rowId], shape = shape, actions = actions,
+                            label = key.label.resolve(), value = key.text, row = rows[key.rowId], shape = shape, actions = actions,
                             note = if (key.read?.passes == false) failsChecksum else xpubNote,
                             noteColor = if (key.read?.passes == false) MaterialTheme.colorScheme.error else MaterialTheme.extraColors.warn,
                             ellipsize = true,
@@ -123,7 +124,7 @@ internal fun CryptoSection(section: CardSection, wallet: CryptoWallet, reveal: R
                     }
                 }
                 wallet.path?.let { path ->
-                    add { shape -> DetailRow(label = rows[path.rowId]?.label.orEmpty(), value = path.text, row = rows[path.rowId], shape = shape, actions = actions, note = path.description) }
+                    add { shape -> DetailRow(label = rows[path.rowId]?.label?.resolve().orEmpty(), value = path.text, row = rows[path.rowId], shape = shape, actions = actions, note = path.description?.resolve()) }
                 }
                 for (row in section.rows.filter { it.id !in wallet.faceRowIds && it.id != wallet.privateKeyRowId }) {
                     add { shape -> FieldRowView(row, reveal, now, actions, shape) }
@@ -318,7 +319,7 @@ private fun PhraseCheck(phrase: SeedPhrase) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(if (ok) Icons.Rounded.Check else Icons.Rounded.ErrorOutline, contentDescription = null, Modifier.size(18.dp), tint = if (ok) Steel.ok else Steel.bad)
-        Text(phrase.summary(), color = if (ok) Steel.ok else Steel.bad, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Text(phrase.summary().resolve(), color = if (ok) Steel.ok else Steel.bad, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -412,7 +413,7 @@ private fun ReceiveCard(address: CryptoWallet.Address, row: FieldRow?, actions: 
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(read?.kind ?: address.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text((read?.kind ?: address.label).resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 CheckChip(address)
             }
@@ -478,7 +479,7 @@ private fun AddressRow(address: CryptoWallet.Address, row: FieldRow?, shape: Sha
     ) {
         NetworkBadge(address.read?.network, 28.dp)
         Column(Modifier.weight(1f)) {
-            Text(address.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(address.label.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 groupedAddress(address.text, MaterialTheme.colorScheme.onSurface, MaterialTheme.colorScheme.onSurfaceVariant),
                 fontFamily = MonospaceFamily,
@@ -491,11 +492,11 @@ private fun AddressRow(address: CryptoWallet.Address, row: FieldRow?, shape: Sha
             }
         }
         IconButton(onClick = { actions.onAddressQr(address.rowId) }) {
-            Icon(Icons.Rounded.QrCode2, contentDescription = stringResource(R.string.entry_address_qr_of, address.label), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Rounded.QrCode2, contentDescription = stringResource(R.string.entry_address_qr_of, address.label.resolve()), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (row != null) {
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, address.label), tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, address.label.resolve()), tint = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -529,7 +530,7 @@ private fun DetailRow(
         }
         if (row != null && row.isCopyable) {
             IconButton(onClick = { actions.onCopy(row) }) {
-                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase()), tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.entry_row_copy, row.noticeLabel.resolve().lowercase()), tint = MaterialTheme.colorScheme.primary)
             }
         }
     }

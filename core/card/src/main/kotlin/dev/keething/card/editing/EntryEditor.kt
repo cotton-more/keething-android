@@ -1,6 +1,7 @@
 package dev.keething.card.editing
 
 import dev.keething.card.AddressCheck
+import dev.keething.card.CardText
 import dev.keething.card.CryptoAddress
 import dev.keething.card.DerivationPath
 import dev.keething.card.EntryCardBuilder
@@ -14,6 +15,7 @@ import dev.keething.card.OneTimeCodes
 import dev.keething.card.SeedPhrase
 import dev.keething.card.SshTarget
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.AttachmentChange
 import dev.keething.domain.vault.CustomField
@@ -41,7 +43,7 @@ import java.time.ZoneOffset
 public sealed interface AddedCodes {
     public data class Added(val draft: EntryDraft, val count: Int) : AddedCodes
 
-    public data class Refused(val problem: String) : AddedCodes
+    public data class Refused(val problem: UserText) : AddedCodes
 }
 
 /** How adding a one-time code went (keething-spec edit.one-time-code AC5). */
@@ -49,7 +51,7 @@ public sealed interface AddedCode {
     /** [field]: the code went into a custom field of that name, the entry having its own already; null: it is the entry's own. */
     public data class Added(val draft: EntryDraft, val field: String?) : AddedCode
 
-    public data class Refused(val problem: String) : AddedCode
+    public data class Refused(val problem: UserText) : AddedCode
 }
 
 /** What the editor offers (SPEC §6.4): an entry's fields, or a note's title, text, site and the rest. */
@@ -112,11 +114,11 @@ public class EntryEditor private constructor(
         if (layout != EditorLayout.NOTE || draft.title.isNotBlank()) draft.title else NoteTitle.make(draft.notes, draft.notesProtected, made, dates)
 
     /** What the empty title field says it will become (the agreed mock-up: the first line itself once there is one). */
-    public fun titlePlaceholder(draft: EntryDraft): String = when {
-        layout != EditorLayout.NOTE -> "Title"
-        draft.notesProtected -> "Title: ${NoteTitle.make("", protected = true, made = made, dates = dates)}"
-        draft.notes.isBlank() -> "Title: the first line"
-        else -> "Title: ${NoteTitle.make(draft.notes, protected = false)}"
+    public fun titlePlaceholder(draft: EntryDraft): UserText = when {
+        layout != EditorLayout.NOTE -> UserText.of(CardText.TITLE)
+        draft.notesProtected -> UserText.of(CardText.TITLE_WILL_BE, NoteTitle.make("", protected = true, made = made, dates = dates))
+        draft.notes.isBlank() -> UserText.of(CardText.TITLE_FIRST_LINE)
+        else -> UserText.of(CardText.TITLE_WILL_BE, NoteTitle.make(draft.notes, protected = false))
     }
 
     /**
@@ -143,38 +145,34 @@ public class EntryEditor private constructor(
      * What is wrong with a custom field's name, shown at the field; null when nothing. A field left blank (no
      * name, no value) is not saved, so nothing is wrong with it.
      */
-    public fun fieldProblem(draft: EntryDraft, field: FieldDraft): String? {
+    public fun fieldProblem(draft: EntryDraft, field: FieldDraft): UserText? {
         if (field.isBlank) return null
         val name = field.name.trim()
-        if (name.isEmpty()) return "Give the field a name: KeePass cannot keep a value without one."
-        if (name in EntryChanges.RESERVED_FIELD_NAMES) return "“$name” is a name KeePass uses itself."
+        if (name.isEmpty()) return UserText.of(CardText.FIELD_NO_NAME)
+        if (name in EntryChanges.RESERVED_FIELD_NAMES) return UserText.of(CardText.NAME_RESERVED, name)
         val same = draft.fields.count { !it.isBlank && it.name.trim() == name }
-        return if (same > 1) "Another field has this name." else null
+        return if (same > 1) UserText.of(CardText.NAME_TAKEN) else null
     }
 
     /**
      * A field typed as a date whose value is not one: it is saved, and shown as text; null when it is a date,
      * empty, protected (never read) or of another type. The same for an SSH host or port that is not one.
      */
-    public fun fieldWarning(field: FieldDraft): String? {
+    public fun fieldWarning(field: FieldDraft): UserText? {
         if (field.type?.isCryptoPart == true) return cryptoWarning(field)
         sshWarning(field)?.let { return it }
         val type = field.type?.takeIf { it.isDate } ?: return null
         if (field.isProtected || field.value.isBlank() || FieldDate.parse(field.value, typed = true) != null) return null
-        return if (type == FieldType.CARD_EXPIRY) {
-            "Not a date, shown as text. Write it as 2027-10."
-        } else {
-            "Not a date, shown as text. Write it as 2027-10-31, or 2027-10 for a month."
-        }
+        return UserText.of(if (type == FieldType.CARD_EXPIRY) CardText.MONTH_WARNING else CardText.DATE_WARNING)
     }
 
     /** An `ssh.host` ssh cannot reach, an `ssh.port` outside 1–65535; saved all the same, shown as a plain row. */
-    private fun sshWarning(field: FieldDraft): String? {
+    private fun sshWarning(field: FieldDraft): UserText? {
         val value = field.value.trim()
         if (field.isProtected || value.isEmpty()) return null
         return when (field.type) {
-            FieldType.SSH_HOST -> if (SshTarget.parse(value) == null) "Not a host name, shown as a row. Write it as host, user@host or host:port." else null
-            FieldType.SSH_PORT -> if (value.toIntOrNull() !in 1..65535) "Not a port (1–65535), shown as a row." else null
+            FieldType.SSH_HOST -> if (SshTarget.parse(value) == null) UserText.of(CardText.HOST_WARNING) else null
+            FieldType.SSH_PORT -> if (value.toIntOrNull() !in 1..65535) UserText.of(CardText.PORT_WARNING) else null
             else -> null
         }
     }
@@ -183,19 +181,19 @@ public class EntryEditor private constructor(
      * A recovery phrase that fails its check (read in the editor even when protected: the text is in the form anyway), an
      * address or key whose checksum fails, a path that is none; null when it passes, is empty, or is not checked.
      */
-    private fun cryptoWarning(field: FieldDraft): String? {
+    private fun cryptoWarning(field: FieldDraft): UserText? {
         val value = field.value.trim().takeIf { it.isNotEmpty() } ?: return null
         return when (field.type) {
             FieldType.CRYPTO_SEED -> SeedPhrase.read(value)?.takeIf { !it.passes }?.summary()
             // An address of a network not known here is shown as it is, without a warning.
-            FieldType.CRYPTO_ADDRESS -> if (CryptoAddress.read(value)?.check == AddressCheck.FAILS) "The address fails its checksum. A typo?" else null
+            FieldType.CRYPTO_ADDRESS -> if (CryptoAddress.read(value)?.check == AddressCheck.FAILS) UserText.of(CardText.ADDRESS_FAILS) else null
             // A private key first: one behind a public prefix (BIP-32's test vector 5) does not pass either.
             FieldType.CRYPTO_XPUB -> when {
-                ExtendedKey.isPrivate(value) -> "A private key (${value.take(4)}): whoever has it has the wallet. It is shown, never copied."
-                ExtendedKey.read(value)?.passes == false -> "The key fails its checksum. A typo?"
+                ExtendedKey.isPrivate(value) -> UserText.of(CardText.KEY_PRIVATE, value.take(4))
+                ExtendedKey.read(value)?.passes == false -> UserText.of(CardText.KEY_FAILS)
                 else -> null
             }
-            FieldType.CRYPTO_PATH -> if (DerivationPath.isPath(value)) null else "Not a derivation path: write it as m/84'/0'/0'."
+            FieldType.CRYPTO_PATH -> if (DerivationPath.isPath(value)) null else UserText.of(CardText.PATH_WARNING)
             else -> null
         }
     }
@@ -230,21 +228,21 @@ public class EntryEditor private constructor(
      * their files, so only an entry another app gave two of one name, or none, has a problem here, and only once its
      * attachments are changed (a list left as it is is not written): Save stays off until one is removed.
      */
-    public fun attachmentProblem(draft: EntryDraft, attachment: AttachmentDraft): String? {
+    public fun attachmentProblem(draft: EntryDraft, attachment: AttachmentDraft): UserText? {
         if (shape(draft).attachments == null) return null
         val name = attachment.name.trim()
-        if (name.isEmpty()) return "Give the attachment a name."
-        return if (draft.attachments.count { it.name.trim() == name } > 1) "Another attachment has this name." else null
+        if (name.isEmpty()) return UserText.of(CardText.ATTACHMENT_NO_NAME)
+        return if (draft.attachments.count { it.name.trim() == name } > 1) UserText.of(CardText.ATTACHMENT_TAKEN) else null
     }
 
     /** What the attachments' names keep from being saved, for the list under the form: none when nothing. */
-    public fun attachmentProblems(draft: EntryDraft): List<String> {
+    public fun attachmentProblems(draft: EntryDraft): List<UserText> {
         if (shape(draft).attachments == null) return emptyList()
         val names = draft.attachments.map { it.name.trim() }
         val same = names.filter { name -> name.isNotEmpty() && names.count { it == name } > 1 }.distinct()
         return listOfNotNull(
-            "Every attachment needs a name.".takeIf { names.any(String::isEmpty) },
-            "Attachment names must differ: ${same.joinToString(", ")}.".takeIf { same.isNotEmpty() },
+            UserText.of(CardText.ATTACHMENTS_UNNAMED).takeIf { names.any(String::isEmpty) },
+            UserText.of(CardText.ATTACHMENTS_SAME, same.joinToString(", ")).takeIf { same.isNotEmpty() },
         )
     }
 
@@ -445,9 +443,9 @@ public class EntryEditor private constructor(
         prefixProblem(prefix)?.let { return AddedCodes.Refused(it) }
         val list = prefix.trim()
         val codes = codes(text)
-        if (codes.isEmpty()) return AddedCodes.Refused("No codes: paste or type them, one per line.")
+        if (codes.isEmpty()) return AddedCodes.Refused(UserText.of(CardText.CODES_NONE))
         if (codes.size > MAXIMUM_PASTED_CODES) {
-            return AddedCodes.Refused("That is ${codes.size} codes; at most $MAXIMUM_PASTED_CODES are added at once.")
+            return AddedCodes.Refused(UserText.counted(CardText.CODES_TOO_MANY, codes.size, codes.size, MAXIMUM_PASTED_CODES))
         }
         val taken = draft.fields.mapNotNull { field ->
             val name = field.name.trim()
@@ -472,18 +470,21 @@ public class EntryEditor private constructor(
     }
 
     public companion object {
-        /** A further one-time code's field is named so, with a number from 2 (the entry's own is the first). */
-        public const val ANOTHER_CODE: String = "One-time code"
+        /**
+         * A further one-time code's field is named so, with a number from 2 (the entry's own is the first): a name in the
+         * file, English as the Mac's whatever the phone's language.
+         */
+        public const val ANOTHER_CODE: String = "One-time code" // not user text
 
         /** An image without a QR code (the Mac's words). */
-        public const val NO_QR_CODE: String = "No QR code found in the image."
+        public val NO_QR_CODE: UserText = UserText.of(CardText.NO_QR_CODE)
 
         /** What the editor says when a code is not taken (the Mac's words). */
-        internal fun codeProblem(problem: TotpSetupException): String = when (problem) {
-            is TotpSetupException.Empty -> "Paste the secret or the otpauth:// link the site shows."
-            is TotpSetupException.Unreadable -> "That is not a one-time code secret (Base32 letters A–Z and digits 2–7) or an otpauth:// link."
-            is TotpSetupException.TooShort -> "That secret is too short to be a real one; check that all of it was copied."
-            is TotpSetupException.Unsupported -> "This code cannot be used here: ${problem.reason}."
+        internal fun codeProblem(problem: TotpSetupException): UserText = when (problem) {
+            is TotpSetupException.Empty -> UserText.of(CardText.CODE_EMPTY)
+            is TotpSetupException.Unreadable -> UserText.of(CardText.CODE_UNREADABLE)
+            is TotpSetupException.TooShort -> UserText.of(CardText.CODE_TOO_SHORT)
+            is TotpSetupException.Unsupported -> UserText.of(CardText.CODE_UNSUPPORTED, problem.reason)
         }
 
         /** The largest file attached (keething-spec edit.attachments AC2; the Mac's): 64 MiB. */
@@ -552,9 +553,9 @@ public class EntryEditor private constructor(
         }
 
         /** Why [prefix] cannot name a list of codes; null when it can. */
-        public fun prefixProblem(prefix: String): String? = when {
-            prefix.isBlank() -> "The codes need a name for their list."
-            '_' in prefix -> "The list's name cannot contain “_” (it separates the name from the number)."
+        public fun prefixProblem(prefix: String): UserText? = when {
+            prefix.isBlank() -> UserText.of(CardText.CODES_NO_LIST_NAME)
+            '_' in prefix -> UserText.of(CardText.CODES_UNDERSCORE)
             else -> null
         }
 

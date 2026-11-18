@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 
@@ -101,104 +102,120 @@ public enum class FieldType(public val typeName: String) {
     public val isPassword: Boolean get() = this == PASSWORD || this == WIFI_PASSWORD
 
     /** The menus' name for it ("Expiry" under *Card*). */
-    public val title: String
-        get() = when (this) {
-            TEXT -> "Text"
-            DATE -> "Date"
-            UNTIL -> "Date until (expiry)"
-            URL -> "URL"
-            CODE -> "Code"
-            PASSWORD -> "Password"
-            CARD_NUMBER -> "Number"
-            CARD_HOLDER -> "Holder"
-            CARD_EXPIRY -> "Expiry"
-            CARD_CVC -> "CVC"
-            CARD_PIN -> "PIN"
-            CARD_TYPE -> "Type"
-            WIFI_SSID -> "Network name"
-            WIFI_PASSWORD -> "Password"
-            WIFI_SECURITY -> "Security"
-            BANK_IBAN -> "IBAN"
-            BANK_BIC -> "BIC / SWIFT"
-            BANK_NAME -> "Bank"
-            BANK_HOLDER -> "Account holder"
-            BANK_ACCOUNT -> "Account number"
-            BANK_CODE -> "Bank code (BIK, routing…)"
-            BANK_CORR -> "Correspondent account"
-            DOC_TYPE -> "Type"
-            DOC_NUMBER -> "Number"
-            DOC_NAME -> "Name"
-            DOC_COUNTRY -> "Country"
-            DOC_BIRTH -> "Date of birth"
-            DOC_ISSUED -> "Issued"
-            DOC_EXPIRY -> "Expiry"
-            SSH_HOST -> "Host"
-            SSH_PORT -> "Port"
-            SSH_USER -> "User"
-            CRYPTO_SEED -> "Recovery phrase"
-            CRYPTO_PASSPHRASE -> "Passphrase (25th word)"
-            CRYPTO_ADDRESS -> "Receiving address"
-            CRYPTO_XPUB -> "Extended public key"
-            CRYPTO_PATH -> "Derivation path"
-        }
+    public val title: UserText
+        get() = UserText.of(
+            when (this) {
+                TEXT -> CardText.TYPE_TEXT
+                DATE -> CardText.TYPE_DATE
+                UNTIL -> CardText.TYPE_UNTIL
+                URL -> CardText.TYPE_URL
+                CODE -> CardText.TYPE_CODE
+                PASSWORD -> CardText.TYPE_PASSWORD
+                CARD_NUMBER -> CardText.TYPE_CARD_NUMBER
+                CARD_HOLDER -> CardText.TYPE_CARD_HOLDER
+                CARD_EXPIRY -> CardText.TYPE_CARD_EXPIRY
+                CARD_CVC -> CardText.TYPE_CARD_CVC
+                CARD_PIN -> CardText.TYPE_CARD_PIN
+                CARD_TYPE -> CardText.TYPE_CARD_TYPE
+                WIFI_SSID -> CardText.TYPE_WIFI_SSID
+                WIFI_PASSWORD -> CardText.TYPE_WIFI_PASSWORD
+                WIFI_SECURITY -> CardText.TYPE_WIFI_SECURITY
+                BANK_IBAN -> CardText.TYPE_BANK_IBAN
+                BANK_BIC -> CardText.TYPE_BANK_BIC
+                BANK_NAME -> CardText.TYPE_BANK_NAME
+                BANK_HOLDER -> CardText.TYPE_BANK_HOLDER
+                BANK_ACCOUNT -> CardText.TYPE_BANK_ACCOUNT
+                BANK_CODE -> CardText.TYPE_BANK_CODE
+                BANK_CORR -> CardText.TYPE_BANK_CORR
+                DOC_TYPE -> CardText.TYPE_DOC_TYPE
+                DOC_NUMBER -> CardText.TYPE_DOC_NUMBER
+                DOC_NAME -> CardText.TYPE_DOC_NAME
+                DOC_COUNTRY -> CardText.TYPE_DOC_COUNTRY
+                DOC_BIRTH -> CardText.TYPE_DOC_BIRTH
+                DOC_ISSUED -> CardText.TYPE_DOC_ISSUED
+                DOC_EXPIRY -> CardText.TYPE_DOC_EXPIRY
+                SSH_HOST -> CardText.TYPE_SSH_HOST
+                SSH_PORT -> CardText.TYPE_SSH_PORT
+                SSH_USER -> CardText.TYPE_SSH_USER
+                CRYPTO_SEED -> CardText.TYPE_CRYPTO_SEED
+                CRYPTO_PASSPHRASE -> CardText.TYPE_CRYPTO_PASSPHRASE
+                CRYPTO_ADDRESS -> CardText.TYPE_CRYPTO_ADDRESS
+                CRYPTO_XPUB -> CardText.TYPE_CRYPTO_XPUB
+                CRYPTO_PATH -> CardText.TYPE_CRYPTO_PATH
+            },
+        )
 
     /** The name where it stands alone ("Card expiry"). */
-    public val fullTitle: String
-        get() = when {
-            isCardPart -> "Card " + title.lowercase()
-            isWiFiPart -> "Wi-Fi " + title.lowercase()
-            this == BANK_NAME -> "Bank name"
-            this == BANK_CODE -> "Bank code"
-            this == DOC_BIRTH -> "Date of birth"
-            isDocumentPart -> "Document " + title.lowercase()
-            isSshPart -> "SSH " + title.lowercase()
-            this == CRYPTO_PASSPHRASE -> "Wallet passphrase"
+    public val fullTitle: UserText
+        get() = when (this) {
+            CARD_NUMBER -> UserText.of(CardText.FULL_CARD_NUMBER)
+            CARD_HOLDER -> UserText.of(CardText.FULL_CARD_HOLDER)
+            CARD_EXPIRY -> UserText.of(CardText.FULL_CARD_EXPIRY)
+            CARD_CVC -> UserText.of(CardText.FULL_CARD_CVC)
+            CARD_PIN -> UserText.of(CardText.FULL_CARD_PIN)
+            CARD_TYPE -> UserText.of(CardText.FULL_CARD_TYPE)
+            WIFI_SSID -> UserText.of(CardText.FULL_WIFI_SSID)
+            WIFI_PASSWORD -> UserText.of(CardText.FULL_WIFI_PASSWORD)
+            WIFI_SECURITY -> UserText.of(CardText.FULL_WIFI_SECURITY)
+            BANK_NAME -> UserText.of(CardText.FULL_BANK_NAME)
+            BANK_CODE -> UserText.of(CardText.FULL_BANK_CODE)
+            DOC_TYPE -> UserText.of(CardText.FULL_DOC_TYPE)
+            DOC_NUMBER -> UserText.of(CardText.FULL_DOC_NUMBER)
+            DOC_NAME -> UserText.of(CardText.FULL_DOC_NAME)
+            DOC_COUNTRY -> UserText.of(CardText.FULL_DOC_COUNTRY)
+            DOC_ISSUED -> UserText.of(CardText.FULL_DOC_ISSUED)
+            DOC_EXPIRY -> UserText.of(CardText.FULL_DOC_EXPIRY)
+            SSH_HOST -> UserText.of(CardText.FULL_SSH_HOST)
+            SSH_PORT -> UserText.of(CardText.FULL_SSH_PORT)
+            SSH_USER -> UserText.of(CardText.FULL_SSH_USER)
+            CRYPTO_PASSPHRASE -> UserText.of(CardText.FULL_CRYPTO_PASSPHRASE)
             else -> title
         }
 
     /**
      * The name a new field of this type starts with. The Mac names only a card's and a Wi-Fi network's parts; the
-     * phone names every type, so that a new field starts in its value (typing a name is slow on a phone).
+     * phone names every type, so that a new field starts in its value (typing a name is slow on a phone). A name in
+     * the file, as the Mac's: English whatever the phone's language (keething-spec plans T13b).
      */
     public val defaultName: String
         get() = when (this) {
-            TEXT -> "Text"
-            DATE -> "Date"
-            UNTIL -> "Valid until"
-            URL -> "Website"
-            CODE -> "Code"
-            PASSWORD -> "Password"
-            CARD_NUMBER -> "Card number"
-            CARD_HOLDER -> "Cardholder"
-            CARD_EXPIRY -> "Expiry date"
-            CARD_CVC -> "CVC"
-            CARD_PIN -> "PIN"
-            CARD_TYPE -> "Card type"
-            WIFI_SSID -> "Network name"
-            WIFI_PASSWORD -> "Wi-Fi password"
-            WIFI_SECURITY -> "Security"
-            BANK_IBAN -> "IBAN"
-            BANK_BIC -> "BIC"
-            BANK_NAME -> "Bank"
-            BANK_HOLDER -> "Account holder"
-            BANK_ACCOUNT -> "Account number"
-            BANK_CODE -> "Bank code"
-            BANK_CORR -> "Correspondent account"
-            DOC_TYPE -> "Document type"
-            DOC_NUMBER -> "Document number"
-            DOC_NAME -> "Full name"
-            DOC_COUNTRY -> "Issuing country"
-            DOC_BIRTH -> "Date of birth"
-            DOC_ISSUED -> "Date of issue"
-            DOC_EXPIRY -> "Valid until"
-            SSH_HOST -> "Host"
-            SSH_PORT -> "Port"
-            SSH_USER -> "SSH user"
-            CRYPTO_SEED -> "Recovery phrase"
-            CRYPTO_PASSPHRASE -> "Passphrase"
-            CRYPTO_ADDRESS -> "Address"
-            CRYPTO_XPUB -> "xpub"
-            CRYPTO_PATH -> "Derivation path"
+            TEXT -> "Text" // not user text
+            DATE -> "Date" // not user text
+            UNTIL -> "Valid until" // not user text
+            URL -> "Website" // not user text
+            CODE -> "Code" // not user text
+            PASSWORD -> "Password" // not user text
+            CARD_NUMBER -> "Card number" // not user text
+            CARD_HOLDER -> "Cardholder" // not user text
+            CARD_EXPIRY -> "Expiry date" // not user text
+            CARD_CVC -> "CVC" // not user text
+            CARD_PIN -> "PIN" // not user text
+            CARD_TYPE -> "Card type" // not user text
+            WIFI_SSID -> "Network name" // not user text
+            WIFI_PASSWORD -> "Wi-Fi password" // not user text
+            WIFI_SECURITY -> "Security" // not user text
+            BANK_IBAN -> "IBAN" // not user text
+            BANK_BIC -> "BIC" // not user text
+            BANK_NAME -> "Bank" // not user text
+            BANK_HOLDER -> "Account holder" // not user text
+            BANK_ACCOUNT -> "Account number" // not user text
+            BANK_CODE -> "Bank code" // not user text
+            BANK_CORR -> "Correspondent account" // not user text
+            DOC_TYPE -> "Document type" // not user text
+            DOC_NUMBER -> "Document number" // not user text
+            DOC_NAME -> "Full name" // not user text
+            DOC_COUNTRY -> "Issuing country" // not user text
+            DOC_BIRTH -> "Date of birth" // not user text
+            DOC_ISSUED -> "Date of issue" // not user text
+            DOC_EXPIRY -> "Valid until" // not user text
+            SSH_HOST -> "Host" // not user text
+            SSH_PORT -> "Port" // not user text
+            SSH_USER -> "SSH user" // not user text
+            CRYPTO_SEED -> "Recovery phrase" // not user text
+            CRYPTO_PASSPHRASE -> "Passphrase" // not user text
+            CRYPTO_ADDRESS -> "Address" // not user text
+            CRYPTO_XPUB -> "xpub" // not user text
+            CRYPTO_PATH -> "Derivation path" // not user text
         }
 
     public companion object {
@@ -212,8 +229,14 @@ public enum class FieldType(public val typeName: String) {
         public val CRYPTO: List<FieldType> = entries.filter { it.isCryptoPart }
 
         /** The kinds of entries whose parts the editor's menus offer, by their menu title. */
-        public val KINDS: List<Pair<String, List<FieldType>>> =
-            listOf("Card" to CARD, "Wi-Fi" to WIFI, "Bank account" to BANK, "Document" to DOCUMENT, "SSH" to SSH, "Crypto" to CRYPTO)
+        public val KINDS: List<Pair<UserText, List<FieldType>>> = listOf(
+            UserText.of(CardText.KIND_CARD) to CARD,
+            UserText.of(CardText.KIND_WIFI) to WIFI,
+            UserText.of(CardText.KIND_BANK) to BANK,
+            UserText.of(CardText.KIND_DOCUMENT) to DOCUMENT,
+            UserText.of(CardText.KIND_SSH) to SSH,
+            UserText.of(CardText.KIND_CRYPTO) to CRYPTO,
+        )
 
         /** A stored type name (case and outer spaces ignored); null when it is none this version knows. */
         public fun of(typeName: String): FieldType? {

@@ -1,5 +1,9 @@
 package dev.keething.android.list
 
+import dev.keething.domain.text.UserText
+import dev.keething.android.ui.uiPlain
+import dev.keething.android.ui.ui
+import dev.keething.android.ui.UiText
 import dev.keething.android.databases.DatabaseMark
 import dev.keething.android.session.OpenDatabase
 import dev.keething.card.Deadline
@@ -29,7 +33,7 @@ internal data class EntryRow(
     val id: String,
     val title: String,
     /** `username · host`, either part left out when empty. */
-    val subtitle: String,
+    val subtitle: UiText,
     /** The group's path, `Finanzen`, `Banken` (inside the recycle bin for an entry in it); empty for the root group. */
     val group: List<String>,
     val avatar: EntryAvatar,
@@ -76,7 +80,7 @@ internal data class CodeTile(
 }
 
 /** The most pressing date an entry says something ends on, when it ended or ends within 90 days. */
-internal data class RowDeadline(val text: String, val status: ExpiryHint.Status)
+internal data class RowDeadline(val text: UiText, val status: ExpiryHint.Status)
 
 internal data class ListSection(val kind: Kind, val rows: List<EntryRow>) {
     /** [SUGGESTED]: the entries autofill matched to the app or page (SPEC §7). */
@@ -323,7 +327,7 @@ internal class VaultListing(
 
     /** A further code's field name as the card shows it; an empty or generated one is [unnamedCode] ("One-time code"). */
     private fun codeName(name: String): String =
-        if (name.isBlank() || ImportedFieldName.isGeneratedId(name)) unnamedCode else ImportedFieldName.displayName(name)
+        if (name.isBlank()) unnamedCode else ImportedFieldName.shownName(name) ?: unnamedCode
 
     fun section(kind: ListSection.Kind, entries: List<Entry>): ListSection? =
         if (entries.isEmpty()) null else ListSection(kind, entries.map(::row))
@@ -332,7 +336,7 @@ internal class VaultListing(
         id = entry.id,
         title = entry.displayTitle,
         // A card or a network says which it is ("Visa •• 4242 · 12/26"), a note its line; other entries their username and site.
-        subtitle = faces[entry.id]?.subtitle ?: entry.username.ifEmpty { entry.webHost.orEmpty() },
+        subtitle = faces[entry.id]?.subtitle?.ui() ?: uiPlain(entry.username.ifEmpty { entry.webHost.orEmpty() }),
         group = if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1),
         avatar = EntryAvatar.of(entry.displayTitle),
         customIconId = entry.customIconId?.takeIf { it in vault.customIcons },
@@ -347,7 +351,13 @@ internal class VaultListing(
 
     private fun rowDeadline(deadline: Deadline): RowDeadline {
         val hint = deadline.hint
-        val text = if (deadline.source != Deadline.Source.EntryExpiry) "${deadline.label.substringAfterLast(" › ")} · ${hint.text}" else hint.text
-        return RowDeadline(text, hint.status)
+        // A field's own name without its section ("Ende" of "VERTRAG › Ende"), then how it stands.
+        val text = if (deadline.source != Deadline.Source.EntryExpiry) {
+            val field = (deadline.label as? UserText.Plain)?.let { UserText.plain(it.text.substringAfterLast(" › ")) } ?: deadline.label
+            UserText.Joined(listOf(field, hint.text), " · ")
+        } else {
+            hint.text
+        }
+        return RowDeadline(text.ui(), hint.status)
     }
 }

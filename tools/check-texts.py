@@ -6,7 +6,7 @@ A string literal is flagged when it holds words: a capitalised word ("Saved"), o
 user sees (a key, a tag, a name from the KDBX format) is kept by `// not user text` at the end of its line, or the line
 before; a whole file by being listed in tools/texts-allowed.txt with the reason.
 
-    tools/check-texts.py [dir ...]       default: app/src/main/kotlin
+    tools/check-texts.py [dir ...]       default: app/ and the core modules done so far (DEFAULT_DIRS)
     tools/check-texts.py --count [dir]   only the number per file
 """
 import re
@@ -15,6 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MARK = "not user text"
+# app/, and the core modules whose texts are UserText already (keething-spec plans T13b; the others follow).
+DEFAULT_DIRS = ["app/src/main/kotlin", "core/card/src/main/kotlin", "core/totp/src/main/kotlin"]
 WORDS = re.compile(r"[A-Z][a-z]+|[A-Za-z]{2,} [A-Za-z]{2,}")
 SKIPPED_CALL = re.compile(r"\b(Log\.[a-z]+|require|requireNotNull|check|checkNotNull|error|TODO|println|Exception|Error)\s*\($")
 
@@ -89,7 +91,7 @@ def flagged(path):
 
 def main(argv):
     count = "--count" in argv
-    dirs = [a for a in argv if not a.startswith("--")] or ["app/src/main/kotlin"]
+    dirs = [a for a in argv if not a.startswith("--")] or DEFAULT_DIRS
     allowed = {}
     allow_file = ROOT / "tools/texts-allowed.txt"
     if allow_file.exists():

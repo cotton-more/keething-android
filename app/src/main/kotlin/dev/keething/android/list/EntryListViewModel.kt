@@ -1,5 +1,6 @@
 package dev.keething.android.list
 
+import dev.keething.android.ui.ui
 import dev.keething.domain.storage.StoppedSave
 import dev.keething.android.session.file
 import android.util.Log
@@ -439,7 +440,7 @@ internal class EntryListViewModel(
     fun editCode(tile: CodeTile, config: TotpConfig, name: String?): UiText? {
         val found = openEntry(EntryRef.of(tile.entryId)) ?: return SAVE_LOCKED
         val field = tile.fieldName
-        if (field != null && name != null) CodeEdits.nameProblem(found.entry, field, name)?.let { return uiPlain(it) }
+        if (field != null && name != null) CodeEdits.nameProblem(found.entry, field, name)?.let { return it.ui() }
         save(found.database, VaultEdit.Update(found.entry.id, found.entry.lastModified, CodeEdits.edit(found.entry, field, config, name))) { problem ->
             val title = found.entry.displayTitle
             val changed = if (field == null) {

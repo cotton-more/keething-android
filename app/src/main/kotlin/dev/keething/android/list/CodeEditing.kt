@@ -1,5 +1,6 @@
 package dev.keething.android.list
 
+import dev.keething.android.ui.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -102,6 +103,7 @@ internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpCon
     var name by remember { mutableStateOf(tile.fieldName.orEmpty()) }
     var replaced by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<UiText?>(null) }
+    val resources = LocalResources.current
     val take = { read: ReadCode ->
         when (read) {
             is ReadCode.Code -> {
@@ -110,7 +112,7 @@ internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpCon
                 replaced = true
                 null
             }
-            is ReadCode.Refused -> read.problem
+            is ReadCode.Refused -> read.problem.ui().resolve(resources)
         }
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -190,10 +192,11 @@ internal fun AddCodeSheet(
                     Text(stringResource(R.string.list_add_a_code), style = MaterialTheme.typography.headlineSmall)
                     Text(stringResource(R.string.list_add_code_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                val resources = LocalResources.current
                 val take = { given: ReadCode ->
                     when (given) {
                         is ReadCode.Code -> null.also { read = given }
-                        is ReadCode.Refused -> given.problem
+                        is ReadCode.Refused -> given.problem.ui().resolve(resources)
                     }
                 }
                 CodeInput(large = true, onText = { take(CodeEdits.read(it)) }, onTexts = { take(CodeEdits.read(it)) })

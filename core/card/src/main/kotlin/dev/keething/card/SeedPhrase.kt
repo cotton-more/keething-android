@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import java.security.MessageDigest
 import java.text.Normalizer
 import javax.crypto.Mac
@@ -16,7 +17,7 @@ public data class SeedPhrase(val words: List<String>, val check: Check) {
         /** A BIP-39 phrase whose checksum is right. */
         public data class Bip39(val language: Bip39Language) : Check
 
-        /** An Electrum seed ("Standard", "SegWit", "2FA", "2FA SegWit"): not BIP-39, restored in Electrum. */
+        /** An Electrum seed ("Standard", "SegWit", "2FA", "2FA SegWit", Electrum's names for them): not BIP-39, restored in Electrum. */
         public data class Electrum(val kind: String) : Check
 
         /** A word, by its index, that is in no list the others are in. */
@@ -39,13 +40,13 @@ public data class SeedPhrase(val words: List<String>, val check: Check) {
     val isWords: Boolean get() = check != Check.NotAPhrase
 
     /** What the check says, for the face and the editor. */
-    public fun summary(): String = when (val c = check) {
-        is Check.Bip39 -> "The checksum is right: BIP-39, ${c.language.displayName}"
-        is Check.Electrum -> "An Electrum seed (${c.kind}), not BIP-39: restore it in Electrum"
-        is Check.UnknownWord -> "Word ${c.index + 1}, “${words[c.index]}”, is not a BIP-39 word. A typo?"
-        is Check.ChecksumFails -> "The checksum fails: a word is wrong, or two are swapped"
-        is Check.WordCount -> "A BIP-39 phrase has 12, 15, 18, 21 or 24 words; this one has ${words.size}"
-        Check.NotAPhrase -> "Not a BIP-39 phrase: most of its words are in no BIP-39 list"
+    public fun summary(): UserText = when (val c = check) {
+        is Check.Bip39 -> UserText.of(CardText.SEED_BIP39, c.language.displayName)
+        is Check.Electrum -> UserText.of(CardText.SEED_ELECTRUM, c.kind)
+        is Check.UnknownWord -> UserText.of(CardText.SEED_UNKNOWN_WORD, c.index + 1, words[c.index])
+        is Check.ChecksumFails -> UserText.of(CardText.SEED_CHECKSUM_FAILS)
+        is Check.WordCount -> UserText.of(CardText.SEED_WORD_COUNT, words.size)
+        Check.NotAPhrase -> UserText.of(CardText.SEED_NOT_A_PHRASE)
     }
 
     public companion object {
@@ -125,15 +126,16 @@ public data class SeedPhrase(val words: List<String>, val check: Check) {
          * a typo is seldom taken for one.
          */
         private fun electrumKind(text: String, count: Int): String? {
-            val mac = Mac.getInstance("HmacSHA512")
-            mac.init(SecretKeySpec("Seed version".toByteArray(), "HmacSHA512"))
+            val mac = Mac.getInstance("HmacSHA512") // not user text
+            mac.init(SecretKeySpec("Seed version".toByteArray(), "HmacSHA512")) // not user text
             val hex = mac.doFinal(electrumNormalized(text).toByteArray()).joinToString("") { "%02x".format(it) }
             return when {
                 count !in 12..13 && !(count >= 20 && hex.startsWith("101")) && !hex.startsWith("102") -> null
-                hex.startsWith("01") -> "Standard"
-                hex.startsWith("100") -> "SegWit"
+                // Electrum's own names of its seeds, as Electrum shows them.
+                hex.startsWith("01") -> "Standard" // not user text
+                hex.startsWith("100") -> "SegWit" // not user text
                 hex.startsWith("101") && (count == 12 || count >= 20) -> "2FA"
-                hex.startsWith("102") -> "2FA SegWit"
+                hex.startsWith("102") -> "2FA SegWit" // not user text
                 else -> null
             }
         }
@@ -157,22 +159,24 @@ public data class SeedPhrase(val words: List<String>, val check: Check) {
 }
 
 /** BIP-39's word lists (MIT, `resources/…/bip39`), in the BIP's order. */
-public enum class Bip39Language(public val displayName: String, private val file: String) {
-    ENGLISH("English", "english"),
-    JAPANESE("Japanese", "japanese"),
-    KOREAN("Korean", "korean"),
-    SPANISH("Spanish", "spanish"),
-    CHINESE_SIMPLIFIED("Chinese (simplified)", "chinese_simplified"),
-    CHINESE_TRADITIONAL("Chinese (traditional)", "chinese_traditional"),
-    FRENCH("French", "french"),
-    ITALIAN("Italian", "italian"),
-    CZECH("Czech", "czech"),
-    PORTUGUESE("Portuguese", "portuguese"),
+public enum class Bip39Language(private val key: CardText, private val file: String) {
+    ENGLISH(CardText.LANGUAGE_ENGLISH, "english"),
+    JAPANESE(CardText.LANGUAGE_JAPANESE, "japanese"),
+    KOREAN(CardText.LANGUAGE_KOREAN, "korean"),
+    SPANISH(CardText.LANGUAGE_SPANISH, "spanish"),
+    CHINESE_SIMPLIFIED(CardText.LANGUAGE_CHINESE_SIMPLIFIED, "chinese_simplified"),
+    CHINESE_TRADITIONAL(CardText.LANGUAGE_CHINESE_TRADITIONAL, "chinese_traditional"),
+    FRENCH(CardText.LANGUAGE_FRENCH, "french"),
+    ITALIAN(CardText.LANGUAGE_ITALIAN, "italian"),
+    CZECH(CardText.LANGUAGE_CZECH, "czech"),
+    PORTUGUESE(CardText.LANGUAGE_PORTUGUESE, "portuguese"),
     ;
+
+    public val displayName: UserText get() = UserText.of(key)
 
     /** The 2048 words, NFKD as the BIP writes them; read once, when first needed. */
     private val words: List<String> by lazy {
-        val stream = checkNotNull(Bip39Language::class.java.getResourceAsStream("/dev/keething/card/bip39/$file.txt")) { "word list $file missing" }
+        val stream = checkNotNull(Bip39Language::class.java.getResourceAsStream("/dev/keething/card/bip39/$file.txt")) { "word list $file missing" } // not user text
         stream.bufferedReader().useLines { lines -> lines.map(String::trim).filter(String::isNotEmpty).toList() }.also { check(it.size == 2048) }
     }
 

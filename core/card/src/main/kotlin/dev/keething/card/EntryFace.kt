@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.Entry
 import java.util.Locale
 
@@ -9,61 +10,65 @@ import java.util.Locale
  * line saying which it is instead of the username and site.
  */
 public sealed interface EntryFace {
-    /** The line under the title. */
-    public val subtitle: String
+    /** The line under the title: its parts with " · " between. */
+    public val subtitle: UserText
 
     /** A payment card: its network, the last digits of an unprotected number, the month it expires. */
     public data class Card(val network: CardBrand?, val brand: String?, val lastDigits: String?, val expiry: CalendarDate?) : EntryFace {
-        override val subtitle: String
-            get() = listOfNotNull(
-                (brand ?: "Card") + (lastDigits?.let { " •• $it" } ?: ""),
-                expiry?.let { "%02d/%02d".format(Locale.ROOT, it.month, it.year % 100) },
-            ).joinToString(" · ")
+        override val subtitle: UserText
+            get() = line(
+                UserText.Joined(listOfNotNull(brand?.let(UserText::plain) ?: UserText.of(CardText.FACE_CARD), lastDigits?.let { UserText.plain("•• $it") }), " "),
+                expiry?.let { UserText.plain("%02d/%02d".format(Locale.ROOT, it.month, it.year % 100)) },
+            )
     }
 
     /** A Wi-Fi network: its name and how it is secured ("WPA2", "Open"). */
-    public data class WiFi(val ssid: String, val securityLabel: String) : EntryFace {
-        override val subtitle: String get() = "$securityLabel · $ssid"
+    public data class WiFi(val ssid: String, val securityLabel: UserText) : EntryFace {
+        override val subtitle: UserText get() = line(securityLabel, UserText.plain(ssid))
     }
 
     /** A bank account: the number's start and end (`DE89 •• 3000`), the bank; the country for the flag. */
     public data class Bank(val country: String?, val number: String?, val bank: String?) : EntryFace {
-        override val subtitle: String get() = listOfNotNull(number ?: "Bank account", bank).joinToString(" · ")
+        override val subtitle: UserText
+            get() = line(number?.let(UserText::plain) ?: UserText.of(CardText.FACE_BANK_ACCOUNT), bank?.let(UserText::plain))
     }
 
     /** An identity document: its type, the country, the month it ends. */
     public data class Document(val kind: String?, val country: String?, val expiry: CalendarDate?) : EntryFace {
-        override val subtitle: String
-            get() = listOfNotNull(
-                kind ?: "Document",
-                country,
-                expiry?.let { "until %02d/%04d".format(Locale.ROOT, it.month, it.year) },
-            ).joinToString(" · ")
+        override val subtitle: UserText
+            get() = line(
+                kind?.let(UserText::plain) ?: UserText.of(CardText.FACE_DOCUMENT),
+                country?.let(UserText::plain),
+                expiry?.let { UserText.of(CardText.FACE_UNTIL, "%02d/%04d".format(Locale.ROOT, it.month, it.year)) },
+            )
     }
 
     /** An SSH login: `user@host:port`. */
     public data class Ssh(val target: String) : EntryFace {
-        override val subtitle: String get() = target
+        override val subtitle: UserText get() = UserText.plain(target)
     }
 
     /** A crypto wallet: its network, the first address's start and end, or that it holds a recovery phrase. */
     public data class Crypto(val network: CryptoNetwork?, val address: String?, val hasPhrase: Boolean) : EntryFace {
-        override val subtitle: String
-            get() = listOfNotNull(
-                network?.displayName ?: "Crypto wallet",
-                address?.let { if (it.length > 14) it.take(6) + "…" + it.takeLast(4) else it } ?: "recovery phrase".takeIf { hasPhrase },
-            ).joinToString(" · ")
+        override val subtitle: UserText
+            get() = line(
+                network?.displayName?.let(UserText::plain) ?: UserText.of(CardText.FACE_CRYPTO_WALLET),
+                address?.let { UserText.plain(if (it.length > 14) it.take(6) + "…" + it.takeLast(4) else it) }
+                    ?: UserText.of(CardText.FACE_RECOVERY_PHRASE).takeIf { hasPhrase },
+            )
     }
 
     /**
      * A note (SPEC §6.4, keething-spec types.note AC7): the note tile in place of its icon or a kind's face, and its
      * [line][NoteLine], `Protected note` when [protected] (nothing of the text read), nothing when it has none.
      */
-    public data class Note(val line: String?, val protected: Boolean) : EntryFace {
-        override val subtitle: String get() = line.orEmpty()
+    public data class Note(val line: UserText?, val protected: Boolean) : EntryFace {
+        override val subtitle: UserText get() = line ?: UserText.plain("")
     }
 
     public companion object {
+        private fun line(vararg parts: UserText?): UserText = UserText.Joined(parts.filterNotNull(), " · ")
+
         /** The face of an entry, as its card draws it; null for any other entry. Reads nothing protected. */
         public fun of(entry: Entry): EntryFace? {
             // A note's tile wins over a kind's face (types.note AC7).
@@ -121,7 +126,7 @@ public sealed interface EntryFace {
                     addresses = entry.customFields.withIndex().filter { interpreter.type(it.value) == FieldType.CRYPTO_ADDRESS },
                     xpub = entry.customFields.withIndex().firstOrNull { interpreter.type(it.value) == FieldType.CRYPTO_XPUB },
                     path = entry.customFields.withIndex().firstOrNull { interpreter.type(it.value) == FieldType.CRYPTO_PATH },
-                    label = { "" },
+                    label = { UserText.plain("") },
                 )
                 return Crypto(wallet.network, wallet.addresses.firstOrNull()?.text, typed(FieldType.CRYPTO_SEED) != null)
             }

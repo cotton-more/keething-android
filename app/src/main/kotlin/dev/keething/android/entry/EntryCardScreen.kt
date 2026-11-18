@@ -1,5 +1,6 @@
 package dev.keething.android.entry
 
+import dev.keething.android.ui.resolve
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import dev.keething.android.session.isReadOnly
@@ -293,7 +294,7 @@ internal fun EntryCardScreen(
         },
         onCopyText = model::copyText,
         onCopySelection = model::copySelection,
-        onShareBank = { model.bankShareIntent()?.let { context.startActivity(ShareSheet.of(context, it)) } },
+        onShareBank = { model.bankShareIntent(context.resources)?.let { context.startActivity(ShareSheet.of(context, it)) } },
         onSeedWords = { onShowPassword(PasswordView.SEED_WORDS) },
         onAddressQr = onShowAddress,
     )
@@ -669,8 +670,8 @@ private fun Banners(content: CardContent) {
     }
     when (val expiry = card.entryExpiry) {
         // The same words as a field's end date (keething-spec card.dates AC8), then the day.
-        is EntryExpiry.Expired -> Banner(Icons.Rounded.ErrorOutline, "${expiry.hint.text} · ${dates.format(expiry.at)}", problem = true)
-        is EntryExpiry.Expires -> Banner(Icons.Rounded.Schedule, "${expiry.hint.text} · ${dates.format(expiry.at)}", problem = false)
+        is EntryExpiry.Expired -> Banner(Icons.Rounded.ErrorOutline, "${expiry.hint.text.resolve()} · ${dates.format(expiry.at)}", problem = true)
+        is EntryExpiry.Expires -> Banner(Icons.Rounded.Schedule, "${expiry.hint.text.resolve()} · ${dates.format(expiry.at)}", problem = false)
         null -> {}
     }
     // A payment card's own expiry is a chip under its face.
@@ -678,7 +679,7 @@ private fun Banners(content: CardContent) {
     val faceExpiries = setOfNotNull(card.paymentCard?.expiryRowId, card.document?.expiryRowId)
     card.deadline?.takeUnless { (it.source as? Deadline.Source.Field)?.let { field -> RowIds.custom(field.index) } in faceExpiries }?.let { deadline ->
         val expired = deadline.hint.status == ExpiryHint.Status.EXPIRED
-        Banner(Icons.Rounded.Schedule, "${deadline.label} · ${deadline.hint.text}", problem = expired, warning = !expired)
+        Banner(Icons.Rounded.Schedule, "${deadline.label.resolve()} · ${deadline.hint.text.resolve()}", problem = expired, warning = !expired)
     }
 }
 
@@ -781,5 +782,5 @@ internal class CardActions(
 /** Tapping anywhere on a row copies it (SPEC §6.2). */
 @Composable
 internal fun Modifier.copyOnTap(row: FieldRow, actions: CardActions): Modifier =
-    if (row.isCopyable) clickable(onClickLabel = stringResource(R.string.entry_row_copy, row.noticeLabel.lowercase())) { actions.onCopy(row) } else this
+    if (row.isCopyable) clickable(onClickLabel = stringResource(R.string.entry_row_copy, row.noticeLabel.resolve().lowercase())) { actions.onCopy(row) } else this
 

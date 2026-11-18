@@ -1,5 +1,6 @@
 package dev.keething.card
 
+import dev.keething.domain.text.english
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryType
@@ -33,7 +34,7 @@ class NoteCardTest {
         val text = card.sections.first().rows.single()
         assertEquals(FieldRow.Kind.NOTE, text.kind)
         assertEquals(RowIds.NOTE, text.id)
-        assertEquals("Note", text.label)
+        assertEquals("Note", text.label.english())
         assertEquals("Dune\nArrival", text.storedText())
         assertTrue(text.isConcealed, "a protected text is hidden until shown")
         assertFalse(text.isProtected, "a string with a flag, not a secret (decision P4)")
@@ -82,7 +83,7 @@ class NoteCardTest {
 
         assertTrue(row.isCopyable)
         assertEquals(text, row.clipboardText())
-        assertEquals("Note", row.noticeLabel)
+        assertEquals("Note", row.noticeLabel.english())
     }
 
     // spec: types.note/AC6
@@ -113,7 +114,7 @@ class NoteCardTest {
     // spec: types.note/AC7
     @Test
     fun theLineIsTheFirstLineNotBlankAndNotTheTitleNothingWhenThereIsNone() {
-        fun line(title: String, notes: String) = NoteLine.of(Entry("n", title = title, notes = notes))
+        fun line(title: String, notes: String) = NoteLine.of(Entry("n", title = title, notes = notes))?.english()
 
         assertEquals("Dune", line("Films", "\n  \n  Dune  \nArrival"))
         assertEquals("Dune", line("Films", " Films \n\nDune"), "the title as the first line is skipped")
@@ -130,16 +131,16 @@ class NoteCardTest {
     fun aNoteHasTheNoteFaceInPlaceOfAKindsFaceItsLineNeverTheUsernameOrHost() {
         val visa = typed(Entry("c", title = "Visa", customFields = cardFields, entryType = note), cardTypes)
         assertEquals(EntryFace.Note(line = null, protected = false), EntryFace.of(visa), "the note's icon wins over the card's face")
-        assertEquals("", EntryFace.of(visa)!!.subtitle)
+        assertEquals("", EntryFace.of(visa)!!.subtitle.english())
 
         val login = Entry("u", title = "Login", username = "octocat", url = "https://example.com", notes = "Films", entryType = note)
-        assertEquals("Films", EntryFace.of(login)!!.subtitle, "not octocat")
+        assertEquals("Films", EntryFace.of(login)!!.subtitle.english(), "not octocat")
 
         val protected = EntryFace.of(Entry("p", title = "Note", notes = "$secretWord and more", notesProtected = true, entryType = note))
         assertEquals(EntryFace.Note(line = NoteLine.PROTECTED, protected = true), protected)
         assertFalse(protected.toString().contains(secretWord), "nothing of the text in the face")
 
-        assertEquals("Dune", EntryFace.of(Entry("i", title = "Imported", notes = "Dune\nArrival"))!!.subtitle)
+        assertEquals("Dune", EntryFace.of(Entry("i", title = "Imported", notes = "Dune\nArrival"))!!.subtitle.english())
         assertNull(EntryFace.of(Entry("o", title = "Ordinary", username = "octocat", notes = "Films")))
     }
 }

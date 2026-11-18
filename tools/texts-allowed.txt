@@ -3,3 +3,4 @@ app/src/main/kotlin/dev/keething/android/storageprobe/FingerprintProbe.kt   the 
 app/src/main/kotlin/dev/keething/android/storageprobe/GrantProbe.kt         the debug build's probe
 app/src/main/kotlin/dev/keething/android/storageprobe/StorageProbeScreen.kt the debug build's probe
 app/src/main/kotlin/dev/keething/android/storageprobe/StorageProbeViewModel.kt the debug build's probe
+core/card/src/main/kotlin/dev/keething/card/TypeSuggestion.kt               the names a field is recognised by, in several languages; never shown
