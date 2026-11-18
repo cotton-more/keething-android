@@ -42,6 +42,8 @@
     <string name="about_text_unreadable">The text could not be read.</string>
     <!-- A part under two licences, either to be chosen. %1$s, %2$s: the licences' names -->
     <string name="about_licence_either">%1$s or %2$s</string>
+    <!-- A part under two licences at once (both apply) -->
+    <string name="about_licence_and">%1$s and %2$s</string>
     <!-- What each part is for and whose it is; the names are theirs -->
     <string name="about_credit_eff_wordlist">The password generator\'s words, by the Electronic Frontier Foundation (eff.org/dice)</string>
     <string name="about_credit_bip39">The recovery phrase check\'s words, by the BIP-39 authors</string>
@@ -52,4 +54,7 @@
     <string name="about_credit_androidsvg">Drawing an SVG image to read its QR code, by Paul LeBeau, Cave Rock Software Ltd.</string>
     <string name="about_credit_argon2">The key derivation that opens a database, by Daniel Dinu, Dmitry Khovratovich, Jean-Philippe Aumasson and Samuel Neves</string>
     <string name="about_credit_androidx">Compose, CameraX and the other Jetpack libraries, by The Android Open Source Project and JetBrains</string>
+    <string name="about_credit_public_suffix_list">Which part of a website\'s address is its own domain, by the list\'s contributors, hosted by Mozilla</string>
+    <string name="about_credit_google_libraries">Libraries the Jetpack libraries bring, by Google, JetBrains and their authors</string>
+    <string name="about_credit_checker_qual">Annotations Guava is compiled with, by the Checker Framework developers</string>
 </resources>

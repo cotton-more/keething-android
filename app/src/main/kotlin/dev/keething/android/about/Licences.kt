@@ -45,10 +45,19 @@ import dev.keething.android.theme.extraColors
 
 /**
  * A part of the app under its own licence, its text the asset `licenses/<file>`. Its [name] and the licences' names are
- * theirs, said as they are; [credit] is the app's sentence about it.
+ * theirs, said as they are; [credit] is the app's sentence about it. [artifacts]: the release's Maven artifacts it covers,
+ * as `group:artifact` with `*` for any part (keething-spec app.dependency-licences AC2); a part copied into the source
+ * has none, its files are in `app/third-party-files.txt` (AC3).
  */
-internal data class ThirdParty(val name: String, @StringRes val credit: Int, val licence: UiText, val file: String) {
-    constructor(name: String, @StringRes credit: Int, licence: String, file: String) : this(name, credit, uiPlain(licence), file)
+internal data class ThirdParty(
+    val name: String,
+    @StringRes val credit: Int,
+    val licence: UiText,
+    val file: String,
+    val artifacts: List<String> = emptyList(),
+) {
+    constructor(name: String, @StringRes credit: Int, licence: String, file: String, artifacts: List<String> = emptyList()) :
+        this(name, credit, uiPlain(licence), file, artifacts)
 }
 
 /**
@@ -65,9 +74,9 @@ internal val THIRD_PARTY = listOf(
     ThirdParty("BIP-39 word lists", R.string.about_credit_bip39, "MIT", "bip39-wordlists-MIT.txt"), // not user text: names
     ThirdParty("Matrix SAS emoji", R.string.about_credit_matrix_sas, "Apache 2.0", "matrix-sas-emoji-Apache-2.0.txt"), // not user text: names
     ThirdParty("Google Sans Code", R.string.about_credit_google_sans_code, "OFL 1.1", "google-sans-code-OFL.txt"), // not user text: names
-    ThirdParty("QR Code generator", R.string.about_credit_qrcodegen, "MIT", "qrcodegen-MIT.txt"), // not user text: names
-    ThirdParty("ZXing", R.string.about_credit_zxing, "Apache 2.0", "zxing-Apache-2.0.txt"), // not user text: names
-    ThirdParty("AndroidSVG", R.string.about_credit_androidsvg, "Apache 2.0", "androidsvg-Apache-2.0.txt"), // not user text: names
+    ThirdParty("QR Code generator", R.string.about_credit_qrcodegen, "MIT", "qrcodegen-MIT.txt", listOf("io.nayuki:qrcodegen")), // not user text: names
+    ThirdParty("ZXing", R.string.about_credit_zxing, "Apache 2.0", "zxing-Apache-2.0.txt", listOf("com.google.zxing:core")), // not user text: names
+    ThirdParty("AndroidSVG", R.string.about_credit_androidsvg, "Apache 2.0", "androidsvg-Apache-2.0.txt", listOf("com.caverock:*")), // not user text: names
     ThirdParty(
         "Argon2", // not user text: names
         R.string.about_credit_argon2,
@@ -75,10 +84,35 @@ internal val THIRD_PARTY = listOf(
         "argon2-CC0-Apache-2.0.txt", // not user text: an asset
     ),
     ThirdParty(
-        "AndroidX, Kotlin, kotlinx.coroutines", // not user text: names
+        "Public Suffix List", // not user text: names
+        R.string.about_credit_public_suffix_list,
+        "MPL 2.0", // not user text: names
+        "public-suffix-list-MPL-2.0.txt", // not user text: an asset
+    ),
+    ThirdParty(
+        "AndroidX, Kotlin, kotlinx", // not user text: names
         R.string.about_credit_androidx,
-        "Apache 2.0", // not user text: names
+        uiText(R.string.about_licence_and, "Apache 2.0", "BSD 3-Clause"), // not user text: names
         "androidx-kotlin-Apache-2.0.txt", // not user text: an asset
+        listOf("androidx.*:*", "org.jetbrains.kotlin:*", "org.jetbrains.kotlinx:*"), // not user text: coordinates
+    ),
+    ThirdParty(
+        "Guava, Dagger, annotations", // not user text: names
+        R.string.about_credit_google_libraries,
+        "Apache 2.0", // not user text: names
+        "google-libraries-Apache-2.0.txt", // not user text: an asset
+        listOf(
+            "com.google.guava:*", "com.google.dagger:*", "com.google.auto.value:*", "com.google.errorprone:*", // not user text: coordinates
+            "com.google.j2objc:*", "com.google.code.findbugs:*", "javax.inject:*", "jakarta.inject:*", // not user text: coordinates
+            "org.jetbrains:annotations", "org.jspecify:*", // not user text: coordinates
+        ),
+    ),
+    ThirdParty(
+        "Checker Framework qualifiers", // not user text: names
+        R.string.about_credit_checker_qual,
+        "MIT", // not user text: names
+        "checker-qual-MIT.txt", // not user text: an asset
+        listOf("org.checkerframework:checker-qual"), // not user text: coordinates
     ),
 )
 

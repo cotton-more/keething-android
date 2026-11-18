@@ -141,6 +141,18 @@ the script, and Claude, can build without asking; anything running as the user c
 the item, or for another `KEYSTORE`, apksigner asks. The password reaches apksigner through the environment, never a
 file or the command line. Uncommitted changes are built too (it says so).
 
+### Third-party licences
+
+About's list (`app/src/main/kotlin/dev/keething/android/about/Licences.kt`, `THIRD_PARTY`) is kept true by the build
+(keething-spec app.dependency-licences). The release build and the tests first run Licensee
+(`./gradlew :app:licenseeAndroidRelease`), which fails on a library whose licence is not allowed in
+`app/build.gradle.kts`; `ThirdPartyTest` then fails on a library of the release no part of the list names (a new
+dependency, or one a new version brings), on a part's pattern that matches nothing, and on a file copied into the
+source that `app/third-party-files.txt` does not name with its hash. A new library: its `group:artifact` to the part
+it belongs to, or a new part with its licence in `assets/licenses` and its credit in both languages; a new licence is
+allowed only once About shows it. A copied file updated from its source (`tools/update-public-suffix-list.sh`): its
+new SHA-256 in `app/third-party-files.txt` (`shasum -a 256 <file>`), in the same commit.
+
 ### Reproducing a release (F-Droid)
 
     task apk:reproduce -- ~/KeePass/Keething-1.0.0-<commit>.apk

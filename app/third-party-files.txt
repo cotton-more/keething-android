@@ -1,0 +1,29 @@
+# Files copied into Keething's source from other projects (keething-spec app.dependency-licences AC3), each with its
+# SHA-256, its licence's text in app/src/main/assets/licenses (an entry of About's third-party list) and where it came
+# from. ThirdPartyFilesTest fails on a file in the folders below that no line names, on a line whose file is gone or
+# changed, and on a licence no entry of About shows: a file updated from its source gets its new hash here, in the
+# same commit. Looked at: app/src/main/res/font, app/src/main/assets (but the licences), core/*/src/main/resources,
+# core/argon2/src/main/cpp/phc-winner-argon2 (but KEETHING.md, Keething's own note). Tab-separated.
+c9649573afcd966f61096b1e9c3c3115e7b54315ca2adf9839c6f8b17d5f8e1f	app/src/main/res/font/google_sans_code.ttf	google-sans-code-OFL.txt	https://github.com/googlefonts/googlesans-code
+18586c092f641ecd1a471dd6ab35618ab69f0aa7483486424f7caf0996d06259	core/generator/src/main/resources/dev/keething/generator/eff-large-wordlist.txt	eff-wordlist-CC-BY-3.0.txt	https://www.eff.org/files/2016/07/18/eff_large_wordlist.txt
+5c5942792bd8340cb8b27cd592f1015edf56a8c5b26276ee18a482428e7c5726	core/card/src/main/resources/dev/keething/card/bip39/chinese_simplified.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+417b26b3d8500a4ae3d59717d7011952db6fc2fb84b807f3f94ac734e89c1b5f	core/card/src/main/resources/dev/keething/card/bip39/chinese_traditional.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+7e80e161c3e93d9554c2efb78d4e3cebf8fc727e9c52e03b83b94406bdcc95fc	core/card/src/main/resources/dev/keething/card/bip39/czech.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda	core/card/src/main/resources/dev/keething/card/bip39/english.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+ebc3959ab7801a1df6bac4fa7d970652f1df76b683cd2f4003c941c63d517e59	core/card/src/main/resources/dev/keething/card/bip39/french.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+d392c49fdb700a24cd1fceb237c1f65dcc128f6b34a8aacb58b59384b5c648c2	core/card/src/main/resources/dev/keething/card/bip39/italian.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+2eed0aef492291e061633d7ad8117f1a2b03eb80a29d0e4e3117ac2528d05ffd	core/card/src/main/resources/dev/keething/card/bip39/japanese.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+9e95f86c167de88f450f0aaf89e87f6624a57f973c67b516e338e8e8b8897f60	core/card/src/main/resources/dev/keething/card/bip39/korean.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+2685e9c194c82ae67e10ba59d9ea5345a23dc093e92276fc5361f6667d79cd3f	core/card/src/main/resources/dev/keething/card/bip39/portuguese.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+46846a5a0139d1e3cb77293e521c2865f7bcdb82c44e8d0a06a2cd0ecba48c0b	core/card/src/main/resources/dev/keething/card/bip39/spanish.txt	bip39-wordlists-MIT.txt	https://github.com/bitcoin/bips/tree/master/bip-0039
+47a98cd0e85a4a4ace0e793904893c5ed550c1181f814d7edc99a0378d566ef9	core/search/src/main/resources/dev/keething/search/site/public_suffix_list.txt	public-suffix-list-MPL-2.0.txt	https://publicsuffix.org/list/public_suffix_list.dat (tools/update-public-suffix-list.sh)
+ac36638bcfcedb75441a5daeeaf4ef75b565911712583c272830e9fa7fddb590	core/argon2/src/main/cpp/phc-winner-argon2/LICENSE	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+25ed629feca91ca9d361441160c6fbc10318bb0fb3757555b418ed47b705b35b	core/argon2/src/main/cpp/phc-winner-argon2/include/argon2.h	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+ec9884fe834c30eb362f0cef3432a43a5c496b0d6d1d637a5a590a45bec4d79c	core/argon2/src/main/cpp/phc-winner-argon2/src/blake2/blake2-impl.h	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+196cd9adf0660474ea04cb686c122f3ca8c758445c5ff0806f438e6412ac8423	core/argon2/src/main/cpp/phc-winner-argon2/src/blake2/blake2.h	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+7eb2f3faac14c532fb75f645f518686f3ef0db4c7b9849a1ffc73d262b596281	core/argon2/src/main/cpp/phc-winner-argon2/src/blake2/blake2b.c	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+8d5fc886bbc0b55af10ac6f1e9a5995a4e8d4abace46642fb1832c84d38c3007	core/argon2/src/main/cpp/phc-winner-argon2/src/blake2/blamka-round-ref.h	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+d6ddc9e28c51d2c3b0d542c0c4678c4d9d788da048e4f557166030d0ef62618b	core/argon2/src/main/cpp/phc-winner-argon2/src/core.c	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+1d0b950774ff628a8ceb415cf3042a4380e32e101de98407722cbc86cde59e50	core/argon2/src/main/cpp/phc-winner-argon2/src/core.h	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+be8e6c370b03cc239f975247b50b890f5311cef8d4c0afb919ced1e389c25841	core/argon2/src/main/cpp/phc-winner-argon2/src/ref.c	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb
+650e713fb584de2e6aeb307e64228f95cef733ea667faa0bb111960aaace30ef	core/argon2/src/main/cpp/phc-winner-argon2/src/thread.h	argon2-CC0-Apache-2.0.txt	https://github.com/P-H-C/phc-winner-argon2 at f57e61e19229e23c4445b85494dbf7c07de721cb

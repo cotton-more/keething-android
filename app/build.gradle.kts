@@ -6,6 +6,7 @@ import javax.inject.Inject
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.licensee)
 }
 
 /**
@@ -102,9 +103,27 @@ android {
             // What follows the phone's language (dates, a country's name by its code) in English, whatever the computer's.
             it.systemProperty("user.language", "en")
             it.systemProperty("user.country", "US")
+            // The release's artifacts and their licences, checked against About's list (app.dependency-licences AC2).
+            it.dependsOn("licenseeAndroidRelease")
+            val artifacts = layout.buildDirectory.file("reports/licensee/androidRelease/artifacts.json")
+            it.inputs.file(artifacts).withPropertyName("licenseeArtifacts")
+            it.systemProperty("keething.licensee", artifacts.get().asFile.absolutePath)
         }
     }
 }
+
+/**
+ * The licences the release's dependencies may have (keething-spec app.dependency-licences AC1): Licensee reads each
+ * one's POM, and a licence outside these, or none it can name, fails the release build (and the tests, which read its
+ * report). A new licence is added here only once About shows it (THIRD_PARTY).
+ */
+licensee {
+    allow("Apache-2.0")
+    allow("MIT")
+    allow("BSD-3-Clause")
+}
+
+tasks.named { it == "preReleaseBuild" }.configureEach { dependsOn("licenseeAndroidRelease") }
 
 /**
  * The repository's LICENSE and SECURITY.md, shown by About (SPEC §6.2 "About"), as the assets `LICENSE.txt` and

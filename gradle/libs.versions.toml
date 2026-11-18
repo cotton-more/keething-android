@@ -56,3 +56,4 @@ android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 keething-kotlin-library = { id = "keething.kotlin-library" }
+licensee = { id = "app.cash.licensee", version = "1.14.1" }

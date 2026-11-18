@@ -28,6 +28,7 @@
     <string name="about_third_party_title">Сторонние лицензии</string>
     <string name="about_text_unreadable">Не удалось прочитать текст.</string>
     <string name="about_licence_either">%1$s или %2$s</string>
+    <string name="about_licence_and">%1$s и %2$s</string>
     <string name="about_credit_eff_wordlist">Слова генератора паролей — Electronic Frontier Foundation (eff.org/dice)</string>
     <string name="about_credit_bip39">Слова для проверки фразы восстановления — авторы BIP-39</string>
     <string name="about_credit_matrix_sas">Картинки для проверки запроса — The Matrix.org Foundation</string>
@@ -37,4 +38,7 @@
     <string name="about_credit_androidsvg">Отрисовка SVG-картинки, чтобы прочитать её QR-код — Paul LeBeau, Cave Rock Software Ltd.</string>
     <string name="about_credit_argon2">Вычисление ключа, открывающего базу — Daniel Dinu, Dmitry Khovratovich, Jean-Philippe Aumasson и Samuel Neves</string>
     <string name="about_credit_androidx">Compose, CameraX и другие библиотеки Jetpack — The Android Open Source Project и JetBrains</string>
+    <string name="about_credit_public_suffix_list">Домен сайта по его адресу — участники списка и Mozilla</string>
+    <string name="about_credit_google_libraries">Библиотеки, которые приносят с собой библиотеки Jetpack, — Google, JetBrains и их авторы</string>
+    <string name="about_credit_checker_qual">Аннотации, с которыми собрана Guava, — разработчики Checker Framework</string>
 </resources>

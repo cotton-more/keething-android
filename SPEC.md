@@ -1915,7 +1915,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (a tap opens it), and Security "How to report a vulnerability" (a tap shows SECURITY.md, the repository's, copied by
   Gradle into the asset `SECURITY.md` as LICENSE is; keething-spec app.security-policy); then **Third-party licences**: each part in the app with what it is for, its authors and its
   licence (the EFF word list's credit said there, as CC BY asks), a tap showing the text of `assets/licenses`
-  (`THIRD_PARTY`; a test keeps the list and the folder the same). Then **Report a problem** (also in Settings' About;
+  (`THIRD_PARTY`; a test keeps the list and the folder the same; the build keeps the list true, keething-spec
+  app.dependency-licences: the release's libraries by Licensee, the files copied into the source by
+  `app/third-party-files.txt`). Then **Report a problem** (also in Settings' About;
   plans/android-release-1.0.md T5): the browser opens a new issue of `github.com/cotton-more/keething-android` whose
   body says first, in a comment the form shows while it is written, that a security problem goes to SECURITY.md, then asks what happened, what was expected and the steps, then says the version, the commit, Android (and its API
   level) and the phone's maker and model (`ProblemReport`). Nothing from a database, nothing sent by the app (it has no
