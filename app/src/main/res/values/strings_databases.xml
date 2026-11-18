@@ -55,6 +55,9 @@
     <!-- A backup's date: %1$s: the time ("14:03") -->
     <string name="databases_backups_date_today">Today, %1$s</string>
     <string name="databases_backups_date_yesterday">Yesterday, %1$s</string>
+    <!-- A backup's day, a date pattern in java.time's letters: this year's ("Mon 9 Nov"), another year's ("Sun 9 Nov 2025") -->
+    <string name="databases_backups_day_pattern">EEE d MMM</string>
+    <string name="databases_backups_day_year_pattern">EEE d MMM uuuu</string>
     <!-- %1$s: the day ("Mon 9 Nov"); %2$s: the time ("08:15") -->
     <string name="databases_backups_date_day">%1$s, %2$s</string>
     <!-- A backup's date in a sentence ("…as it was today, 14:03"): %1$s: the time -->
@@ -323,10 +326,23 @@
         <item quantity="other">%1$d days ago</item>
     </plurals>
     <string name="databases_ago_last_week">last week</string>
-    <!-- %1$s: the month ("March") -->
-    <string name="databases_ago_in_month">in %1$s</string>
-    <!-- %1$s: the month; %2$d: the year -->
-    <string name="databases_ago_in_month_year">in %1$s %2$d</string>
+    <!-- The phone's own shared storage, as a folder's name ("Internal storage" for the top, "Sync/KeePass" below it) -->
+    <string name="databases_internal_storage">Internal storage</string>
+    <!-- A month this year; the month's case is the language's own -->
+    <string name="databases_ago_in_january">in January</string>
+    <string name="databases_ago_in_february">in February</string>
+    <string name="databases_ago_in_march">in March</string>
+    <string name="databases_ago_in_april">in April</string>
+    <string name="databases_ago_in_may">in May</string>
+    <string name="databases_ago_in_june">in June</string>
+    <string name="databases_ago_in_july">in July</string>
+    <string name="databases_ago_in_august">in August</string>
+    <string name="databases_ago_in_september">in September</string>
+    <string name="databases_ago_in_october">in October</string>
+    <string name="databases_ago_in_november">in November</string>
+    <string name="databases_ago_in_december">in December</string>
+    <!-- %1$s: the month, as above ("in March"); %2$d: the year -->
+    <string name="databases_ago_in_month_year">%1$s %2$d</string>
     <!-- %1$s: the database's name; %2$s: its key file's name; %3$s: the key file's folder -->
     <string name="databases_lock_key_file_not_there">%1$s needs its key file: %2$s is not in %3$s.</string>
     <!-- %1$s: the key file's name -->
@@ -495,13 +511,13 @@
     <string name="databases_new_measuring">Measuring on this phone…</string>
     <!-- %1$s: the seconds measured ("1.0"); %2$s: how many iterations ("42", "1,000") -->
     <plurals name="databases_new_measured_iterations">
-        <item quantity="one">%1$s s on this phone: %2$s iteration, measured. A computer usually opens it faster.</item>
-        <item quantity="other">%1$s s on this phone: %2$s iterations, measured. A computer usually opens it faster.</item>
+        <item quantity="one">%1$.1f s on this phone: %2$,d iteration, measured. A computer usually opens it faster.</item>
+        <item quantity="other">%1$.1f s on this phone: %2$,d iterations, measured. A computer usually opens it faster.</item>
     </plurals>
-    <!-- %1$s: the seconds measured ("1.0"); %2$s: how many rounds ("6,000,000") -->
+    <!-- %1$.1f: the seconds measured ("1.0"); %2$,d: how many rounds ("6,000,000") -->
     <plurals name="databases_new_measured_rounds">
-        <item quantity="one">%1$s s on this phone: %2$s rounds, measured. A computer usually opens it faster.</item>
-        <item quantity="other">%1$s s on this phone: %2$s rounds, measured. A computer usually opens it faster.</item>
+        <item quantity="one">%1$.1f s on this phone: %2$,d rounds, measured. A computer usually opens it faster.</item>
+        <item quantity="other">%1$.1f s on this phone: %2$,d rounds, measured. A computer usually opens it faster.</item>
     </plurals>
     <string name="databases_new_blocker_folder">Choose the folder to save it in.</string>
     <string name="databases_new_blocker_name">Name it.</string>
@@ -537,7 +553,9 @@
     <string name="databases_new_not_measured">This phone’s speed could not be measured. Try again, or choose AES-KDF.</string>
     <string name="databases_new_folder_this_database">this database’s</string>
     <!-- A time in seconds: %1$s: the number ("1", "0.5") -->
-    <string name="databases_seconds">%1$s s</string>
+    <string name="databases_seconds">%1$.1f s</string>
+    <!-- %1$d: whole seconds -->
+    <string name="databases_seconds_whole">%1$d s</string>
 
     <!-- New database (NewDatabaseScreen.kt) -->
     <string name="databases_new_title">New database</string>

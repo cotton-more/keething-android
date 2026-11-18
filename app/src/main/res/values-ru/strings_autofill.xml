@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="autofill_offer_generate">Создать пароль</string>
+    <string name="autofill_offer_unlock">Разблокировать Keething</string>
+    <string name="autofill_offer_search">Искать в Keething</string>
+    <string name="autofill_offer_another">Другая запись</string>
+    <string name="autofill_offer_to_fill">для %1$s</string>
+    <string name="autofill_generated_password">Созданный пароль</string>
+
+    <string name="autofill_no_database_title">База ещё не выбрана</string>
+    <string name="autofill_no_database_text">Сначала откройте Keething и выберите базу.</string>
+    <string name="autofill_close">Закрыть</string>
+
+    <string name="autofill_pick_title">Выберите запись</string>
+    <string name="autofill_pick_subtitle">для %1$s</string>
+    <string name="autofill_pick_close">Закрыть без заполнения</string>
+    <string name="autofill_pick_fill">Заполнить</string>
+    <string name="autofill_pick_no_code">У записи «%1$s» нет одноразового кода</string>
+    <string name="autofill_pick_nothing_for_fields">В записи «%1$s» нет ничего для этих полей</string>
+    <string name="autofill_pick_nothing_matches">Ничего не найдено по «%1$s».</string>
+
+    <string name="autofill_save_nothing">Нечего сохранять: логин был введён слишком давно</string>
+    <string name="autofill_save_already_saved">Уже сохранено в Keething: %1$s</string>
+    <string name="autofill_save_password_updated">Пароль обновлён в Keething</string>
+    <string name="autofill_save_password_updated_groups_deleted">Пароль обновлён в Keething. %1$s</string>
+    <string name="autofill_save_update_title">Обновить пароль записи «%1$s»?</string>
+    <string name="autofill_save_update_text">Пароль, введённый в %1$s, — новый для этой учётной записи.</string>
+    <string name="autofill_save_as_new">Сохранить как новую запись</string>
+    <string name="autofill_save_saved">Сохранено в Keething</string>
+    <string name="autofill_save_new_title">Сохранить логин, введённый в %1$s</string>
+    <string name="autofill_save_new_text">Новая запись; проверьте её название и группу.</string>
+</resources>

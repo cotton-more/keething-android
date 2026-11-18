@@ -8,6 +8,8 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalResources
 import dev.keething.android.R
 import dev.keething.domain.text.UserText
+import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAccessor
 import java.util.Locale
 
 /**
@@ -37,6 +39,12 @@ internal sealed interface UiText {
      * ([dropFullStop]).
      */
     data class Inside(val text: UiText, val lowerFirst: Boolean, val dropFullStop: Boolean) : UiText
+
+    /**
+     * [value] (a date, a time, or both) written by the pattern in the string resource [pattern] (java.time's letters),
+     * in the language shown: "Mon 9 Nov" / «пн, 9 нояб.».
+     */
+    data class Date(val value: TemporalAccessor, @StringRes val pattern: Int) : UiText
 }
 
 internal fun uiText(@StringRes id: Int, vararg args: Any): UiText = UiText.Res(id, args.toList())
@@ -45,6 +53,8 @@ internal fun uiPlural(@PluralsRes id: Int, count: Int, vararg args: Any): UiText
     UiText.Plural(id, count, if (args.isEmpty()) listOf(count) else args.toList())
 
 internal fun uiPlain(text: String): UiText = UiText.Plain(text)
+
+internal fun uiDate(value: TemporalAccessor, @StringRes pattern: Int): UiText = UiText.Date(value, pattern)
 
 internal fun uiListed(items: List<UiText>): UiText = UiText.Listed(items)
 
@@ -67,6 +77,7 @@ internal fun UiText.resolve(resources: Resources): String = when (this) {
     }
     is UiText.Inside -> inside(text.resolve(resources), resources.configuration.locales[0])
     is UiText.Joined -> items.joinToString(separator) { it.resolve(resources) }
+    is UiText.Date -> DateTimeFormatter.ofPattern(resources.getString(pattern), resources.configuration.locales[0]).format(value)
 }
 
 internal fun UiText.Inside.inside(said: String, locale: Locale): String =

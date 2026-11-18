@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Настройки</string>
+    <string name="settings_back">Назад</string>
+    <string name="settings_chosen">Выбрано</string>
+
+    <string name="settings_quick_notes">Быстрые заметки</string>
+    <string name="settings_quick_notes_go_to">Куда сохранять быстрые заметки</string>
+    <string name="settings_quick_notes_current">Текущая база</string>
+    <string name="settings_quick_notes_current_now">Сейчас: %1$s</string>
+    <string name="settings_quick_notes_fallen_back">Выбранной раньше базы больше нет в списке: быстрые заметки сохраняются в текущую.</string>
+    <string name="settings_quick_notes_detail">Текст, отправленный в «Заметку Keething» или выбранный в меню текста, плитка и пункт «Заметка из буфера» у значка приложения открывают новую заметку в группе Inbox этой базы (её создаст сама заметка, если группы нет). Ничего не сохраняется, пока вы не сохраните.</string>
+    <string name="settings_quick_note_tile_add">Добавить плитку «Быстрая заметка»</string>
+
+    <string name="settings_fingerprint">Отпечаток пальца</string>
+    <string name="settings_fingerprint_unlock">Разблокировать отпечатком</string>
+    <string name="settings_fingerprint_not_deleted">Не удалось удалить сохранённые пароли: %1$s.</string>
+    <string name="settings_fingerprint_unavailable">Недоступно: %1$s.</string>
+    <string name="settings_fingerprint_detail">Отпечаток открывает каждую базу, у которой включено «Входить по отпечатку»: её экран блокировки один раз предлагает это рядом с паролем, а её страница в «Базах» включает и выключает. Если выключить здесь, все их сохранённые пароли удалятся.</string>
+    <string name="settings_reminder">Спрашивать о мастер-ключе каждые</string>
+    <string name="settings_reminder_never">Никогда</string>
+    <string name="settings_reminder_detail">Если мастер-пароль столько времени не вводили, Keething один раз после разблокировки спросит, помните ли вы его (или храните ли файл-ключ в надёжном месте). Отпечаток открывает базу как обычно.</string>
+    <string name="settings_reminder_never_detail">Keething не спрашивает. Забытый мастер-пароль или потерянный файл-ключ не откроет базу никому, даже с Keething.</string>
+
+    <string name="settings_autofill">Автозаполнение</string>
+    <string name="settings_autofill_on">Включено: приложения и браузеры предлагают подходящие записи. В Chrome также выберите «Настройки › Сервисы автозаполнения › Автозаполнение с помощью другого сервиса»; Firefox ничего не нужно.</string>
+    <string name="settings_autofill_off">Выключено: заполняет другой сервис или никакой.</string>
+    <string name="settings_autofill_use">Использовать Keething для автозаполнения</string>
+
+    <string name="settings_lock_timeout">Блокировать в фоне через</string>
+    <plurals name="settings_minutes">
+        <item quantity="one">%1$d мин</item>
+        <item quantity="few">%1$d мин</item>
+        <item quantity="many">%1$d мин</item>
+        <item quantity="other">%1$d мин</item>
+    </plurals>
+    <plurals name="settings_hours">
+        <item quantity="one">%1$d ч</item>
+        <item quantity="few">%1$d ч</item>
+        <item quantity="many">%1$d ч</item>
+        <item quantity="other">%1$d ч</item>
+    </plurals>
+    <string name="settings_lock_timeout_detail">Выключенный экран тоже считается фоном. Буфер обмена очищается через 30 с после копирования.</string>
+
+    <string name="settings_theme">Тема</string>
+    <string name="settings_theme_system">Системная</string>
+    <string name="settings_theme_light">Светлая</string>
+    <string name="settings_theme_dark">Тёмная</string>
+
+    <string name="settings_request_validity">Поделиться: срок запросов и картинок</string>
+    <plurals name="settings_days">
+        <item quantity="one">%1$d день</item>
+        <item quantity="few">%1$d дня</item>
+        <item quantity="many">%1$d дней</item>
+        <item quantity="other">%1$d дня</item>
+    </plurals>
+    <string name="settings_request_validity_detail">Потом телефон, который запросил, забывает свой ключ, и ответ уже не открыть; телефон, отправивший записи без запроса, забывает их картинки. Только для новых.</string>
+
+    <string name="settings_this_phone">Этот телефон</string>
+    <string name="settings_key_derived_in">При последней разблокировке ключ вычислен за %1$s.</string>
+    <string name="settings_key_reused">При последнем чтении файла использован уже вычисленный ключ.</string>
+    <string name="settings_memory">Память: занято %1$d МиБ из %2$d МиБ.</string>
+
+    <string name="settings_about">О приложении</string>
+    <string name="settings_about_version">Keething для Android %1$s.</string>
+    <string name="settings_about_typeface">Пароли и коды набраны шрифтом Google Sans Code (SIL Open Font License 1.1).</string>
+    <string name="settings_about_keething">О Keething</string>
+    <string name="settings_report_problem">Сообщить о проблеме</string>
+</resources>

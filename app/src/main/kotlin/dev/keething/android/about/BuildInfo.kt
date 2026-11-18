@@ -3,12 +3,11 @@ package dev.keething.android.about
 import android.content.res.AssetManager
 import dev.keething.android.R
 import dev.keething.android.ui.UiText
+import dev.keething.android.ui.uiDate
 import dev.keething.android.ui.uiPlain
 import dev.keething.android.ui.uiText
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * What About says of this build (SPEC §6.2 "About"): written by Gradle at every build into the asset
@@ -38,11 +37,10 @@ internal data class BuildInfo(
 
     /** "2 November 2026, 19:56" in the phone's time zone; "unknown" without a time. */
     fun builtText(zone: ZoneId = ZoneId.systemDefault()): UiText =
-        built?.let { uiPlain(DateTimeFormatter.ofPattern(BUILT_PATTERN, Locale.ENGLISH).withZone(zone).format(it)) } ?: uiText(R.string.about_unknown)
+        built?.let { uiDate(it.atZone(zone), R.string.about_built_pattern) } ?: uiText(R.string.about_unknown)
 
     companion object {
         private const val ASSET = "build-info.properties"
-        private const val BUILT_PATTERN = "d MMMM yyyy, HH:mm" // not user text: a date pattern
 
         /** The lines `key=value` Gradle wrote; what is missing or unreadable reads as unknown. */
         fun parse(text: String): BuildInfo {

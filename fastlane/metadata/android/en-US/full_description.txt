@@ -30,7 +30,7 @@ The database is a file in a folder you pick. Syncthing, Nextcloud or another syn
 KDBX 4 with AES-256 or ChaCha20 and Argon2 or AES-KDF, as KeePassXC, KeePass and Strongbox write it. KDBX 3.1 (what KeePassDX creates by default) opens read-only. If you agree, it is upgraded to KDBX 4, and the old file stays next to it.
 
 <b>Not supported yet</b>
-Twofish, hardware keys such as YubiKey, Android versions before 14, and languages other than English.
+Twofish, hardware keys such as YubiKey, Android versions before 14, and languages other than English and Russian.
 
 <b>Source code</b>
 GPL-3.0-or-later. The build is reproducible, so you can check that the APK comes from the published source. Code, issues and the security policy: https://github.com/cotton-more/keething-android

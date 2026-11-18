@@ -41,6 +41,14 @@ composable reads it with `stringResource`; a view model or a plain function retu
 English with `english()` (`app/src/test/kotlin/dev/keething/android/ui/EnglishTexts.kt`), so the expected texts stay
 the words on the screen.
 
+A date or a number follows the app's language. A date the code writes by a pattern is a `uiDate(value, R.string.<…>_pattern)`,
+the pattern (java.time's letters) a resource each language sets ("EEE d MMM", «EEE, d MMM»); a localized style
+(`DateTimeFormatter.ofLocalizedDate`) and `Formatter.formatShortFileSize` follow it already. A number goes into the
+resource as a number, never formatted first: `%1$.1f s`, `%2$,d iterations` (the phone's own decimal mark and
+grouping); a unit test's `english()` writes them as the English does. A month said in a phrase is a resource per month
+("in March", «в марте»): a language may need its own case. The tests run in English whatever the computer's language
+(the Gradle test tasks set `user.language`).
+
     task texts:check            # texts still written into the code of app/ and the core (tools/check-texts.py); must print nothing
 
 A literal that is not a text the user sees (a key, a tag, a MIME type, a name written into the file as the Mac writes
@@ -58,7 +66,8 @@ key to it (`ui()` gives the `UiText`, `resolve()` the words). A new key goes int
 key mapped to another resource. A core test reads a `UserText` in English with `english()` (core:domain's test
 fixtures, from the app's `res/values`). A name written into the file (a new field's, an attachment's, a protected
 note's "Note", the quick notes' "Inbox") stays English, as the Mac writes it; so do the sharing pictures' names
-(keething-spec sharing.pictures AC1) and a country's (types.identity-document AC3). A `UserText` given as an argument
+(keething-spec sharing.pictures AC1). A country given as a code is named in the app's language (`Countries.name`,
+types.identity-document AC3); one written as a name stays as written. A `UserText` given as an argument
 to `uiText` is resolved with it; given to `stringResource` or put into `"$x"` it is not (it shows `Of(key=…)`), so
 there it is `resolve()`d first. An entry's title as shown is `Entry.displayTitle` (a `UserText`: "(Untitled)" follows
 the phone's language); it is ordered, matched and its monogram drawn by `Entry.sortTitle`.
@@ -81,7 +90,8 @@ A plural has every quantity the language needs (Russian: `one`, `few`, `many`, `
 **Russian** (keething-spec plans T14, the owner 2026-11-18). The user is «вы». A button or a menu item is an infinitive
 («Сохранить», «Удалить навсегда…»), a hint or a message an imperative («Введите пароль»). Quotes are «ёлочки»; an
 ellipsis stays where the English has one. Keething, KeePass, KeePassXC, KDBX, Syncthing, YubiKey, IBAN, BIC, CVC stay
-as they are. «Keething» has no gender: it is not the subject of a past tense («Keething спросит снова завтра»).
+as they are. «Keething» has no gender: it is not the subject of a past tense («Keething спросит снова завтра»). The problem report's
+issue text (`about_problem_report_body`) stays English in every language: the issue goes to the project's GitHub.
 
 | English | Russian |
 |---|---|
@@ -101,6 +111,8 @@ as they are. «Keething» has no gender: it is not the subject of a past tense (
 | conflict copy | конфликтная копия |
 | Sharing / request / picture | Поделиться / запрос / картинка |
 | fingerprint | отпечаток пальца (where tight: отпечаток) |
+| auto-type | автонабор |
+| Internal storage | Внутренняя память |
 | autofill | автозаполнение |
 | passphrase / recovery phrase | парольная фраза / фраза восстановления |
 | read only / view only | только чтение / только просмотр |

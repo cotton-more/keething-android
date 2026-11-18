@@ -25,6 +25,8 @@
     <string name="about_version_text">%1$s · build %2$s</string>
     <!-- %1$s: the commit, short ("becc85f") -->
     <string name="about_commit_dirty">%1$s with uncommitted changes</string>
+    <!-- When the build was made, a date pattern in java.time's letters ("2 November 2026, 19:56") -->
+    <string name="about_built_pattern">d MMMM yyyy, HH:mm</string>
     <!-- A version, a time or a commit the build did not say -->
     <string name="about_unknown">unknown</string>
 

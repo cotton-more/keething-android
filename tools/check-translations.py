@@ -23,7 +23,7 @@ from pathlib import Path
 RES = Path(__file__).resolve().parent.parent / "app/src/main/res"
 # The plural quantities each language uses (CLDR), all of which a translation gives.
 QUANTITIES = {"ru": {"one", "few", "many", "other"}}
-PLACEHOLDER = re.compile(r"%(?:\d+\$)?(?:\.\d+)?[sdf]")
+PLACEHOLDER = re.compile(r"%(?:\d+\$)?,?(?:\.\d+)?[sdf]")
 
 
 def resources(path):

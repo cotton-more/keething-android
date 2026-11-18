@@ -31,6 +31,9 @@ class KotlinLibraryConventionPlugin : Plugin<Project> {
             systemProperty("keething.fixtures", fixtures.absolutePath)
             inputs.dir(texts).withPropertyName("texts")
             systemProperty("keething.texts", texts.absolutePath)
+            // What follows the phone's language (a country's name by its code) in English, whatever the computer's.
+            systemProperty("user.language", "en")
+            systemProperty("user.country", "US")
         }
     }
 }

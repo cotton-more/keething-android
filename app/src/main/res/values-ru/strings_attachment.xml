@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="attachment_picked_unnamed">Файл</string>
+    <string name="attachment_picked_folder">%1$s — это папка; прикрепить можно только файлы.</string>
+    <string name="attachment_picked_unreadable">Не удалось прочитать %1$s: %2$s.</string>
+    <string name="attachment_picked_nothing">Не удалось прочитать %1$s: приложение, где он хранится, ничего не отдало.</string>
+    <string name="attachment_picked_no_memory">Не удалось прочитать %1$s: телефону сейчас не хватает памяти.</string>
+    <string name="attachment_picked_too_big_size">%1$s слишком большой (%2$s); можно добавлять вложения до %3$s.</string>
+    <string name="attachment_picked_too_big">%1$s слишком большой; можно добавлять вложения до %2$s.</string>
+</resources>

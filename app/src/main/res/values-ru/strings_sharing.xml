@@ -1,0 +1,402 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sharing_close">Закрыть</string>
+    <string name="sharing_back">Назад</string>
+    <string name="sharing_done">Готово</string>
+    <string name="sharing_ok">OK</string>
+    <string name="sharing_delete">Удалить</string>
+    <string name="sharing_keep_it">Оставить</string>
+    <string name="sharing_not_now">Не сейчас</string>
+    <string name="sharing_paste">Вставить</string>
+    <string name="sharing_copy">Скопировать</string>
+    <string name="sharing_search">Поиск</string>
+    <string name="sharing_ask_for_entry">Попросить запись</string>
+    <string name="sharing_read_a_code">Прочитать код</string>
+    <string name="sharing_choose_entries">Выбрать записи</string>
+    <string name="sharing_delete_request">Удалить запрос</string>
+    <string name="sharing_tap_again">Нажать заново</string>
+    <string name="sharing_top_level">Верхний уровень</string>
+    <string name="sharing_for">Кому: %1$s</string>
+    <string name="sharing_from">От: %1$s</string>
+    <string name="sharing_two_parts">%1$s · %2$s</string>
+    <string name="sharing_no_app">Нет приложения, которое это примет</string>
+    <string name="sharing_picture_not_made">Не удалось создать картинку: %1$s</string>
+    <string name="sharing_picture_not_saved">Не удалось сохранить картинку: %1$s</string>
+    <string name="sharing_pictures_not_saved">Не удалось сохранить картинки: %1$s</string>
+    <string name="sharing_saved_to_pictures">Сохранено в Pictures › Keething</string>
+    <string name="sharing_send_picture">Отправить картинку</string>
+    <plurals name="sharing_send_pictures">
+        <item quantity="one">Отправить %1$d картинку</item>
+        <item quantity="few">Отправить %1$d картинки</item>
+        <item quantity="many">Отправить %1$d картинок</item>
+        <item quantity="other">Отправить %1$d картинки</item>
+    </plurals>
+    <string name="sharing_send_as_text">Отправить текстом</string>
+    <string name="sharing_send_as_text_short">Текстом</string>
+    <string name="sharing_save_picture">Сохранить картинку</string>
+    <plurals name="sharing_save_pictures">
+        <item quantity="one">Сохранить картинку</item>
+        <item quantity="few">Сохранить картинки</item>
+        <item quantity="many">Сохранить картинки</item>
+        <item quantity="other">Сохранить картинки</item>
+    </plurals>
+    <string name="sharing_save_short">Сохранить</string>
+    <string name="sharing_too_large_title">Слишком много для QR-кодов</string>
+    <string name="sharing_too_large_text">Отправьте текстом: мессенджер или почта передадут его целиком.</string>
+    <string name="sharing_previous_code">Предыдущий код</string>
+    <string name="sharing_next_code">Следующий код</string>
+    <string name="sharing_code_of">Код %1$d из %2$d</string>
+    <string name="sharing_pictures_description">Картинки: %1$s</string>
+    <string name="sharing_checked">Проверено</string>
+    <string name="sharing_check_first">Сначала проверьте</string>
+    <string name="sharing_not_here_title">Это ответ не на запрос с этого телефона</string>
+    <string name="sharing_not_here_text">Он отвечает на запрос, который закрыт, истёк или создан на другом телефоне. Попросите снова.</string>
+    <string name="sharing_own_entries_title">Это ваши собственные записи</string>
+    <string name="sharing_own_entries_text">Их отправил этот телефон. Отправьте код тому, для кого они.</string>
+    <string name="sharing_expired_entries_title">Срок этих записей истёк</string>
+    <string name="sharing_bad_dates_title">Неверные даты</string>
+    <string name="sharing_bad_dates_text">По нему он создан позже, чем сейчас, или действует дольше недели. Проверьте часы на обоих телефонах или попросите отправить снова.</string>
+    <string name="sharing_saved_already_title">Уже сохранено</string>
+
+    <string name="sharing_message_request">%1$s просит «%2$s» через Keething. Чтобы ответить: Keething › Поделиться › Прочитать код › Вставить, затем позвоните: пусть %1$s назовёт шесть картинок, которые показывает запрос.\n\n%3$s</string>
+    <string name="sharing_message_answer">Ответ на ваш запрос в Keething «%1$s»: Keething › Поделиться › Прочитать код › Вставить.\n\n%2$s</string>
+    <string name="sharing_message_envelope">%1$s отправляет вам записи через Keething. Чтобы открыть их: Keething › Поделиться › Прочитать код › Вставить, затем нажмите десять картинок, которые %1$s передаст вам другим способом.\n\n%2$s</string>
+    <string name="sharing_message_pictures">Десять картинок, которые открывают записи, отправленные вам через Keething:\n%1$s\n%2$s\nВ Keething, прочитав код: «Вставить картинки».</string>
+    <string name="sharing_caption_request">Keething · %1$s просит</string>
+    <string name="sharing_caption_answer">Keething · ответ на «%1$s»</string>
+    <string name="sharing_caption_answer_single">Открыть его может только телефон, который просил</string>
+    <string name="sharing_caption_envelope">Keething · записи от: %1$s</string>
+    <string name="sharing_caption_envelope_single">Открывается десятью картинками, которые передаст %1$s</string>
+    <string name="sharing_caption_part">Код %1$d из %2$d: нужны все</string>
+    <string name="sharing_titles_none">Записи</string>
+    <plurals name="sharing_titles_more">
+        <item quantity="one">%1$s и ещё %2$d</item>
+        <item quantity="few">%1$s и ещё %2$d</item>
+        <item quantity="many">%1$s и ещё %2$d</item>
+        <item quantity="other">%1$s и ещё %2$d</item>
+    </plurals>
+    <string name="sharing_expired">истёк</string>
+    <plurals name="sharing_expires_minutes">
+        <item quantity="one">истекает через %1$d мин</item>
+        <item quantity="few">истекает через %1$d мин</item>
+        <item quantity="many">истекает через %1$d мин</item>
+        <item quantity="other">истекает через %1$d мин</item>
+    </plurals>
+    <plurals name="sharing_expires_hours">
+        <item quantity="one">истекает через %1$d ч</item>
+        <item quantity="few">истекает через %1$d ч</item>
+        <item quantity="many">истекает через %1$d ч</item>
+        <item quantity="other">истекает через %1$d ч</item>
+    </plurals>
+    <plurals name="sharing_expires_days">
+        <item quantity="one">истекает через %1$d день</item>
+        <item quantity="few">истекает через %1$d дня</item>
+        <item quantity="many">истекает через %1$d дней</item>
+        <item quantity="other">истекает через %1$d дня</item>
+    </plurals>
+    <string name="sharing_today">сегодня в %1$s</string>
+    <string name="sharing_yesterday">вчера в %1$s</string>
+
+    <string name="sharing_title">Поделиться</string>
+    <plurals name="sharing_subtitle">
+        <item quantity="one">Зашифровано для одного телефона · запрос действует %1$d день</item>
+        <item quantity="few">Зашифровано для одного телефона · запрос действует %1$d дня</item>
+        <item quantity="many">Зашифровано для одного телефона · запрос действует %1$d дней</item>
+        <item quantity="other">Зашифровано для одного телефона · запрос действует %1$d дня</item>
+    </plurals>
+    <string name="sharing_back_to_list">Назад к списку</string>
+    <string name="sharing_send_without">Отправить записи без запроса</string>
+    <string name="sharing_ask_short">Попросить</string>
+    <string name="sharing_lost_title">Не удалось прочитать сохранённые запросы</string>
+    <string name="sharing_lost_text">Этот телефон начал свои запросы и отправки заново. Если вы ждали ответа, попросите снова.</string>
+    <string name="sharing_to_answer">Ждут ответа от вас</string>
+    <string name="sharing_waiting">Ждут ответа</string>
+    <string name="sharing_sent_kept">Отправлено, картинки сохранены</string>
+    <string name="sharing_row_asked">Запрошено %1$s · %2$s</string>
+    <string name="sharing_row_sent_for">Кому: %1$s · отправлено %2$s · %3$s</string>
+    <string name="sharing_row_sent">Отправлено %1$s · %2$s</string>
+    <string name="sharing_empty_title">Отвечать не на что, ждать нечего</string>
+    <string name="sharing_empty_text">Чтобы получить запись, попросите её: ответ придёт кодом, который может открыть только этот телефон. Чтобы дать запись, прочитайте код чужого запроса или отправьте её без запроса: она откроется десятью картинками, которые вы передадите другим способом.</string>
+
+    <string name="sharing_ask_not_kept">Не удалось сохранить запрос на этом телефоне: %1$s.</string>
+    <string name="sharing_ask_create">Создать запрос</string>
+    <string name="sharing_ask_subtitle">Тот, кого вы просите, ответит кодом, который может открыть только этот телефон.</string>
+    <string name="sharing_ask_name">Ваше имя</string>
+    <string name="sharing_ask_name_hint">Как вас знают</string>
+    <string name="sharing_ask_reason">Для чего</string>
+    <string name="sharing_ask_reason_hint">например, Netflix для телевизора</string>
+    <string name="sharing_ask_public">Оба поля уходят с запросом как есть: их может прочитать любой, через кого он пройдёт. Не пишите в них секретов.</string>
+    <plurals name="sharing_ask_valid">
+        <item quantity="one">Действует %1$d день, потом этот телефон забывает свой ключ и ответ уже не открыть. Срок меняется в «Настройки › Поделиться».</item>
+        <item quantity="few">Действует %1$d дня, потом этот телефон забывает свой ключ и ответ уже не открыть. Срок меняется в «Настройки › Поделиться».</item>
+        <item quantity="many">Действует %1$d дней, потом этот телефон забывает свой ключ и ответ уже не открыть. Срок меняется в «Настройки › Поделиться».</item>
+        <item quantity="other">Действует %1$d дня, потом этот телефон забывает свой ключ и ответ уже не открыть. Срок меняется в «Настройки › Поделиться».</item>
+    </plurals>
+
+    <string name="sharing_my_delete_title">Удалить запрос?</string>
+    <string name="sharing_my_delete_text">Этот телефон забудет свой ключ: ответ на запрос уже не открыть.</string>
+    <string name="sharing_my_title">Ваш запрос</string>
+    <string name="sharing_my_qr">QR-код запроса</string>
+    <string name="sharing_my_in_person">Лично: дайте отсканировать этот экран · истекает %1$s</string>
+    <string name="sharing_my_pictures">Ваши картинки</string>
+    <string name="sharing_my_pictures_text">Тот, кто ответит, попросит вас назвать их по порядку и нажмёт их на своём телефоне. Называйте их по телефону или лично, но не в чате, через который идёт код: если они там не совпадут, код подменили по дороге.</string>
+
+    <string name="sharing_their_differ">Действительно разные · удалить</string>
+    <string name="sharing_their_read">Прочитано %1$s · %2$s</string>
+    <string name="sharing_their_asks">%1$s просит</string>
+    <string name="sharing_their_check">Проверить картинки</string>
+    <string name="sharing_their_checked">Шесть картинок, которые называет %1$s, — картинки этого запроса.</string>
+    <string name="sharing_their_call">Пусть %1$s по телефону или лично, но не в чате, через который пришёл код, назовёт шесть картинок, которые показывает его телефон, а вы нажмите их ниже в том же порядке. Лично: нажмите то, что видно на его экране.</string>
+    <string name="sharing_their_mismatch">Это не картинки этого запроса. Ослышались? Нажмите их заново. Если они действительно разные, запрос подменили по дороге: удалите его.</string>
+    <string name="sharing_take_back">Убрать последнюю картинку</string>
+    <string name="sharing_place_empty">Картинка %1$d, ещё не нажата</string>
+
+    <plurals name="sharing_choose_full">
+        <item quantity="one">В один код помещается не больше %1$d записи. Остальные отправьте другим.</item>
+        <item quantity="few">В один код помещается не больше %1$d записей. Остальные отправьте другим.</item>
+        <item quantity="many">В один код помещается не больше %1$d записей. Остальные отправьте другим.</item>
+        <item quantity="other">В один код помещается не больше %1$d записи. Остальные отправьте другим.</item>
+    </plurals>
+    <string name="sharing_choose_for">кому: %1$s · %2$s</string>
+    <string name="sharing_choose_without">чтобы отправить без запроса</string>
+    <string name="sharing_next">Далее</string>
+    <plurals name="sharing_next_count">
+        <item quantity="one">Далее · %1$d</item>
+        <item quantity="few">Далее · %1$d</item>
+        <item quantity="many">Далее · %1$d</item>
+        <item quantity="other">Далее · %1$d</item>
+    </plurals>
+    <string name="sharing_choose_nothing_title">Ничего не найдено</string>
+    <string name="sharing_choose_nothing_text">Поищите другое название, имя пользователя или сайт.</string>
+
+    <string name="sharing_review_no_entries">Этих записей больше нет в базе.</string>
+    <string name="sharing_review_request_gone">Запрос истёк или удалён. Попросите новый.</string>
+    <string name="sharing_review_not_made">Не удалось создать ответ: %1$s.</string>
+    <string name="sharing_review_locked">Телефон заблокировался. Разблокируйте его и попробуйте снова.</string>
+    <string name="sharing_review_not_sealed">Не удалось запечатать записи: %1$s.</string>
+    <string name="sharing_review_send_to">Отправить: %1$s</string>
+    <string name="sharing_review_send_without">Отправить без запроса</string>
+    <string name="sharing_review_without_subtitle">Открывается десятью картинками, которые вы передадите другим способом</string>
+    <string name="sharing_review_encrypt_for">Зашифровать для: %1$s</string>
+    <string name="sharing_review_seal">Запечатать десятью картинками</string>
+    <string name="sharing_review_for">Кому</string>
+    <string name="sharing_review_for_hint">Для кого: это хранится только на этом телефоне</string>
+    <string name="sharing_review_from">От кого</string>
+    <string name="sharing_review_from_hint_request">Ваше имя, как его знает %1$s</string>
+    <string name="sharing_review_from_hint">Ваше имя, как вас знают</string>
+    <string name="sharing_review_info">Теги и срок действия отправляются вместе с записью. Вложения и прежние версии — никогда.</string>
+    <string name="sharing_review_title_goes">%1$s · название отправляется всегда</string>
+    <string name="sharing_review_second_step">С ним %1$s сможет входить без вас: второй шаг больше не только ваш.</string>
+    <string name="sharing_review_second_step_anyone">С ним любой, кто его откроет, сможет входить без вас: второй шаг больше не только ваш.</string>
+    <string name="sharing_review_wallet_key">С ним %1$s видит все адреса и балансы кошелька, прошлые и будущие, а утечка ключа любого из его адресов открывает их все.</string>
+    <string name="sharing_review_wallet_key_anyone">С ним любой, кто его откроет, видит все адреса и балансы кошелька, прошлые и будущие, а утечка ключа любого из его адресов открывает их все.</string>
+    <string name="sharing_review_phrase">Фраза восстановления · остаётся на этом телефоне</string>
+    <string name="sharing_review_phrase_why">У кого эти слова, у того и кошелёк, во всех сетях. Чтобы дать кому-то монеты, отправьте их на его адрес.</string>
+    <string name="sharing_review_passphrase">Парольная фраза · остаётся на этом телефоне</string>
+    <string name="sharing_review_passphrase_why">Вместе с фразой восстановления она открывает кошелёк.</string>
+    <string name="sharing_review_private_key">Закрытый ключ · остаётся на этом телефоне</string>
+    <string name="sharing_review_private_key_why">У кого он есть, тот может потратить монеты кошелька. Чтобы дать кому-то монеты, отправьте их на его адрес.</string>
+    <string name="sharing_review_never_sent">Не отправляется никогда</string>
+    <plurals name="sharing_review_attachments">
+        <item quantity="one">%1$d вложение остаётся на этом телефоне</item>
+        <item quantity="few">%1$d вложения остаются на этом телефоне</item>
+        <item quantity="many">%1$d вложений остаются на этом телефоне</item>
+        <item quantity="other">%1$d вложения остаются на этом телефоне</item>
+    </plurals>
+    <string name="sharing_review_otp_preview">Ключ, из которого получаются коды для входа</string>
+    <string name="sharing_field_username">Имя пользователя</string>
+    <string name="sharing_field_password">Пароль</string>
+    <string name="sharing_field_website">Сайт</string>
+    <string name="sharing_field_note">Заметка</string>
+    <string name="sharing_field_notes">Заметки</string>
+    <string name="sharing_field_one_time_code">Одноразовый код</string>
+
+    <plurals name="sharing_answer_subtitle">
+        <item quantity="one">%2$s · %1$d запись</item>
+        <item quantity="few">%2$s · %1$d записи</item>
+        <item quantity="many">%2$s · %1$d записей</item>
+        <item quantity="other">%2$s · %1$d записи</item>
+    </plurals>
+    <string name="sharing_answer_qr">QR-код ответа, %1$d из %2$d</string>
+    <string name="sharing_answer_both">Слишком много для одного кода: нужны оба, в любом порядке.</string>
+    <plurals name="sharing_answer_all">
+        <item quantity="one">Слишком много для одного кода: нужны все %1$d, в любом порядке.</item>
+        <item quantity="few">Слишком много для одного кода: нужны все %1$d, в любом порядке.</item>
+        <item quantity="many">Слишком много для одного кода: нужны все %1$d, в любом порядке.</item>
+        <item quantity="other">Слишком много для одного кода: нужны все %1$d, в любом порядке.</item>
+    </plurals>
+    <string name="sharing_answer_info">Открыть его может только телефон, с которого просит %1$s, так что передавать его можно как угодно. Запрос теперь закрыт: больше на него ничего не отправить.</string>
+
+    <string name="sharing_sent_forget_title">Забыть картинки?</string>
+    <string name="sharing_sent_forget_text">Пока их не передали, код не откроет никто, даже этот телефон. Если вы их уже передали, ничего не изменится.</string>
+    <string name="sharing_sent_forget_them">Забыть</string>
+    <string name="sharing_sent_keep_them">Оставить</string>
+    <string name="sharing_sent_without">Отправлено без запроса</string>
+    <string name="sharing_sent_forget">Забыть картинки</string>
+    <string name="sharing_sent_send_pictures">Отправить картинки</string>
+    <string name="sharing_sent_pictures_copied">Картинки</string>
+    <plurals name="sharing_sent_send_codes">
+        <item quantity="one">Отправить %1$d код</item>
+        <item quantity="few">Отправить %1$d кода</item>
+        <item quantity="many">Отправить %1$d кодов</item>
+        <item quantity="other">Отправить %1$d кода</item>
+    </plurals>
+    <string name="sharing_sent_tab_code">Код</string>
+    <string name="sharing_sent_tab_pictures">Картинки</string>
+    <string name="sharing_sent_pictures_text">Они открывают код: передайте их не тем путём, что код. Назовите их по телефону или отправьте через другое приложение. У кого есть и то и другое, тот откроет записи.</string>
+    <string name="sharing_sent_qr">QR-код записей, %1$d из %2$d</string>
+    <plurals name="sharing_sent_in_person">
+        <item quantity="one">Лично: дайте отсканировать этот экран, кодов: %1$d</item>
+        <item quantity="few">Лично: дайте отсканировать этот экран, все %1$d кода в любом порядке</item>
+        <item quantity="many">Лично: дайте отсканировать этот экран, все %1$d кодов в любом порядке</item>
+        <item quantity="other">Лично: дайте отсканировать этот экран, все %1$d кода в любом порядке</item>
+    </plurals>
+    <string name="sharing_sent_never_both">Картинки никогда не показываются вместе с кодом: на одном снимке экрана оказалось бы и то и другое.</string>
+    <string name="sharing_sent_left_out_code">Приложение %1$s убрано из списка отправки: код ушёл через него.</string>
+    <string name="sharing_sent_left_out_pictures">Приложение %1$s убрано из списка отправки: картинки ушли через него.</string>
+    <string name="sharing_sent_left_out_code_unnamed">Приложение убрано из списка отправки: код ушёл через него.</string>
+    <string name="sharing_sent_left_out_pictures_unnamed">Приложение убрано из списка отправки: картинки ушли через него.</string>
+
+    <string name="sharing_read_unreadable_title">Не удалось прочитать картинку</string>
+    <string name="sharing_read_unreadable_text">Выберите другую.</string>
+    <string name="sharing_read_no_qr_title">На картинке нет QR-кода</string>
+    <string name="sharing_read_no_qr_text">Выберите картинку с кодом Keething или вставьте его текст.</string>
+    <string name="sharing_read_nothing_title">Нечего вставить</string>
+    <string name="sharing_read_nothing_text">Сначала скопируйте сообщение с кодом, потом вставьте его сюда.</string>
+    <string name="sharing_read_point">Наведите на код Keething</string>
+    <string name="sharing_read_no_camera">Камера не разрешена: прочитайте код с картинки или вставьте текст.</string>
+    <string name="sharing_read_allow_camera">Разрешить камеру</string>
+    <string name="sharing_read_from_picture">С картинки</string>
+    <string name="sharing_read_nothing_shared_title">В том, чем поделились, нет кода</string>
+    <string name="sharing_read_nothing_shared_text">Поделитесь картинкой или текстом кода Keething или прочитайте его здесь.</string>
+    <string name="sharing_read_cut_title">Код обрезан</string>
+    <string name="sharing_read_cut_text">Части не хватает, или она изменена. Прочитайте его снова или попросите ещё раз.</string>
+    <string name="sharing_read_not_keething_title">Это не код Keething</string>
+    <string name="sharing_read_not_keething_text">Это что-то другое. Прочитайте код запроса, ответа или отправленных вам записей.</string>
+    <string name="sharing_read_unknown_title">Это приложение не умеет читать такой код</string>
+    <string name="sharing_read_unknown_text">Возможно, он из более новой версии Keething или был изменён по дороге.</string>
+    <string name="sharing_read_mixed_title">Эти коды не относятся друг к другу</string>
+    <string name="sharing_read_mixed_text">Прочитайте все коды одного ответа или одних и тех же записей.</string>
+    <string name="sharing_read_part_title">Прочитан код %1$d из %2$d</string>
+    <plurals name="sharing_read_part_rest">
+        <item quantity="one">Теперь остальные: %1$d, в любом порядке.</item>
+        <item quantity="few">Теперь остальные %1$d, в любом порядке.</item>
+        <item quantity="many">Теперь остальные %1$d, в любом порядке.</item>
+        <item quantity="other">Теперь остальные %1$d, в любом порядке.</item>
+    </plurals>
+    <string name="sharing_read_expired_entries_text">Их срок истёк %1$s. Попросите отправителя прислать их снова.</string>
+    <string name="sharing_read_saved_already_text">Эти записи уже сохранены на этом телефоне.</string>
+    <string name="sharing_read_not_kept_title">Не удалось сохранить запрос</string>
+    <string name="sharing_read_own_request_title">Это ваш собственный запрос</string>
+    <string name="sharing_read_own_request_text">Отправьте его тому, кто должен на него ответить.</string>
+    <string name="sharing_read_request_expired_title">Срок запроса истёк</string>
+    <string name="sharing_read_request_expired_text">Его срок истёк %1$s. Пусть %2$s пришлёт новый.</string>
+    <string name="sharing_read_request_bad_dates_title">У запроса неверные даты</string>
+    <string name="sharing_read_request_bad_dates_text">По нему он создан позже, чем сейчас, или действует дольше недели. Проверьте часы на обоих телефонах или попросите новый.</string>
+    <string name="sharing_read_answered_title">Уже отвечено</string>
+    <string name="sharing_read_answered_text">Этот телефон уже ответил на этот запрос. Если нужно ещё, пусть %1$s пришлёт новый.</string>
+
+    <string name="sharing_received_locked_moved">%1$s заблокирована: записи теперь сохраняются в %2$s</string>
+    <string name="sharing_received_paste_none">В скопированном нет картинок</string>
+    <plurals name="sharing_received_paste_short">
+        <item quantity="one">Нужно десять картинок подряд, а здесь %1$d</item>
+        <item quantity="few">Нужно десять картинок подряд, а здесь %1$d</item>
+        <item quantity="many">Нужно десять картинок подряд, а здесь %1$d</item>
+        <item quantity="other">Нужно десять картинок подряд, а здесь %1$d</item>
+    </plurals>
+    <string name="sharing_received_locked">%1$s заблокирована. Разблокируйте её, чтобы сохранить остальное.</string>
+    <string name="sharing_received_in_database">база</string>
+    <string name="sharing_received_in_top_level">верхний уровень</string>
+    <string name="sharing_received_paste_pictures">Вставить картинки</string>
+    <plurals name="sharing_received_open">
+        <item quantity="one">Открыть запись</item>
+        <item quantity="few">Открыть первую запись</item>
+        <item quantity="many">Открыть первую запись</item>
+        <item quantity="other">Открыть первую запись</item>
+    </plurals>
+    <string name="sharing_received_saved_then">Сохранено %1$d из %2$d; затем: %3$s</string>
+    <plurals name="sharing_received_saving">
+        <item quantity="one">Сохранение и проверка: %1$d из %2$d…</item>
+        <item quantity="few">Сохранение и проверка: %1$d из %2$d…</item>
+        <item quantity="many">Сохранение и проверка: %1$d из %2$d…</item>
+        <item quantity="other">Сохранение и проверка: %1$d из %2$d…</item>
+    </plurals>
+    <plurals name="sharing_received_save">
+        <item quantity="one">Сохранить %1$d запись</item>
+        <item quantity="few">Сохранить %1$d записи</item>
+        <item quantity="many">Сохранить %1$d записей</item>
+        <item quantity="other">Сохранить %1$d записи</item>
+    </plurals>
+    <string name="sharing_received_close_request">Закрыть запрос без сохранения</string>
+    <string name="sharing_received_lost_title">Его запрос потерян</string>
+    <string name="sharing_received_lost_text">Этот телефон не смог прочитать сохранённые запросы и начал их заново, поэтому не может открыть ответы на прежние запросы. Попросите снова.</string>
+    <string name="sharing_received_broken_title">Этот код не открывается</string>
+    <string name="sharing_received_broken_text">Его изменили по дороге, или он на самом деле не для вашего запроса. Попросите снова и сверьте картинки по телефону.</string>
+    <string name="sharing_received_close_title">Закрыть без сохранения?</string>
+    <string name="sharing_received_close_text">Этот телефон забудет ключ запроса: ответ уже не открыть.</string>
+    <string name="sharing_received_close_it">Закрыть</string>
+    <plurals name="sharing_received_answer_subtitle">
+        <item quantity="one">Ответ на «%2$s» · %1$d запись</item>
+        <item quantity="few">Ответ на «%2$s» · %1$d записи</item>
+        <item quantity="many">Ответ на «%2$s» · %1$d записей</item>
+        <item quantity="other">Ответ на «%2$s» · %1$d записи</item>
+    </plurals>
+    <plurals name="sharing_received_envelope_subtitle">
+        <item quantity="one">Отправлено без запроса · %1$d запись</item>
+        <item quantity="few">Отправлено без запроса · %1$d записи</item>
+        <item quantity="many">Отправлено без запроса · %1$d записей</item>
+        <item quantity="other">Отправлено без запроса · %1$d записи</item>
+    </plurals>
+    <string name="sharing_received_answer_info">Открыть его мог только этот телефон, но создать мог любой, кто видел ваш запрос, и имя он выбирает сам. Сохраните, если это то, чего вы ждали: сохранённые записи получат тег #%1$s.</string>
+    <string name="sharing_received_envelope_info">Открывают его только эти картинки, так что он от того, кто их вам дал. Открыть его мог бы и любой, у кого есть и код, и картинки. Сохраните, если это то, чего вы ждали: сохранённые записи получат тег #%1$s.</string>
+    <string name="sharing_received_envelope_title">Записи, отправленные вам</string>
+    <string name="sharing_received_made">Создано %1$s · %2$s</string>
+    <string name="sharing_received_ten_pictures">Десять картинок</string>
+    <string name="sharing_received_ten_pictures_text">Отправитель передаёт их не тем путём, что код: по телефону или через другое приложение. Нажмите их ниже по порядку или скопируйте сообщение с ними и вставьте.</string>
+    <string name="sharing_received_wrong_pictures">Эти картинки его не открывают. Ослышались? Уберите последние или нажмите их заново. Уточните у отправителя, что эти картинки относятся к этому коду.</string>
+    <string name="sharing_received_expired_text">Попросите отправителя прислать их снова.</string>
+    <string name="sharing_received_saved_already_text">Эти записи уже сохранены на этом телефоне: ищите #%1$s.</string>
+    <string name="sharing_received_not_now_text">Разблокируйте базу и прочитайте код снова.</string>
+    <string name="sharing_received_address_note">Прежде чем платить на этот адрес, сверьте его другим способом: пусть %1$s подтвердит.</string>
+    <plurals name="sharing_received_fields">
+        <item quantity="one">%1$d поле</item>
+        <item quantity="few">%1$d поля</item>
+        <item quantity="many">%1$d полей</item>
+        <item quantity="other">%1$d поля</item>
+    </plurals>
+    <plurals name="sharing_received_fields_code">
+        <item quantity="one">%1$d поле · одноразовый код</item>
+        <item quantity="few">%1$d поля · одноразовый код</item>
+        <item quantity="many">%1$d полей · одноразовый код</item>
+        <item quantity="other">%1$d поля · одноразовый код</item>
+    </plurals>
+    <string name="sharing_received_summary_tags">%1$s · %2$s</string>
+    <string name="sharing_received_untitled">(Без названия)</string>
+    <string name="sharing_received_empty">пусто</string>
+    <string name="sharing_received_hide">Скрыть: %1$s</string>
+    <string name="sharing_received_show">Показать: %1$s</string>
+    <string name="sharing_received_copy">Скопировать: %1$s</string>
+    <string name="sharing_received_save_into">Сохранить в</string>
+    <string name="sharing_received_choose_group">Выбрать группу</string>
+    <string name="sharing_received_group_made_when">создаётся при сохранении записей</string>
+    <string name="sharing_received_chosen">Выбрано</string>
+    <string name="sharing_received_saved_title">Сохранено и проверено</string>
+    <plurals name="sharing_received_saved_request">
+        <item quantity="one">%1$d запись сохранена (%2$s) с тегом #%3$s. Запрос закрыт: этот телефон забыл его ключ, и код уже не открыть снова.</item>
+        <item quantity="few">%1$d записи сохранены (%2$s) с тегом #%3$s. Запрос закрыт: этот телефон забыл его ключ, и код уже не открыть снова.</item>
+        <item quantity="many">%1$d записей сохранены (%2$s) с тегом #%3$s. Запрос закрыт: этот телефон забыл его ключ, и код уже не открыть снова.</item>
+        <item quantity="other">%1$d записи сохранены (%2$s) с тегом #%3$s. Запрос закрыт: этот телефон забыл его ключ, и код уже не открыть снова.</item>
+    </plurals>
+    <plurals name="sharing_received_saved_envelope">
+        <item quantity="one">%1$d запись сохранена (%2$s) с тегом #%3$s. Этот телефон не сохранит её повторно из того же кода.</item>
+        <item quantity="few">%1$d записи сохранены (%2$s) с тегом #%3$s. Этот телефон не сохранит их повторно из того же кода.</item>
+        <item quantity="many">%1$d записей сохранены (%2$s) с тегом #%3$s. Этот телефон не сохранит их повторно из того же кода.</item>
+        <item quantity="other">%1$d записи сохранены (%2$s) с тегом #%3$s. Этот телефон не сохранит их повторно из того же кода.</item>
+    </plurals>
+
+    <string name="sharing_send_to_title">Отправить «%1$s»</string>
+    <string name="sharing_send_to_none">Пока никто не просил. Попросите прислать запрос (Keething › Поделиться › Попросить запись) или отправьте без запроса: запись откроется десятью картинками, которые вы передадите другим способом.</string>
+    <string name="sharing_send_to_some">Запрос, который вам прислали: то, что вы отправите, откроет только телефон автора. Или отправьте без запроса.</string>
+    <string name="sharing_send_to_read">Прочитать запрос</string>
+    <string name="sharing_send_to_without">Без запроса</string>
+</resources>

@@ -60,6 +60,8 @@
     </plurals>
     <string name="databases_backups_date_today">Сегодня, %1$s</string>
     <string name="databases_backups_date_yesterday">Вчера, %1$s</string>
+    <string name="databases_backups_day_pattern">EEE, d MMM</string>
+    <string name="databases_backups_day_year_pattern">EEE, d MMM uuuu</string>
     <string name="databases_backups_date_day">%1$s, %2$s</string>
     <string name="databases_backups_on_today">сегодня, %1$s</string>
     <string name="databases_backups_on_yesterday">вчера, %1$s</string>
@@ -297,8 +299,20 @@
         <item quantity="other">%1$d дня назад</item>
     </plurals>
     <string name="databases_ago_last_week">на прошлой неделе</string>
-    <string name="databases_ago_in_month">%1$s</string>
-    <string name="databases_ago_in_month_year">%1$s %2$d</string>
+    <string name="databases_internal_storage">Внутренняя память</string>
+    <string name="databases_ago_in_january">в январе</string>
+    <string name="databases_ago_in_february">в феврале</string>
+    <string name="databases_ago_in_march">в марте</string>
+    <string name="databases_ago_in_april">в апреле</string>
+    <string name="databases_ago_in_may">в мае</string>
+    <string name="databases_ago_in_june">в июне</string>
+    <string name="databases_ago_in_july">в июле</string>
+    <string name="databases_ago_in_august">в августе</string>
+    <string name="databases_ago_in_september">в сентябре</string>
+    <string name="databases_ago_in_october">в октябре</string>
+    <string name="databases_ago_in_november">в ноябре</string>
+    <string name="databases_ago_in_december">в декабре</string>
+    <string name="databases_ago_in_month_year">%1$s %2$d г.</string>
     <string name="databases_lock_key_file_not_there">Базе %1$s нужен файл-ключ: %2$s нет в %3$s.</string>
     <string name="databases_lock_key_file_no_access">Keething больше не может читать %1$s: выберите его снова.</string>
     <string name="databases_lock_needs_folder">Теперь Keething открывает файлы только в папках, которые вы выбрали. Выберите %1$s — папку %2$s; это спрашивается один раз.</string>
@@ -434,16 +448,16 @@
     <string name="databases_new_encryption_line_argon2id">KDBX 4 · %1$s · %2$s · открывается на этом телефоне примерно за %3$s · читается KeePass 2.47 и новее и всеми нынешними приложениями KeePass</string>
     <string name="databases_new_measuring">Измеряем на этом телефоне…</string>
     <plurals name="databases_new_measured_iterations">
-        <item quantity="one">%1$s с на этом телефоне: %2$s итерация, измерено. Компьютер обычно открывает её быстрее.</item>
-        <item quantity="few">%1$s с на этом телефоне: %2$s итерации, измерено. Компьютер обычно открывает её быстрее.</item>
-        <item quantity="many">%1$s с на этом телефоне: %2$s итераций, измерено. Компьютер обычно открывает её быстрее.</item>
-        <item quantity="other">%1$s с на этом телефоне: %2$s итерации, измерено. Компьютер обычно открывает её быстрее.</item>
+        <item quantity="one">%1$.1f с на этом телефоне: %2$,d итерация, измерено. Компьютер обычно открывает её быстрее.</item>
+        <item quantity="few">%1$.1f с на этом телефоне: %2$,d итерации, измерено. Компьютер обычно открывает её быстрее.</item>
+        <item quantity="many">%1$.1f с на этом телефоне: %2$,d итераций, измерено. Компьютер обычно открывает её быстрее.</item>
+        <item quantity="other">%1$.1f с на этом телефоне: %2$,d итерации, измерено. Компьютер обычно открывает её быстрее.</item>
     </plurals>
     <plurals name="databases_new_measured_rounds">
-        <item quantity="one">%1$s с на этом телефоне: %2$s раунд, измерено. Компьютер обычно открывает её быстрее.</item>
-        <item quantity="few">%1$s с на этом телефоне: %2$s раунда, измерено. Компьютер обычно открывает её быстрее.</item>
-        <item quantity="many">%1$s с на этом телефоне: %2$s раундов, измерено. Компьютер обычно открывает её быстрее.</item>
-        <item quantity="other">%1$s с на этом телефоне: %2$s раунда, измерено. Компьютер обычно открывает её быстрее.</item>
+        <item quantity="one">%1$.1f с на этом телефоне: %2$,d раунд, измерено. Компьютер обычно открывает её быстрее.</item>
+        <item quantity="few">%1$.1f с на этом телефоне: %2$,d раунда, измерено. Компьютер обычно открывает её быстрее.</item>
+        <item quantity="many">%1$.1f с на этом телефоне: %2$,d раундов, измерено. Компьютер обычно открывает её быстрее.</item>
+        <item quantity="other">%1$.1f с на этом телефоне: %2$,d раунда, измерено. Компьютер обычно открывает её быстрее.</item>
     </plurals>
     <string name="databases_new_blocker_folder">Выберите папку, в которую сохранить базу.</string>
     <string name="databases_new_blocker_name">Дайте ей имя.</string>
@@ -467,7 +481,8 @@
     <string name="databases_new_measure_memory">Этому телефону не хватает памяти на %1$d МиБ: выберите меньше.</string>
     <string name="databases_new_not_measured">Не удалось измерить скорость этого телефона. Попробуйте ещё раз или выберите AES-KDF.</string>
     <string name="databases_new_folder_this_database">папка этой базы</string>
-    <string name="databases_seconds">%1$s с</string>
+    <string name="databases_seconds">%1$.1f с</string>
+    <string name="databases_seconds_whole">%1$d с</string>
 
     <string name="databases_new_title">Новая база</string>
     <string name="databases_new_name">Имя</string>

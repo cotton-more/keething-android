@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="recyclebin_delete_for_good_title">Удалить «%1$s» навсегда?</string>
+    <string name="recyclebin_delete_for_good_text">Запись удаляется из базы вместе с историей и вложениями, которые больше ничем не используются. Это нельзя отменить; копии, синхронизируемые с этим файлом, тоже её удалят.</string>
+    <string name="recyclebin_delete_for_good_confirm">Удалить навсегда</string>
+    <string name="recyclebin_cancel">Отмена</string>
+
+    <string name="recyclebin_moved">«%1$s» перемещена в корзину</string>
+    <string name="recyclebin_restore_gone">Этой записи больше нет в корзине (восстановлена в другом месте?). Ничего не изменено.</string>
+    <string name="recyclebin_restored_to">Восстановлена в группу %1$s</string>
+    <string name="recyclebin_restored_to_top">Восстановлена в верхнюю группу</string>
+    <string name="recyclebin_deleted_for_good">«%1$s» удалена навсегда</string>
+</resources>

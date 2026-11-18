@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_title">О приложении</string>
+    <string name="about_back">Назад</string>
+    <string name="about_for_android">для Android</string>
+    <string name="about_version">Версия</string>
+    <string name="about_built">Сборка</string>
+    <string name="about_commit">Коммит</string>
+    <string name="about_licence">Лицензия</string>
+    <string name="about_source">Исходный код</string>
+    <string name="about_security">Безопасность</string>
+    <string name="about_security_how">Как сообщить об уязвимости</string>
+    <string name="about_report_problem">Сообщить о проблеме</string>
+    <string name="about_report_problem_detail">Открывает новый запрос на GitHub, где уже указаны эта сборка, версия Android и модель телефона; ничего из баз.</string>
+    <string name="about_open">О Keething</string>
+    <string name="about_licence_title">Лицензия</string>
+    <string name="about_security_title">Политика безопасности</string>
+
+    <string name="about_version_text">%1$s · сборка %2$s</string>
+    <string name="about_commit_dirty">%1$s с незакоммиченными изменениями</string>
+    <string name="about_built_pattern">d MMMM yyyy, HH:mm</string>
+    <string name="about_unknown">неизвестно</string>
+
+    <!-- The issue goes to the project's GitHub, which is in English: kept English -->
+    <string name="about_problem_report_body">&lt;!-- A security problem? Not here: see SECURITY.md (or About › Security) to report it privately. --&gt;\n\n**What happened**\n\n\n**What you expected**\n\n\n**Steps to make it happen again**\n\n\n---\nKeething %1$s, commit %2$s\nAndroid %3$s (API %4$d)\n%5$s</string>
+    <string name="about_no_browser">Нет браузера, чтобы открыть %1$s</string>
+
+    <string name="about_third_party_title">Сторонние лицензии</string>
+    <string name="about_text_unreadable">Не удалось прочитать текст.</string>
+    <string name="about_licence_either">%1$s или %2$s</string>
+    <string name="about_credit_eff_wordlist">Слова генератора паролей — Electronic Frontier Foundation (eff.org/dice)</string>
+    <string name="about_credit_bip39">Слова для проверки фразы восстановления — авторы BIP-39</string>
+    <string name="about_credit_matrix_sas">Картинки для проверки запроса — The Matrix.org Foundation</string>
+    <string name="about_credit_google_sans_code">Шрифт паролей и кодов — The Google Sans Code Project Authors</string>
+    <string name="about_credit_qrcodegen">QR-коды пароля и сети Wi-Fi — Project Nayuki</string>
+    <string name="about_credit_zxing">Чтение QR-кодов «Поделиться» и одноразовых кодов — авторы ZXing</string>
+    <string name="about_credit_androidsvg">Отрисовка SVG-картинки, чтобы прочитать её QR-код — Paul LeBeau, Cave Rock Software Ltd.</string>
+    <string name="about_credit_argon2">Вычисление ключа, открывающего базу — Daniel Dinu, Dmitry Khovratovich, Jean-Philippe Aumasson и Samuel Neves</string>
+    <string name="about_credit_androidx">Compose, CameraX и другие библиотеки Jetpack — The Android Open Source Project и JetBrains</string>
+</resources>

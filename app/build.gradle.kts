@@ -99,6 +99,9 @@ android {
             val fixtures = rootDir.resolve("fixtures")
             it.inputs.dir(fixtures).withPropertyName("fixtures")
             it.systemProperty("keething.fixtures", fixtures.absolutePath)
+            // What follows the phone's language (dates, a country's name by its code) in English, whatever the computer's.
+            it.systemProperty("user.language", "en")
+            it.systemProperty("user.country", "US")
         }
     }
 }

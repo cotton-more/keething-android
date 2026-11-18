@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="biometric_prompt_title">Разблокировать Keething</string>
+    <string name="biometric_prompt_use_password">Ввести пароль</string>
+
+    <string name="biometric_unavailable_none_enrolled">на этом телефоне не настроен ни один отпечаток</string>
+    <string name="biometric_unavailable_no_hardware">на этом телефоне нет надёжного сканера отпечатков</string>
+    <string name="biometric_unavailable_hardware">сканер отпечатков сейчас недоступен</string>
+    <string name="biometric_unavailable_security_update">сканеру отпечатков нужно обновление безопасности</string>
+    <string name="biometric_unavailable_other">биометрия недоступна</string>
+</resources>

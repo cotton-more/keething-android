@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="quicknote_close">Закрыть</string>
+    <string name="quicknote_unlock_purpose">Разблокируйте, чтобы написать быструю заметку</string>
+
+    <string name="quicknote_saved_to">Сохранено в %1$s</string>
+    <string name="quicknote_saved">Сохранено</string>
+    <string name="quicknote_no_text">Нет текста для сохранения</string>
+    <string name="quicknote_no_text_on_clipboard">В буфере обмена нет текста</string>
+    <string name="quicknote_no_database">Нет базы для быстрой заметки</string>
+
+    <string name="quicknote_tile_already_added">Плитка «Быстрая заметка» уже есть в быстрых настройках</string>
+    <string name="quicknote_tile_not_asked">Android не спросил. Добавьте плитку кнопкой изменения в быстрых настройках.</string>
+</resources>

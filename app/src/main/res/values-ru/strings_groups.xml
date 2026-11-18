@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="groups_top_level">Верхний уровень</string>
+
+    <string name="groups_picker_title">Группа</string>
+    <string name="groups_picker_close">Закрыть</string>
+    <string name="groups_picker_find_or_make">Найти или создать группу</string>
+    <string name="groups_picker_find">Найти группу</string>
+    <string name="groups_picker_clear">Очистить</string>
+    <string name="groups_picker_up_to">Наверх: %1$s</string>
+    <string name="groups_picker_go_into">Открыть %1$s</string>
+    <string name="groups_picker_choose">Выбрать</string>
+    <string name="groups_picker_chosen">Выбрана</string>
+    <string name="groups_picker_now_in">Сейчас: </string>
+    <string name="groups_picker_namesake">Рядом есть другая группа с таким же именем</string>
+    <plurals name="groups_picker_new_groups">
+        <item quantity="one">Новая группа «%1$s»</item>
+        <item quantity="few">Новые группы «%1$s»</item>
+        <item quantity="many">Новые группы «%1$s»</item>
+        <item quantity="other">Новые группы «%1$s»</item>
+    </plurals>
+    <string name="groups_picker_new_place">в «%1$s» · %2$s</string>
+    <plurals name="groups_picker_not_groups_yet">
+        <item quantity="one">«%1$s» — ещё не группа</item>
+        <item quantity="few">«%1$s» — ещё не группы</item>
+        <item quantity="many">«%1$s» — ещё не группы</item>
+        <item quantity="other">«%1$s» — ещё не группы</item>
+    </plurals>
+    <string name="groups_picker_level_empty">В «%1$s» пока нет групп.</string>
+    <string name="groups_picker_level_empty_make">В «%1$s» пока нет групп. Введите имя, чтобы создать группу.</string>
+    <string name="groups_picker_none_found">Нет групп с «%1$s» в имени.</string>
+    <plurals name="groups_subgroups">
+        <item quantity="one">%1$d группа</item>
+        <item quantity="few">%1$d группы</item>
+        <item quantity="many">%1$d групп</item>
+        <item quantity="other">%1$d группы</item>
+    </plurals>
+    <plurals name="groups_entries">
+        <item quantity="one">%1$d запись</item>
+        <item quantity="few">%1$d записи</item>
+        <item quantity="many">%1$d записей</item>
+        <item quantity="other">%1$d записи</item>
+    </plurals>
+
+    <string name="groups_note_one_made">«%1$s» создаётся при сохранении записи</string>
+    <string name="groups_note_one_made_entries">«%1$s» создаётся при сохранении записей</string>
+    <string name="groups_note_two_made">«%1$s» и «%2$s» создаются при сохранении записи</string>
+    <string name="groups_note_two_made_entries">«%1$s» и «%2$s» создаются при сохранении записей</string>
+    <plurals name="groups_note_many_made">
+        <item quantity="one">%1$d новая группа создаётся при сохранении записи</item>
+        <item quantity="few">%1$d новые группы создаются при сохранении записи</item>
+        <item quantity="many">%1$d новых групп создаются при сохранении записи</item>
+        <item quantity="other">%1$d новой группы создаются при сохранении записи</item>
+    </plurals>
+    <plurals name="groups_note_many_made_entries">
+        <item quantity="one">%1$d новая группа создаётся при сохранении записей</item>
+        <item quantity="few">%1$d новые группы создаются при сохранении записей</item>
+        <item quantity="many">%1$d новых групп создаются при сохранении записей</item>
+        <item quantity="other">%1$d новой группы создаются при сохранении записей</item>
+    </plurals>
+    <string name="groups_note_moved_from">При сохранении переместится сюда из «%1$s»</string>
+    <string name="groups_note_moved_from_gone">При сохранении переместится сюда из группы, которой больше нет</string>
+
+    <string name="groups_title">Группы и теги</string>
+    <string name="groups_back">Назад</string>
+    <string name="groups_new_group">Новая группа</string>
+    <string name="groups_new_group_where">На верхнем уровне выбранной базы.</string>
+    <string name="groups_not_open_list">Не открыты: %1$s</string>
+    <string name="groups_not_open">Не открыты:</string>
+    <string name="groups_unlock">Разблокировать</string>
+    <string name="groups_section_groups">Группы</string>
+    <string name="groups_section_tags">Теги</string>
+    <string name="groups_saving">Сохранение…</string>
+    <string name="groups_recycle_bin">Корзина</string>
+    <string name="groups_templates">Шаблоны · формы другого приложения, не показываются</string>
+    <string name="groups_no_tags">Ни у одной записи нет тегов.</string>
+    <string name="groups_tag_also">также %1$s</string>
+    <string name="groups_none_here">Здесь нет, все во вложенных группах</string>
+    <plurals name="groups_here">
+        <item quantity="one">%1$s здесь</item>
+        <item quantity="few">%1$s здесь</item>
+        <item quantity="many">%1$s здесь</item>
+        <item quantity="other">%1$s здесь</item>
+    </plurals>
+    <plurals name="groups_block_entries">
+        <item quantity="one">%1$s запись</item>
+        <item quantity="few">%1$s записи</item>
+        <item quantity="many">%1$s записей</item>
+        <item quantity="other">%1$s записи</item>
+    </plurals>
+    <string name="groups_fold">Свернуть</string>
+    <string name="groups_unfold">Развернуть</string>
+    <string name="groups_folded">Свёрнуто</string>
+    <string name="groups_unfolded">Развёрнуто</string>
+    <string name="groups_show_entries">Показать записи</string>
+    <string name="groups_change_group">Изменить группу</string>
+    <string name="groups_gone">Этой группы больше нет в прежнем виде (её изменили в другом месте?). Ничего не сохранено.</string>
+
+    <string name="groups_sheet_new_group">Новая группа…</string>
+    <string name="groups_sheet_new_group_inside">Новая группа внутри…</string>
+    <string name="groups_sheet_rename">Переименовать…</string>
+    <string name="groups_sheet_move">Переместить в…</string>
+    <string name="groups_sheet_move_detail">Со всем содержимым</string>
+    <string name="groups_sheet_delete">Удалить</string>
+    <string name="groups_sheet_delete_detail">Она пустая: удаляется сразу</string>
+    <string name="groups_sheet_meta_empty">%1$s · пустая</string>
+    <plurals name="groups_sheet_meta_no_entries">
+        <item quantity="one">%1$s · нет записей, %2$d группа</item>
+        <item quantity="few">%1$s · нет записей, %2$d группы</item>
+        <item quantity="many">%1$s · нет записей, %2$d групп</item>
+        <item quantity="other">%1$s · нет записей, %2$d группы</item>
+    </plurals>
+    <plurals name="groups_sheet_meta_entries">
+        <item quantity="one">%1$s · %2$d запись</item>
+        <item quantity="few">%1$s · %2$d записи</item>
+        <item quantity="many">%1$s · %2$d записей</item>
+        <item quantity="other">%1$s · %2$d записи</item>
+    </plurals>
+    <plurals name="groups_sheet_meta_entries_none_here">
+        <item quantity="one">%1$s · %2$d запись · здесь нет</item>
+        <item quantity="few">%1$s · %2$d записи · здесь нет</item>
+        <item quantity="many">%1$s · %2$d записей · здесь нет</item>
+        <item quantity="other">%1$s · %2$d записи · здесь нет</item>
+    </plurals>
+    <plurals name="groups_sheet_meta_entries_here">
+        <item quantity="one">%1$s · %2$d запись · %3$d здесь</item>
+        <item quantity="few">%1$s · %2$d записи · %3$d здесь</item>
+        <item quantity="many">%1$s · %2$d записей · %3$d здесь</item>
+        <item quantity="other">%1$s · %2$d записи · %3$d здесь</item>
+    </plurals>
+
+    <string name="groups_rename_title">Переименовать «%1$s»</string>
+    <string name="groups_new_title_top">Новая группа на верхнем уровне</string>
+    <string name="groups_new_title_in">Новая группа в «%1$s»</string>
+    <string name="groups_name_label">Имя</string>
+    <string name="groups_save">Сохранить</string>
+    <string name="groups_cancel">Отмена</string>
+    <string name="groups_name_empty">У группы должно быть имя.</string>
+    <string name="groups_name_taken_top">На верхнем уровне уже есть группа «%1$s».</string>
+    <string name="groups_name_taken">В «%1$s» уже есть группа «%2$s».</string>
+
+    <string name="groups_move_title">Переместить «%1$s» в…</string>
+    <string name="groups_move_subtitle_empty">%1$s · пустая</string>
+    <plurals name="groups_move_subtitle">
+        <item quantity="one">%1$s · %2$d запись переместится вместе с ней</item>
+        <item quantity="few">%1$s · %2$d записи, все переместятся вместе с ней</item>
+        <item quantity="many">%1$s · %2$d записей, все переместятся вместе с ней</item>
+        <item quantity="other">%1$s · %2$d записи, все переместятся вместе с ней</item>
+    </plurals>
+    <string name="groups_move_refused_itself">Сама группа</string>
+    <string name="groups_move_refused_inside">Внутри «%1$s»</string>
+    <string name="groups_move_refused_here_now">Она уже здесь</string>
+    <string name="groups_move_refused_taken_top">На верхнем уровне уже есть «%1$s»</string>
+    <string name="groups_move_refused_taken">В «%1$s» уже есть «%2$s»</string>
+
+    <string name="groups_renamed">Переименована в «%1$s»</string>
+    <string name="groups_made_top">Группа «%1$s» создана на верхнем уровне</string>
+    <string name="groups_made_in">Группа «%1$s» создана в «%2$s»</string>
+    <string name="groups_moved_top">Группа «%1$s» перемещена на верхний уровень</string>
+    <string name="groups_moved_into">Группа «%1$s» перемещена в «%2$s»</string>
+    <string name="groups_deleted">Пустая группа «%1$s» удалена</string>
+    <string name="groups_entry_moved">Перемещена в «%1$s»</string>
+    <string name="groups_entry_moved_with_note">Перемещена в «%1$s». %2$s</string>
+</resources>

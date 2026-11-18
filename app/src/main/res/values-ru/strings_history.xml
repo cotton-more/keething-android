@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_title">История</string>
+    <string name="history_back">Назад к записи</string>
+    <string name="history_in_recycle_bin">В корзине: чтобы вернуться к одной из версий, сначала восстановите запись.</string>
+    <string name="history_read_only">На этом телефоне база открыта только для чтения: версии показываются, но не восстанавливаются.</string>
+    <string name="history_reading">Чтение файла…</string>
+    <string name="history_none">Для этой записи нет сохранённых прежних версий.</string>
+    <string name="history_entry_gone">Этой записи больше нет в файле.</string>
+    <string name="history_password_changed">Пароль базы изменился после разблокировки.</string>
+    <string name="history_not_restored">Не восстановлено: %1$s</string>
+    <string name="history_size_unknown">размер неизвестен</string>
+
+    <string name="history_date_not_known">Дата неизвестна</string>
+    <string name="history_current">Текущая</string>
+    <string name="history_oldest">Самая старая из сохранённых версий: сравнивать не с чем.</string>
+    <string name="history_no_change_shown">Сохранена без изменений, которые здесь показываются (например, значок, цвет или автонабор).</string>
+    <string name="history_restore">Вернуться к этой версии…</string>
+    <string name="history_restoring">Возврат…</string>
+    <string name="history_restore_version_of">Вернуться к версии от %1$s</string>
+    <string name="history_change_added">%1$s · добавлено</string>
+    <string name="history_change_removed">%1$s · удалено</string>
+    <string name="history_change_changed">%1$s · изменено</string>
+    <string name="history_show">Показать %1$s</string>
+    <string name="history_hide">Скрыть %1$s</string>
+    <string name="history_empty">(пусто)</string>
+
+    <string name="history_restore_title">Вернуться к этой версии?</string>
+    <string name="history_the_entry">Запись</string>
+    <string name="history_restore_text">%1$s: всё станет как в версии от %2$s, изменения после неё отменятся. Текущая версия попадёт в историю, и к ней можно будет вернуться так же.</string>
+    <string name="history_date_not_known_in_sentence">неизвестной даты</string>
+    <string name="history_restore_what_changes">Что изменится</string>
+    <string name="history_restore_nothing_shown">Ничего из того, что здесь показывается (например, значок, цвет или автонабор).</string>
+    <string name="history_restore_confirm">Вернуться</string>
+    <string name="history_cancel">Отмена</string>
+    <string name="history_restored">Возвращена версия от %1$s</string>
+
+    <plurals name="history_trimmed_kept">
+        <item quantity="one">%1$d прежнюю версию</item>
+        <item quantity="few">%1$d прежние версии</item>
+        <item quantity="many">%1$d прежних версий</item>
+        <item quantity="other">%1$d прежней версии</item>
+    </plurals>
+    <string name="history_trimmed_this_one_leaves">Эта база хранит %1$s: эта версия уходит из истории, становясь текущей.</string>
+    <string name="history_trimmed_oldest_goes">Эта база хранит %1$s, поэтому самая старая, от %2$s, удаляется.</string>
+    <plurals name="history_trimmed_oldest_go">
+        <item quantity="one">Эта база хранит %1$s, поэтому удаляется %2$d самая старая, новейшая из них — от %3$s.</item>
+        <item quantity="few">Эта база хранит %1$s, поэтому удаляются %2$d самые старые, новейшая из них — от %3$s.</item>
+        <item quantity="many">Эта база хранит %1$s, поэтому удаляются %2$d самых старых, новейшая из них — от %3$s.</item>
+        <item quantity="other">Эта база хранит %1$s, поэтому удаляются %2$d самой старой, новейшая из них — от %3$s.</item>
+    </plurals>
+    <plurals name="history_trimmed_oldest_go_this_one_leaves">
+        <item quantity="one">Эта база хранит %1$s, поэтому удаляется %2$d самая старая, новейшая из них — от %3$s. Эта версия станет текущей.</item>
+        <item quantity="few">Эта база хранит %1$s, поэтому удаляются %2$d самые старые, новейшая из них — от %3$s. Эта версия станет текущей.</item>
+        <item quantity="many">Эта база хранит %1$s, поэтому удаляются %2$d самых старых, новейшая из них — от %3$s. Эта версия станет текущей.</item>
+        <item quantity="other">Эта база хранит %1$s, поэтому удаляются %2$d самой старой, новейшая из них — от %3$s. Эта версия станет текущей.</item>
+    </plurals>
+</resources>

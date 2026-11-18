@@ -3,6 +3,7 @@ package dev.keething.android.ui
 import dev.keething.android.R
 import dev.keething.domain.text.UserText
 import java.io.File
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Element
@@ -24,6 +25,7 @@ internal fun UiText.english(): String = when (this) {
     }
     is UiText.Inside -> inside(text.english(), Locale.US)
     is UiText.Joined -> items.joinToString(separator) { it.english() }
+    is UiText.Date -> DateTimeFormatter.ofPattern(EnglishTexts.string(pattern), Locale.ENGLISH).format(value)
 }
 
 private fun String.formatted(args: List<Any>): String =

@@ -16,9 +16,7 @@ import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cbrt
 import kotlin.math.min
@@ -311,7 +309,7 @@ internal object DatabaseText {
     fun abbreviated(path: String, root: String): String {
         val base = root.trimEnd('/')
         if (base.isEmpty()) return path
-        if (path == base) return INTERNAL_STORAGE
+        if (path == base) return internalStorage
         return if (path.startsWith("$base/")) path.removePrefix("$base/") else path
     }
 
@@ -333,8 +331,8 @@ internal object DatabaseText {
             days < 7 -> uiPlural(R.plurals.databases_ago_days, days.toInt())
             days < 14 -> uiText(R.string.databases_ago_last_week)
             else -> {
-                val month = day.month.getDisplayName(TextStyle.FULL_STANDALONE, Locale.ENGLISH)
-                if (day.year == today.year) uiText(R.string.databases_ago_in_month, month) else uiText(R.string.databases_ago_in_month_year, month, day.year)
+                val month = uiText(IN_MONTH[day.monthValue - 1])
+                if (day.year == today.year) month else uiText(R.string.databases_ago_in_month_year, month, day.year)
             }
         }
     }
@@ -362,11 +360,21 @@ internal object DatabaseText {
     /** "Personal", "Personal and Work", "Personal, Work and Family Shared". */
     fun joined(names: List<String>): UiText = uiListed(names.map(::uiPlain))
 
+    /** "in January" … "in December": a language may say the month in a case of its own (Russian «в марте»). */
+    private val IN_MONTH = listOf(
+        R.string.databases_ago_in_january, R.string.databases_ago_in_february, R.string.databases_ago_in_march,
+        R.string.databases_ago_in_april, R.string.databases_ago_in_may, R.string.databases_ago_in_june,
+        R.string.databases_ago_in_july, R.string.databases_ago_in_august, R.string.databases_ago_in_september,
+        R.string.databases_ago_in_october, R.string.databases_ago_in_november, R.string.databases_ago_in_december,
+    )
+
     /**
-     * The shared storage's root in words. TODO(T14): still English; [abbreviated] gives a String used as a database's
-     * label and folder across the app, which a resource cannot reach without changing all of them.
+     * The shared storage's root in words: [abbreviated] gives a String kept as a database's label and folder across
+     * the app, out of a resource's reach, so the app sets it from R.string.databases_internal_storage at start and when
+     * the language changes (KeethingApplication); a text made before a change keeps its words until made again.
      */
-    private const val INTERNAL_STORAGE = "Internal storage" // not user text: see INTERNAL_STORAGE's KDoc (T14)
+    @Volatile
+    var internalStorage: String = "Internal storage" // not user text: the English until the app sets it (KDoc)
 }
 
 /** Every database's mark, over the whole list. */

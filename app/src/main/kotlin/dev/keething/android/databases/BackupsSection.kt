@@ -72,6 +72,7 @@ import dev.keething.android.ui.SegmentGap
 import dev.keething.android.ui.UiText
 import dev.keething.android.ui.afterColon
 import dev.keething.android.ui.resolve
+import dev.keething.android.ui.uiDate
 import dev.keething.android.ui.uiPlain
 import dev.keething.android.ui.uiPlural
 import dev.keething.android.ui.uiText
@@ -125,7 +126,11 @@ internal object BackupTexts {
         return when (time.toLocalDate()) {
             today -> uiText(R.string.databases_backups_date_today, TIME.format(time))
             today.minusDays(1) -> uiText(R.string.databases_backups_date_yesterday, TIME.format(time))
-            else -> uiText(R.string.databases_backups_date_day, (if (time.year == today.year) DAY else DAY_YEAR).format(time), TIME.format(time))
+            else -> uiText(
+                R.string.databases_backups_date_day,
+                uiDate(time, if (time.year == today.year) R.string.databases_backups_day_pattern else R.string.databases_backups_day_year_pattern),
+                TIME.format(time),
+            )
         }
     }
 
@@ -216,9 +221,7 @@ internal object BackupTexts {
 
     private fun ago(id: Int, n: Long): UiText = uiPlural(id, n.toInt())
 
-    private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
-    private val DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
-    private val DAY_YEAR: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM uuuu", Locale.ENGLISH) // not user text: a date pattern
+    private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT) // not user text: digits only
 }
 
 /**

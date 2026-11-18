@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="navigation_stored_password_not_deleted">Не удалось удалить сохранённый пароль: %1$s.</string>
+
+    <string name="navigation_not_created_title_unnamed">Новая база не создана</string>
+    <string name="navigation_not_created_title">База «%1$s» не создана</string>
+    <string name="navigation_not_created_nothing_kept">Keething закрыли во время записи, поэтому от неё ничего не осталось. Создайте её снова.</string>
+    <string name="navigation_not_created_left">Keething закрыли во время записи. От неё могло остаться вот это, записанное не полностью: %1$s. Удалите это, если оно не ваше, и создайте базу снова.</string>
+    <string name="navigation_ok">OK</string>
+
+    <plurals name="navigation_unreadable_saves_title">
+        <item quantity="one">%1$d сохранение могло не завершиться</item>
+        <item quantity="few">%1$d сохранения могли не завершиться</item>
+        <item quantity="many">%1$d сохранений могли не завершиться</item>
+        <item quantity="other">%1$d сохранения могли не завершиться</item>
+    </plurals>
+    <plurals name="navigation_unreadable_saves_text">
+        <item quantity="one">Keething закрыли во время сохранения, а его запись об этом сохранении не читается, поэтому проверить или исправить его не удалось. Откройте свои базы и проверьте, что последнее изменение на месте; если его нет, сделайте его снова.</item>
+        <item quantity="few">Keething закрыли во время сохранения, а его записи об этих сохранениях не читаются, поэтому проверить или исправить их не удалось. Откройте свои базы и проверьте, что последнее изменение на месте; если его нет, сделайте его снова.</item>
+        <item quantity="many">Keething закрыли во время сохранения, а его записи об этих сохранениях не читаются, поэтому проверить или исправить их не удалось. Откройте свои базы и проверьте, что последнее изменение на месте; если его нет, сделайте его снова.</item>
+        <item quantity="other">Keething закрыли во время сохранения, а его записи об этих сохранениях не читаются, поэтому проверить или исправить их не удалось. Откройте свои базы и проверьте, что последнее изменение на месте; если его нет, сделайте его снова.</item>
+    </plurals>
+
+    <string name="navigation_closed">«%1$s» закрыта: она по-прежнему в ⋮ › Базы</string>
+    <string name="navigation_closed_unnamed">База закрыта: она по-прежнему в ⋮ › Базы</string>
+
+    <string name="navigation_no_entry_chosen">Выберите запись: её карточка откроется здесь.</string>
+</resources>

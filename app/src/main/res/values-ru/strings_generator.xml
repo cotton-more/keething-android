@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="generator_title">Генератор паролей</string>
+    <string name="generator_copy">Скопировать</string>
+    <string name="generator_use">Использовать этот пароль</string>
+    <string name="generator_use_short">Использовать</string>
+    <string name="generator_new">Новый пароль</string>
+
+    <string name="generator_kind_pin">PIN-код</string>
+    <string name="generator_kind_strong">Надёжный</string>
+    <string name="generator_kind_memorable">Слова</string>
+    <string name="generator_kind_passphrase">Фраза</string>
+
+    <string name="generator_strength_weak">слабый</string>
+    <string name="generator_strength_fair">средний</string>
+    <string name="generator_strength_strong">надёжный</string>
+    <plurals name="generator_strength_bits">
+        <item quantity="one">%1$d бит · %2$s</item>
+        <item quantity="few">%1$d бита · %2$s</item>
+        <item quantity="many">%1$d бит · %2$s</item>
+        <item quantity="other">%1$d бита · %2$s</item>
+    </plurals>
+    <plurals name="generator_length_characters">
+        <item quantity="one">%1$d символ</item>
+        <item quantity="few">%1$d символа</item>
+        <item quantity="many">%1$d символов</item>
+        <item quantity="other">%1$d символа</item>
+    </plurals>
+
+    <string name="generator_length">Длина</string>
+    <string name="generator_pin_hint">Для устройства или карты, которые блокируются после нескольких неверных попыток; для всего остального слишком слабый.</string>
+    <string name="generator_leave_out_look_alikes">Без похожих символов %1$s</string>
+    <string name="generator_words">Слова</string>
+    <string name="generator_digits">Цифры</string>
+    <string name="generator_symbols">Символы</string>
+    <string name="generator_memorable_hint">Каждое слово с Заглавной или ЗАГЛАВНЫМИ, между словами цифры и символы.</string>
+    <string name="generator_between_words">Между словами</string>
+    <string name="generator_separator_space">пробел</string>
+    <string name="generator_passphrase_hint">Только строчные слова: легко набрать на телефоне или телевизоре, хорошо подходит для мастер-пароля.</string>
+    <string name="generator_fewer">Меньше</string>
+    <string name="generator_more">Больше</string>
+
+    <string name="generator_reason_empty">пусто</string>
+    <string name="generator_reason_common_password">один из самых распространённых паролей</string>
+    <string name="generator_reason_context">содержит имя пользователя или название сайта</string>
+    <string name="generator_reason_common_word">распространённое слово</string>
+    <string name="generator_reason_keyboard_pattern">клавиатурная последовательность</string>
+    <string name="generator_reason_year">год</string>
+    <string name="generator_reason_repeated">повторяющиеся символы</string>
+    <string name="generator_reason_sequence">последовательность</string>
+    <plurals name="generator_reason_shorter_than">
+        <item quantity="one">короче %1$d символа</item>
+        <item quantity="few">короче %1$d символов</item>
+        <item quantity="many">короче %1$d символов</item>
+        <item quantity="other">короче %1$d символа</item>
+    </plurals>
+    <string name="generator_reason_digits_only">только цифры</string>
+    <string name="generator_reason_too_short">слишком короткий для своих символов</string>
+    <string name="generator_reason_could_be_longer">можно длиннее</string>
+</resources>

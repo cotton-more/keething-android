@@ -399,8 +399,6 @@ internal class NewDatabaseModel(
         get() {
             val measured = measured?.takeIf { it.encryption == encryption.clamped }
                 ?: return measureFailure?.takeUnless { isMeasuring } ?: uiText(R.string.databases_new_measuring)
-            val count = String.format(Locale.US, "%,d", measured.units)
-            val time = String.format(Locale.US, "%.1f", measured.seconds)
             // Rounds can pass an Int: past it, the last six digits choose the form (as every language's rules do), never "one".
             val units = if (measured.units <= Int.MAX_VALUE) measured.units.toInt() else (measured.units % 1_000_000 + 1_000_000).toInt()
             val line = if (measured.encryption.keyDerivation == DatabaseEncryption.KeyDerivation.AES_KDF) {
@@ -408,7 +406,7 @@ internal class NewDatabaseModel(
             } else {
                 R.plurals.databases_new_measured_iterations
             }
-            return uiPlural(line, units, time, count)
+            return uiPlural(line, units, measured.seconds, measured.units)
         }
 
     fun changeEncryption(changed: DatabaseEncryption) {
@@ -698,8 +696,7 @@ internal class NewDatabaseModel(
         /** "1 s", "0.5 s", "2.5 s". */
         fun seconds(value: Double): UiText {
             val rounded = Math.round(value * 10) / 10.0
-            val number = if (rounded == Math.floor(rounded) && rounded >= 1) "${rounded.toInt()}" else String.format(Locale.US, "%.1f", rounded)
-            return uiText(R.string.databases_seconds, number)
+            return if (rounded == Math.floor(rounded) && rounded >= 1) uiText(R.string.databases_seconds_whole, rounded.toInt()) else uiText(R.string.databases_seconds, rounded)
         }
     }
 }

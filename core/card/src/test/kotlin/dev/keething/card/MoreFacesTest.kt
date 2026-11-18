@@ -3,6 +3,7 @@ package dev.keething.card
 import dev.keething.domain.text.english
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.Entry
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -47,6 +48,9 @@ class MoreFacesTest {
         assertNull(Countries.parse("Atlantis"))
         assertEquals("🇩🇪", Countries.flag("DE"))
         assertEquals("Germany", Countries.name("DE"))
+        assertEquals("Германия", Countries.name("DE", Locale.forLanguageTag("ru")))
+        assertEquals("Kosovo", Countries.name("XK"))
+        assertEquals("Косово", Countries.name("XK", Locale.forLanguageTag("ru")))
         assertEquals("\uD83C\uDDE6\uD83C\uDDF6", Countries.UNKNOWN_FLAG)
         assertEquals("DE", Bic.country("COBADEFFXXX"))
         assertNull(Bic.country("Commerzbank"))
