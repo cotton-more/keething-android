@@ -9,6 +9,6 @@
     <string name="tile_quick_note">Быстрая заметка</string>
     <string name="tile_quick_note_subtitle">Keething · из буфера обмена</string>
 
-    <string name="list_separator">, </string>
+    <string name="list_separator">,\u0020</string>
     <string name="list_last">%1$s и %2$s</string>
 </resources>

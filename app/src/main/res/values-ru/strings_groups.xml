@@ -11,7 +11,7 @@
     <string name="groups_picker_go_into">Открыть %1$s</string>
     <string name="groups_picker_choose">Выбрать</string>
     <string name="groups_picker_chosen">Выбрана</string>
-    <string name="groups_picker_now_in">Сейчас: </string>
+    <string name="groups_picker_now_in">Сейчас:\u0020</string>
     <string name="groups_picker_namesake">Рядом есть другая группа с таким же именем</string>
     <plurals name="groups_picker_new_groups">
         <item quantity="one">Новая группа «%1$s»</item>

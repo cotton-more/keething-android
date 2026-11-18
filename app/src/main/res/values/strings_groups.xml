@@ -17,7 +17,7 @@
     <string name="groups_picker_choose">Choose</string>
     <string name="groups_picker_chosen">Chosen</string>
     <!-- Before the path (drawn after it, cut to fit) of the entry's group below a row -->
-    <string name="groups_picker_now_in">Now in </string>
+    <string name="groups_picker_now_in">Now in\u0020</string>
     <string name="groups_picker_namesake">Another group beside it has this name</string>
     <!-- The "+ New group" row. %1$s: the new levels' path ("Korea › Seoul") -->
     <plurals name="groups_picker_new_groups">

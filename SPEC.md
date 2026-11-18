@@ -1880,7 +1880,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   list with its dot, in a menu, and Add the Quick note tile (§6.4). Then the app's fingerprint switch (§5) and,
   while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
   lock timeout, the **Theme** (System, Light, Dark; keething-spec app.theme-choice: the app's own night mode, kept by the
-  system for every window of the app, told again at each start), how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
+  system for every window of the app, told again at each start), the **Language** (the app's language as Android keeps it
+  for the app: System, English or Русский; the row opens the system's page that changes it; keething-spec
+  app.language-setting), how long a sharing request and a sending's pictures last (1, 3 or 7 days, §10); the last key derivation and the memory used, to check them on the phone; the storage probe
   in a debug build (the fingerprint spike, and what the storage provider does with names in a folder granted there).
   Last **About**: "Keething for Android 1.0.0 · build 1.", the font's licence, About Keething and Report a problem.
 - **Change master key** (keething-spec databases.change-master-key; agreed on the canvas "Database name, colour and

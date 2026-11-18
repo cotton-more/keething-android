@@ -47,6 +47,11 @@
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>
 
+    <string name="settings_language">Язык</string>
+    <string name="settings_language_system">Системный</string>
+    <string name="settings_language_change">изменить в настройках Android</string>
+    <string name="settings_language_detail">Меняется в настройках Android для приложения</string>
+
     <string name="settings_request_validity">Поделиться: срок запросов и картинок</string>
     <plurals name="settings_days">
         <item quantity="one">%1$d день</item>

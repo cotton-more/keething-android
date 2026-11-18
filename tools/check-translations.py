@@ -6,6 +6,7 @@ A translated file has the English file's name. It fails on:
 - a placeholder (%1$s, %2$d, %d, %1$.1f) the English has and the translation does not, or the other way round; in a plural,
   every quantity of the translation has the placeholders of the English "other" (Russian "one" is also 21, 31 …);
 - a plural without the quantities its language needs (QUANTITIES), or with one it does not use;
+- a text with a space at either end, which Android drops (", " shows as ","): the English writes it as \\u0020;
 - res/xml/locales_config.xml (the phone's per-app language) not naming English and every translated language.
 
 A resource the translation does not have yet falls back to English on the phone; it is counted, and with --complete
@@ -42,6 +43,11 @@ def placeholders(text):
     return sorted(PLACEHOLDER.findall(text))
 
 
+def trimmed(text):
+    """Whether Android would drop a space at either end of the text as written in the file."""
+    return text != text.strip()
+
+
 def check(language, folder, complete, list_missing):
     problems, missing, total = [], [], 0
     english = {path.name: resources(path) for path in sorted((RES / "values").glob("strings*.xml"))}
@@ -49,6 +55,10 @@ def check(language, folder, complete, list_missing):
         if path.name not in english:
             problems.append(f"{path.name}: no English file of this name")
     for file, originals in english.items():
+        for name, (kind, text) in originals.items():
+            for item in ([text] if kind == "string" else text.values()):
+                if trimmed(item):
+                    problems.append(f"values/{file}: {name}: a space at either end is dropped by Android; write \\u0020")
         path = folder / file
         translated = resources(path) if path.exists() else {}
         where = f"{folder.name}/{file}"
@@ -60,6 +70,9 @@ def check(language, folder, complete, list_missing):
                 missing.append(f"{where}: {name}")
                 continue
             their_kind, their_text = translated[name]
+            for item in ([their_text] if their_kind == "string" else their_text.values()):
+                if trimmed(item):
+                    problems.append(f"{where}: {name}: a space at either end is dropped by Android; write \\u0020")
             if their_kind != kind:
                 problems.append(f"{where}: {name}: a {their_kind}, the English is a {kind}")
             elif kind == "string":

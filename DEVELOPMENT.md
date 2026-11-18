@@ -77,7 +77,7 @@ the phone's language); it is ordered, matched and its monogram drawn by `Entry.s
 A translation is `app/src/main/res/values-<language>/strings_<package>.xml`, the English file's name, the English
 comments left out. A resource not translated falls back to English.
 
-    task texts:translations                 # keys, placeholders and plural quantities against the English
+    task texts:translations                 # keys, placeholders, plural quantities, spaces at the ends
     task texts:translations -- --missing    # and lists what is not translated yet
     task texts:translations -- --complete   # fails on anything not translated
 
@@ -86,6 +86,9 @@ a new translation is added there too, and the check fails until it is.
 
 A plural has every quantity the language needs (Russian: `one`, `few`, `many`, `other`), and each has the English
 `other`'s placeholders: Russian `one` is also 21 and 31, so it says the number.
+
+Android drops a space at either end of a resource (`, ` would show as `,`); such a space is written `\u0020`, in
+the English too, and the check fails on a plain one.
 
 **Russian** (keething-spec plans T14, the owner 2026-11-18). The user is «вы». A button or a menu item is an infinitive
 («Сохранить», «Удалить навсегда…»), a hint or a message an imperative («Введите пароль»). Quotes are «ёлочки»; an

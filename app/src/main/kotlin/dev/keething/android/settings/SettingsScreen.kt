@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import dev.keething.android.about.BuildInfo
 import dev.keething.android.about.ProblemReport
+import android.app.LocaleManager
 import android.content.Intent
 import android.app.UiModeManager
 import android.content.pm.ApplicationInfo
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.DashboardCustomize
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -151,6 +153,9 @@ internal fun SettingsScreen(
         Group(stringResource(R.string.settings_theme)) {
             ThemeSetting(container)
         }
+        Group(stringResource(R.string.settings_language)) {
+            LanguageSetting()
+        }
         Group(stringResource(R.string.settings_request_validity)) {
             val validity by container.settings.requestValidity.collectAsStateWithLifecycle()
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -221,6 +226,35 @@ private fun ThemeSetting(container: AppContainer) {
                 FitText(option.label.resolve())
             }
         }
+    }
+}
+
+/** "Language" (keething-spec app.language-setting): the app's language, and the system's page that changes it. */
+@Composable
+private fun LanguageSetting() {
+    val context = LocalContext.current
+    val manager = remember { context.getSystemService(LocaleManager::class.java) }
+    var chosen by remember { mutableStateOf(manager?.applicationLocales?.get(0)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { chosen = manager?.applicationLocales?.get(0) }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(12.dp)).clickable(
+            onClickLabel = stringResource(R.string.settings_language_change),
+        ) {
+            val intent = Intent(Settings.ACTION_APP_LOCALE_SETTINGS).setData(Uri.fromParts("package", context.packageName, null))
+            runCatching { context.startActivity(intent) }
+        },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(AppLanguage.label(chosen).resolve(), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                stringResource(R.string.settings_language_detail),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

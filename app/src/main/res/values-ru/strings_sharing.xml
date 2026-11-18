@@ -64,9 +64,9 @@
     <string name="sharing_message_pictures">Десять картинок, которые открывают записи, отправленные вам через Keething:\n%1$s\n%2$s\nВ Keething, прочитав код: «Вставить картинки».</string>
     <string name="sharing_caption_request">Keething · %1$s просит</string>
     <string name="sharing_caption_answer">Keething · ответ на «%1$s»</string>
-    <string name="sharing_caption_answer_single">Открыть его может только телефон, который просил</string>
+    <string name="sharing_caption_answer_single">Откроет только телефон, который просил</string>
     <string name="sharing_caption_envelope">Keething · записи от: %1$s</string>
-    <string name="sharing_caption_envelope_single">Открывается десятью картинками, которые передаст %1$s</string>
+    <string name="sharing_caption_envelope_single">Открывается десятью картинками от %1$s</string>
     <string name="sharing_caption_part">Код %1$d из %2$d: нужны все</string>
     <string name="sharing_titles_none">Записи</string>
     <plurals name="sharing_titles_more">
@@ -176,7 +176,7 @@
     <string name="sharing_review_not_sealed">Не удалось запечатать записи: %1$s.</string>
     <string name="sharing_review_send_to">Отправить: %1$s</string>
     <string name="sharing_review_send_without">Отправить без запроса</string>
-    <string name="sharing_review_without_subtitle">Открывается десятью картинками, которые вы передадите другим способом</string>
+    <string name="sharing_review_without_subtitle">Открывается десятью картинками, переданными иначе</string>
     <string name="sharing_review_encrypt_for">Зашифровать для: %1$s</string>
     <string name="sharing_review_seal">Запечатать десятью картинками</string>
     <string name="sharing_review_for">Кому</string>
@@ -203,7 +203,7 @@
         <item quantity="many">%1$d вложений остаются на этом телефоне</item>
         <item quantity="other">%1$d вложения остаются на этом телефоне</item>
     </plurals>
-    <string name="sharing_review_otp_preview">Ключ, из которого получаются коды для входа</string>
+    <string name="sharing_review_otp_preview">Ключ для кодов входа</string>
     <string name="sharing_field_username">Имя пользователя</string>
     <string name="sharing_field_password">Пароль</string>
     <string name="sharing_field_website">Сайт</string>
@@ -246,7 +246,7 @@
     <string name="sharing_sent_pictures_text">Они открывают код: передайте их не тем путём, что код. Назовите их по телефону или отправьте через другое приложение. У кого есть и то и другое, тот откроет записи.</string>
     <string name="sharing_sent_qr">QR-код записей, %1$d из %2$d</string>
     <plurals name="sharing_sent_in_person">
-        <item quantity="one">Лично: дайте отсканировать этот экран, кодов: %1$d</item>
+        <item quantity="one">Лично: дайте отсканировать %1$d код с этого экрана</item>
         <item quantity="few">Лично: дайте отсканировать этот экран, все %1$d кода в любом порядке</item>
         <item quantity="many">Лично: дайте отсканировать этот экран, все %1$d кодов в любом порядке</item>
         <item quantity="other">Лично: дайте отсканировать этот экран, все %1$d кода в любом порядке</item>
