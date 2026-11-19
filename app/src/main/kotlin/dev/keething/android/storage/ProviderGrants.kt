@@ -31,7 +31,7 @@ internal class ProviderFile(private val resolver: ContentResolver, private val u
      * Whether the file is there, asked of the provider without reading it: false when it has none. Throws an
      * [AccessDeniedException] when the grant is gone (a sync replaced the file), an [IOException] for any other failure.
      */
-    fun isThere(): Boolean = try {
+    override fun isThere(): Boolean = try {
         // The provider gives no cursor for a document that is not there.
         resolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID), null, null, null)?.use { it.moveToFirst() } ?: false
     } catch (failure: SecurityException) {

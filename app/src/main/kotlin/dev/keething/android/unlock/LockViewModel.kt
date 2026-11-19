@@ -26,6 +26,8 @@ internal class LockViewModel(
     private val list: DatabaseList,
     /** Once in a visit that began locked, for the app ([dev.keething.android.session.FingerprintOffers]). */
     private val offersFingerprint: (Visit) -> Boolean,
+    /** Whether a file of the record is there, through its grant, off the main thread ([dev.keething.vault.databases.FilesThere]). */
+    private val fileExists: suspend (FileLocation) -> Boolean,
 ) : ViewModel() {
     /**
      * The typed master password. Kept here, not in the screen's saved state: a saved state would put it
@@ -99,9 +101,9 @@ internal class LockViewModel(
         }
     }
 
-    private fun fingerprintCanOpen(): Boolean {
+    private suspend fun fingerprintCanOpen(): Boolean {
         val record = list.record(database.id) ?: return false
-        return FileLocation.isReachable(record.file) && record.keyFile?.let(FileLocation::isReachable) != false
+        return fileExists(record.file) && record.keyFile?.let { fileExists(it) } != false
     }
 
     /** The fingerprint's button beside the field, when it can open the database. */

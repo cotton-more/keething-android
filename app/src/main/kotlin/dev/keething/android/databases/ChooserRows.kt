@@ -64,8 +64,12 @@ internal object ChooserRows {
             return row(uiText(if (key.reach == Reach.NOT_FOUND) R.string.databases_chooser_key_not_there else R.string.databases_chooser_key_no_access, key.name), ChooserRow.Glyph.KEY_FILE, ChooserRow.Tone.PROBLEM, canCheck = false)
         }
         when (((session as? SessionState.Locked)?.reason as? LockReason.UnlockFailed)?.failure) {
-            is OpenFailure.Unsupported, is OpenFailure.Damaged, OpenFailure.AccessDenied, OpenFailure.OutOfMemory ->
+            is OpenFailure.Unsupported, OpenFailure.AccessDenied ->
                 return row(uiText(R.string.databases_chooser_cannot_be_read), ChooserRow.Glyph.UNREADABLE, ChooserRow.Tone.PROBLEM, canCheck = false)
+            // The next try may read it (keething-spec databases.chooser AC4): a sync may have finished it, memory may be free.
+            is OpenFailure.Damaged -> return row(uiText(R.string.databases_chooser_damaged), ChooserRow.Glyph.UNREADABLE, ChooserRow.Tone.WARNING)
+            is OpenFailure.ReadFailed -> return row(uiText(R.string.databases_chooser_read_failed), ChooserRow.Glyph.UNREADABLE, ChooserRow.Tone.WARNING)
+            OpenFailure.OutOfMemory -> return row(uiText(R.string.databases_chooser_out_of_memory), ChooserRow.Glyph.UNREADABLE, ChooserRow.Tone.WARNING)
             is OpenFailure.KeyFileUnusable -> return row(key?.let { uiText(R.string.databases_chooser_key_unusable, it.name) } ?: uiText(R.string.databases_chooser_its_key_unusable), ChooserRow.Glyph.KEY_FILE, ChooserRow.Tone.PROBLEM, canCheck = false)
             else -> {}
         }

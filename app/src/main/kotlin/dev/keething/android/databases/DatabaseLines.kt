@@ -165,6 +165,12 @@ internal data class LockScreenDatabase(
     val opensWithKeyFileAlone: Boolean get() = !showsPasswordField && !showsLocate
 
     /**
+     * Choose key file… under Unlock: it opens with its key file alone and that one is not there or not reached any more.
+     * It has no field, so no key in it; choosing one makes it ask for a password again (unlock.key-file).
+     */
+    val offersChooseKeyFile: Boolean get() = opensWithKeyFileAlone && line.keyFile?.isMissing == true
+
+    /**
      * A fingerprint may open it: not while its file or its key file is not there (it could not). One that opens with its
      * key file alone opens after the fingerprint with nothing stored.
      */

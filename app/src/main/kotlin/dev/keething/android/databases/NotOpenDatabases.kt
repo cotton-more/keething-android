@@ -92,6 +92,17 @@ internal class WindowDatabase(val id: DatabaseId, val session: SessionState, val
 internal data class NotOpenDatabase(val line: DatabaseLine, val state: NotOpenState) {
     val id: DatabaseId get() = line.id
 
+    /**
+     * Its sheet's Unlock…: not while its file is not found, nor while it cannot be read, unless the next try may read it
+     * (damaged or half-synced, out of memory, a read that failed).
+     */
+    val offersUnlock: Boolean
+        get() = when (val state = state) {
+            is NotOpenState.NotFound -> false
+            is NotOpenState.CannotBeRead -> state.failure.nextTryMayRead
+            else -> true
+        }
+
     /** Its whole say: the chip's long press, its row in ⋮ › Databases (the Mac's help tag, "tap" for "⏎"). */
     val say: UiText
         get() = when (val state = state) {
@@ -116,6 +127,7 @@ internal data class NotOpenDatabase(val line: DatabaseLine, val state: NotOpenSt
                     is OpenFailure.Damaged -> uiText(R.string.databases_not_open_damaged, failure.detail)
                     is OpenFailure.Unsupported -> failure.named()
                     OpenFailure.AccessDenied -> uiText(R.string.databases_not_open_access_denied)
+                    is OpenFailure.ReadFailed -> uiText(R.string.databases_not_open_read_failed, failure.detail)
                     OpenFailure.OutOfMemory -> uiText(R.string.databases_not_open_out_of_memory)
                     else -> uiText(R.string.databases_not_open_did_not_open)
                 },
@@ -153,7 +165,7 @@ internal object NotOpenDatabases {
         val failure = (reason as? LockReason.UnlockFailed)?.failure
         when (failure) {
             is OpenFailure.KeyFileUnusable -> return NotOpenState.NeedsKeyFile(line.keyFile?.name.orEmpty(), failure.why.ui())
-            is OpenFailure.Unsupported, is OpenFailure.Damaged, OpenFailure.AccessDenied, OpenFailure.OutOfMemory ->
+            is OpenFailure.Unsupported, is OpenFailure.Damaged, is OpenFailure.ReadFailed, OpenFailure.AccessDenied, OpenFailure.OutOfMemory ->
                 return NotOpenState.CannotBeRead(failure)
             else -> {}
         }

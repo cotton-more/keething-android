@@ -53,7 +53,13 @@ public sealed interface OpenFailure {
     /** Truncated or altered: [detail]. A file caught half-written by a sync is this (SPEC §3.2). */
     public data class Damaged(val detail: String) : OpenFailure
 
-    /** The phone has not enough memory for the key derivation. */
+    /**
+     * The file is there but reading it failed: an error of the storage or of the app that provides it, [detail] its
+     * words. Not damaged: the next try may read it.
+     */
+    public data class ReadFailed(val detail: String) : OpenFailure
+
+    /** The phone has not enough memory for the file's bytes or the key derivation. */
     public data object OutOfMemory : OpenFailure
 
     /**
@@ -64,6 +70,9 @@ public sealed interface OpenFailure {
 
     /** The database rejected the key, whatever it was made of. */
     public val isWrongKey: Boolean get() = this == WrongPassword || this == WrongPasswordOrKeyFile || this == WrongKeyFile
+
+    /** The file could not be read this time, but the next try may read it: a sync may finish it, memory may be free. */
+    public val nextTryMayRead: Boolean get() = this is Damaged || this is ReadFailed || this == OutOfMemory
 }
 
 /** A database just opened. */
@@ -94,10 +103,9 @@ internal sealed interface OpenResult {
 /** Reads the database file and opens it with a key. Blocks: call it off the main thread. Open for the tests' openers. */
 public open class VaultOpener {
     internal open fun open(store: DatabaseStore, key: DatabaseKey): OpenResult {
-        val found = when (val read = store.read()) {
-            is DatabaseRead.Found -> read
-            DatabaseRead.Missing -> return OpenResult.Failed(OpenFailure.Missing)
-            DatabaseRead.AccessDenied -> return OpenResult.Failed(OpenFailure.AccessDenied)
+        val found = when (val read = read(store)) {
+            is FileRead.Found -> read.found
+            is FileRead.Failed -> return OpenResult.Failed(read.failure)
         }
         val database = try {
             KdbxReader.open(found.bytes, key)
@@ -152,10 +160,9 @@ public open class VaultOpener {
      * (a version shows their names and sizes only).
      */
     internal fun history(store: DatabaseStore, key: DatabaseKey, entryId: String): HistoryResult {
-        val found = when (val read = store.read()) {
-            is DatabaseRead.Found -> read
-            DatabaseRead.Missing -> return HistoryResult.Failed(OpenFailure.Missing)
-            DatabaseRead.AccessDenied -> return HistoryResult.Failed(OpenFailure.AccessDenied)
+        val found = when (val read = read(store)) {
+            is FileRead.Found -> read.found
+            is FileRead.Failed -> return HistoryResult.Failed(read.failure)
         }
         val database = try {
             KdbxReader.open(found.bytes, key, historyOf = entryId)
@@ -180,6 +187,29 @@ public open class VaultOpener {
         val mapper = EntryMapper(sizes, document.meta.customIcons.keys)
         return HistoryResult.Read(EntryVersions(mapper.map(current), document.history.map(mapper::map), document.meta.historyMaxItems))
     }
+}
+
+/** The database file's bytes, or why there are none. */
+private sealed interface FileRead {
+    class Found(val found: DatabaseRead.Found) : FileRead
+
+    class Failed(val failure: OpenFailure) : FileRead
+}
+
+/**
+ * The file read: a storage's or provider's failure, or no memory for its bytes, is said as the others are, never thrown
+ * on to the session's scope, where it would end the app.
+ */
+private fun read(store: DatabaseStore): FileRead = try {
+    when (val read = store.read()) {
+        is DatabaseRead.Found -> FileRead.Found(read)
+        DatabaseRead.Missing -> FileRead.Failed(OpenFailure.Missing)
+        DatabaseRead.AccessDenied -> FileRead.Failed(OpenFailure.AccessDenied)
+    }
+} catch (failure: IOException) {
+    FileRead.Failed(OpenFailure.ReadFailed(failure.message ?: failure.javaClass.simpleName))
+} catch (_: OutOfMemoryError) {
+    FileRead.Failed(OpenFailure.OutOfMemory)
 }
 
 /**

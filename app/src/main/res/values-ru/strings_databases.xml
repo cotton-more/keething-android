@@ -329,6 +329,9 @@
     <string name="databases_chooser_key_not_there">%1$s: нет на месте</string>
     <string name="databases_chooser_key_no_access">%1$s: нет доступа</string>
     <string name="databases_chooser_cannot_be_read">Не читается</string>
+    <string name="databases_chooser_damaged">Повреждена или не синхронизирована</string>
+    <string name="databases_chooser_out_of_memory">Не хватает памяти</string>
+    <string name="databases_chooser_read_failed">Ошибка чтения</string>
     <string name="databases_chooser_key_unusable">%1$s нельзя использовать</string>
     <string name="databases_chooser_its_key_unusable">Её файл-ключ нельзя использовать</string>
     <string name="databases_chooser_fingerprint_set_up_again">Отпечаток нужно настроить заново</string>
@@ -401,6 +404,7 @@
     <string name="databases_not_open_cannot_be_read_say">Не читается: %1$s</string>
     <string name="databases_not_open_damaged">повреждена или ещё не синхронизировалась полностью (%1$s)</string>
     <string name="databases_not_open_access_denied">Keething больше не может читать файл: найдите его</string>
+    <string name="databases_not_open_read_failed">ошибка чтения (%1$s)</string>
     <string name="databases_not_open_out_of_memory">не хватает памяти, чтобы её открыть</string>
     <string name="databases_not_open_did_not_open">она не открылась</string>
     <string name="databases_not_open_wrong_password_say">Неверный пароль · нажмите, чтобы ввести его снова</string>

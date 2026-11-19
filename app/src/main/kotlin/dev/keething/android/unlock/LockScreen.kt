@@ -170,7 +170,7 @@ internal fun LockScreen(
             var offered = false
             { _ -> !offered.also { offered = true } }
         }
-        LockViewModel(database, databases, container.sessions.list, offers)
+        LockViewModel(database, databases, container.sessions.list, offers, container.sessions.filesThere::isThere)
     }
     val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list, container.databaseFiles) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
@@ -347,8 +347,9 @@ internal fun LockScreen(
                     asksKdbx3 = false
                 }
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // The run's: "Wrong password … Type it again, or skip it."
-                    runState?.failure?.let { RunFailure(stringResource(R.string.unlock_run_failure, it.describe(lock.line.path).resolve())) }
+                    // The run's: "Wrong password … Type it again, or skip it."; from the second in a row, with the
+                    // hardware key (keething-spec app.first-start AC5): the run's tries go through this session too.
+                    runState?.failure?.let { RunFailure(stringResource(R.string.unlock_run_failure, it.describe(lock.line.path, wrongInARow).resolve())) }
                     // The run's: bound to this database, never tried on the next one asked.
                     val unlock = { model.unlock(run?.let { { secret: Secret -> container.chooser.type(database.id, secret) } }, askFingerprint = showsList) }
                     // Not in the run: the chooser asked the fingerprint for every database that could. Nor where no list
@@ -384,6 +385,12 @@ internal fun LockScreen(
                         KeyFileAlone(fingerprint.copy(fingerprint = beside == Beside.FINGERPRINT), onUnlock = unlock)
                     }
                     KeyFileRow(keyFile)
+                    // No field, so no key in it: the only way to another key file with nothing open (the audit's A2).
+                    if (lock.offersChooseKeyFile) {
+                        TextButton(onClick = { files.chooseKeyFile(database.id) }) {
+                            ButtonLabel(stringResource(R.string.databases_choose_key_file), Icons.Rounded.Key, iconSize = 18.dp)
+                        }
+                    }
                 }
             }
         }

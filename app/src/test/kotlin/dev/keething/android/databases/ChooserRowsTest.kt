@@ -96,12 +96,28 @@ class ChooserRowsTest {
     // spec: databases.chooser/AC4
     @Test
     fun aDatabaseThatFailedSoTypingCannotOpenItCannotBeChecked() {
-        assertEquals("Cannot be read", row(failed(OpenFailure.Damaged("truncated"))).opensWith.english())
-        assertFalse(row(failed(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT))).canCheck)
+        val unsupported = row(failed(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT)))
+        assertEquals("Cannot be read", unsupported.opensWith.english())
+        assertFalse(unsupported.canCheck)
+        assertFalse(row(failed(OpenFailure.AccessDenied)).canCheck)
         val unusable = row(failed(OpenFailure.KeyFileUnusable(UserText.plain("it is empty"))), line("Work", keyFile = "work.keyx"))
         assertEquals("work.keyx cannot be used", unusable.opensWith.english())
         assertFalse(unusable.canCheck)
         assertEquals("Password", row(failed(OpenFailure.WrongPassword)).opensWith.english(), "a typo is typed again")
+    }
+
+    // spec: databases.chooser/AC4
+    @Test
+    fun aDatabaseWhoseFileANextTryMayReadCanBeCheckedAndSaysWhy() {
+        val damaged = row(failed(OpenFailure.Damaged("truncated")), fingerprint = on)
+        assertEquals("Damaged or not synced yet", damaged.opensWith.english())
+        assertEquals(ChooserRow.Tone.WARNING, damaged.tone)
+        assertTrue(damaged.canCheck && damaged.isChecked, "a sync may have finished it since")
+        assertFalse(ChooserRows.offersFingerprint(listOf(damaged)), "the fingerprint is not offered for it alone")
+        assertEquals("Not enough memory", row(failed(OpenFailure.OutOfMemory)).opensWith.english())
+        assertTrue(row(failed(OpenFailure.OutOfMemory)).canCheck)
+        assertEquals("Read failed", row(failed(OpenFailure.ReadFailed("provider died"))).opensWith.english())
+        assertTrue(row(failed(OpenFailure.ReadFailed("provider died"))).canCheck)
     }
 
     // spec: databases.chooser/AC3

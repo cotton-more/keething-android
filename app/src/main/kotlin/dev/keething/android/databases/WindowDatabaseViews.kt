@@ -292,8 +292,7 @@ internal fun NotOpenSheet(
                 NotOpenMark(state, databaseColors(line.colorIndex).dot, 20.dp)
                 Text(database.say.resolve(), style = MaterialTheme.typography.bodyMedium)
             }
-            val unreadable = state is NotOpenState.NotFound || state is NotOpenState.CannotBeRead
-            SheetRow(Icons.Rounded.LockOpen, stringResource(R.string.databases_unlock_button), enabled = !unreadable, onClick = onUnlock)
+            SheetRow(Icons.Rounded.LockOpen, stringResource(R.string.databases_unlock_button), enabled = database.offersUnlock, onClick = onUnlock)
             if (state is NotOpenState.NotFound) {
                 SheetRow(Icons.Rounded.Search, stringResource(if (state.reach == Reach.NEEDS_FOLDER) R.string.databases_lock_choose_folder else R.string.databases_lock_locate), onClick = onLocate)
             }

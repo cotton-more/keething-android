@@ -56,13 +56,6 @@ public sealed interface FileLocation {
     }
 
     public companion object {
-        /**
-         * Whether an unlock could reach the file, for a check before it: not one kept by its path, which needs its folder
-         * first (keething-spec databases.saf AC1, AC13); one reached through a grant is looked at by its read, which says
-         * what is wrong (true here).
-         */
-        public fun isReachable(location: FileLocation): Boolean = location !is ByPath
-
         /** The same file however its path is written: `.` and `..` resolved, doubled and trailing `/` dropped. */
         public fun standardized(path: String): String = File(path).normalize().path
     }

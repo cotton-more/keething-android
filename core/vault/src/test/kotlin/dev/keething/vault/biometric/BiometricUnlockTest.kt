@@ -414,7 +414,7 @@ class BiometricUnlockTest {
     fun theQuestionGoesWithItsSession() = runTest {
         val states = TestScope(testScheduler)
         val f = neverChosen()
-        val biometric = BiometricUnlock(f.id, f.session, f.setup, f.list, backgroundScope, states.backgroundScope)
+        val biometric = BiometricUnlock(f.id, f.session, f.setup, f.list, backgroundScope, states.backgroundScope, fileExists = { true })
         f.typed("pw", biometric)
         runCurrent()
         assertTrue(biometric.state.value.question)

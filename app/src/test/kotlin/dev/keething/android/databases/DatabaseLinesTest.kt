@@ -101,7 +101,7 @@ class DatabaseLinesTest {
     // A key file
 
     @Test
-    fun withAKeyFileItsLineIsUnderTheFieldUnlockNeedsNothingTypedAndThePlaceholderSaysSo() {
+    fun withAKeyFileItsLineIsUnderTheFieldAndUnlockNeedsNothingTyped() {
         val work = DatabaseRecord(DatabaseId("w"), at("$root/Sync/Work/Work.kdbx"), keyFile = at("$root/Documents/Keys/work.keyx"))
         there[pathOf(work.file)] = now.minusSeconds(86_400)
         there[pathOf(work.keyFile)] = now
@@ -140,6 +140,29 @@ class DatabaseLinesTest {
         assertTrue(lock.opensWithKeyFileAlone)
         assertTrue(lock.offersFingerprint, "it opens after the fingerprint with nothing stored (plan AD5)")
         assertNull(lock.problem?.english())
+        assertFalse(lock.offersChooseKeyFile, "its key file is there")
+    }
+
+    @Test
+    fun oneThatOpensWithItsKeyFileAloneOffersChooseKeyFileWhileItsKeyFileIsNotThereOrNotReached() {
+        val keys = DatabaseRecord(DatabaseId("k"), at("$root/Documents/Taxes/Taxes.kdbx"), keyFile = FileLocation.Granted("grant-key", StoragePlace("primary", "k/taxes.keyx")), opensWithoutPassword = true)
+        there[pathOf(keys.file)] = now
+
+        val notThere = lockScreen(keys)
+        assertTrue(notThere.opensWithKeyFileAlone && notThere.offersChooseKeyFile, "no field, so no key in it: the way to another key file")
+        assertEquals("Taxes needs its key file: taxes.keyx is not in k.", notThere.problem?.english())
+
+        there[pathOf(keys.keyFile)] = now
+        gone += "grant-key"
+        assertTrue(lockScreen(keys).offersChooseKeyFile, "its grant gone")
+
+        gone.clear()
+        there.remove(pathOf(keys.file))
+        assertFalse(lockScreen(keys).offersChooseKeyFile, "the file not found: Locate… first")
+        val withPassword = keys.copy(opensWithoutPassword = false)
+        there[pathOf(keys.file)] = now
+        there.remove(pathOf(keys.keyFile))
+        assertFalse(lockScreen(withPassword).offersChooseKeyFile, "the key in its field takes it off and chooses another")
     }
 
     // A file not found

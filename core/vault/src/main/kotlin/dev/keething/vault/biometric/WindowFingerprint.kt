@@ -49,7 +49,8 @@ public class WindowFingerprint(
     private val sessions: VaultSessions,
     private val setup: BiometricSetup,
     private val list: DatabaseList,
-    private val fileExists: (FileLocation) -> Boolean = FileLocation::isReachable,
+    /** Whether a file of a record is there ([dev.keething.vault.databases.FilesThere]): no prompt for one that is not. */
+    private val fileExists: suspend (FileLocation) -> Boolean,
 ) {
     private val mutableRunning = MutableStateFlow(false)
 
@@ -204,11 +205,11 @@ public class WindowFingerprint(
     }
 
     /** Why the fingerprint is not asked for [record]; null: it may be (with a sensor and its stored password). */
-    private fun whyNot(record: DatabaseRecord): FingerprintOutcome? {
+    private suspend fun whyNot(record: DatabaseRecord): FingerprintOutcome? {
         if (!record.useBiometric) return FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE))
         // It could not open: asking for a finger only to fail is noise (keething-spec unlock.key-file AC3).
         if (!fileExists(record.file)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
-        record.keyFile?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }
+        record.keyFile?.let { if (!fileExists(it)) return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }
         return null
     }
 

@@ -74,7 +74,7 @@ class UnlockRunTest {
             return assertNotNull(list.record(record.id))
         }
 
-        fun run(vararg records: DatabaseRecord): UnlockRun =
+        suspend fun run(vararg records: DatabaseRecord): UnlockRun =
             databases.run(records.map { it.id }, locks = { locks }, fileExists = { (it as FileLocation.ByPath).path !in missing }).also { run ->
                 run.onEnd = { ends += it }
                 run.start()

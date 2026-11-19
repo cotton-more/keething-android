@@ -59,6 +59,7 @@ import dev.keething.android.databases.DatabaseFiles
 import dev.keething.android.storageprobe.GrantProbe
 import dev.keething.domain.storage.GrantedFolder
 import dev.keething.vault.databases.FileLocation
+import dev.keething.vault.databases.FilesThere
 import dev.keething.vault.databases.GrantKeeper
 import dev.keething.vault.storage.FolderDatabaseStore
 import dev.keething.vault.storage.SaveNotes
@@ -167,7 +168,7 @@ internal class AppContainer(context: Context) {
      */
     val sessions = Sessions(
         settings, settingsStore, databaseList, ::databaseStoreOf, File(context.filesDir, "backups"), keyFiles,
-        biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path, grantKeeper::offered,
+        FilesThere(folderOf, fileOf, Dispatchers.IO), biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path, grantKeeper::offered,
     )
 
     /** What a new database's Create is making (plan AD7): an ended process's leftovers go at the next start. */

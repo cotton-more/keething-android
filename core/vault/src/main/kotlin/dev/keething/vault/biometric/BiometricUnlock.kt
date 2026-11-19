@@ -172,7 +172,8 @@ public class BiometricUnlock(
     private val list: DatabaseList,
     private val scope: CoroutineScope,
     states: CoroutineScope,
-    private val fileExists: (FileLocation) -> Boolean = FileLocation::isReachable,
+    /** Whether a file of its record is there ([dev.keething.vault.databases.FilesThere]): no prompt while one is not. */
+    private val fileExists: suspend (FileLocation) -> Boolean,
     private val appLocks: () -> Int = { 0 },
 ) {
     private var prompting = false
@@ -392,7 +393,10 @@ public class BiometricUnlock(
         if (!record.useBiometric) return FingerprintOutcome.NotAvailable(UserText.of(VaultText.FINGERPRINT_OFF_FOR_DATABASE))
         // It could not open: asking for a finger only to fail is noise (keething-spec unlock.key-file AC3).
         if (!fileExists(record.file)) return FingerprintOutcome.UnlockFailed(OpenFailure.Missing)
-        record.keyFile?.takeUnless(fileExists)?.let { return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }
+        record.keyFile?.let { if (!fileExists(it)) return FingerprintOutcome.UnlockFailed(OpenFailure.KeyFileMissing(it.fileName)) }
+        // Looked at on io: another ask, or an unlock, may have begun meanwhile.
+        if (session.isClosed) return FingerprintOutcome.Cancelled
+        if (prompting || setup.asking || session.state.value !is SessionState.Locked) return FingerprintOutcome.InProgress
         prompting = true
         setup.asking = true
         publish()

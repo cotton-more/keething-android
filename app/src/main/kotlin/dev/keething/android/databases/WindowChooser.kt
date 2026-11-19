@@ -136,7 +136,7 @@ internal class WindowChooser(
         }
     }
 
-    private fun startNow(ids: List<DatabaseId>) {
+    private suspend fun startNow(ids: List<DatabaseId>) {
         val run = startRun(ids)
         run.onEnd = { ended(run, it) }
         mutableRun.value = run
@@ -159,7 +159,8 @@ internal class WindowChooser(
 
     /** Skip: [id], the database its lock screen shows; nothing when the run asks another by now. */
     fun skip(id: DatabaseId) {
-        mutableRun.value?.skip(id)
+        val run = mutableRun.value ?: return
+        scope.launch { run.skip(id) }
     }
 
     /** Stop: the run ends where it is, nothing said. */
@@ -242,7 +243,7 @@ internal class WindowChooser(
      * an unlock), as its session says now (what is told may be a moment late); one open makes what the chooser said
      * stale; the run looks again at the database it asks (one opened by its fingerprint, one closed).
      */
-    private fun windowChanged(window: List<WindowDatabase>) {
+    private suspend fun windowChanged(window: List<WindowDatabase>) {
         if (window.any { it.session is SessionState.Unlocked }) mutableNote.value = null
         val run = mutableRun.value
         if (run == null && mutableSkipped.value.isNotEmpty()) {

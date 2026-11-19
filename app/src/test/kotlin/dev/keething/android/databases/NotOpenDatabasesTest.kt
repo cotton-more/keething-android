@@ -13,7 +13,9 @@ import dev.keething.vault.session.SessionState
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * The databases of the window not open and their states (keething-spec databases.not-open; the Mac's
@@ -136,6 +138,18 @@ class NotOpenDatabasesTest {
     }
 
     @Test
+    fun itsSheetOffersUnlockUnlessNoTryCanReadTheFile() {
+        fun offers(state: NotOpenState) = NotOpenDatabase(line("Work"), state).offersUnlock
+        assertTrue(offers(NotOpenState.Locked))
+        assertTrue(offers(NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash"))), "a sync may have finished it since")
+        assertTrue(offers(NotOpenState.CannotBeRead(OpenFailure.OutOfMemory)))
+        assertTrue(offers(NotOpenState.CannotBeRead(OpenFailure.ReadFailed("provider died"))))
+        assertFalse(offers(NotOpenState.CannotBeRead(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT))))
+        assertFalse(offers(NotOpenState.CannotBeRead(OpenFailure.AccessDenied)))
+        assertFalse(offers(NotOpenState.NotFound()))
+    }
+
+    @Test
     fun eachStateSaysItAll() {
         fun say(state: NotOpenState, line: DatabaseLine = line("Work", keyFile = "work.keyx")) = NotOpenDatabase(line, state).say.english()
         assertEquals("Opening…", say(NotOpenState.Opening))
@@ -144,6 +158,7 @@ class NotOpenDatabasesTest {
         assertEquals("Fingerprint to set up: type its password once", say(NotOpenState.FingerprintToSetUp(null)))
         assertEquals("Its key file work.keyx cannot be used: it is empty", say(NotOpenState.NeedsKeyFile("work.keyx", uiPlain("it is empty"))))
         assertEquals("Cannot be read: damaged or not completely synced yet (a block's hash)", say(NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash"))))
+        assertEquals("Cannot be read: reading it failed (provider died)", say(NotOpenState.CannotBeRead(OpenFailure.ReadFailed("provider died"))))
         assertEquals("Wrong password · tap to type it again", say(NotOpenState.WrongPassword))
         assertEquals("Its password was changed elsewhere · tap to type the new one", say(NotOpenState.PasswordChanged))
         assertEquals("Skipped · tap to type its password", say(NotOpenState.Skipped))

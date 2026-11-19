@@ -105,6 +105,7 @@ internal fun OpenFailure.describe(file: String, wrongInARow: Int = 1): UiText = 
     is OpenFailure.Unsupported -> describe()
     // Damaged is not a wrong password (SPEC §3.2): a sync may have caught the file half-written.
     is OpenFailure.Damaged -> uiText(R.string.unlock_failure_damaged, detail)
+    is OpenFailure.ReadFailed -> uiText(R.string.unlock_failure_read_failed, detail)
     OpenFailure.OutOfMemory -> uiText(R.string.unlock_failure_out_of_memory)
     OpenFailure.Locked -> uiText(R.string.unlock_failure_locked)
 }

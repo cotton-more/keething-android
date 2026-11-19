@@ -25,6 +25,7 @@ import dev.keething.vault.biometric.FingerprintAnswer
 import dev.keething.vault.biometric.QuickTasks
 import dev.keething.vault.biometric.WindowFingerprint
 import dev.keething.vault.databases.FileLocation
+import dev.keething.vault.databases.FilesThere
 import dev.keething.vault.storage.KeyFiles
 import dev.keething.vault.databases.CurrentDatabase
 import dev.keething.domain.vault.Entry
@@ -99,6 +100,11 @@ internal class Sessions(
     private val backupsFolder: File,
     /** How a key file is reached wherever the list has it (keething-spec databases.saf AC9). */
     private val keyFiles: KeyFiles,
+    /**
+     * Whether a database's file and key file are there, through their grants: no fingerprint asked, nor a database asked
+     * in the chooser's run, while one is not (keething-spec unlock.key-file AC3, databases.chooser AC6).
+     */
+    val filesThere: FilesThere,
     biometricStores: BiometricPasswordStores,
     private val scope: CoroutineScope,
     /** One task at a time: the fingerprint's saves and deletes stay in order. */
@@ -163,7 +169,7 @@ internal class Sessions(
     val databases = CurrentDatabase(list, scope, vaults, biometric, offered)
 
     /** One fingerprint for every database of the window that can (plan AD13): the chooser's. */
-    val windowFingerprint = WindowFingerprint(vaults, biometric, list)
+    val windowFingerprint = WindowFingerprint(vaults, biometric, list, filesThere::isThere)
 
     /** The current database's session: the one the lock screen shows. */
     val current: StateFlow<DatabaseSession?> = databases.current
@@ -389,7 +395,7 @@ internal class Sessions(
      * The chooser's run over [ids] (plan AD13): the app's locks end it ([locks]: a stay away past the timeout with nothing
      * open counts too).
      */
-    fun run(ids: List<DatabaseId>): UnlockRun = databases.run(ids, locks = { locks.count }, fileExists = FileLocation::isReachable)
+    fun run(ids: List<DatabaseId>): UnlockRun = databases.run(ids, locks = { locks.count }, fileExists = filesThere::isThere)
 
     /** The vault on the window's first open database, unless the current one is open: after the chooser or its run. */
     fun showOpened() {
@@ -465,7 +471,7 @@ internal class Sessions(
         watching.launch { session.state.collect { Log.i(TAG, "${record.id.fileName.take(8)} ${it.describe()}") } }
         session.onSaveTimed = { took, saved -> Log.i(TAG, "${record.id.fileName.take(8)} save ${if (saved) "done" else "failed"} in ${took.inWholeMilliseconds} ms") }
         // The app's lock count: a Lock that finds this database locked already leaves its own as it was.
-        val fingerprint = BiometricUnlock(record.id, session, biometric, list, scope, watching, appLocks = { vaults.lockCount })
+        val fingerprint = BiometricUnlock(record.id, session, biometric, list, scope, watching, filesThere::isThere, appLocks = { vaults.lockCount })
         watching.launch { fingerprint.refresh() }
         watching.launch {
             fingerprint.state.map { it.copy(prompting = false, opening = false) }.distinctUntilChanged().collect { Log.i(TAG, it.describe()) }
@@ -504,6 +510,7 @@ internal class Sessions(
                 OpenFailure.AccessDenied -> "access denied" // not user text
                 is OpenFailure.Unsupported -> "unsupported"
                 is OpenFailure.Damaged -> "damaged: ${failure.detail}"
+                is OpenFailure.ReadFailed -> "read failed: ${failure.detail}" // not user text
                 OpenFailure.OutOfMemory -> "out of memory" // not user text
                 OpenFailure.Locked -> "locked meanwhile" // not user text
             }

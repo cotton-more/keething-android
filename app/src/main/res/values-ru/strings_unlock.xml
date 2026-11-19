@@ -26,6 +26,7 @@
     <string name="unlock_failure_missing">По пути %1$s нет базы. Возможно, Syncthing как раз её заменяет: попробуйте через минуту.</string>
     <string name="unlock_failure_access_denied">Keething больше не может читать этот файл: найдите его, чтобы снова выбрать его папку.</string>
     <string name="unlock_failure_damaged">Файл повреждён или ещё не синхронизировался полностью (%1$s).</string>
+    <string name="unlock_failure_read_failed">Файл не удалось прочитать (%1$s).</string>
     <string name="unlock_failure_out_of_memory">Не хватает памяти, чтобы открыть базу.</string>
     <string name="unlock_failure_locked">База заблокировалась, пока открывалась.</string>
 

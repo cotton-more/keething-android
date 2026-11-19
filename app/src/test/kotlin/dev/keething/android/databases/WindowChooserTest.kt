@@ -44,7 +44,7 @@ class WindowChooserTest {
     private val off = BiometricState(appEnabled = false, databaseEnabled = false)
     private val locked = SessionState.Locked(LockReason.Initial)
 
-    private inner class Fixture(scope: TestScope) {
+    private inner class Fixture(private val scope: TestScope) {
         val opened = mutableSetOf<DatabaseId>()
 
         /** What a typed password does to each database: opened, or its failure. */
@@ -105,9 +105,10 @@ class WindowChooserTest {
             lockCount = locks,
         )
 
-        /** Skip on the database the run asks now. */
+        /** Skip on the database the run asks now; the run moves on. */
         fun skip() {
             chooser.skip(assertNotNull(chooser.run.value?.current))
+            scope.runCurrent()
         }
 
         /** What is typed on the database the run asks now. */

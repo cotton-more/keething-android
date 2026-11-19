@@ -424,6 +424,11 @@ keeps the new time. The way out is in §3.3 step 7.
 - One Syncthing replace brings several events (rename, then the modification time); a reload decrypts the
   file with Argon2 again, so the reload waits for the folder to be quiet for 1.5 s and runs once. A version
   that failed to open (damaged) is not read again until the file changes.
+- A read that fails (an error of the card, a failure of the provider other than "not there") is said as such
+  (`OpenFailure.ReadFailed`: "The file could not be read (…)."), and so is no memory for the file's bytes
+  (`OutOfMemory`): `VaultOpener` catches both around `store.read()`, never letting them reach the app's scope, where
+  they would end the app (keething-spec unlock.lock-screen AC5). An unlock stays locked saying it; a reload keeps the
+  vault and says it over the list; the chooser's row says "Read failed" and can be checked again.
 - An earlier vault stays intact until the lock (a card may still show one of its entries); the lock wipes
   every vault of the session.
 - **Nothing a file holds crashes the app or locks the user out** (keething-spec kdbx.hardening; the review of the
@@ -907,13 +912,17 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   ChaCha20 and save; then it opens here."), KDBX 2 or older (save it again in KeePass or KeePassXC), a newer format
   than KDBX 4 (an update may open it), not a KeePass file, an unknown cipher, key derivation or inner stream (named),
   and Argon2 memory more than the phone gives the app (lower it on the computer); the list's databases not open say the
-  same in a few words ("Cannot be read: encrypted with Twofish"; the chooser's row only "Cannot be read"). A stored password (§5) rejected while the database
+  same in a few words ("Cannot be read: encrypted with Twofish"; the chooser's row only "Cannot be read"). A file a
+  later try may read (damaged or half-synced, no memory, a read that failed) can be checked in the chooser and says
+  so on its row ("Damaged or not synced yet", "Not enough memory", "Read failed"), and its chip's sheet offers
+  Unlock… (keething-spec databases.chooser AC4). A stored password (§5) rejected while the database
   has a key file, or with the key file missing, is kept: the key file may be the wrong part; so is one rejected
   while the key file was chosen, changed or forgotten since the last unlock that opened it (each database's
   `biometricKeyFileChanged.<id>`, cleared by the next unlock that opens it, or the app's switch off), else Forget on a key file the database needs would cost
   a right password at the next fingerprint.
-- **A database's key file** (keething-spec unlock.key-file, kdbx.key-files AC8): chosen on the lock screen (Key
-  file…, or Change… / Choose… under the field) or on the database's page in Settings (Choose…, Change…, Forget), with
+- **A database's key file** (keething-spec unlock.key-file, kdbx.key-files AC8): chosen on the lock screen (the key in
+  the password field chooses one, and takes the chosen one off again; a database that opens with its key file alone
+  has Choose key file… while its key file is not there or not reached, §6.2) or on the database's page in Settings (Choose…, Change…, Forget), with
   the system's file picker opened at its folder, and remembered by **where it is** in the list (never copied): through a
   folder the list already reaches, else through its own grant (keething-spec databases.saf AC9); read at every unlock, the
   fingerprint's too. Choosing, changing or forgetting it says nothing more of a locked database's last failure.
@@ -1152,7 +1161,10 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   for all of them (§3.1, below). A database that opens with its key file alone (§4) opens
   after a prompt without a `CryptoObject` (nothing is stored: the fingerprint is the check that it is the user), and
   the reminder asks about its key file (below); one that its key file alone no longer opens gets its field back, and nothing is deleted. No prompt while
-  the database's file or its key file is not there. A lock (the button, the timeout, sleep) after the fingerprint,
+  the database's file or its key file is not there, looked at through their grants on the io dispatcher
+  (`FilesThere.isThere`: not found, a grant gone or a record kept by its path is not there; a provider failing
+  otherwise tells nothing and the read says why) for a database's own fingerprint, the window's, the lock screen's
+  offer and the chooser's run, which skips such a database by itself. A lock (the button, the timeout, sleep) after the fingerprint,
   also while the stored password is read, opens nothing and deletes nothing.
 - **One fingerprint for several** (keething-spec unlock.biometric-several, databases.several-open AC7; `WindowFingerprint`,
   the Mac's `unlockWithTouchID()`; plan AD13): the chooser's (§3.1) opens every database of the window that can — locked,
@@ -1173,7 +1185,8 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   database's own fingerprint unlock too (found by AD8's review: Lock all leaves a database already locked as it was, so
   its own count did not change while its stored password was read).
 - **Discarding**: a fingerprint added or all removed, or the screen lock removed (the Keystore key is invalidated,
-  found before any prompt is shown), a keyring made for a key since replaced, or a damaged keyring → every database's
+  found at the next fingerprint asked, before its prompt: with every fingerprint removed nothing is asked, so a
+  database's page says its password is stored until one is enrolled and tried), a keyring made for a key since replaced, or a damaged keyring → every database's
   stored password, the keyring and the key are deleted and the lock screen says to type the password. A database's
   sealed copy the keyring does not open (sealed for a keyring of before, or changed) → that database's alone, said the
   same way: a typed unlock after a fingerprint change makes a new key and keyring for its database, and each other
@@ -1196,7 +1209,7 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   unlock asks nothing; `Sessions.reminderQuestion`, one database at a time, after the fingerprint's question): "Do you
   still remember it?", "It has been 15 days since the master password of “Family” was typed.", **Check it** and **Yes**.
   Yes is believed. Check it asks for the password (a secure field with its eye, out of autofill), checked with its key
-  file against the key it is open with (`VaultSession.confirmKey`, the key derivation once; never stored): it matches,
+  file against the key it is open with (`VaultSession.confirmKey`: the composite keys compared, nothing derived; never stored): it matches,
   or "It does not match. 2 tries left." and the typed text stays to be corrected; after 3 tries "It does not match"
   (it stays open, nothing changed; look it up if it is saved in the database, or Change master key…, which opens it,
   and "Keething asks again tomorrow.", Close). Yes or a match start its days again and say "Keething asks again in 14
@@ -1425,8 +1438,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   first (§4); a stored password that went says why ("The fingerprints on this phone changed. Type the password to set
   up the fingerprint again.", "The database password was changed. Type the new one; the fingerprint will use it."),
   also when one fingerprint for several found it (§5), in place of the wrong password it left until one is typed here.
+  A fingerprint switched on with nothing stored yet says "Type the password once to set up the fingerprint." after a
+  problem and before the reason of the lock (keething-spec unlock.lock-reasons AC4).
   In the chooser's run (§3.1) the lock screen has "Unlocking 2 of 3" over it with Stop, no fingerprint button and no
-  sheet, a wrong password said over the field, and Skip under it. The field's placeholder is "Master password" (one line); Unlock
+  sheet, a wrong password said over the field (from the second in a row with the hardware key sentence, §4), and Skip under it. The field's placeholder is "Master password" (one line); Unlock
   is unavailable while the field is empty unless the database has a key file. The key file is chosen by a key in the
   field beside the eye (Key file…; tinted once one is chosen, red when it is not there; a tap then takes it off); under the field a line is kept
   for it, so that choosing one moves nothing: the key, its name and "· folder" (or "· not there · folder" in red) on
@@ -1442,8 +1457,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   renamed, moved or deleted on a device, or its access taken back. Locate the file to choose its folder again." with
   Locate… (the picker at once, at its folder). An old record (§3.1, AC13): "Keething now opens files only in folders
   you choose. Choose Sync/KeePass, the folder of Personal.kdbx: it is asked once." with **Choose its folder…** (the
-  picker opened there). A key file without access any more: "Keething may not read work.keyx any more: choose it
-  again." and Choose…. When the fingerprint
+  picker opened there). A key file not there or without access any more is said on the chip ("Keething may not read
+  work.keyx any more: choose it again."); the key in the field takes it off and, tapped again, chooses one. A database
+  that opens with its key file alone has no field, so **Choose key file…** under its line while its key file is not
+  there or not reached; the one chosen brings the field back until an Unlock with nothing typed learns again that it
+  opens with its key file alone. When the fingerprint
   opens the database (§5) the field does not open the keyboard by itself. With the keyboard up the logo shrinks from
   104 to 64 dp and the database's line keeps to one line (the folder cut in the middle, when it changed whole), so
   that the line, the chip, the field and its key file line stay above the keyboard (checked at font scale 1.3). When the

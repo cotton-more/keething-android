@@ -273,9 +273,9 @@ public class CurrentDatabase(
      * with the typed path ([unlock]: its password stored for the fingerprint when that is on for it). [locks] is the
      * app's lock count, read now: a lock since ends the run, and nothing typed after it opens anything. Typing cannot
      * open a database out of the window or the list, one opening already, nor one whose file or key file is not there
-     * ([fileExists]), looked at when the run reaches it.
+     * ([fileExists], [FilesThere]), looked at when the run reaches it.
      */
-    public fun run(ids: List<DatabaseId>, locks: () -> Int, fileExists: (FileLocation) -> Boolean): UnlockRun {
+    public fun run(ids: List<DatabaseId>, locks: () -> Int, fileExists: suspend (FileLocation) -> Boolean): UnlockRun {
         val began = locks()
         return UnlockRun(
             ids = ids,
@@ -300,12 +300,12 @@ public class CurrentDatabase(
     }
 
     /** Why typing cannot open [id] now: it is skipped by itself in the run; null: it can be asked. */
-    private fun whyTypingCannotOpen(id: DatabaseId, fileExists: (FileLocation) -> Boolean): UserText? {
+    private suspend fun whyTypingCannotOpen(id: DatabaseId, fileExists: suspend (FileLocation) -> Boolean): UserText? {
         val record = list.record(id) ?: return UserText.of(VaultText.WHY_NOT_IN_LIST)
         if (!record.inWindow) return UserText.of(VaultText.WHY_CLOSED)
         if (sessions.session(id)?.session?.state?.value == SessionState.Unlocking) return UserText.of(VaultText.WHY_OPENING)
         if (!fileExists(record.file)) return UserText.of(VaultText.WHY_NOT_FOUND)
-        record.keyFile?.takeUnless(fileExists)?.let { return UserText.of(VaultText.WHY_KEY_FILE_NOT_THERE, it.fileName) }
+        record.keyFile?.let { if (!fileExists(it)) return UserText.of(VaultText.WHY_KEY_FILE_NOT_THERE, it.fileName) }
         return null
     }
 }

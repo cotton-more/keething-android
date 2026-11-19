@@ -366,6 +366,9 @@
     <string name="databases_chooser_key_not_there">%1$s not there</string>
     <string name="databases_chooser_key_no_access">%1$s no access</string>
     <string name="databases_chooser_cannot_be_read">Cannot be read</string>
+    <string name="databases_chooser_damaged">Damaged or not synced yet</string>
+    <string name="databases_chooser_out_of_memory">Not enough memory</string>
+    <string name="databases_chooser_read_failed">Read failed</string>
     <!-- %1$s: the key file's name -->
     <string name="databases_chooser_key_unusable">%1$s cannot be used</string>
     <string name="databases_chooser_its_key_unusable">Its key file cannot be used</string>
@@ -453,6 +456,8 @@
     <!-- %1$s: what was found wrong, as the reader says it -->
     <string name="databases_not_open_damaged">damaged or not completely synced yet (%1$s)</string>
     <string name="databases_not_open_access_denied">Keething may not read the file any more: locate it</string>
+    <!-- %1$s: why, in the storage's own words -->
+    <string name="databases_not_open_read_failed">reading it failed (%1$s)</string>
     <string name="databases_not_open_out_of_memory">not enough memory to open it</string>
     <string name="databases_not_open_did_not_open">it did not open</string>
     <string name="databases_not_open_wrong_password_say">Wrong password · tap to type it again</string>

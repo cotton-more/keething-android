@@ -59,6 +59,13 @@ class LockTextsTest {
         )
     }
 
+    // spec: unlock.lock-screen/AC5
+    @Test
+    fun aFileThatCouldNotBeReadOrHadNoMemoryForItsBytesIsSaidAsSuch() {
+        assertEquals("The file could not be read (provider died).", OpenFailure.ReadFailed("provider died").describe("db.kdbx").english())
+        assertEquals("Not enough memory to open the database.", OpenFailure.OutOfMemory.describe("db.kdbx").english())
+    }
+
     // spec: app.first-start/AC5
     @Test
     fun aHardwareKeyIsNamedFromTheSecondWrongKeyInARowOnly() {

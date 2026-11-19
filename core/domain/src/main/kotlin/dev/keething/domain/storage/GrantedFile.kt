@@ -12,6 +12,9 @@ public interface GrantedFile {
 
     /** The file's bytes, or null when there is no file there any more. */
     public fun read(): ByteArray?
+
+    /** Whether the file is there; a provider tells it without reading the file. */
+    public fun isThere(): Boolean = read() != null
 }
 
 /**

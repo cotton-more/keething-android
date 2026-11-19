@@ -20,6 +20,7 @@ import dev.keething.vault.opening.OpenResult
 import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.saving.SaveFailure
 import dev.keething.vault.saving.VaultSaver
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDateTime
 import kotlin.test.Test
@@ -94,6 +95,23 @@ class VaultSessionTest {
         runCurrent()
         assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.Missing)), missing.session.state.value)
         assertEquals(0, missing.store.watching)
+    }
+
+    // spec: unlock.lock-screen/AC5
+    @Test
+    fun aFileThatCannotBeReadStaysLockedSayingSoAndNothingEndsTheApp() = runTest {
+        val failing = fixture()
+        failing.store.beforeRead = { throw IOException("the card was removed") }
+        failing.session.unlock(Secret.of("pw"))
+        runCurrent()
+        assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.ReadFailed("the card was removed"))), failing.session.state.value)
+        assertEquals(0, failing.store.watching)
+
+        val tooLarge = fixture()
+        tooLarge.store.beforeRead = { throw OutOfMemoryError("Java heap space") }
+        tooLarge.session.unlock(Secret.of("pw"))
+        runCurrent()
+        assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.OutOfMemory)), tooLarge.session.state.value)
     }
 
     @Test
@@ -311,6 +329,34 @@ class VaultSessionTest {
     }
 
     @Test
+    fun aReloadWhoseReadFailsKeepsTheVaultAndTheNextChangeRecovers() = runTest {
+        val f = unlocked()
+        val before = f.vault
+        val file = fixtureBytes("kdbx4-aes-aeskdf")
+
+        f.store.beforeRead = { throw IOException("provider died") }
+        f.store.change(file)
+        advanceTimeBy(2.seconds)
+        runCurrent()
+        assertSame(before, f.vault)
+        assertEquals(OpenFailure.ReadFailed("provider died"), f.unlockedState.reloadFailure)
+
+        f.store.beforeRead = { throw OutOfMemoryError() }
+        f.store.change(file.copyOf())
+        advanceTimeBy(2.seconds)
+        runCurrent()
+        assertSame(before, f.vault)
+        assertEquals(OpenFailure.OutOfMemory, f.unlockedState.reloadFailure)
+
+        f.store.beforeRead = {}
+        f.store.change(file.copyOf())
+        advanceTimeBy(2.seconds)
+        runCurrent()
+        assertNotSame(before, f.vault)
+        assertNull(f.unlockedState.reloadFailure)
+    }
+
+    @Test
     fun aDamagedFileKeepsTheVaultAndTheNextChangeRecovers() = runTest {
         val f = unlocked()
         val before = f.vault
@@ -522,6 +568,19 @@ class VaultSessionTest {
         assertEquals(other.title, others.current.title)
         assertTrue(others.history.all { it.id == other.id && it.notes != "first" }, "only that entry's own versions")
         assertNull(assertIs<HistoryResult.Failed>(async { f.session.history("gone") }.also { runCurrent() }.await()).failure)
+    }
+
+    @Test
+    fun aHistoryWhoseReadFailsSaysWhy() = runTest {
+        val f = unlocked()
+        val entry = f.vault.entries.first()
+        f.store.beforeRead = { throw IOException("provider died") }
+
+        val read = async { f.session.history(entry.id) }
+        runCurrent()
+
+        assertEquals(OpenFailure.ReadFailed("provider died"), assertIs<HistoryResult.Failed>(read.await()).failure)
+        assertIs<SessionState.Unlocked>(f.session.state.value)
     }
 
     @Test

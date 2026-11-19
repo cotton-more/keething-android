@@ -7,6 +7,8 @@ import dev.keething.vault.opening.OpenFailure
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * The chooser's run (plan AD13; keething-spec databases.chooser AC5–AC8; the Mac's `UnlockRun`): the checked databases
@@ -15,12 +17,14 @@ import kotlinx.coroutines.flow.asStateFlow
  * not there, closed meanwhile, or a try that fails so) is skipped by itself; one opened meanwhile counts as opened. At
  * the end what happened ([Result]); a lock or Stop ends it with nothing to tell.
  *
- * [cannotOpen]: why typing cannot open a database now, or null. [isOpen]: it is open already. [tryUnlock]: one try with a
- * typed password (the lock screen's typed path). Call it on the main thread.
+ * [cannotOpen]: why typing cannot open a database now, or null; it looks at the files, off the main thread. [isOpen]: it
+ * is open already. [tryUnlock]: one try with a typed password (the lock screen's typed path). Call it on the main thread.
+ * While the run looks at the next database's files, a try or a Skip waits for it: what was typed for one database is
+ * never tried on the one after.
  */
 public class UnlockRun(
     public val ids: List<DatabaseId>,
-    private val cannotOpen: (DatabaseId) -> UserText?,
+    private val cannotOpen: suspend (DatabaseId) -> UserText?,
     private val isOpen: (DatabaseId) -> Boolean,
     private val tryUnlock: suspend (DatabaseId, Secret) -> Attempt,
 ) {
@@ -60,6 +64,9 @@ public class UnlockRun(
     private val mutableState = MutableStateFlow(State(0, failure = null, unlocking = false, ended = false))
     public val state: StateFlow<State> = mutableState.asStateFlow()
 
+    /** Held while the run moves on (looking at the files of those it reaches) and while a try or a Skip is decided. */
+    private val moving = Mutex()
+
     /** The run ended: what it did, or null when it stopped (Stop, a lock). Called once. */
     public var onEnd: ((Result?) -> Unit)? = null
 
@@ -87,8 +94,8 @@ public class UnlockRun(
         }
 
     /** Asks for the first database typing can open. */
-    public fun start() {
-        settle()
+    public suspend fun start() {
+        moving.withLock { settle() }
     }
 
     /**
@@ -96,17 +103,24 @@ public class UnlockRun(
      * Skip, the run moving on by itself) — a password typed for one is never tried on another. [password] is wiped.
      */
     public suspend fun unlock(id: DatabaseId, password: Secret) {
-        if (id != current || state.value.unlocking) {
-            password.wipe()
-            return
+        moving.withLock {
+            if (id != current || state.value.unlocking) {
+                password.wipe()
+                return
+            }
+            change { it.copy(unlocking = true, failure = null) }
         }
-        change { it.copy(unlocking = true, failure = null) }
         val attempt = try {
             tryUnlock(id, password)
         } finally {
             password.wipe()
             change { it.copy(unlocking = false) }
         }
+        moving.withLock { tried(id, attempt) }
+    }
+
+    /** What [attempt] on [id] does to the run. Under [moving]. */
+    private suspend fun tried(id: DatabaseId, attempt: Attempt) {
         if (current != id) return // stopped meanwhile
         when (attempt) {
             Attempt.Opened -> {
@@ -129,16 +143,20 @@ public class UnlockRun(
     }
 
     /** Skip: [id], the database the screen asks for, stays locked, said so; nothing when the run asks another by now. */
-    public fun skip(id: DatabaseId) {
-        if (id != current || state.value.unlocking) return
-        skipped += id
-        advance()
+    public suspend fun skip(id: DatabaseId) {
+        moving.withLock {
+            if (id != current || state.value.unlocking) return
+            skipped += id
+            advance()
+        }
     }
 
     /** The window's databases changed (one closed, one opened by its fingerprint): the one asked now is looked at again. */
-    public fun recheck() {
-        if (current == null || state.value.unlocking) return
-        settle()
+    public suspend fun recheck() {
+        moving.withLock {
+            if (current == null || state.value.unlocking) return
+            settle()
+        }
     }
 
     /** Stop, or a lock: the run ends where it is, nothing told. */
@@ -148,20 +166,28 @@ public class UnlockRun(
         onEnd?.invoke(null)
     }
 
-    private fun advance() {
+    /** Under [moving]. */
+    private suspend fun advance() {
         change { it.copy(index = it.index + 1, failure = null) }
         settle()
     }
 
-    /** Counts what is open already, skips by itself what typing cannot open, then asks for the next; past the last, the end. */
-    private fun settle() {
+    /**
+     * Counts what is open already, skips by itself what typing cannot open, then asks for the next; past the last, the
+     * end. Under [moving]; a Stop while it looks at a file ends it there.
+     */
+    private suspend fun settle() {
         var index = state.value.index
         while (index < ids.size) {
             val id = ids[index]
             if (isOpen(id)) {
                 openedIds += id
             } else {
-                notOpened += Problem(id, cannotOpen(id) ?: break)
+                val why = cannotOpen(id)
+                if (state.value.ended) return
+                // Opened meanwhile (its fingerprint): counted as opened.
+                if (isOpen(id)) continue
+                notOpened += Problem(id, why ?: break)
             }
             index++
         }
