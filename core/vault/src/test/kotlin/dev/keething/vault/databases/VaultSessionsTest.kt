@@ -405,7 +405,7 @@ class VaultSessionsTest {
 
         held.release()
         runCurrent()
-        assertEquals(SaveOutcome.Interrupted, saving.await())
+        assertEquals(SaveOutcome.Saved(lockedMeanwhile = true), saving.await(), "in the file within the lock's grace")
         val thawed = assertIs<SessionState.Unlocked>(f.state(w))
         assertEquals(SaveRoom.Enough, thawed.room)
         assertTrue(thawed.changeableAgain)

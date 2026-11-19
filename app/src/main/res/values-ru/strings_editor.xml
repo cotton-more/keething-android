@@ -171,6 +171,8 @@
     <string name="editor_save_failure_copy_wrong_key">Другая версия не открывается паролем или файлом-ключом этой базы (их изменили на другом устройстве?). Ничего не изменилось.</string>
     <string name="editor_save_failure_copy_not_opened">Не удалось открыть другую версию, поэтому ничего не изменилось: %1$s</string>
     <string name="editor_save_failure_backup_gone">Этой резервной копии больше нет. Ничего не изменилось.</string>
+    <string name="editor_save_failure_file_there_now">Там снова есть %1$s. Поверх него ничего не записано.</string>
+    <string name="editor_save_failure_folder_gone">Её папки больше нет. Ничего не записано.</string>
     <string name="editor_save_failure_backup_damaged">Файл этой резервной копии повреждён, она не открывается. Ничего не изменилось.</string>
     <string name="editor_save_failure_backup_not_opened">Не удалось открыть резервную копию, поэтому ничего не изменилось: %1$s</string>
     <string name="editor_save_failure_file_keeps_changing">Файл базы всё время меняется (синхронизация?). Ничего не сохранено; попробуйте через минуту.</string>

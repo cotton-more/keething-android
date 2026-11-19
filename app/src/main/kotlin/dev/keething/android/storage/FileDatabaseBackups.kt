@@ -20,7 +20,7 @@ import java.time.format.DateTimeFormatter
  * backup and no transfer to a new phone, `data_extraction_rules.xml`), named after the database and the local time; the newest [count] stay, newest by when they were written. The folder is the database's, so
  * two `Personal.kdbx` in two folders keep theirs apart, and a database located under another name keeps its older
  * ones; files in it that are not backups are left alone. The oldest go only once a save replaced the database
- * ([saved]); a save that did not takes its own copy back ([notSaved]), so it pushes no older one out (keething-spec
+ * ([saved]), and only while backups are on; a save that did not takes its own copy back ([notSaved]), so it pushes no older one out (keething-spec
  * kdbx.hardening AC9). [on] and [count] are the database's settings, read when they are needed (databases.backups-window
  * AC2). One object a database, the session's and its page's alike, so a save and the page never prune at once.
  *
@@ -59,6 +59,12 @@ internal class FileDatabaseBackups(
      * shows it would not open (keething-spec databases.backups-window AC1, AC5).
      */
     data class Backup(val name: String, val at: Instant, val bytes: Long, val damaged: Boolean, val beforeRestoring: Boolean = false)
+
+    /**
+     * The newest copy that would open, offered while the database's file is not found (keething-spec databases.not-open
+     * AC5): its [name], when it was written, its size, and how many copies there are.
+     */
+    data class Newest(val name: String, val at: Instant, val bytes: Long, val count: Int)
 
     override val on: Boolean get() = isOn()
 
@@ -104,7 +110,9 @@ internal class FileDatabaseBackups(
         kept = null
         keptDigest = null
         if (copy != null && sha256 != null) digests()[copy.name] = Digest(copy.length(), sha256)
-        prune(count())
+        // Off, the copies kept stay until deleted (keething-spec databases.backups-window AC3): a copy kept then (a conflict
+        // copy, the file before Use the other one) pushes none out.
+        if (isOn()) prune(count()) else writeDigests()
     }
 
     @Synchronized
@@ -179,6 +187,25 @@ internal class FileDatabaseBackups(
             throw BackupDamagedException("$name is not the copy kept") // not user text
         }
         return bytes
+    }
+
+    /** The newest copy whose header shows it would open, or null for none ([list]). */
+    @Synchronized
+    fun newest(): Newest? {
+        val all = list()
+        return all.firstOrNull { !it.damaged }?.let { Newest(it.name, it.at, it.bytes, all.size) }
+    }
+
+    /**
+     * The database left the list (keething-spec databases.list AC6): its folder goes, every copy in it and whatever else
+     * is there. A copy a save keeps afterwards makes it again.
+     */
+    @Synchronized
+    fun removeAll() {
+        kept = null
+        keptDigest = null
+        digests = null
+        folder.deleteRecursively()
     }
 
     /** How many copies there are and their size together. */

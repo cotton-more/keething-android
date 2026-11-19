@@ -35,6 +35,9 @@ internal data class ChooserRow(
 
     /** Not found, no access, or its folder to choose: Locate… beside it. */
     val offersLocate: Boolean get() = line.isMissing
+
+    /** It cannot be checked, but its backups can be restored: a tap opens its sheet (keething-spec databases.not-open AC5). */
+    val opensSheet: Boolean get() = line.newestBackup != null
 }
 
 /** The chooser: nothing open and several in the window (plan AD13; the agreed mock-up "⋮ › Databases, the chooser and its run"). */
@@ -42,7 +45,7 @@ internal object ChooserRows {
     /** Under the title, after what happened. */
     val HOW: UiText = uiText(R.string.databases_chooser_how)
 
-    /** The window's databases in its order, each as its session, files and fingerprint say; [checked] as at the last unlock. */
+    /** The window's databases in its order, each as its session, files and fingerprint say; [checked] as the user left it (keething-spec databases.chooser AC9). */
     fun of(window: List<WindowDatabase>, lines: List<DatabaseLine>, checked: (DatabaseId) -> Boolean): List<ChooserRow> {
         val byId = lines.associateBy { it.id }
         return window.mapNotNull { database -> byId[database.id]?.let { row(database.session, it, database.fingerprint, checked(database.id)) } }
@@ -58,7 +61,10 @@ internal object ChooserRows {
 
         if (session is SessionState.Unlocked) return row(uiText(R.string.databases_chooser_open), ChooserRow.Glyph.OPEN, ChooserRow.Tone.PLAIN, canCheck = false)
         if (session is SessionState.Unlocking) return row(uiText(R.string.databases_chooser_opening), ChooserRow.Glyph.OPENING, ChooserRow.Tone.PLAIN, canCheck = false)
-        line.reachTitle?.let { return row(it, ChooserRow.Glyph.NOT_FOUND, ChooserRow.Tone.PROBLEM, canCheck = false) }
+        line.reachTitle?.let { title ->
+            val said = if (line.newestBackup != null) uiText(R.string.databases_chooser_not_found_backups) else title
+            return row(said, ChooserRow.Glyph.NOT_FOUND, ChooserRow.Tone.PROBLEM, canCheck = false)
+        }
         val key = line.keyFile
         if (key != null && key.isMissing) {
             return row(uiText(if (key.reach == Reach.NOT_FOUND) R.string.databases_chooser_key_not_there else R.string.databases_chooser_key_no_access, key.name), ChooserRow.Glyph.KEY_FILE, ChooserRow.Tone.PROBLEM, canCheck = false)

@@ -174,7 +174,7 @@ class BackupRestoreTest {
         val f = unlocked()
         val restored = assertIs<RestoreOutcome.Restored>(restore(f))
 
-        val undone = restore(f, restored.beforeRestoring)
+        val undone = restore(f, assertNotNull(restored.beforeRestoring))
 
         assertEquals(RestoreOutcome.Restored(beforeRestoring = "old", olderKey = false), undone)
         assertContentEquals(current, f.store.content)
@@ -227,7 +227,7 @@ class BackupRestoreTest {
 
         assertContentEquals(backup, f.store.content)
         assertEquals(listOf("old", outcome.beforeRestoring), f.backups.copies.keys.toList())
-        assertContentEquals(elsewhere, f.backups.copies.getValue(outcome.beforeRestoring), "the file as it was when it was replaced")
+        assertContentEquals(elsewhere, f.backups.copies.getValue(assertNotNull(outcome.beforeRestoring)), "the file as it was when it was replaced")
     }
 
     // spec: databases.backups-window/AC8
@@ -293,6 +293,57 @@ class BackupRestoreTest {
 
     // spec: databases.backups-window/AC6
     @Test
+    fun aBackupOfADatabaseWhoseFileIsGoneIsWrittenAsANewFileWithNothingKeptBeforeIt() = runTest {
+        val f = locked(file = current)
+        f.store.change(null)
+
+        val outcome = restore(f)
+
+        assertEquals(RestoreOutcome.Restored(beforeRestoring = null, olderKey = false), outcome, "no Undo")
+        assertContentEquals(backup, f.store.content)
+        assertEquals(1, f.store.created)
+        assertEquals(0, f.store.replaced)
+        assertEquals(listOf("old"), f.backups.copies.keys.toList(), "the backups as they were")
+        assertEquals(emptyList(), f.backups.restored, "none pushed out")
+        assertNotNull(f.session.unlock(Secret.of("pw")))
+        runCurrent()
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+    }
+
+    // spec: databases.backups-window/AC6
+    @Test
+    fun anOpenDatabaseWhoseFileIsGoneBecomesTheBackupWrittenAsANewFile() = runTest {
+        val f = unlocked()
+        f.store.change(null, notify = false)
+
+        val outcome = restore(f)
+
+        assertEquals(RestoreOutcome.Restored(beforeRestoring = null, olderKey = false), outcome)
+        assertContentEquals(backup, f.store.content)
+        assertNotEquals("changed since", f.unlocked.vault.entries.first().notes, "the vault is the backup")
+    }
+
+    // spec: databases.backups-window/AC8
+    @Test
+    fun aFileThereAgainOrItsFolderGoneByTheWriteIsNotRestoredAndNothingIsWritten() = runTest {
+        val f = locked(file = current)
+        f.store.change(null)
+        f.store.beforeCreate = { f.store.change(current) }
+
+        assertEquals(RestoreOutcome.Failed(SaveFailure.FileThereNow), restore(f))
+        assertContentEquals(current, f.store.content, "never written over")
+        assertEquals(0, f.store.created)
+
+        f.store.beforeCreate = {}
+        f.store.change(null)
+        f.store.folderGone = true
+        assertEquals(RestoreOutcome.Failed(SaveFailure.FolderGone), restore(f))
+        assertEquals(null, f.store.content)
+        assertEquals(listOf("old"), f.backups.copies.keys.toList())
+    }
+
+    // spec: databases.backups-window/AC6
+    @Test
     fun aDatabaseWithoutASessionIsRestoredAsALockedOne() {
         val store = FakeStore(current)
         val backups = Backups().also { it.copies["old"] = backup.copyOf() }
@@ -302,5 +353,9 @@ class BackupRestoreTest {
         assertEquals(RestoreOutcome.Restored(beforeRestoring = "copy 1 (before restoring)", olderKey = false), outcome)
         assertContentEquals(backup, store.content)
         assertContentEquals(current, backups.copies.getValue("copy 1 (before restoring)"))
+
+        store.change(null)
+        assertEquals(RestoreOutcome.Restored(beforeRestoring = null, olderKey = false), BackupRestorer(store, backups, FakeClock(TestCoroutineScheduler())).restore("old"))
+        assertContentEquals(backup, store.content, "its file gone: written as a new file")
     }
 }

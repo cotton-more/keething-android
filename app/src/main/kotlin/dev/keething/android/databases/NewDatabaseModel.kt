@@ -201,6 +201,9 @@ internal class NewDatabaseModel(
     var keyFile: KeyFileChoice? by mutableStateOf(null)
         private set
 
+    /** Under a new key file only (keething-spec databases.new-database AC11): one the user has is kept wherever they keep it. */
+    val keyFileLoss: UiText? get() = uiText(R.string.databases_key_file_lose).takeIf { keyFile is KeyFileChoice.New }
+
     var useFingerprint: Boolean by mutableStateOf(offersFingerprint)
 
     var encryption: DatabaseEncryption by mutableStateOf(DatabaseEncryption.recommended(cores))
@@ -262,10 +265,14 @@ internal class NewDatabaseModel(
             return trimmed.filterNot { it.isISOControl() }
         }
 
-    /** The file's name: `/` and `:` as `-`, no leading dot (a hidden file), and `.kdbx`; null without a name. */
+    /**
+     * The file's name: `/`, `:` and the other characters the storage refuses (FAT's `"*<>?\|`, which the provider would
+     * change on its own, so the file would not be the name asked; keething-spec databases.new-database AC1) as `-`, no
+     * leading dot (a hidden file), and `.kdbx`; null without a name.
+     */
     val fileName: String?
         get() {
-            val base = databaseName.replace('/', '-').replace(':', '-').trimStart('.').trim()
+            val base = databaseName.map { if (it in REFUSED) '-' else it }.joinToString("").trimStart('.').trim()
             return if (base.isEmpty()) null else "$base.kdbx"
         }
 
@@ -700,3 +707,6 @@ internal class NewDatabaseModel(
         }
     }
 }
+
+/** What a file name may not hold on the phone's storage: a folder's `/`, and FAT's `:"*<>?\\|`. */
+private val REFUSED = setOf('/', ':', '"', '*', '<', '>', '?', '\\', '|')

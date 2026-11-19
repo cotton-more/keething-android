@@ -21,7 +21,7 @@ public fun interface DatabaseBackups {
      */
     public fun keep(database: InputStream, fileName: String, at: Instant): Unit = keep(database.readBytes(), fileName, at)
 
-    /** The save that kept the last one replaced the file: the oldest beyond the number kept go. */
+    /** The save that kept the last one replaced the file: the oldest beyond the number kept go, while [on]. */
     public fun saved() {}
 
     /** The save that kept the last one did not replace the file: that one goes, the others stay as they were. */

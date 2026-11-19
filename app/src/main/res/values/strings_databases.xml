@@ -147,9 +147,9 @@
     <!-- %1$s: the database's name -->
     <string name="databases_backups_undone">Back to %1$s as it was before the restore</string>
     <!-- %1$s: the database's name; %2$s: the backup's date in a sentence ("on Sun 1 Nov, 10:20", "yesterday, 21:40") -->
-    <string name="databases_backups_older_key">Restored. This backup opens with the master key %1$s had %2$s, so %1$s is locked: unlock it with that password. Its fingerprint stays off until then.</string>
+    <string name="databases_backups_older_key">Restored. This backup opens with the master key %1$s had %2$s, so %1$s is locked: unlock it with its password, and its key file then. Its fingerprint stays off until then.</string>
     <!-- %1$s: the database's name -->
-    <string name="databases_backups_older_key_then">Restored. This backup opens with the master key %1$s had then, so %1$s is locked: unlock it with that password. Its fingerprint stays off until then.</string>
+    <string name="databases_backups_older_key_then">Restored. This backup opens with the master key %1$s had then, so %1$s is locked: unlock it with its password, and its key file then. Its fingerprint stays off until then.</string>
     <!-- %1$s: the database's file name; %2$s: why it could not be written -->
     <string name="databases_backups_not_restored_write">Not restored: %1$s could not be written (%2$s). Nothing was changed, and no backup was added.</string>
     <!-- %1$s: the database's file name -->
@@ -159,6 +159,27 @@
     <string name="databases_backups_not_restored_cannot_open">Not restored: %1$s Nothing was changed, and no backup was added.</string>
     <!-- %1$s: why, a sentence without its full stop ("That backup is not there any more. Nothing was changed") -->
     <string name="databases_backups_not_restored">Not restored. %1$s, and no backup was added.</string>
+    <!-- A restore with the file gone (keething-spec databases.backups-window AC6, AC8). %1$s: the file's name; %2$s: its folder -->
+    <string name="databases_backups_not_restored_there_now">Not restored: there is a %1$s in %2$s again. Nothing was written: unlock it as it is.</string>
+    <!-- %1$s: the folder -->
+    <string name="databases_backups_not_restored_folder_gone">Not restored: %1$s is not there any more. Nothing was written: locate the file, or choose its folder again.</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_backups_restore_gone_title">Restore %1$s from its backup?</string>
+    <!-- %1$s: the file's name; %2$s: its folder; %3$s: when ("today, 14:03", "on Mon 9 Nov, 08:15") -->
+    <string name="databases_backups_restore_gone_text">%1$s is written again in %2$s, as it was %3$s. Changes made after that are not in it.</string>
+    <string name="databases_backups_restore_gone_note">There is no file to keep first, so this restore has no Undo. If the file was only renamed, or is not synced yet, Locate… finds it instead.</string>
+    <!-- %1$s: the file's name; %2$s: its folder; %3$s: when, as above -->
+    <string name="databases_backups_restored_as_new">Restored: %1$s is back in %2$s, as it was %3$s. It opens with the master key it had then.</string>
+    <!-- Not found offers the newest backup (keething-spec databases.not-open AC5). %1$s: the file's name; %2$s: its folder; %3$s: the backup's date ("today, 14:03", "Mon 9 Nov, 08:15") -->
+    <string name="databases_backups_not_found_offer">%1$s is not in %2$s any more. Locate the file, or restore its newest backup, of %3$s.</string>
+    <string name="databases_backups_restore_newest">Restore its newest backup…</string>
+    <string name="databases_backups_restore_backup">Restore backup…</string>
+    <string name="databases_backups_other">Other backups…</string>
+    <!-- %1$s: the backup's date; %2$s: its size; %3$d: how many backups there are -->
+    <plurals name="databases_backups_newest_detail">
+        <item quantity="one">%1$s · %2$s · %3$d kept on this phone</item>
+        <item quantity="other">%1$s · %2$s · %3$d kept on this phone</item>
+    </plurals>
 
     <!-- A new master password typed twice (MasterPasswordFields.kt) -->
     <!-- %1$d: the passphrase's words; %2$d: its bits -->
@@ -269,6 +290,7 @@
     <string name="databases_change_key_opens_with_new_password_and_key_file">%1$s now opens with the new password and %2$s.</string>
     <!-- %1$s: why, as the system says it -->
     <string name="databases_change_key_fingerprint_problem">Its new password could not be stored for the fingerprint: %1$s. It is stored at the next unlock with the password.</string>
+    <string name="databases_change_key_locked_meanwhile">It locked while the change was written; the change is in the file. Unlock it with the new key.</string>
     <string name="databases_change_key_other_devices">Your other devices ask for the new key once the file reaches them; a fingerprint stored there stops working until the new password is typed.</string>
     <string name="databases_change_key_old_copies">Copies of the file made before still open with the old key: the backups on this phone and elsewhere, other devices\' copies, a sync\'s old versions (Syncthing\'s .stversions). After a leak, delete those you can.</string>
     <string name="databases_done">Done</string>
@@ -367,6 +389,7 @@
     <string name="databases_chooser_key_no_access">%1$s no access</string>
     <string name="databases_chooser_cannot_be_read">Cannot be read</string>
     <string name="databases_chooser_damaged">Damaged or not synced yet</string>
+    <string name="databases_chooser_not_found_backups">Not found · has backups</string>
     <string name="databases_chooser_out_of_memory">Not enough memory</string>
     <string name="databases_chooser_read_failed">Read failed</string>
     <!-- %1$s: the key file's name -->
@@ -492,6 +515,17 @@
     <!-- %1$s: the database's name -->
     <string name="databases_remove_title">Remove “%1$s” from the list?</string>
     <string name="databases_remove_text">Keething forgets it on this phone, with its stored password. The file stays where it is.</string>
+    <!-- %1$d: how many backups -->
+    <plurals name="databases_remove_text_backups">
+        <item quantity="one">Keething forgets it on this phone, with its stored password and its backup. The file stays where it is.</item>
+        <item quantity="other">Keething forgets it on this phone, with its stored password and its %1$d backups. The file stays where it is.</item>
+    </plurals>
+    <!-- Its file not found: %1$d: how many backups; %2$s: the file's name; %3$s: its folder -->
+    <plurals name="databases_remove_text_last_copies">
+        <item quantity="one">%2$s is not in %3$s any more, so its backup on this phone may be its last copy. It is deleted with its stored password, and can’t be brought back.</item>
+        <item quantity="other">%2$s is not in %3$s any more, so its %1$d backups on this phone may be its last copies. They are deleted with its stored password, and can’t be brought back.</item>
+    </plurals>
+    <string name="databases_remove_restore_first">To keep it, restore its newest backup first.</string>
     <string name="databases_remove">Remove</string>
     <string name="databases_shown_now">Shown now</string>
     <!-- %1$s: the database's name -->
@@ -621,7 +655,7 @@
     <string name="databases_page_forget">Forget</string>
     <string name="databases_page_key_file_note">Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It must be there at every unlock, the fingerprint too.</string>
     <string name="databases_page_backups">Backups</string>
-    <string name="databases_page_remove_note">Forgets it on this phone, with its stored password. The file stays.</string>
+    <string name="databases_page_remove_note">Forgets it on this phone, with its stored password and its backups. The file stays.</string>
     <string name="databases_page_use_fingerprint">Use fingerprint</string>
     <!-- %1$s: why, as the system says it -->
     <string name="databases_page_fingerprint_not_deleted">Its stored password could not be deleted: %1$s.</string>

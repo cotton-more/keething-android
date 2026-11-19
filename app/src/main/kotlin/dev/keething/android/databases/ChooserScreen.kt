@@ -66,13 +66,15 @@ import dev.keething.android.ui.UiText
 import dev.keething.android.ui.resolve
 import dev.keething.android.ui.segmentShape
 import dev.keething.vault.databases.DatabaseId
+import android.os.Environment
+import androidx.compose.material.icons.rounded.Search
 
 /**
  * The chooser (plan AD13; keething-spec databases.chooser AC2–AC4; the agreed mock-up "⋮ › Databases, the chooser and its
  * run"): nothing open and several in the window. Why the fingerprint opened none ([note]), the window's databases with
  * how each opens, a check on those to ask (what typing cannot open cannot be checked; Locate… for one not found), past
  * five rows scrolling; Unlock with the fingerprint while it would open one, Unlock N databases, Open other… and New
- * database…. A row's long press opens its sheet: Remove from list… (keething-spec databases.list AC8). Nothing is done
+ * database…. A row's long press opens its sheet: Remove from list… (keething-spec databases.chooser AC12). Nothing is done
  * while the fingerprint runs ([busy]).
  */
 @Composable
@@ -87,10 +89,15 @@ internal fun ChooserScreen(
     onOpenOther: () -> Unit,
     onNewDatabase: () -> Unit,
     onRemove: (DatabaseId) -> Unit,
+    countBackups: suspend (DatabaseId) -> Int = { 0 },
+    /** A database's backups in a sheet ([BackupsSheet]): its line, the backup asked at once, and the sheet's dismissal. */
+    backups: @Composable (DatabaseLine, String?, () -> Unit) -> Unit = { _, _, _ -> },
 ) {
     // The long-pressed row's sheet, then its question.
     var sheetOf by rememberSaveable { mutableStateOf<String?>(null) }
     var removingOf by rememberSaveable { mutableStateOf<String?>(null) }
+    var backupsOf by rememberSaveable { mutableStateOf<String?>(null) }
+    var backupsAsk by rememberSaveable { mutableStateOf<String?>(null) }
     rows?.firstOrNull { it.id.value == sheetOf }?.let { row ->
         ChooserRowSheet(
             row,
@@ -98,12 +105,25 @@ internal fun ChooserScreen(
                 sheetOf = null
                 removingOf = row.id.value
             },
+            onLocate = {
+                sheetOf = null
+                onLocate(row.id)
+            },
+            onBackups = { ask ->
+                sheetOf = null
+                backupsOf = row.id.value
+                backupsAsk = ask
+            },
             onDismiss = { sheetOf = null },
         )
     }
+    rows?.firstOrNull { it.id.value == backupsOf }?.let { row -> backups(row.line, backupsAsk) { backupsOf = null } }
     rows?.firstOrNull { it.id.value == removingOf }?.let { row ->
         RemoveFromListDialog(
-            name = row.line.name,
+            id = row.id,
+            name = row.line.label.full,
+            notFound = row.line.notFound,
+            countBackups = countBackups,
             onRemove = {
                 removingOf = null
                 onRemove(row.id)
@@ -147,7 +167,7 @@ internal fun ChooserScreen(
                             row,
                             segmentShape(index, shown.size, outer = 22.dp),
                             enabled = !busy,
-                            onToggle = { onToggle(row.id) },
+                            onToggle = { if (row.opensSheet) sheetOf = row.id.value else onToggle(row.id) },
                             onLocate = { onLocate(row.id) },
                             onLongPress = { sheetOf = row.id.value },
                         )
@@ -213,12 +233,13 @@ private fun ChooserRowView(
             .combinedClickable(
                 enabled = enabled,
                 role = Role.Checkbox.takeIf { row.canCheck },
+                onClickLabel = if (row.opensSheet) stringResource(R.string.databases_actions) else null,
                 onLongClickLabel = stringResource(R.string.databases_actions),
                 onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onLongPress()
                 },
-                onClick = { if (row.canCheck) onToggle() },
+                onClick = { if (row.canCheck || row.opensSheet) onToggle() },
             )
             .then(if (row.canCheck) Modifier.semantics { toggleableState = ToggleableState(row.isChecked) } else Modifier)
             .padding(start = 4.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
@@ -236,13 +257,26 @@ private fun ChooserRowView(
     }
 }
 
-/** A chooser row's long press (keething-spec databases.list AC8): what can be done to that database without opening it. */
+/**
+ * A chooser row's long press (keething-spec databases.chooser AC12), or the tap on one whose file is not found and has
+ * backups: what can be done to that database without opening it. Not found with a backup: what is wrong, its newest
+ * backup offered, Other backups… and Locate… (keething-spec databases.not-open AC5).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChooserRowSheet(row: ChooserRow, onRemove: () -> Unit, onDismiss: () -> Unit) {
+private fun ChooserRowSheet(row: ChooserRow, onRemove: () -> Unit, onLocate: () -> Unit, onBackups: (ask: String?) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             DatabaseSheetHeader(row.line)
+            row.line.newestBackup?.let { newest ->
+                Text(
+                    stringResource(R.string.databases_not_open_not_found_say, DatabaseText.abbreviated(row.line.path, Environment.getExternalStorageDirectory().path)),
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.extraColors.row).padding(14.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                NewestBackupRows(newest, onBackups)
+                SheetRow(Icons.Rounded.Search, stringResource(R.string.databases_lock_locate), onClick = onLocate)
+            }
             SheetRow(Icons.Rounded.PlaylistRemove, stringResource(R.string.databases_remove_from_list), detail = stringResource(R.string.databases_remove_from_list_detail), onClick = onRemove)
         }
     }

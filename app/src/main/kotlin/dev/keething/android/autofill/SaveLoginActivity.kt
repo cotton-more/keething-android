@@ -50,7 +50,6 @@ import dev.keething.android.KeethingApplication
 import dev.keething.android.R
 import dev.keething.android.editor.EntryEditorScreen
 import dev.keething.android.editor.deletedGroupsNote
-import dev.keething.android.editor.savedSaying
 import dev.keething.android.editor.NewEntryDatabases
 import dev.keething.android.session.OpenDatabase
 import dev.keething.android.ui.UiText
@@ -65,6 +64,10 @@ import dev.keething.autofill.saving.SavePlan
 import dev.keething.autofill.saving.SavePlanner
 import dev.keething.autofill.saving.TypedLogin
 import dev.keething.autofill.target.FillTarget
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material3.AlertDialog
+import dev.keething.android.theme.extraColors
+import dev.keething.android.editor.MAY_NOT_SYNC
 
 /** The login being saved; wiped when the screen is done with it. [asNew]: the user chose a new entry over the update. */
 internal class SaveLoginModel(val save: PendingSave?) : ViewModel() {
@@ -103,14 +106,28 @@ class SaveLoginActivity : ComponentActivity() {
         val label = container.autofillEntries.label(save.target)
         setContent {
             KeethingTheme {
-                SaveLoginScreen(
-                    container, model, save, label,
-                    onDone = { text ->
-                        Toast.makeText(this, text.resolve(resources), Toast.LENGTH_SHORT).show()
-                        finish()
-                    },
-                    onClose = ::finish,
-                )
+                // The result with the sync warning: said until OK, the editor gone (keething-spec databases.saf AC6).
+                var warning by remember { mutableStateOf<AutofillSaved.Dialog?>(null) }
+                val shown = warning
+                if (shown != null) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {}
+                    AlertDialog(
+                        onDismissRequest = ::finish,
+                        icon = { Icon(Icons.Rounded.CloudOff, contentDescription = null, tint = MaterialTheme.extraColors.warn) },
+                        title = { Text(shown.title.resolve()) },
+                        text = { Text(shown.text.resolve()) },
+                        confirmButton = { TextButton(onClick = ::finish) { Text(stringResource(R.string.autofill_ok)) } },
+                    )
+                } else {
+                    SaveLoginScreen(
+                        container, model, save, label,
+                        onDone = { said ->
+                            said.toast?.let { Toast.makeText(this, it.resolve(resources), Toast.LENGTH_SHORT).show() }
+                            if (said.dialog != null) warning = said.dialog else finish()
+                        },
+                        onClose = ::finish,
+                    )
+                }
             }
         }
     }
@@ -133,7 +150,7 @@ private fun SaveLoginScreen(
     model: SaveLoginModel,
     save: PendingSave,
     label: String,
-    onDone: (UiText) -> Unit,
+    onDone: (AutofillSaved) -> Unit,
     onClose: () -> Unit,
 ) {
     val database by container.sessions.current.collectAsStateWithLifecycle()
@@ -148,7 +165,7 @@ private fun SaveLoginScreen(
         val plan = remember(model.asNew) { plan(container, open, save, label, model.asNew) }
         val password = remember { save.password.reveal() }
         when (plan) {
-            is SavePlan.Unchanged -> LaunchedEffect(plan) { onDone(uiText(R.string.autofill_save_already_saved, plan.entry.displayTitle)) }
+            is SavePlan.Unchanged -> LaunchedEffect(plan) { onDone(AutofillSaved.of(uiText(R.string.autofill_save_already_saved, plan.entry.displayTitle), mayNotSync = false)) }
             is SavePlan.Update -> EntryEditorScreen(
                 // The entry's own database; once it is not open (locked alone meanwhile), the editor and its password go.
                 database = EntryRef.of(plan.entry.id).database.takeIf { id -> open.any { it.database.id == id } }?.let(container.sessions::session)
@@ -160,7 +177,7 @@ private fun SaveLoginScreen(
                 onClose = onClose,
                 onSaved = { saved ->
                     onDone(
-                        savedSaying(
+                        AutofillSaved.of(
                             deletedGroupsNote(saved.deletedGroups)?.let { uiText(R.string.autofill_save_password_updated_groups_deleted, it) }
                                 ?: uiText(R.string.autofill_save_password_updated),
                             saved.mayNotSync,
@@ -183,13 +200,26 @@ private fun SaveLoginScreen(
                 generator = container::passwordGenerator,
                 copySecret = { container.clipboard.copy(it, sensitive = true) },
                 onClose = onClose,
-                onSaved = { saved -> onDone(savedSaying(uiText(R.string.autofill_save_saved), saved.mayNotSync)) },
+                onSaved = { saved -> onDone(AutofillSaved.of(uiText(R.string.autofill_save_saved), saved.mayNotSync)) },
                 prefill = { it.copy(title = plan.title, url = plan.url, username = save.username.ifEmpty { it.username }, password = password) },
                 banner = { Banner(stringResource(R.string.autofill_save_new_title, label), stringResource(R.string.autofill_save_new_text)) },
                 places = remember { container.newEntryPlaces() },
                 showing = showing,
             )
         }
+    }
+}
+
+/**
+ * How autofill's save says its result: a short toast over the app that was filled, or, with the sync warning, a dialog
+ * until OK (keething-spec databases.saf AC6: Android 12 and later cut a toast at two lines, and with it the warning).
+ */
+internal class AutofillSaved private constructor(val toast: UiText?, val dialog: Dialog?) {
+    class Dialog(val title: UiText, val text: UiText)
+
+    companion object {
+        fun of(text: UiText, mayNotSync: Boolean): AutofillSaved =
+            if (mayNotSync) AutofillSaved(toast = null, Dialog(text, MAY_NOT_SYNC)) else AutofillSaved(text, dialog = null)
     }
 }
 

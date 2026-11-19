@@ -238,7 +238,6 @@ class EntryEditorTest {
         assertEquals(GroupChoice("w-root"), there.group)
     }
 
-    // spec: databases.one-list/AC5
     @Test
     fun aNewEntryMovedToAnotherDatabaseTakesItsGroupsRootAndDefaultUsernameKeepingWhatWasTyped() {
         val personal = Vault(

@@ -93,6 +93,8 @@ public class CreationNote(private val file: File, private val folders: (grant: S
      * told for Create's or could not be removed (its grant gone too).
      */
     private fun removeIfMine(noted: Noted): Boolean = when (val at = noted.file) {
+        // A note of a version before databases.saf (and the tests' files): the one file the app still reads by its path
+        // (keething-spec databases.saf AC1's Android note). Nothing writes such a note now.
         is FileLocation.ByPath -> {
             val made = File(at.path)
             !made.isFile || run {

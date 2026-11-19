@@ -109,6 +109,8 @@ public class FolderDatabaseStore(
      * and the database is never written in place. The save is noted before its first step; a failed step puts the
      * folder back as it was, and what could not be put back is put back by the next read.
      */
+    override fun createNew(bytes: ByteArray): Unit = lock.withLock { FolderNewFile(folder, path).create(bytes) }
+
     override fun replace(bytes: ByteArray, expected: FileVersion?): Unit = lock.withLock {
         val replaced = folder.version(path) ?: throw NoSuchFileException(path, null, "the database is not there")
         if (expected != null && replaced != expected) throw DatabaseChangedException("$fileName changed since it was read")

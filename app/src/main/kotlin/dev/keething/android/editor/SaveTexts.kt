@@ -38,6 +38,8 @@ internal fun SaveFailure.describe(file: File): UiText = when (this) {
         else -> uiText(R.string.editor_save_failure_copy_not_opened, openFailureInSentence(failure, file))
     }
     SaveFailure.BackupGone -> uiText(R.string.editor_save_failure_backup_gone)
+    SaveFailure.FileThereNow -> uiText(R.string.editor_save_failure_file_there_now, file.name)
+    SaveFailure.FolderGone -> uiText(R.string.editor_save_failure_folder_gone)
     SaveFailure.BackupDamaged -> uiText(R.string.editor_save_failure_backup_damaged)
     is SaveFailure.BackupNotOpened -> uiText(R.string.editor_save_failure_backup_not_opened, openFailureInSentence(failure, file))
     SaveFailure.FileKeepsChanging -> uiText(R.string.editor_save_failure_file_keeps_changing)

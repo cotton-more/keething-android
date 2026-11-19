@@ -120,7 +120,6 @@ class NavigationStateTest {
 
     private val family = DatabaseId("F")
 
-    // spec: databases.chooser/AC1
     // spec: databases.chooser/AC2
     @Test
     fun severalInTheWindowNothingOpenTheChooserOneOpenTheVaultAllLockedTheChooserAgain() {
@@ -179,7 +178,6 @@ class NavigationStateTest {
         assertEquals(Shown.RUN, navigation.screenFor(personal, 1, open = listOf(personal), windowSize = 3, running = true))
     }
 
-    // spec: databases.chooser/AC1
     @Test
     fun afterTheChooserOrTheRunTheVaultShowsOnTheFirstDatabaseThatOpened() {
         val navigation = NavigationState()

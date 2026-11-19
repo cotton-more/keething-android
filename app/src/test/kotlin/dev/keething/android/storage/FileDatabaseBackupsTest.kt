@@ -14,6 +14,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -311,6 +312,50 @@ class FileDatabaseBackupsTest {
         backups.notSaved()
 
         assertEquals(emptyList(), names())
+    }
+
+    // spec: databases.not-open/AC5
+    @Test
+    fun theNewestBackupThatWouldOpenIsOfferedWithHowManyThereAre() {
+        val database = File(System.getProperty("keething.fixtures"), "kdbx4-aes-argon2d.kdbx").readBytes()
+        assertNull(backups.newest(), "none")
+        backups.save(database, "db.kdbx", at)
+        backups.save(database.copyOf(60), "db.kdbx", at.plusSeconds(60))
+
+        val newest = assertNotNull(backups.newest())
+
+        assertEquals("db 2026-10-20T19-30-05.kdbx", newest.name, "the damaged newer one passed over")
+        assertEquals(database.size.toLong(), newest.bytes)
+        assertEquals(2, newest.count)
+    }
+
+    // spec: databases.list/AC6
+    @Test
+    fun removingTheDatabaseDeletesItsBackupsFolder() {
+        backups.save(byteArrayOf(1), "db.kdbx", at)
+        backups.save(byteArrayOf(2), "db.kdbx", at.plusSeconds(60))
+        val dir = File(folder, "backups")
+        File(dir, "notes.txt").writeText("not a backup")
+
+        backups.removeAll()
+
+        assertFalse(dir.exists(), "the folder gone, whatever is in it")
+        assertEquals(0, backups.summary().count)
+    }
+
+    // spec: databases.backups-window/AC3
+    @Test
+    fun aCopyKeptWithBackupsOffPushesNoneOut() {
+        var on = true
+        val backups = FileDatabaseBackups(File(folder, "backups"), zone = ZoneOffset.UTC, count = { 3 }, isOn = { on })
+        for (i in 0 until 3) backups.save(byteArrayOf(i.toByte()), "db.kdbx", at.plusSeconds(i * 60L))
+
+        on = false
+        // A conflict copy kept, or the file before Use the other one: kept whatever the switch says.
+        backups.save(byteArrayOf(9), "db.sync-conflict-20261020-193500-ABCDEFG.kdbx", at.plusSeconds(600))
+
+        assertEquals(4, names().size, "off, the kept ones stay")
+        assertTrue(backups.holds(sha256(byteArrayOf(9))), "the new one is known by its bytes")
     }
 
     @Test

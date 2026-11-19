@@ -44,4 +44,5 @@
     <!-- %1$s: the app or website the login was typed in -->
     <string name="autofill_save_new_title">Save the login typed in %1$s</string>
     <string name="autofill_save_new_text">A new entry; check its name and group.</string>
+    <string name="autofill_ok">OK</string>
 </resources>

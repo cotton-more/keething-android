@@ -107,6 +107,7 @@ import dev.keething.android.databases.ChooserScreen
 import dev.keething.android.databases.rememberFileActions
 import dev.keething.android.databases.Reach
 import dev.keething.vault.session.SessionState
+import dev.keething.android.databases.BackupsSheet
 
 /**
  * The screens of the open databases. An entry's screens name it by its ref ([EntryRef.text]: the same UUID in two
@@ -604,6 +605,8 @@ private fun Chooser(container: AppContainer, navigation: NavigationState) {
         onRemove = { id ->
             sessions.remove(id) { Toast.makeText(context.applicationContext, resources.getString(R.string.navigation_stored_password_not_deleted, it), Toast.LENGTH_LONG).show() }
         },
+        countBackups = sessions::backupCount,
+        backups = { line, ask, dismiss -> BackupsSheet(container, line, ask, onNotice = {}, onDismiss = dismiss, onRestored = windowModel::refresh) },
     )
 }
 
@@ -768,6 +771,7 @@ private fun VaultScreens(container: AppContainer, current: DatabaseSession, navi
                                 canClose = overview?.canClose == true,
                                 onLockScreen = { showLockScreen(it) },
                                 onCloseDatabase = { closeDatabase(it) },
+                                onBackupRestored = windowModel::refresh,
                                 onDatabases = { navigation.open(Screen.WindowDatabases) },
                                 onNew = onNew@{ choice ->
                                     val places = sessions.newEntryDatabases(open)

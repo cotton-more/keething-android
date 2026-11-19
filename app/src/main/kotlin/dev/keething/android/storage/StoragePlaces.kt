@@ -7,6 +7,7 @@ import dev.keething.android.databases.FileLook
 import dev.keething.android.databases.Reach
 import dev.keething.domain.storage.GrantedFolder
 import dev.keething.domain.storage.StoragePlace
+import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.FileLocation
 import java.io.IOException
 import java.nio.file.AccessDeniedException
@@ -31,7 +32,11 @@ internal object StoragePlaces {
 internal class GrantedFiles(
     private val folders: (grant: String) -> GrantedFolder?,
     private val files: (grant: String) -> ProviderFile?,
+    /** A database's newest backup that would open ([FileDatabaseBackups.newest]). */
+    private val newest: (DatabaseId) -> FileDatabaseBackups.Newest? = { null },
 ) : DatabaseFiles {
+    override fun newestBackup(id: DatabaseId): FileDatabaseBackups.Newest? = newest(id)
+
     override fun look(location: FileLocation): FileLook = try {
         when (location) {
             // Never looked at by its path (AC1): the lines say it needs its folder.

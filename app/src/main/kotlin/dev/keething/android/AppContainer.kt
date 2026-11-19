@@ -53,7 +53,7 @@ import dev.keething.android.storage.ProviderFile
 import dev.keething.android.storage.ProviderFolder
 import dev.keething.android.storage.UnreachableFolder
 import dev.keething.android.storage.GrantedFiles
-import dev.keething.android.storage.NeedsFolderStore
+import dev.keething.android.storage.databaseStoreOf
 import dev.keething.android.storage.PausingFolder
 import dev.keething.android.databases.DatabaseFiles
 import dev.keething.android.storageprobe.GrantProbe
@@ -114,18 +114,14 @@ internal class AppContainer(context: Context) {
     /** The saves through granted folders, noted before they touch the folder (AC5): one for the whole app. */
     private val saveNotes = SaveNotes(File(context.filesDir, "saves"))
 
-    /** A database of the list through its granted folder (AC2); one kept by its path is never read by it (AC1, AC13). */
-    private fun databaseStoreOf(file: FileLocation): DatabaseStore = when (file) {
-        is FileLocation.ByPath -> NeedsFolderStore(file.fileName)
-        is FileLocation.InFolder -> FolderDatabaseStore(folderOf(file.grant) ?: UnreachableFolder(file.grant), file.path, saveNotes, AndroidClock)
-        is FileLocation.Granted -> throw IllegalArgumentException("a database is never reached through a grant to the file alone") // not user text
-    }
+    /** A database of the list through its granted folder ([databaseStoreOf]). */
+    private fun databaseStoreOf(file: FileLocation): DatabaseStore = databaseStoreOf(file, folderOf, saveNotes, AndroidClock)
 
     /** A key file granted alone, by its grant; one not of the phone's storage cannot be reached (AC12). */
     private val fileOf: (grant: String) -> ProviderFile? = { ProviderFile.of(resolver, it) }
 
     /** The list's files looked at through their grants, never opened (SPEC §6.2). */
-    val databaseFiles: DatabaseFiles = GrantedFiles(folderOf, fileOf)
+    val databaseFiles: DatabaseFiles = GrantedFiles(folderOf, fileOf) { id -> sessions.backups(id).newest() }
 
     /** How a key file is reached wherever the list has it (AC9). */
     private val keyFiles = KeyFiles(folder = folderOf, file = fileOf)
@@ -169,6 +165,7 @@ internal class AppContainer(context: Context) {
     val sessions = Sessions(
         settings, settingsStore, databaseList, ::databaseStoreOf, File(context.filesDir, "backups"), keyFiles,
         FilesThere(folderOf, fileOf, Dispatchers.IO), biometricStores, appScope, biometricIo, LockAlarm(context), Environment.getExternalStorageDirectory().path, grantKeeper::offered,
+        held = grants::held,
     )
 
     /** What a new database's Create is making (plan AD7): an ended process's leftovers go at the next start. */
@@ -203,8 +200,9 @@ internal class AppContainer(context: Context) {
     private fun newDatabase(context: Context): NewDatabaseModel {
         val root = Environment.getExternalStorageDirectory().path
         val list = sessions.list
-        val current = list.current?.file as? FileLocation.InFolder
-        val folders = listOfNotNull(current?.let { GrantedPlace(it.grant, it.folder) }) + list.state.value.grantedFolders()
+        val held = grants.held()
+        val current = (list.current?.file as? FileLocation.InFolder)?.takeIf { it.grant in held }
+        val folders = listOfNotNull(current?.let { GrantedPlace(it.grant, it.folder) }) + list.state.value.grantedFolders(held)
         val places = NewDatabasePlaces(root, folders.distinctBy { it.grant })
         // The current database's own folder first, then each granted folder as granted.
         val starts = listOfNotNull(current?.place?.parent?.let { DatabaseText.pathOf(it, root) }) + places.listedPaths
@@ -249,7 +247,7 @@ internal class AppContainer(context: Context) {
         val record = sessions.list.record(id) ?: return null
         val root = Environment.getExternalStorageDirectory().path
         val list = sessions.list
-        val places = NewDatabasePlaces(root, list.state.value.grantedFolders().distinctBy { it.grant })
+        val places = NewDatabasePlaces(root, list.state.value.grantedFolders(grants.held()).distinctBy { it.grant })
         val filePath = DatabaseText.pathOf(record.file, root)
         val label = list.state.value.marks(root)[id]?.label?.full ?: record.displayName
         val model = ChangeMasterKeyModel(
@@ -371,6 +369,10 @@ internal class AppContainer(context: Context) {
         scope = appScope,
         window = sessions.window,
         lockCount = sessions.locks.counted,
+        markTold = { ids ->
+            for (id in ids) sessions.session(id)?.let { toldUnlocks.firstTime(ToldUnlocks.key(it.number, it.session.locks)) }
+        },
+        markTried = sessions::countTried,
     )
 
     /**

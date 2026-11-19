@@ -17,6 +17,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import dev.keething.android.storage.FileDatabaseBackups
+import java.time.Instant
 
 /**
  * The chooser's rows (plan AD13; keething-spec databases.chooser AC3, AC4; the Mac's `WindowDatabasesModel.chooserRow`):
@@ -45,6 +47,17 @@ class ChooserRowsTest {
 
     private fun row(session: SessionState = locked, line: DatabaseLine = line("Work"), fingerprint: BiometricState = off, checked: Boolean = true) =
         ChooserRows.row(session, line, fingerprint, checked)
+
+    // spec: databases.not-open/AC5
+    @Test
+    fun aDatabaseNotFoundWithABackupSaysSoAndItsRowOpensItsSheet() {
+        val gone = line("Family", missing = true)
+        assertEquals("Not found", row(line = gone).opensWith.english())
+        val withBackups = row(line = gone.copy(newestBackup = FileDatabaseBackups.Newest("b", Instant.EPOCH, 1, count = 3)))
+        assertEquals("Not found · has backups", withBackups.opensWith.english())
+        assertTrue(withBackups.opensSheet, "it cannot be checked: a tap opens its sheet")
+        assertFalse(row().opensSheet)
+    }
 
     // spec: databases.chooser/AC3
     // spec: databases.chooser/AC4

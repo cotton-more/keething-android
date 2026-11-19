@@ -12,6 +12,7 @@ import dev.keething.vault.opening.VaultOpener
 import dev.keething.vault.saving.SaveFailure
 import dev.keething.vault.saving.VaultSaver
 import java.io.IOException
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.LocalDateTime
 import kotlin.test.Test
@@ -35,6 +36,10 @@ class ConflictCopyResolveTest {
         val kept = mutableListOf<Pair<String, ByteArray>>()
         var fail = false
         private var pending = false
+        override var on = true
+
+        override fun holding(sha256: ByteArray): String? =
+            kept.firstOrNull { MessageDigest.getInstance("SHA-256").digest(it.second).contentEquals(sha256) }?.first
 
         override fun keep(database: ByteArray, fileName: String, at: Instant) {
             if (fail) throw IOException("no room")
@@ -108,6 +113,44 @@ class ConflictCopyResolveTest {
         // The copy's bytes came from another device: the session did not write them, so they are backed up too.
         assertEquals(2, f.backups.kept.size)
         assertContentEquals(copyBytes, f.backups.kept.last().second)
+    }
+
+    // spec: kdbx.conflict-copies/AC6
+    @Test
+    fun usingTheCopyAfterASaveOfThisSessionBacksUpTheOpenVersionAllTheSame() = runTest {
+        val f = unlocked()
+        val entry = f.unlocked.vault.entries.last()
+        val saving = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "only here"))))
+        runCurrent()
+        assertIs<SaveOutcome.Saved>(saving.await())
+        val open = f.store.content!!
+        assertEquals(1, f.backups.kept.size, "the file as it was at the unlock")
+
+        val outcome = assertNotNull(f.session.takeConflictCopy(copy))
+        runCurrent()
+
+        assertIs<SaveOutcome.Saved>(outcome.await())
+        assertEquals(2, f.backups.kept.size, "the open version, which this session wrote, is kept too")
+        assertContentEquals(open, f.backups.kept.last().second)
+    }
+
+    // spec: kdbx.conflict-copies/AC6
+    @Test
+    fun usingTheCopyWithBackupsOffBacksUpTheOpenVersionAllTheSame() = runTest {
+        val f = unlocked()
+        f.backups.on = false
+
+        val outcome = assertNotNull(f.session.takeConflictCopy(copy))
+        runCurrent()
+
+        assertIs<SaveOutcome.Saved>(outcome.await())
+        assertContentEquals(database, f.backups.kept.single().second)
+        // A save after it, still off, keeps nothing.
+        val entry = f.unlocked.vault.entries.first()
+        val next = assertNotNull(f.session.save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(notes = "after"))))
+        runCurrent()
+        assertIs<SaveOutcome.Saved>(next.await())
+        assertEquals(1, f.backups.kept.size)
     }
 
     @Test

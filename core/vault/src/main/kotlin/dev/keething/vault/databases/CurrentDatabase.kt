@@ -38,6 +38,8 @@ public class CurrentDatabase(
     private val sessions: VaultSessions,
     private val biometric: BiometricSetup,
     private val offered: (grant: String) -> Unit = {},
+    /** The grants the app holds now (keething-spec databases.saf AC10); null: every one counts. */
+    private val held: () -> Set<String>? = { null },
 ) {
     public val current: StateFlow<DatabaseSession?> = sessions.current
 
@@ -92,6 +94,10 @@ public class CurrentDatabase(
         sessions.lock(id)
     }
 
+    /** [place] through a folder of the list whose grant is held ([DatabaseList.inGrantedFolder]). */
+    private fun reach(place: StoragePlace, prefer: FileLocation? = null, held: Set<String>? = this.held()): FileLocation.InFolder? =
+        list.inGrantedFolder(place, prefer, held)
+
     /** Into the window, current. */
     private fun show(id: DatabaseId) {
         sessions.addToWindow(id)
@@ -122,7 +128,7 @@ public class CurrentDatabase(
     public fun setKeyFile(id: DatabaseId, keyFile: FileLocation?) {
         keyFile?.grant?.let(offered)
         val record = list.record(id) ?: return
-        val reached = (keyFile as? FileLocation.Granted)?.let { list.inGrantedFolder(it.at, prefer = record.file) } ?: keyFile
+        val reached = (keyFile as? FileLocation.Granted)?.let { reach(it.at, prefer = record.file) } ?: keyFile
         list.update(id) { it.copy(keyFile = reached, opensWithoutPassword = false) }
         biometric.keyFileChanged(id)
         if (sessions.session(id)?.session?.state?.value is SessionState.Locked) sessions.lock(id, LockReason.Initial)
@@ -140,14 +146,15 @@ public class CurrentDatabase(
         require((keyFile == null) == (keyFileKey == null)) { "a key file comes with its key" }
         val database = sessions.session(id)?.takeIf { it.session.state.value is SessionState.Unlocked } ?: return null
         val outcome = database.session.changeKey(DatabaseKey.of(password, keyFileKey)) ?: return null
-        keyFile?.grant?.let(offered)
         val stored = password?.copy()
         return scope.async {
             try {
                 val saved = outcome.await()
                 if (saved !is SaveOutcome.Saved || list.record(id) == null) return@async KeyChanged(saved, null)
-                val reached = (keyFile as? FileLocation.Granted)?.let { list.inGrantedFolder(it.at, prefer = list.record(id)?.file) } ?: keyFile
+                val reached = (keyFile as? FileLocation.Granted)?.let { reach(it.at, prefer = list.record(id)?.file) } ?: keyFile
                 list.update(id) { it.copy(keyFile = reached, opensWithoutPassword = password == null) }
+                // Only now: offered while the save ran, a change of the list meanwhile would give it back (saf AC14).
+                keyFile?.grant?.let(offered)
                 adoptOldRecords()
                 KeyChanged(saved, database.biometric.keyChanged(stored))
             } finally {
@@ -174,7 +181,7 @@ public class CurrentDatabase(
         val path = place.inside(folder)?.takeIf { it.isNotEmpty() } ?: return UserText.of(VaultText.LOCATE_FOLDER_LACKS_FILE, record.fileName)
         val file = FileLocation.InFolder(grant, folder, path)
         val keyFile = when (val key = record.keyFile) {
-            is FileLocation.ByPath -> key.place?.let { list.inGrantedFolder(it, prefer = file) } ?: key
+            is FileLocation.ByPath -> key.place?.let { reach(it, prefer = file) } ?: key
             else -> key
         }
         list.update(id) { it.copy(file = file, keyFile = keyFile) }
@@ -185,12 +192,16 @@ public class CurrentDatabase(
     /**
      * Old records through the folders the list is reached through (keething-spec databases.saf AC3, AC13): each database
      * or key file the list kept by its path that such a folder holds is reached through it, with everything else kept,
-     * and nothing is asked for it. After each folder the list takes, and at the app's start.
+     * and nothing is asked for it. So is each one whose grant is gone (its folder renamed or moved away and back, AC10)
+     * when a folder whose grant is held holds it: one folder granted again takes over all it holds. After each folder
+     * the list takes, and at the app's start.
      */
     public fun adoptOldRecords() {
+        val held = held()
+        fun lost(location: FileLocation) = location is FileLocation.ByPath || held != null && location.grant !in held
         for (record in list.records) {
-            val file = (record.file as? FileLocation.ByPath)?.place?.let { list.inGrantedFolder(it) } ?: record.file
-            val keyFile = record.keyFile?.let { key -> (key as? FileLocation.ByPath)?.place?.let { list.inGrantedFolder(it, prefer = file) } ?: key }
+            val file = record.file.takeIf(::lost)?.place?.let { reach(it, held = held) } ?: record.file
+            val keyFile = record.keyFile?.let { key -> key.takeIf(::lost)?.place?.let { reach(it, prefer = file, held = held) } ?: key }
             if (file != record.file || keyFile != record.keyFile) list.update(record.id) { it.copy(file = file, keyFile = keyFile) }
         }
     }
@@ -226,7 +237,7 @@ public class CurrentDatabase(
         lockedSince: () -> Boolean,
     ): Created {
         listOfNotNull(file.grant, keyFile?.grant).forEach(offered)
-        val reached = (keyFile as? FileLocation.Granted)?.let { list.inGrantedFolder(it.at, prefer = file) } ?: keyFile
+        val reached = (keyFile as? FileLocation.Granted)?.let { reach(it.at, prefer = file) } ?: keyFile
         // One change: the old record out and the new one in with its key file, so no grant looks unused in between.
         val (record, old) = list.replace(file, reached, useBiometric, fingerprintAsked = fingerprintChosen)
         show(record.id)
@@ -235,13 +246,16 @@ public class CurrentDatabase(
         val database = current.value?.takeIf { it.id == record.id }
         if (database == null || lockedSince()) {
             key.wipe()
-            return Created(record.id, opened = null, problem)
+            return Created(record.id, opened = null, problem, old?.id)
         }
-        return Created(record.id, database.biometric.unlockCreated(key, password), problem)
+        return Created(record.id, database.biometric.unlockCreated(key, password), problem, old?.id)
     }
 
-    /** What [created] did: the new database's [id], how its opening ends (null: not opened), why an old one's stored password stayed. */
-    public class Created(public val id: DatabaseId, public val opened: Deferred<UnlockOutcome>?, public val problem: String?)
+    /**
+     * What [created] did: the new database's [id], how its opening ends (null: not opened), why an old one's stored
+     * password stayed, and the record it [replaced] (its backups are the caller's to delete).
+     */
+    public class Created(public val id: DatabaseId, public val opened: Deferred<UnlockOutcome>?, public val problem: String?, public val replaced: DatabaseId? = null)
 
     /**
      * The typed unlock of [database] (nothing typed with a key file too), as [BiometricUnlock.unlock]. With a key file

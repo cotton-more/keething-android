@@ -348,6 +348,7 @@ private fun Changed(model: ChangeMasterKeyModel, onClose: () -> Unit) {
         )
     }
     Text(opensWith, style = MaterialTheme.typography.bodyLarge)
+    model.lockedMeanwhile?.let { Text(it.resolve(), style = MaterialTheme.typography.bodyLarge) }
     model.fingerprintProblem?.let {
         Text(stringResource(R.string.databases_change_key_fingerprint_problem, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
     }

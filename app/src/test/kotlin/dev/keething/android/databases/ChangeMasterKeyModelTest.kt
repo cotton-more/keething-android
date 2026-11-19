@@ -231,6 +231,63 @@ class ChangeMasterKeyModelTest {
         assertFalse(f.model.changing)
     }
 
+    // spec: databases.change-master-key/AC6
+    @Test
+    fun aChangeSavedWhileTheDatabaseLockedKeepsItsNewKeyFileAndSaysItLocked() = runTest {
+        val f = Fixture(this)
+        f.outcome = SaveOutcome.Saved(lockedMeanwhile = true)
+        f.confirmed()
+        advanceUntilIdle()
+        f.model.choosePassword(PasswordChoice.KEEP)
+        f.model.chooseKeyFile(KeyFileChoice.New("$ROOT/Keys"))
+
+        f.model.changeKey()
+        advanceUntilIdle()
+
+        assertEquals(Step.DONE, f.model.step)
+        assertEquals(listOf("$ROOT/Keys/Work.keyx"), f.files.made)
+        assertTrue(f.files.removed.isEmpty(), "the file needs it now")
+        assertEquals("Work.keyx", f.model.keyFileAfter)
+        assertEquals("It locked while the change was written; the change is in the file. Unlock it with the new key.", f.model.lockedMeanwhile?.english())
+    }
+
+    // spec: databases.change-master-key/AC6
+    @Test
+    fun aFormThatEndedSayingTheDatabaseLockedStaysThroughTheNextLockUntilDone() = runTest {
+        val f = Fixture(this)
+        f.outcome = SaveOutcome.Saved(lockedMeanwhile = true)
+        val changes = MasterKeyChanges { f.model }
+        changes.open(DatabaseId("work"))
+        f.confirmed()
+        advanceUntilIdle()
+        f.typeNew("a new one")
+        f.model.changeKey()
+        advanceUntilIdle()
+
+        changes.locked()
+        assertEquals(f.model, changes.form, "nothing typed is left in it, and it says what happened")
+        changes.close()
+        assertNull(changes.form)
+    }
+
+    // spec: databases.change-master-key/AC5
+    @Test
+    fun aLockBeforeTheFileIsReplacedRemovesTheKeyFileMadeForIt() = runTest {
+        val f = Fixture(this)
+        f.outcome = SaveOutcome.Interrupted
+        f.confirmed()
+        advanceUntilIdle()
+        f.model.choosePassword(PasswordChoice.KEEP)
+        f.model.chooseKeyFile(KeyFileChoice.New("$ROOT/Keys"))
+
+        f.model.changeKey()
+        advanceUntilIdle()
+
+        assertEquals(Step.NEW, f.model.step)
+        assertEquals(listOf("$ROOT/Keys/Work.keyx"), f.files.removed)
+        assertEquals("The database locked before its master key was changed. Nothing changed.", f.model.problem?.english())
+    }
+
     @Test
     fun aKeyFileThatCannotBeMadeChangesNothing() = runTest {
         val f = Fixture(this)

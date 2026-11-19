@@ -31,6 +31,13 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import dev.keething.android.ui.Notice
+import dev.keething.android.AppContainer
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -166,16 +173,68 @@ internal fun DatabaseLabelText(label: DatabaseLabel, style: TextStyle, modifier:
     Text(text, modifier, style = style, fontWeight = fontWeight, maxLines = 1, overflow = TextOverflow.MiddleEllipsis)
 }
 
-/** Remove “…” from the list?: asked first (SPEC §6.2). */
+/**
+ * Remove “…” from the list?: asked first (SPEC §6.2), naming what goes with it, its stored password and its backups,
+ * counted as it is asked ([countBackups]); with its file [notFound], that they may be its last copies (keething-spec
+ * databases.list AC6). Shown once counted.
+ */
 @Composable
-internal fun RemoveFromListDialog(name: String, onRemove: () -> Unit, onDismiss: () -> Unit) {
+internal fun RemoveFromListDialog(
+    id: DatabaseId,
+    name: String,
+    notFound: BackupTexts.NotFound?,
+    countBackups: suspend (DatabaseId) -> Int,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var backups by remember(id) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(id) { backups = countBackups(id) }
+    val count = backups ?: return
+    val lastCopies = notFound != null && count > 0
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.databases_remove_title, name)) },
-        text = { Text(stringResource(R.string.databases_remove_text)) },
-        confirmButton = { TextButton(onClick = onRemove) { Text(stringResource(R.string.databases_remove)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.databases_cancel)) } },
+        title = { Text(BackupTexts.removeTitle(name).resolve()) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(BackupTexts.removeText(count, notFound).resolve())
+                if (lastCopies) Text(BackupTexts.REMOVE_RESTORE_FIRST.resolve())
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onRemove) {
+                Text(stringResource(R.string.databases_remove), color = if (lastCopies) MaterialTheme.colorScheme.error else Color.Unspecified)
+            }
+        },
+        dismissButton = { TextButton(onClick = { onDismiss() }) { Text(stringResource(R.string.databases_cancel)) } },
     )
+}
+
+/**
+ * A database's backups in a sheet, as its page has them ([BackupsOfDatabase]): from the sheet of a database whose file
+ * is not found, where its page cannot be reached (the chooser) or is a step away (keething-spec databases.not-open AC5).
+ * [ask]: the backup whose restore is asked at once (Restore its newest backup…).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun BackupsSheet(
+    container: AppContainer,
+    line: DatabaseLine,
+    ask: String?,
+    onNotice: (Notice) -> Unit,
+    onDismiss: () -> Unit,
+    /** Restored: the file is back, so the lines look at the files again (a restore changes no list). */
+    onRestored: () -> Unit = {},
+) {
+    var asking by remember(line.id) { mutableStateOf(ask) }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(
+            Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            DatabaseSheetHeader(line)
+            BackupsOfDatabase(container, line.id, line.name, onNotice, onRestored, notFound = line.notFound, ask = asking, onAsked = { asking = null })
+        }
+    }
 }
 
 /**

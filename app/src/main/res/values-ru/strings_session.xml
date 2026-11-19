@@ -25,5 +25,5 @@
     </plurals>
 
     <string name="session_kdbx3_upgraded">%1$s теперь в формате KDBX 4. Файл KDBX 3.1 сохранён рядом под именем «%2$s».</string>
-    <string name="session_kdbx3_interrupted">База была заблокирована; возможно, её формат не обновлён.</string>
+    <string name="session_kdbx3_interrupted">База заблокировалась до обновления: она по-прежнему в формате KDBX 3.1.</string>
 </resources>

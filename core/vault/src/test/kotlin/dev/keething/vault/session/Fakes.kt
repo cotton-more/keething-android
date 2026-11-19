@@ -63,7 +63,24 @@ internal class FakeStore(private var bytes: ByteArray?) : DatabaseStore {
 
     override fun version(): FileVersion? = current
 
+    /** How many files [createNew] made; [folderGone]: it finds no folder; [beforeCreate]: run as it starts. */
+    var created = 0
+    var folderGone = false
+    var beforeCreate: () -> Unit = {}
+
+    override fun createNew(bytes: ByteArray) {
+        beforeCreate()
+        if (folderGone) throw java.nio.file.NoSuchFileException("the folder")
+        if (this.bytes != null) throw java.nio.file.FileAlreadyExistsException("the database")
+        created++
+        change(bytes.copyOf())
+    }
+
+    /** Run as each replace starts, before anything is written: a lock while the file is replaced. */
+    var beforeReplace: () -> Unit = {}
+
     override fun replace(bytes: ByteArray, expected: FileVersion?) {
+        beforeReplace()
         if (failNextReplace) {
             failNextReplace = false
             throw IOException("disk full")

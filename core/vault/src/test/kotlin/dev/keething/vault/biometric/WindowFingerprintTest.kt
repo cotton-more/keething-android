@@ -151,7 +151,6 @@ class WindowFingerprintTest {
         KdbxReader.openForEditing(fixtureBytes("kdbx4-aes-aeskdf"), DatabaseKey.of(Secret.of("pw"))).write(DatabaseKey.of(Secret.of(password))).file
 
     // spec: unlock.biometric-several/AC1
-    // spec: databases.several-open/AC7
     @Test
     fun oneFingerprintOpensEveryDatabaseOfTheWindowThatCanEachWithItsOwnPasswordTheOthersSayWhy() = runTest {
         val f = fixture()

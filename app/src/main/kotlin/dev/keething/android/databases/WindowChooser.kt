@@ -54,6 +54,10 @@ internal class WindowChooser(
     private val scope: CoroutineScope,
     window: Flow<List<WindowDatabase>>,
     private val lockCount: StateFlow<Int>,
+    /** The unlocks of these databases count as told: the run's end is told instead (keething-spec databases.chooser AC7). */
+    private val markTold: (List<DatabaseId>) -> Unit = {},
+    /** These count as tried, so they wait on the line while not open (keething-spec databases.not-open AC1). */
+    private val markTried: (Collection<DatabaseId>) -> Unit = {},
 ) {
     private val mutableRun = MutableStateFlow<UnlockRun?>(null)
 
@@ -95,6 +99,9 @@ internal class WindowChooser(
     /** Each skipped database's session state when the run ended: one that differs since did something else. */
     private var skippedStates: Map<DatabaseId, SessionState?> = emptyMap()
 
+    /** The window as last told. */
+    private var windowNow: List<WindowDatabase> = emptyList()
+
     init {
         var locks = lockCount.value
         scope.launch {
@@ -109,7 +116,7 @@ internal class WindowChooser(
         scope.launch { window.collect(::windowChanged) }
     }
 
-    /** A database's check, remembered at once (keething-spec databases.chooser AC4). */
+    /** A database's check, remembered at once (keething-spec databases.chooser AC9). */
     fun toggle(id: DatabaseId) {
         list.update(id) { it.copy(checkedInChooser = !it.checkedInChooser) }
     }
@@ -196,7 +203,7 @@ internal class WindowChooser(
         mutableBusy.value = true
         scope.launch {
             try {
-                if (canUnlockAny(null) && mutableRun.value == null && onScreen) fingerprintNow()
+                if (canUnlockAny(null) && mutableRun.value == null && onScreen) fingerprintNow(summon = true)
             } finally {
                 mutableBusy.value = false
             }
@@ -208,7 +215,11 @@ internal class WindowChooser(
         onScreen = false
     }
 
-    private suspend fun fingerprintNow() {
+    /**
+     * The fingerprint for every database that can. At a [summon], the checked ones it did not open wait on the line as
+     * not open once the list shows (keething-spec databases.chooser AC1): they are the ones the user means to have open.
+     */
+    private suspend fun fingerprintNow(summon: Boolean = false) {
         mutableNote.value = null
         val locks = lockCount.value
         val result = fingerprint(null)
@@ -216,7 +227,16 @@ internal class WindowChooser(
         if (lockCount.value != locks) return
         when (result.outcome) {
             FingerprintOutcome.InProgress -> Unit
-            FingerprintOutcome.Unlocked -> showOpened()
+            FingerprintOutcome.Unlocked -> {
+                if (summon) {
+                    val checked = list.records.filter { it.checkedInChooser }.mapTo(HashSet()) { it.id }
+                    val waiting = windowNow.map { it.id }.filter { id ->
+                        id in checked && result.each[id] != FingerprintOutcome.Unlocked && sessionState(id) !is SessionState.Unlocked
+                    }
+                    if (waiting.isNotEmpty()) markTried(waiting)
+                }
+                showOpened()
+            }
             else -> mutableNote.value = ChooserRows.note(result.outcome)
         }
     }
@@ -229,10 +249,14 @@ internal class WindowChooser(
         }
         mutableSkipped.value = result.skipped.toSet()
         skippedStates = result.skipped.associateWith(sessionState)
+        // Those it skipped by itself (not found, a key file not there) wait on the line with their state's icon (B3).
+        if (result.notOpened.isNotEmpty()) markTried(result.notOpened.map { it.id })
         val notice = result.notice(label).ui()
         if (result.opened.isEmpty()) {
             mutableNote.value = notice
         } else {
+            // The run's notice alone: each opened database's own "Unlocked" would take its place (the list's one snackbar).
+            markTold(result.opened)
             showOpened()
             tell(notice)
         }
@@ -244,6 +268,7 @@ internal class WindowChooser(
      * stale; the run looks again at the database it asks (one opened by its fingerprint, one closed).
      */
     private suspend fun windowChanged(window: List<WindowDatabase>) {
+        windowNow = window
         if (window.any { it.session is SessionState.Unlocked }) mutableNote.value = null
         val run = mutableRun.value
         if (run == null && mutableSkipped.value.isNotEmpty()) {

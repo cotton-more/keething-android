@@ -101,6 +101,13 @@ import dev.keething.android.R
 import dev.keething.android.ui.UiText
 import dev.keething.android.ui.resolve
 import dev.keething.android.ui.uiPlain
+import dev.keething.android.storage.FileDatabaseBackups
+import androidx.compose.ui.platform.LocalContext
+import java.time.Instant
+import java.time.ZoneId
+import androidx.compose.material.icons.rounded.SettingsBackupRestore
+import androidx.compose.material.icons.rounded.History
+import android.text.format.Formatter
 
 /**
  * A database not open, its mark in place of its dot (keething-spec databases.not-open AC8): its state's icon in the
@@ -265,9 +272,9 @@ internal fun ReadOnlySheet(
 
 /**
  * A database not open, its sheet (keething-spec databases.not-open AC5): its tile, name and folder, its whole say, then
- * Unlock… (not when its file is not found or cannot be read), Locate… (not found, no access) or Choose its folder… (kept
- * by its path), Choose key file… (it has one), Close
- * (not the window's last).
+ * Unlock… (not when its file is not found or cannot be read), its newest backup offered and Other backups… (not found,
+ * with a backup that would open; keething-spec databases.not-open AC5), Locate… (not found, no access) or Choose its
+ * folder… (kept by its path), Choose key file… (it has one), Close (not the window's last).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -279,6 +286,7 @@ internal fun NotOpenSheet(
     onChooseKeyFile: () -> Unit,
     onClose: () -> Unit,
     onDismiss: () -> Unit,
+    onBackups: (ask: String?) -> Unit = {},
 ) {
     val line = database.line
     val state = database.state
@@ -293,6 +301,7 @@ internal fun NotOpenSheet(
                 Text(database.say.resolve(), style = MaterialTheme.typography.bodyMedium)
             }
             SheetRow(Icons.Rounded.LockOpen, stringResource(R.string.databases_unlock_button), enabled = database.offersUnlock, onClick = onUnlock)
+            line.newestBackup?.let { newest -> NewestBackupRows(newest, onBackups) }
             if (state is NotOpenState.NotFound) {
                 SheetRow(Icons.Rounded.Search, stringResource(if (state.reach == Reach.NEEDS_FOLDER) R.string.databases_lock_choose_folder else R.string.databases_lock_locate), onClick = onLocate)
             }
@@ -306,6 +315,23 @@ internal fun NotOpenSheet(
             )
         }
     }
+}
+
+/**
+ * A database whose file is not found: Restore its newest backup… (its date, size and how many are kept) and Other
+ * backups… (keething-spec databases.not-open AC5); [onBackups] opens them, with the newest's restore asked or not.
+ */
+@Composable
+internal fun NewestBackupRows(newest: FileDatabaseBackups.Newest, onBackups: (ask: String?) -> Unit) {
+    val context = LocalContext.current
+    val date = BackupTexts.date(newest.at, Instant.now(), ZoneId.systemDefault())
+    SheetRow(
+        Icons.Rounded.SettingsBackupRestore,
+        BackupTexts.RESTORE_NEWEST.resolve(),
+        detail = BackupTexts.newestDetail(date, Formatter.formatShortFileSize(context, newest.bytes), newest.count).resolve(),
+        onClick = { onBackups(newest.name) },
+    )
+    SheetRow(Icons.Rounded.History, BackupTexts.OTHER_BACKUPS.resolve(), onClick = { onBackups(null) })
 }
 
 /** A database's sheet's first row: its tile, its name and its folder. */

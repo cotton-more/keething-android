@@ -205,6 +205,9 @@
     <!-- %1$s: why it did not open, as the rest of the sentence -->
     <string name="editor_save_failure_copy_not_opened">The other version could not be opened, so nothing was changed: %1$s</string>
     <string name="editor_save_failure_backup_gone">That backup is not there any more. Nothing was changed.</string>
+    <!-- %1$s: the database's file name -->
+    <string name="editor_save_failure_file_there_now">There is a %1$s there again. Nothing was written over it.</string>
+    <string name="editor_save_failure_folder_gone">Its folder is not there any more. Nothing was written.</string>
     <string name="editor_save_failure_backup_damaged">That backup\'s file is damaged, so it would not open. Nothing was changed.</string>
     <!-- %1$s: why it did not open, as the rest of the sentence -->
     <string name="editor_save_failure_backup_not_opened">That backup could not be opened, so nothing was changed: %1$s</string>

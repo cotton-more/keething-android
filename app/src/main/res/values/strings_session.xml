@@ -39,5 +39,5 @@
     <!-- How a KDBX 3.1 upgrade went (session/Kdbx3Question.kt) -->
     <!-- %1$s: the file's name; %2$s: the name of the KDBX 3.1 copy kept -->
     <string name="session_kdbx3_upgraded">%1$s is KDBX 4 now. The KDBX 3.1 file is kept beside it as “%2$s”.</string>
-    <string name="session_kdbx3_interrupted">The database was locked; it may not have been upgraded.</string>
+    <string name="session_kdbx3_interrupted">The database locked before it was upgraded: it is still KDBX 3.1.</string>
 </resources>

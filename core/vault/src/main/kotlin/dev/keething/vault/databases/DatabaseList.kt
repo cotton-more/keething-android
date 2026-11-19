@@ -59,7 +59,7 @@ public data class DatabaseRecord(
     val lastOpened: Instant? = null,
     /** One of the databases shown side by side (several open, plan AD8). */
     val inWindow: Boolean = false,
-    /** Checked in the chooser, as at the last unlock of several (plan AD13). */
+    /** Checked in the chooser: every one until the user unchecks it, kept at once (keething-spec databases.chooser AC9). */
     val checkedInChooser: Boolean = true,
     /** Its switch "Back up before changes": the file is backed up before a save (keething-spec databases.backups-window AC2). */
     val backupsOn: Boolean = true,
@@ -212,11 +212,13 @@ public class DatabaseList(
     /**
      * [place] reached through a folder the list's databases or key files are already reached through, which holds it
      * (keething-spec databases.saf AC3, AC9: nothing more is asked for): [prefer]'s folder when it holds it (a database's
-     * own, for its key file), else the first in the list's order. Null when none holds it.
+     * own, for its key file), else the first in the list's order. Only through a grant the app still [held] (null: every
+     * one counts): one gone, its folder renamed or moved away, is no way in (AC10). Null when none holds it.
      */
-    public fun inGrantedFolder(place: StoragePlace, prefer: FileLocation? = null): FileLocation.InFolder? {
+    public fun inGrantedFolder(place: StoragePlace, prefer: FileLocation? = null, held: Set<String>? = null): FileLocation.InFolder? {
         val folders = listOfNotNull(prefer) + records.flatMap { listOfNotNull(it.file, it.keyFile) }
         for (folder in folders.filterIsInstance<FileLocation.InFolder>()) {
+            if (held != null && folder.grant !in held) continue
             val path = place.inside(folder.folder) ?: continue
             if (path.isNotEmpty()) return FileLocation.InFolder(folder.grant, folder.folder, path)
         }

@@ -98,8 +98,11 @@ class CurrentDatabaseTest {
         /** The grants told to the keeper, in order. */
         val offered = mutableListOf<String>()
         var keeper: GrantKeeper? = null
+
+        /** The grants the app holds; null: every one. */
+        var held: Set<String>? = null
         val databases: CurrentDatabase by lazy {
-            CurrentDatabase(list, scope.backgroundScope, sessions, setup, offered = { grant -> offered += grant; keeper?.offered(grant) })
+            CurrentDatabase(list, scope.backgroundScope, sessions, setup, offered = { grant -> offered += grant; keeper?.offered(grant) }, held = { held })
         }
 
         val shown: DatabaseSession get() = assertNotNull(databases.current.value)
@@ -881,6 +884,42 @@ class CurrentDatabaseTest {
         assertEquals(outside, f.list.record(personal.id)?.keyFile, "in no folder of the list: its own grant")
     }
 
+    // spec: databases.saf/AC9
+    @Test
+    fun aKeyFileChosenAloneIsNeverReachedThroughAFolderWhoseGrantIsGone() = runTest {
+        val f = Fixture(this)
+        val personal = f.addInFolder(FileLocation.InFolder("grant-sync", sync, "KeePass/Personal.kdbx"))
+        f.held = setOf("grant-key")
+
+        val chosen = FileLocation.Granted("grant-key", StoragePlace("primary", "Sync/Keys/personal.keyx"))
+        f.databases.setKeyFile(personal.id, chosen)
+
+        assertEquals(chosen, f.list.record(personal.id)?.keyFile, "its own grant, not the folder's that is gone")
+    }
+
+    // spec: databases.saf/AC10
+    @Test
+    fun aFolderGrantedAgainTakesOverEveryRecordWhoseGrantIsGoneAndWhosePlaceItReaches() = runTest {
+        val f = Fixture(this)
+        val personal = f.addInFolder(FileLocation.InFolder("grant-sync", sync, "KeePass/Personal.kdbx"))
+        val work = f.addInFolder(FileLocation.InFolder("grant-sync", sync, "KeePass/Work.kdbx"))
+        f.list.update(work.id) { it.copy(keyFile = FileLocation.InFolder("grant-sync", sync, "Keys/work.keyx")) }
+        val alone = FileLocation.Granted("grant-key", StoragePlace("primary", "Sync/Keys/family.keyx"))
+        val family = f.addInFolder(FileLocation.InFolder("grant-family", StoragePlace("primary", "Sync/Family"), "Family.kdbx"))
+        f.list.update(family.id) { it.copy(keyFile = alone) }
+        // Sync renamed away and back: its grant is gone; the others are held.
+        f.held = setOf("grant-family", "grant-key", "grant-sync2")
+
+        assertNull(f.databases.locate(personal.id, FileLocation.InFolder("grant-sync2", sync, "KeePass/Personal.kdbx")))
+
+        assertEquals(FileLocation.InFolder("grant-sync2", sync, "KeePass/Personal.kdbx"), f.list.record(personal.id)?.file)
+        assertEquals(FileLocation.InFolder("grant-sync2", sync, "KeePass/Work.kdbx"), f.list.record(work.id)?.file, "taken over")
+        assertEquals(FileLocation.InFolder("grant-sync2", sync, "Keys/work.keyx"), f.list.record(work.id)?.keyFile, "its key file too")
+        assertEquals(FileLocation.InFolder("grant-family", StoragePlace("primary", "Sync/Family"), "Family.kdbx"), f.list.record(family.id)?.file, "a grant held stays")
+        assertEquals(alone, f.list.record(family.id)?.keyFile, "a key file's own grant held stays")
+        assertFalse("grant-sync" in f.list.grantsInUse, "the gone grant is no longer used")
+    }
+
     @Test
     fun anOldRecordsFolderMustHoldItsFileAndThenReachesItAndItsKeyFileWithEverythingElseKept() = runTest {
         val f = Fixture(this)
@@ -1118,6 +1157,58 @@ class CurrentDatabaseTest {
         runCurrent()
         assertTrue(typed(f, ""))
         assertIs<SessionState.Unlocked>(f.shown.state())
+    }
+
+    // spec: databases.change-master-key/AC6
+    @Test
+    fun aLockWhileTheFileIsReplacedStillGivesTheRecordItsKeyFileAndStoresTheNewPassword() = runTest {
+        val f = Fixture(this)
+        val personal = f.add("/storage/emulated/0/Sync/Personal.kdbx")
+        f.storedPassword("pw")
+        assertTrue(typed(f, "pw"))
+        val keyx = keyFileBytes("keyx.keyx")
+        f.keyFiles["/storage/emulated/0/Documents/Personal.keyx"] = FakeKeyFile(keyx, "Personal.keyx")
+        val file = f.files.getValue("/storage/emulated/0/Sync/Personal.kdbx")
+        file.beforeReplace = { f.sessions.lockAll(LockReason.Timeout) }
+
+        val password = Secret.of("a new password")
+        val fileKey = KeyFile.key(keyx)
+        val changed = assertNotNull(
+            f.databases.changeKey(personal.id, password, FileLocation.ByPath("/storage/emulated/0/Documents/Personal.keyx"), fileKey),
+        )
+        password.wipe()
+        fileKey.wipe()
+        runCurrent()
+
+        assertEquals(SaveOutcome.Saved(lockedMeanwhile = true), changed.await().outcome)
+        assertIs<SessionState.Locked>(f.shown.state(), "the lock holds")
+        assertEquals(FileLocation.ByPath("/storage/emulated/0/Documents/Personal.keyx"), f.list.record(personal.id)!!.keyFile)
+        assertEquals("a new password", f.stored(personal.id), "the new password in place of the old")
+        file.beforeReplace = {}
+        assertTrue(typed(f, "a new password"))
+        assertIs<SessionState.Unlocked>(f.shown.state(), "its lock screen opens it with the new key and its key file")
+    }
+
+    // spec: databases.saf/AC14
+    @Test
+    fun aNewKeyFilesGrantIsOfferedOnlyOnceTheRecordHasItSoAChangeOfTheListMeanwhileKeepsIt() = runTest {
+        val f = Fixture(this)
+        val personal = f.addInFolder(FileLocation.InFolder("grant-sync", sync, "KeePass/Personal.kdbx"))
+        assertTrue(typed(f, "pw"))
+        val keyx = keyFileBytes("keyx.keyx")
+        val alone = FileLocation.Granted("grant-key", StoragePlace("1234-5678", "Keys/personal.keyx"))
+        f.keyFiles[key(alone)] = FakeKeyFile(keyx, "personal.keyx")
+        f.offered.clear()
+
+        val fileKey = KeyFile.key(keyx)
+        val changed = assertNotNull(f.databases.changeKey(personal.id, Secret.of("pw"), alone, fileKey))
+        fileKey.wipe()
+        assertEquals(emptyList(), f.offered, "not while the save runs: the list does not use it yet")
+        runCurrent()
+
+        assertIs<SaveOutcome.Saved>(changed.await().outcome)
+        assertEquals(alone, f.list.record(personal.id)!!.keyFile)
+        assertEquals(listOf("grant-key"), f.offered, "offered once the record has it")
     }
 
     // spec: databases.change-master-key/AC5

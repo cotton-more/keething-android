@@ -121,14 +121,17 @@ class KdbxWriterTest {
         }
     }
 
-    /** The CLI's XML export; its `CustomData` items come in a random order, so they are sorted. */
+    /**
+     * The CLI's XML export; its `CustomData` items come in a random order, so they are sorted, and its own
+     * `_LAST_MODIFIED`, the time of the export (two exports a second apart differ), is left out.
+     */
     private fun export(file: File): XElement {
         val result = KeePassXcCli.run("export", "-f", "xml", file.path)
         assertEquals(0, result.code, result.err)
         val root = XmlTree.parse(result.out)
         fun sortCustomData(element: XElement) {
             if (element.name == "CustomData") {
-                val items = element.all("Item").sortedBy { it.first("Key")?.text ?: "" }
+                val items = element.all("Item").filter { it.first("Key")?.text != "_LAST_MODIFIED" }.sortedBy { it.first("Key")?.text ?: "" }
                 element.children.clear()
                 element.children.addAll(items)
             }

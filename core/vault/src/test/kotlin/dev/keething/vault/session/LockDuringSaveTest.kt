@@ -125,7 +125,7 @@ class LockDuringSaveTest {
         f.release()
         f.awaitReplaced(1)
 
-        assertEquals(SaveOutcome.Interrupted, outcome.await())
+        assertEquals(SaveOutcome.Saved(lockedMeanwhile = true), outcome.await(), "saved, and said so")
         assertEquals(1, f.store.replaced)
         assertEquals(FieldValue.Plain("kept"), f.notes(entry.id))
         assertEquals(UnlockOutcome.Opened, f.session.unlock(Secret.of("pw"))!!.await())
@@ -206,7 +206,7 @@ class LockDuringSaveTest {
         f.release()
         f.awaitReplaced(1)
 
-        assertEquals(SaveOutcome.Interrupted, first.await())
+        assertEquals(SaveOutcome.Saved(lockedMeanwhile = true), first.await())
         assertEquals(SaveOutcome.Interrupted, second.await())
         assertEquals(1, f.store.replaced, "the first finished; the second never started")
         f.session.unlock(Secret.of("pw"))!!.await()

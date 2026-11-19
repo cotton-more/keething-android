@@ -716,7 +716,7 @@ public class VaultSession(
     /**
      * Runs [save] in its turn with a copy of the key ([edit]: what a lock that overtook it kept out of the file). Saved,
      * the session's key becomes [adopting] when given (a new master key, the session's from now on; wiped otherwise),
-     * else that copy.
+     * else that copy. Saved after a lock came, both are wiped and it ends [SaveOutcome.Saved.lockedMeanwhile].
      */
     private fun saving(edit: VaultEdit?, adopting: DatabaseKey? = null, save: (DatabaseKey, RunningSave) -> SaveResult): Deferred<SaveOutcome>? {
         val attempt = key?.copy() ?: return null
@@ -736,7 +736,11 @@ public class VaultSession(
                     inFile = result is SaveResult.Saved
                     val copies = conflictCopies()
                     if (token != generation) {
-                        if (result is SaveResult.Saved) discard(OpenResult.Opened(result.opened), attempt)
+                        // In the file all the same: said as saved, so a new master key's record and key file follow.
+                        if (result is SaveResult.Saved) {
+                            discard(OpenResult.Opened(result.opened), attempt)
+                            outcome.complete(SaveOutcome.Saved(result.deletedGroups, result.keptCopy, result.copyLeft, result.mayNotSync, lockedMeanwhile = true))
+                        }
                         return@withLock
                     }
                     when (result) {

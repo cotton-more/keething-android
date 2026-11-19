@@ -39,6 +39,14 @@ public interface DatabaseStore {
     public fun replace(bytes: ByteArray, expected: FileVersion? = null)
 
     /**
+     * Makes [bytes] the database's file where there is none (keething-spec databases.backups-window AC6: a backup restored
+     * after the file went), as a new database is made: whole first, never over a file there. Throws a
+     * [java.nio.file.FileAlreadyExistsException] when a file is there by then, a [java.nio.file.NoSuchFileException] when
+     * its folder is not, another [IOException] for any other failure; nothing is left behind then.
+     */
+    public fun createNew(bytes: ByteArray): Unit = throw IOException("no folder to make the file in") // English detail
+
+    /**
      * Keeps [bytes] as a new file beside the database, named [name], or with ` 2`, ` 3` … before the database's extension when
      * that name is taken: never over a file there (keething-spec kdbx.kdbx3 AC7). Returns the name it got; throws an
      * [IOException] when nothing was kept.

@@ -92,6 +92,21 @@ class FolderDatabaseStoreTest {
         assertEquals(DatabaseReading.Missing, store.read { fail("nothing to read") })
     }
 
+    // spec: databases.backups-window/AC6
+    @Test
+    fun aFileMadeWhereTheDatabaseWasGoneIsWrittenWholeUnderSyncthingsTemporaryNameFirstAndNeverOverAFile() {
+        folder.put(DATABASE, old, earlier)
+        folder.delete(DATABASE)
+
+        store.createNew(new)
+
+        assertContentEquals(new, folder.bytesOf(DATABASE))
+        val written = mutations().last { it.operation == Operation.WRITE }
+        assertTrue(isSyncthingsOwnTemporaryName(written.path.substringAfterLast('/')), "whole under a name Syncthing never sends")
+        assertFailsWith<java.nio.file.FileAlreadyExistsException> { store.createNew(theirs) }
+        assertContentEquals(new, folder.bytesOf(DATABASE), "never over a file")
+    }
+
     @Test
     fun aFileASyncReplacedKeepingItsSizeAndTimeIsAnotherVersion() {
         folder.put(DATABASE, old, earlier)

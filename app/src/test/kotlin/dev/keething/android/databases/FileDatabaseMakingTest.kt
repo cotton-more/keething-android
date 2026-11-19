@@ -11,6 +11,9 @@ import dev.keething.domain.storage.GrantedFolder
 import dev.keething.domain.storage.StoragePlace
 import dev.keething.vault.creating.CreateFailure
 import dev.keething.vault.creating.CreationNote
+import dev.keething.vault.databases.DatabaseId
+import dev.keething.vault.databases.DatabaseRecord
+import dev.keething.vault.databases.Databases
 import dev.keething.vault.databases.FileLocation
 import dev.keething.vault.storage.KeyFiles
 import java.io.File
@@ -32,6 +35,23 @@ import kotlinx.coroutines.test.runTest
  * noted while Create runs, only its own removed; each named by its path on the phone, as the form names it.
  */
 class FileDatabaseMakingTest {
+
+    // spec: databases.saf/AC10
+    @Test
+    fun newDatabaseReachesOnlyTheListsFoldersWhoseGrantIsHeld() {
+        val sync = StoragePlace("primary", "Sync")
+        val docs = StoragePlace("primary", "Documents")
+        val databases = Databases(
+            listOf(
+                DatabaseRecord(DatabaseId("a"), FileLocation.InFolder("grant-sync", sync, "Personal.kdbx")),
+                DatabaseRecord(DatabaseId("b"), FileLocation.InFolder("grant-docs", docs, "Work.kdbx")),
+            ),
+            currentId = null,
+        )
+
+        assertEquals(listOf(GrantedPlace("grant-docs", docs)), databases.grantedFolders(held = setOf("grant-docs")), "Sync renamed away and back")
+        assertEquals(2, databases.grantedFolders().size, "none known: every one")
+    }
     private val sync = FakeGrantedFolder("grant-sync")
     private val documents = FakeGrantedFolder("grant-documents")
     private val notes: File = Files.createTempDirectory("file-database-making-test").toFile()

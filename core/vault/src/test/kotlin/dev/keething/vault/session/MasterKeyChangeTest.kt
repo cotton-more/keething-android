@@ -125,6 +125,25 @@ class MasterKeyChangeTest {
         assertEquals(0, f.store.replaced)
     }
 
+    // spec: databases.change-master-key/AC6
+    @Test
+    fun aLockWhileTheFileIsReplacedEndsItSavedWithTheFileOpeningWithTheNewKeyOnly() = runTest {
+        val f = unlocked(FakeStore(fixtureBytes("kdbx4-aes-aeskdf")))
+        f.store.beforeReplace = { f.session.lock() }
+
+        val outcome = assertNotNull(f.session.changeKey(DatabaseKey.of(Secret.of("new"))))
+        runCurrent()
+
+        assertEquals(SaveOutcome.Saved(lockedMeanwhile = true), outcome.await())
+        assertEquals(SessionState.Locked(LockReason.Manual), f.session.state.value, "the lock holds")
+        assertEquals(1, f.store.replaced)
+        assertEquals(true, opens(f.store.content!!, "new"))
+        assertEquals(false, opens(f.store.content!!, "pw"))
+        f.store.beforeReplace = {}
+        assertEquals(UnlockOutcome.Failed(OpenFailure.WrongPassword), f.session.unlock(Secret.of("pw"))!!.also { runCurrent() }.await())
+        assertEquals(UnlockOutcome.Opened, f.session.unlock(Secret.of("new"))!!.also { runCurrent() }.await())
+    }
+
     // spec: databases.change-master-key/AC5
     @Test
     fun aFileTheOldKeyNoLongerOpensIsNotChangedAndAViewOnlyOneIsRefused() = runTest {

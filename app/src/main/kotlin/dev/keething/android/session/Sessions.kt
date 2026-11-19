@@ -114,6 +114,8 @@ internal class Sessions(
     private val storageRoot: String,
     /** A grant the user gave for the list, given back unless the list takes it (keething-spec databases.saf AC14). */
     offered: (grant: String) -> Unit,
+    /** The grants the app holds now: one gone is no way to a file (keething-spec databases.saf AC10). */
+    held: () -> Set<String>? = { null },
 ) : DefaultLifecycleObserver {
     /** The fingerprint's switch and days for the app, and each database's stored password (SPEC §5). */
     /** Each database's backups object ([backups]); before the sessions, which take theirs as they start. */
@@ -166,7 +168,7 @@ internal class Sessions(
     private val vaults = VaultSessions(list, scope, ::start, AndroidClock, lockTimeout = { settings.lockTimeout.value })
 
     /** Another database chosen, a file opened or located, a key file, Remove from List. */
-    val databases = CurrentDatabase(list, scope, vaults, biometric, offered)
+    val databases = CurrentDatabase(list, scope, vaults, biometric, offered, held)
 
     /** One fingerprint for every database of the window that can (plan AD13): the chooser's. */
     val windowFingerprint = WindowFingerprint(vaults, biometric, list, filesThere::isThere)
@@ -345,6 +347,14 @@ internal class Sessions(
      */
     val tried: StateFlow<Set<DatabaseId>> = mutableTried.asStateFlow()
 
+    /**
+     * [ids] count as [tried] though no unlock started on them: the run skipped them by itself, or a summon's fingerprint
+     * did not open them while they were checked (keething-spec databases.not-open AC1, databases.chooser AC1).
+     */
+    fun countTried(ids: Collection<DatabaseId>) {
+        mutableTried.update { it + ids }
+    }
+
     init {
         // Lock and the timeout, by any way it came: counted once each.
         vaults.observeLocks { reason ->
@@ -385,7 +395,20 @@ internal class Sessions(
      * that asked goes at once (the next database's lock screen, or the welcome).
      */
     fun remove(id: DatabaseId, onProblem: (String) -> Unit) {
-        scope.launch { databases.remove(id)?.let(onProblem) }
+        scope.launch {
+            val problem = databases.remove(id)
+            dropBackups(id)
+            problem?.let(onProblem)
+        }
+    }
+
+    /** How many backups [id] has, for Remove's question (keething-spec databases.list AC6). */
+    suspend fun backupCount(id: DatabaseId): Int = withContext(Dispatchers.IO) { backups(id).summary().count }
+
+    /** A database out of the list: its backups go with it (keething-spec databases.list AC6, databases.new-database AC10). */
+    private suspend fun dropBackups(id: DatabaseId) {
+        val backups = synchronized(backupsOf) { backupsOf.remove(id) } ?: FileDatabaseBackups(File(backupsFolder, id.fileName))
+        withContext(Dispatchers.IO) { runCatching { backups.removeAll() }.exceptionOrNull()?.let { Log.w(TAG, "backups of a removed database not deleted: $it") } }
     }
 
     /** The Lock button: every database. */
@@ -416,10 +439,14 @@ internal class Sessions(
      * key file are, through their grants. Made while the app was in the background, its timeout starts with its opening,
      * and the alarm with it. Why an old record's stored password could not be deleted, or null.
      */
-    suspend fun created(made: CreatedDatabase, file: FileLocation, keyFile: FileLocation?): String? =
-        databases.created(file, keyFile, made.useFingerprint, made.key, made.password, made.fingerprintChosen) {
+    suspend fun created(made: CreatedDatabase, file: FileLocation, keyFile: FileLocation?): String? {
+        val created = databases.created(file, keyFile, made.useFingerprint, made.key, made.password, made.fingerprintChosen) {
             locks.lockedSince(made.lockCount, settings.lockTimeout.value)
-        }.problem
+        }
+        // The record of before at its path was another database: its backups go with it (new-database AC10).
+        created.replaced?.let { dropBackups(it) }
+        return created.problem
+    }
 
     /** The lock alarm went off. */
     fun checkBackgroundTime() {

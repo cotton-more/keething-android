@@ -209,6 +209,8 @@ class NewDatabaseModelTest {
         m.changeName("Taxes/2026: Q1")
         assertEquals("Taxes-2026- Q1.kdbx", m.fileName, "no folder or colon in a file name")
         assertEquals("Taxes/2026: Q1", m.databaseName, "the name keeps them")
+        m.changeName("Work? <old> \"A|B\" *\\")
+        assertEquals("Work- -old- -A-B- --.kdbx", m.fileName, "none the storage refuses (FAT's)")
         m.changeName(".hidden")
         assertEquals("hidden.kdbx", m.fileName, "never a hidden file")
         m.changeName("Work.KDBX")
@@ -339,6 +341,22 @@ class NewDatabaseModelTest {
         assertEquals(4, m.strength?.level)
         m.password.setTextAndPlaceCursorAtEnd(six + "x")
         assertEquals("Strong", m.strength?.text?.english(), "typed over: an estimate again")
+    }
+
+    // spec: databases.new-database/AC11
+    @Test
+    fun aNewKeyFileAloneIsWarnedThatTheDatabaseNeverOpensWithoutIt() = runTest {
+        val f = Fixture(this, existing = setOf("$ROOT/Keys/old.keyx"))
+        val m = f.model
+        f.fill()
+        m.requireKeyFile(true)
+        assertNull(m.keyFileLoss, "none chosen yet")
+
+        m.chooseKeyFile(NewDatabaseModel.KeyFileChoice.New("$ROOT/Documents"))
+        assertEquals("Lose the key file and the database never opens again. Keep a copy apart from it.", m.keyFileLoss?.english())
+
+        m.chooseKeyFile(NewDatabaseModel.KeyFileChoice.Existing("$ROOT/Keys/old.keyx"))
+        assertNull(m.keyFileLoss, "one the user has: kept wherever they keep it")
     }
 
     @Test

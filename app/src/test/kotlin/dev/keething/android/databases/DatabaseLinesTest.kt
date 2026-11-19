@@ -14,6 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import dev.keething.android.storage.FileDatabaseBackups
 
 /**
  * The lock screen's database, its sheet and Settings' rows (the Mac's `DatabaseListModelTests`, rows 1 and 6 of its
@@ -167,6 +168,22 @@ class DatabaseLinesTest {
 
     // A file not found
 
+    // spec: databases.not-open/AC5
+    @Test
+    fun aLineNotFoundCarriesItsNewestBackupAndNoOtherDoes() {
+        val newest = FileDatabaseBackups.Newest("b", now, 10, count = 2)
+        val withBackups = DatabaseFiles({ location -> files.look(location) }, newestBackup = { newest })
+        val crypto = DatabaseRecord(DatabaseId("c"), at("$root/Download/Crypto.kdbx"))
+        gone += "grant-1234-5678"
+        val card = DatabaseRecord(DatabaseId("s"), at("/storage/1234-5678/Crypto.kdbx"))
+
+        val lines = Databases(listOf(personal, crypto, card), personal.id).lines(withBackups, root, now, ZoneOffset.UTC).associateBy { it.id }
+
+        assertEquals(newest, lines.getValue(crypto.id).newestBackup)
+        assertNull(lines.getValue(personal.id).newestBackup, "there: nothing to offer")
+        assertNull(lines.getValue(card.id).newestBackup, "no access: its file may well be there")
+    }
+
     @Test
     fun aFileNotFoundSaysSoWithLocateInPlaceOfTheField() {
         val crypto = DatabaseRecord(DatabaseId("c"), at("$root/Download/Crypto.kdbx"), keyFile = at("$root/k/c.keyx"))
@@ -210,6 +227,18 @@ class DatabaseLinesTest {
         assertEquals("no access · k", key.line.keyFile?.detail?.english())
         assertEquals("Keething may not read work.keyx any more: choose it again.", key.problem?.english())
         assertFalse(key.offersFingerprint)
+    }
+
+    // spec: app.upgrade-safety/AC3
+    @Test
+    fun aDatabaseReachedThroughAGrantToItsFileAloneSaysNoAccessWithLocate() {
+        val granted = DatabaseRecord(DatabaseId("g"), FileLocation.Granted("grant-file", checkNotNull(StoragePlace.ofPath("$root/Sync/KeePass/Personal.kdbx"))))
+        there[pathOf(granted.file)] = now
+
+        val lock = lockScreen(granted)
+
+        assertEquals(Reach.NO_ACCESS, lock.line.reach, "never read through it: located into a folder")
+        assertTrue(lock.showsLocate)
     }
 
     @Test

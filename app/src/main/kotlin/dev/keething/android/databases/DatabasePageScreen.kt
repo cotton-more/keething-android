@@ -110,6 +110,9 @@ import androidx.compose.ui.res.stringResource
 import dev.keething.android.R
 import dev.keething.android.ui.UiText
 import dev.keething.android.ui.uiText
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.material.icons.rounded.SettingsBackupRestore
 
 /**
  * Settings › Databases (SPEC §6.2; keething-spec databases.list AC7): every database with its name, its folder or
@@ -176,6 +179,7 @@ internal fun DatabasesSetting(container: AppContainer, onDatabase: (DatabaseId) 
  * Locate…), its name and colour and its master key while it is open, its key file (Choose…, Change…, Forget), its Use
  * fingerprint (SPEC §5), and Remove from list…. Each acts at once.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack: () -> Unit) {
     val databases = container.sessions.databases
@@ -198,9 +202,14 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
     val notices = remember { Channel<Notice>(Channel.BUFFERED) }
     NoticeEffect(remember { notices.receiveAsFlow() }, snackbar)
 
+    // Restore backup… on Not found: the newest's restore asked in Backups (keething-spec databases.not-open AC5).
+    var asking by remember { mutableStateOf<String?>(null) }
     if (removing) {
         RemoveFromListDialog(
-            name = line.name,
+            id = id,
+            name = line.label.full,
+            notFound = line.notFound,
+            countBackups = container.sessions::backupCount,
             onRemove = {
                 removing = false
                 container.sessions.remove(id) {
@@ -232,15 +241,28 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    val newest = line.newestBackup
+                    val notFound = line.notFound
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Rounded.FindInPage, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
                         Text(
-                            (container.sessions.list.record(id)?.lockScreen(line)?.missingText?.resolve() ?: stringResource(R.string.databases_page_not_found_at, DatabaseText.abbreviated(line.path, root))),
+                            if (newest != null && notFound != null) {
+                                BackupTexts.notFoundOffer(notFound.fileName, notFound.folder, BackupTexts.date(newest.at, Instant.now(), ZoneId.systemDefault())).resolve()
+                            } else {
+                                container.sessions.list.record(id)?.lockScreen(line)?.missingText?.resolve() ?: stringResource(R.string.databases_page_not_found_at, DatabaseText.abbreviated(line.path, root))
+                            },
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
                     }
-                    FilledTonalButton(onClick = { files.locate(id, line.reach == Reach.NO_ACCESS) }) {
-                        ButtonLabel(stringResource(if (line.reach == Reach.NEEDS_FOLDER) R.string.databases_lock_choose_folder else R.string.databases_lock_locate), Icons.Rounded.Search, iconSize = 18.dp, gap = 8.dp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (newest != null) {
+                            FilledTonalButton(onClick = { asking = newest.name }) {
+                                ButtonLabel(BackupTexts.RESTORE_BACKUP.resolve(), Icons.Rounded.SettingsBackupRestore, iconSize = 18.dp, gap = 8.dp)
+                            }
+                        }
+                        FilledTonalButton(onClick = { files.locate(id, line.reach == Reach.NO_ACCESS) }) {
+                            ButtonLabel(stringResource(if (line.reach == Reach.NEEDS_FOLDER) R.string.databases_lock_choose_folder else R.string.databases_lock_locate), Icons.Rounded.Search, iconSize = 18.dp, gap = 8.dp)
+                        }
                     }
                 }
             }
@@ -277,7 +299,10 @@ internal fun DatabasePageScreen(container: AppContainer, id: DatabaseId, onBack:
                 FingerprintOfDatabase(container, id, line)
             }
             Section(stringResource(R.string.databases_page_backups)) {
-                BackupsOfDatabase(container, id, line.name, onNotice = { notices.trySend(it) }, onRestored = linesModel::refresh)
+                BackupsOfDatabase(
+                    container, id, line.name, onNotice = { notices.trySend(it) }, onRestored = linesModel::refresh,
+                    notFound = line.notFound, ask = asking, onAsked = { asking = null },
+                )
             }
             Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { removing = true }) {

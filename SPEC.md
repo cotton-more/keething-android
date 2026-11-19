@@ -211,7 +211,8 @@ a card's id, and the path from its top, as the storage provider names it), case 
 path of before, a folder granted and another folder inside it reach one database; paths off the storage compare as
 written. Kept as JSON under the setting `databases`: `{"current": <id>, "databases": [record…], "version": 1}` (a
 record: `id`, `path` or `file`, `keyFilePath` or `keyFile`, `name`, `color`, `useBiometric`, `opensWithoutPassword`,
-`lastOpened` in seconds since 1970, `inWindow`, `checkedInChooser`; written with sorted keys). `path` and `keyFilePath`
+`lastOpened` in seconds since 1970, `inWindow`, `checkedInChooser`, `fingerprintAsked`, `backupsOn`, `backupsKept`;
+written with sorted keys). `path` and `keyFilePath`
 are by path, as every record before databases.saf, which reads as it is; `file` and `keyFile` are objects: a granted
 folder's address, its place and the path inside (`grant`, `volume`, `folder`, `path`), or a key file granted alone
 (`grant`, `volume`, `place`). The app adds nothing by path any more. **An old record** (kept by its path, before
@@ -225,7 +226,14 @@ file opened through a folder (Open a database…) is that record too, reached th
 at once**, its key file too, with nothing asked (`CurrentDatabase.adoptOldRecords`: at the start and after each folder
 the list takes), so one folder granted for the Syncthing folder brings every database in it and below it. An old key
 file no folder of the list holds says no access, with Choose key file…. A key file granted alone in a folder the list already
-reaches goes through that folder, the database's own first (AC9). A grant nothing of the list is reached through any
+reaches goes through that folder, the database's own first (AC9). **A grant the app no longer holds** (its folder
+renamed, moved or deleted on a device: AC10) is never the way to a file: a key file chosen there keeps its own grant,
+and New database… and Change master key do not offer that folder; a folder granted again (Locate…, a key file chosen in
+it, New database…) takes over every record whose grant is gone and whose place it holds, its key file too
+(`CurrentDatabase.adoptOldRecords`, the grants held read from `PersistedGrants`; keething-spec T12 databases A3), so
+one Locate… brings back a folder's every database. A record reached through a grant to its file alone (which this
+version never writes: a later one's, or a list edited by hand) is never read through it: it says no access, with
+Locate… (`NoAccessStore`; app.upgrade-safety AC3). A grant nothing of the list is reached through any
 more is given back (`GrantKeeper`, AC14), with the notes of a removed database's saves that leave nothing to put right.
 A record without `id` or a file, a field of another type or text that is not JSON makes the list **unreadable**: it is kept under `databases.unreadable.<seconds>`, never overwritten, and the
 list starts empty, the welcome saying so until a database joins it (`databases.setAside`; keething-spec
@@ -244,7 +252,9 @@ the others staying open.
 
 **The databases that need attention** (keething-spec databases.not-open; the Mac's D6b) are one line of chips
 pinned under the list's header, with no title (the owner, 2026-11-07), scrolling sideways: the window's databases not
-open that were tried to open since the last Lock or timeout (an unlock tried, `Sessions.tried`, or skipped in the run)
+open that were tried to open since the last Lock or timeout (an unlock tried, `Sessions.tried`; skipped in the run,
+by Skip or by the run itself; or checked in the chooser and not opened by the fingerprint the chooser asked by itself,
+`Sessions.countTried`)
 and not locked by the user since (a Password changed one stays: it locked by itself); one nobody tried is under
 ⋮ › Databases only. Each is read aloud as "Not searched" too while a search is typed; then the open ones that are
 read-only (keething-spec databases.read-only-mark AC4), a pencil crossed out in the database's colour, a tap or a long
@@ -267,8 +277,10 @@ Locked. The states follow the sessions and the fingerprint at once, and the file
 comes back. A tap shows its lock screen with Back, the search kept for when it opens (its entries join the list, its
 chip goes); Lock all clears it as ever. A long press opens its sheet: its whole say ("Locked · tap to type its
 password", "Not found at Sync/Crypto.kdbx", "No access to Sync/Work any more: locate Work.kdbx to choose its folder
-again", "Needs its folder: choose Sync/KeePass once", …), Unlock… (not while not found or unreadable), Locate… (not
-found, no access) or Choose its folder… (an old record),
+again", "Needs its folder: choose Sync/KeePass once", …), Unlock… (not while not found or unreadable), **Restore its
+newest backup…** (its date, size and how many are kept) and **Other backups…** while its file is not found and it has a
+backup that would open (keething-spec databases.not-open AC5: both open its Backups, §6.2, in a sheet, the newest's
+restore asked at once), Locate… (not found, no access) or Choose its folder… (an old record),
 Choose key file… (it has one), Close.
 
 **The chooser and its run** (keething-spec databases.chooser; the Mac's D6b, D7; plan AD13). With nothing open the app
@@ -278,8 +290,11 @@ to set up, Fingerprint to set up again; one open or opening says Open or Opening
 found, no access, needs its folder, its key file not there or no access or unusable, cannot be read) has no check and
 says why, with Locate… for one not found or without access and Folder… for one that needs its folder; a row's long
 press opens its sheet (its tile, name and folder; **Remove from list…**, asked first as on the lock screen's sheet), so
-a database leaves the list without being opened (keething-spec databases.chooser AC12);
-the others are checked as at the last unlock (`checkedInChooser`, kept at once). Past five rows the list scrolls (four
+a database leaves the list without being opened (keething-spec databases.chooser AC12); one not found with a backup
+that would open says "Not found · has backups", and a tap on it opens its sheet too, with "Not found at …", Restore its
+newest backup…, Other backups… and Locate… (keething-spec databases.not-open AC5);
+the others are checked until the user unchecks them (`checkedInChooser`, kept at once; opening or locking one changes
+no check, databases.chooser AC9 `partial`). Past five rows the list scrolls (four
 and a half show, "9 databases · scroll for the rest"). **Unlock N databases** starts the **run** (`UnlockRun`,
 `CurrentDatabase.run`): first one fingerprint for the checked ones it would open (decided without reading any stored
 password; nothing asked when none would; a cancelled or failed one leaves them to their passwords, nothing said; a lock
@@ -289,12 +304,14 @@ and Skip; a password goes to that database only (its typed path: stored for the 
 that is on for it); a wrong one stays to be typed again ("Wrong password — or this database needs a key file. Type it
 again, or skip it."); one typing cannot open (not found, its key file not there, closed meanwhile — looked at when the
 run reaches it — or a try that fails so) is skipped by itself, and one opened meanwhile counts as opened. At the end
-"2 of 3 open · Family Shared: skipped · Crypto: not found" over the list, which shows on the first one opened, or over
-the chooser when none opened; the skipped ones say Skipped on their chips until they do something else or another run
-starts. A lock ends the run with nothing said, also one with nothing open yet (the app away past its timeout), and
+"2 of 3 open · Family Shared: skipped · Crypto: not found" over the list, which shows on the first one opened (the
+unlocks the run opened count as told, so their own "Unlocked · …" does not take its place), or over the chooser when
+none opened; the skipped ones say Skipped on their chips until they do something else or another run starts, and those
+it skipped by itself wait on the line with their state (Not found, Needs its key file). A lock ends the run with nothing said, also one with nothing open yet (the app away past its timeout), and
 nothing typed after it opens anything; Stop (and Back) ends it where it is. **Unlock with the fingerprint** (while it
 would open one) and, once in a visit that began locked, the chooser by itself ask one fingerprint for every database
-that can (§5): the list then shows on the first one opened; when it opens none the chooser says why ("The fingerprint
+that can (§5): the list then shows on the first one opened, and after the chooser's own the checked ones it did not
+open wait on the line (keething-spec databases.chooser AC1); when it opens none the chooser says why ("The fingerprint
 was cancelled.", "The fingerprint failed: ….", "The fingerprints on this phone changed: type the passwords to set up the
 fingerprint again.", "Could not read the stored passwords: …."), and only there. **Open other…** and **New database…**
 as on the lock screen: a lock screen asked for with nothing open (there, or from a lock screen's sheet) shows in place
@@ -313,7 +330,7 @@ the error colour once the picker closed without a folder, AC3). **Locate…** gi
 file through the same sheet, titled "Locate Personal.kdbx", the picker at once when its folder's access is gone (AC10;
 it keeps its id, its backups and its stored password; one open locks first; a file another database of the list has is
 refused: "That file is already in the list as “Personal”."); **Remove from List** forgets it with its stored password
-and leaves the file; the current one removed, the window's first left is current (one not in the window stays out),
+and its backups (its folder in the app's storage deleted; keething-spec databases.list AC6) and leaves the file; the current one removed, the window's first left is current (one not in the window stays out),
 else the list's first. Every grant a picker gave that the list does not take is given back after the list's next
 change, and at the next start (`GrantKeeper`, AC14).
 
@@ -748,8 +765,12 @@ new key derived for it, nothing else in it changed (`SaveCheck.verifyUnchanged`)
 the key file only, not an empty password with it. Once saved the session goes on with the new key (a lock gives it up
 as the save's own); the record has the new key file (or none) and whether it opens with the key file alone; the new
 password replaces the stored one for the fingerprint (sealed with the Keystore's public key, no prompt), none with a
-key file alone; it counts as a typed unlock. A save that fails, or a lock before the replace, leaves the file opening
-with the old key, and a key file made for it is removed. Where the database is open with the old key (another phone,
+key file alone; it counts as a typed unlock. A lock while the file is written does not stop a save within its 10 s
+(§4): one that replaced the file ends `SaveOutcome.Saved` with `lockedMeanwhile`, so the record and the stored password
+follow all the same, the database stays locked and the form says so ("It locked while the change was written; the
+change is in the file. Unlock it with the new key."); any save that reached the file is said so after a lock, the KDBX
+3.1 upgrade's too, and one that did not ends `Interrupted` (keething-spec T12 databases B1). A save that fails, or a
+lock before the replace, leaves the file opening with the old key, and a key file made for it is removed. Where the database is open with the old key (another phone,
 the Mac) the next reload locks it "Password changed" and a stored password it rejects is deleted (§5). Copies of the
 file made before keep opening with the old key: the app's own backups (§3.3 step 7) too.
 
@@ -760,8 +781,8 @@ backup is read whole and must be the bytes kept (its line in `.sha256`; one with
 that reads (`KdbxReader.isHeaderDamaged`); else nothing happens. Open, it is first opened with the session's key (no
 derivation when its key derivation is the file's): one the key opens becomes the vault, as the file read back; one it
 rejects (made before a master key change) is restored all the same, and the session then locks
-(`LockReason.RestoredOlderKey`: "A backup made before its master key changed was restored. Enter the password it had
-then.") and the fingerprint's stored password for it is deleted, to be set up again at the next typed unlock
+(`LockReason.RestoredOlderKey`: "A backup made before its master key changed was restored. Enter its password, and its
+key file then.") and the fingerprint's stored password for it is deleted, to be set up again at the next typed unlock
 (`BiometricSetup.restoredOlderKey`); one that does not read for another reason (damaged inside) is refused. Locked,
 nothing is read: it unlocks as always. Read-only (KDBX 3.1, too large: §3.3) it is refused at once. Then as a save
 (steps 5-8): the file read for its digest, backed up and replaced only while it is still what was read, once more if
@@ -771,7 +792,12 @@ file before the restore, so an Undo, which restores it, adds no copy of the back
 the session's own (step 7): its next save backs it up unless a backup has its bytes, which the one restored does. Once
 replaced, the oldest beyond the number kept go while the switch is on, never the backup just restored, which counts
 among them (`FileDatabaseBackups.restored`); off, none go. A failure takes the copy back: the file and the backups as
-they were.
+they were. **Its file gone** (deleted or renamed elsewhere, or not synced yet: the read finds it missing) the backup is
+written as a new file at the database's place, as Create writes one (`DatabaseStore.createNew`, `FolderNewFile`: whole
+under Syncthing's temporary name, then renamed; never over a file): nothing is backed up before it, the backups stay as
+they were and there is no Undo (`RestoreOutcome.Restored.beforeRestoring` null); a file there by then is "Not restored:
+there is a Family.kdbx in Sync/KeePass again…" (`SaveFailure.FileThereNow`), no folder "Not restored: Sync/KeePass is not
+there any more…" (`SaveFailure.FolderGone`), nothing written (keething-spec databases.backups-window AC6, AC8).
 
 ### 3.4 Conflicts
 
@@ -784,12 +810,13 @@ they were.
   time. Its sheet shows both versions in brief (entries, the newest change of one; the copy opened with a copy of the
   session's key, its secrets wiped at once, `VaultSession.copyContents`) and two choices, each saying what it does and
   asked once more in a dialog before it is done:
-  - *Keep the open one*: the copy is kept among the database's backups under its own name (§3.3 step 7; with backups off too: it is a file the user did not make), then deleted
+  - *Keep the open one*: the copy is kept among the database's backups under its own name (§3.3 step 7; with backups off too: it is a file the user did not make, and then it pushes no older one out), then deleted
     (`VaultSession.removeConflictCopy`, `VaultSaver.removeCopy`); a copy that cannot be deleted stays, its backup taken
     back.
   - *Use the other one*: offered only when the copy opens with the database's key and the database can be changed
     (not KDBX 3.1, not too large, §3.3). Saved like any change, in its turn among the saves: the database read for its
-    digest, backed up, replaced with the copy's bytes as they are (nothing rewritten) while it is still what was read;
+    digest, backed up as before a restore (whatever the session wrote and the switch says, unless a backup has its
+    bytes: the dialog's "The open one is kept in Keething's backups first" holds), replaced with the copy's bytes as they are (nothing rewritten) while it is still what was read;
     the copy is then deleted, and the vault becomes the copy read back (`VaultSession.takeConflictCopy`,
     `VaultSaver.takeCopy`). A copy that does not open with the key is refused and never locks the database
     ("Password changed" is only the database's own). A copy taken but not deleted is said, and stays on the banner.
@@ -822,11 +849,11 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   KeePassXC writes a `.keyx`, never over a file there, read back before its key is used (removed again when it does not
   read back).
 - **Putting it in place** (`core/vault` `FolderNewFile`, through the folder's grant; keething-spec databases.saf AC11):
-  the provider makes the file empty under the name asked, never over another (a name taken, in any case, gives "Family
-  (1).kdbx", which is removed again while still empty, and the name is said taken), then it is written in one go and
-  flushed. A database is never replaced, not even by a file a sync put there meanwhile; never a check followed by a
-  move. The file is empty for the milliseconds between its making and its one write (about 1.2 KB), against Syncthing's
-  10 s watcher delay. The folder is one the list already reaches, or one granted in the form (Save in's Other folder…,
+  the file is written whole under `.syncthing.<name>.keething-new.tmp`, which Syncthing never scans or sends, and only
+  then renamed to the name asked; the provider never renames over another (a name taken, in any case, gives "Family
+  (1).kdbx", which is removed again while still what was written, and the name is said taken). A database is never
+  replaced, not even by a file a sync put there meanwhile; never a check followed by a move. Nothing is ever under the
+  database's name until it is whole. The folder is one the list already reaches, or one granted in the form (Save in's Other folder…,
   Make a new one…); a key file the user has is read through a folder the list reaches or its own grant. The form names
   each place by its path on the phone, for its words; `NewDatabasePlaces` keeps which grant reaches it, and
   `GrantedNewDatabaseFiles` reads what the folders hold through the grants (kept until the form shows again: it asks
@@ -856,9 +883,9 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   start; to be looked into: `.x/RESEARCH-ad7-app-ended-while-creating.md`, not versioned). What a process that ended
   anyway left (a crash, the system's own kill) is cleaned up at the next start: **`CreationNote`** (`core/vault`,
   `filesDir/creating.note`) names each file before it is written, by its grant and its path in the granted folder (by
-  its path in a note of before databases.saf), with its SHA-256 and size; read at the start off the main thread, a
-  Create waiting for it; a file it names that is still empty or byte for byte
-  as written is removed, any other is someone else's and stays, and the app says "“Family Shared” was not created" ("Keething
+  its path in a note of before databases.saf, the one file the app still reads by its path), with its SHA-256 and size;
+  read at the start off the main thread, a Create waiting for it; its temporary file goes, and a file it names that is
+  still empty or byte for byte as written is removed, any other is someone else's and stays, and the app says "“Family Shared” was not created" ("Keething
   was closed while writing it, so nothing of it was kept. Create it again."). A Create whose files the list already
   names (the process ended between the record joining the list and the note's end) was made: its files stay, nothing
   is said.
@@ -970,7 +997,8 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   save running works on its own copy of the key and may finish for 10 s of the phone being awake (the main thread's
   clock, which stands still in deep sleep). Then it is told to stop and its key is given up and wiped: it stops right
   before the backup or right before the replace, so the file and its backups are as they were. A replace already begun
-  goes to its end (§3.1). The ids of the changes the file did not get (stopped, failed after the lock, never started),
+  goes to its end (§3.1). One that replaced the file is said as saved all the same (`SaveOutcome.Saved.lockedMeanwhile`:
+  a new master key's record follows, §3.3), one that did not as `Interrupted`. The ids of the changes the file did not get (stopped, failed after the lock, never started),
   never a value, are kept through the lock; the next unlock of that database says them on the list until OK:
   "Not saved — The change to “GitHub” was not saved: the database locked while it was being saved. The file is as it
   was; make the change again." (a new entry, a move to the bin, a restore, a group's change each named so). A save
@@ -1303,6 +1331,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - Restoring a version (keething-spec edit.history-restore, agreed 2026-11-08) has a canvas of its own:
   https://claude.ai/artifact/5cZ3wiPf5Q3qen5zArKtcV (History's Go back to this version…, the question with what changes,
   a full history, going back, the card after it, the recycle bin, a read-only database, a failure, dark).
+- Backups on Remove and Not found (keething-spec T12 databases A1, A6, C5, agreed 2026-11-19, with Other backups… added)
+  have a canvas of their own: https://claude.ai/artifact/LV2FpzThNAdfj8FStc9aeb (Remove's question with backups and with
+  its file not found, Not found's newest backup on the line's sheet, the chooser and the page, the restore with the file
+  gone, its end and its failures, autofill's save with the sync warning; light and dark).
 - The password reminder (keething-spec unlock.reminder-not-a-lock, agreed 2026-11-13) has a canvas of its own:
   https://claude.ai/artifact/CN2ZK5AubEyFqM2zS9i7WV (the question over the list, Yes, Check it, a password that does
   not match, three tries, a key file alone, a password and a key file, Settings with 14 days and with Never, dark).
@@ -1761,7 +1793,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   chosen.") lists the open ones with a check on the chosen one, "Not open: …" under them (§3.1). Save shows "Saving and checking…"; saved, the editor goes back to the
   card (a new entry's card) at once, which says "Saved and checked" in a snackbar (saved with its file's time too
   close for a sync app, §3.3: a second line "A sync app may not send the file: … Change something and save again.",
-  the problem's icon, shown longer; every other screen that saves adds the same line); not saved, the sheet says
+  the problem's icon, shown longer; every other screen that saves adds the same line; autofill's save, whose toast's two
+  lines would cut it, says it in a dialog until OK, "Saved to Keething" or "Password updated in Keething" over the
+  warning: `AutofillSaved`, keething-spec T12 databases C5); not saved, the sheet says
   why, with "Back to editing" (save from autofill: a toast, and back to the app). ✕ or Back with changes asks "Discard the changes?". Not in v1: reordering fields.
 - **Password generator** (Mac SPEC §3.20, `core/generator`): a sheet from the wand in the editor's password
   field ("Use this password" puts it in, shown) and from ⋮ › Generate a password in the list's header (a password
@@ -1862,12 +1896,21 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   "Needs its folder · Sync/KeePass" in red, a key for
   one with a key file, a fingerprint for one the fingerprint opens); a tap opens **its page**: tile, label, path from
   the shared storage's root, "Changed 2 hours ago" (of a file not found "Not found at …", or without access or kept by
-  its path the lock screen's words, with Locate… or Choose its folder…, and "Last opened
+  its path the lock screen's words, with Locate… or Choose its folder…; not found with a backup that would open, "Family.kdbx
+  is not in Sync/KeePass any more. Locate the file, or restore its newest backup, of today, 14:03." with **Restore
+  backup…**, which asks its restore in Backups, beside Locate…; keething-spec databases.not-open AC5; the canvas "Backups
+  on Remove and Not found", https://claude.ai/artifact/LV2FpzThNAdfj8FStc9aeb, agreed 2026-11-19; and "Last opened
   2 weeks ago" when it was), **Name and colour** and **Master key** (below; agreed on the canvas "Database name, colour
   and master key", 2026-11-08), **Key file** (its name and folder, or "None · It opens with its password alone"; Choose… /
   Change…, Forget; "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It
   must be there at every unlock, the fingerprint too."), **Fingerprint** (Use fingerprint and what it does now, §5; it says where the key is: StrongBox, the TEE),
-  **Backups** (below), **Remove from list…** ("Forgets it on this phone, with its stored password. The file stays."); each acts at once.
+  **Backups** (below), **Remove from list…** ("Forgets it on this phone, with its stored password and its backups. The
+  file stays."), asked first: "Remove “Family” from the list?", "Keething forgets it on this phone, with its stored
+  password and its 7 backups. The file stays where it is." ("…and its backup.", none: "…with its stored password. The
+  file stays where it is."), its file not found and backups kept: "Family.kdbx is not in Sync/KeePass any more, so its 7
+  backups on this phone may be its last copies. They are deleted with its stored password, and can’t be brought back."
+  and "To keep it, restore its newest backup first.", Remove in red; the same question from the lock screen's sheet and
+  the chooser (keething-spec databases.list AC6). Each acts at once.
   **Backups** (keething-spec databases.backups-window AC1-AC9; the canvas "Database backups", agreed 2026-11-12), open
   or locked alike: the switch **Back up before changes** (the record's `backupsOn`, on by default), while it is on
   **Keep** 5 · 10 · 20 · 50 (`backupsKept`, 10 by default), a line ("7 kept, 8.1 MB: the file as it was before the first
@@ -1900,7 +1943,15 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   locks it, the section saying "Restored. This backup opens with the master key Family had on Sun 1 Nov, 10:20, so
   Family is locked: unlock it with that password. Its fingerprint stays off until then." A failure is said in the
   section ("Not restored: Family.kdbx could not be written (…). Nothing was changed, and no backup was added."). Off,
-  the backups kept are listed, restored and deleted all the same.
+  the backups kept are listed, restored and deleted all the same. **Its file not found** (§3.3 "A backup restored"),
+  each Restore asks "Restore Family from its backup?", "Family.kdbx is written again in Sync/KeePass, as it was today,
+  14:03. Changes made after that are not in it." and "There is no file to keep first, so this restore has no Undo. If
+  the file was only renamed, or is not synced yet, Locate… finds it instead."; done, "Restored the backup of …" with no
+  Undo, and in the section "Restored: Family.kdbx is back in Sync/KeePass, as it was today, 14:03. It opens with the
+  master key it had then."; not done, "Not restored: there is a Family.kdbx in Sync/KeePass again. Nothing was written:
+  unlock it as it is." or "Not restored: Sync/KeePass is not there any more. Nothing was written: locate the file, or
+  choose its folder again." The same section shows in a sheet from the line's sheet and the chooser (Restore its newest
+  backup…, its question asked at once; Other backups…; `BackupsSheet`).
   **Name and colour** (keething-spec databases.rename-recolour): while the database is open and can be changed, the name
   in a field (the file's `Meta/DatabaseName` as written; under it "Its file stays Work.kdbx.", "Empty: it is called by
   its file name, Work." or "“Passwords” counts as no name: …"), the palette's nine colours and None (a dashed ring) in two
@@ -1924,7 +1975,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Change master key** (keething-spec databases.change-master-key; agreed on the canvas "Database name, colour and
   master key", 2026-11-08), from a database's page, over whatever was shown, kept by the app as New database is (a
   change goes on when the screen is gone; a lock takes the form, with what was typed, unless the change is being
-  written, which the lock stops, §3.3). First the key it is open with: "Current master password" (the eye; nothing
+  written: that one goes on for the lock's 10 s, and stops before the replace only when they run out, §3.3, §4). First the key it is open with: "Current master password" (the eye; nothing
   typed with a key file: the key file alone), "With its key file, Work.keyx in Keys", Continue; it is compared with
   the session's key, the key file read again, nothing derived. Not that key: "That is not its master password with
   Work.keyx. Nothing changed." and nothing more. Then "Its current key, confirmed", **Password**: Keep it / New / None
@@ -1937,7 +1988,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   "A new master key"); then "Master key changed", what it opens with now, that other devices ask for the new key and a
   fingerprint stored there stops working, and "Copies of the file made before still open with the old key: the backups
   on this phone and elsewhere, other devices' copies, a sync's old versions (Syncthing's .stversions). After a leak,
-  delete those you can.", Done. Not changed: why, the form as it was; a key file made for it is removed again.
+  delete those you can.", Done; a lock that came while the file was replaced (it is saved all the same, §3.3) adds
+  "It locked while the change was written; the change is in the file. Unlock it with the new key.", the form then
+  staying through the next lock until Done (nothing typed is left in it). Not changed: why,
+  the form as it was; a key file made for it is removed again.
 - **About** (keething-spec app.about; the owner, 2026-11-02): the logo, "Keething", "for Android", then Version "1.0.0 ·
   build 1" (the version code said as a build, the owner), Built "2 November 2026, 20:06" (the phone's time zone) and Commit "becc85f", or "becc85f with uncommitted
   changes", selectable for a bug report; Back returns to what was shown. Reached with every database locked: an ⓘ in

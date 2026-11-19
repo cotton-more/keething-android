@@ -256,7 +256,10 @@ internal fun LockScreen(
     }
     if (removing) {
         RemoveFromListDialog(
-            name = lock?.line?.name ?: database.location.fileName,
+            id = database.id,
+            name = lock?.line?.label?.full ?: database.location.fileName,
+            notFound = lock?.line?.notFound,
+            countBackups = container.sessions::backupCount,
             onRemove = {
                 removing = false
                 leave()

@@ -98,20 +98,24 @@ public sealed interface SaveOutcome {
      * groups.entry-group AC7). [keptCopy]: an upgrade's, the name its KDBX 3.1 file was kept under beside it.
      * [copyLeft]: a conflict copy taken in the database's place, still there: it could not be deleted afterwards.
      * [mayNotSync]: the new file's time came out less than 2 s from the replaced one's, so a sync app may not send it
-     * until the next save (keething-spec databases.saf AC6).
+     * until the next save (keething-spec databases.saf AC6). [lockedMeanwhile]: a lock came while it was written and it
+     * replaced the file within the lock's grace (keething-spec kdbx.hardening AC3): the change is in the file, but the
+     * session stays locked and what was read back is wiped.
      */
     public data class Saved(
         val deletedGroups: List<VaultGroup> = emptyList(),
         val keptCopy: String? = null,
         val copyLeft: String? = null,
         val mayNotSync: Boolean = false,
+        val lockedMeanwhile: Boolean = false,
     ) : SaveOutcome
 
     public data class Failed(val failure: SaveFailure) : SaveOutcome
 
     /**
-     * A lock came first; what the save read back is wiped. The file may have been written: when it was not, the next
-     * unlock says so ([SessionState.Unlocked.unsaved]).
+     * A lock came first and the save did not replace the file (it waited its turn, or the lock's grace ran out before
+     * the replace); the next unlock says which change it was ([SessionState.Unlocked.unsaved]). One that replaced it is
+     * [Saved] with [Saved.lockedMeanwhile].
      */
     public data object Interrupted : SaveOutcome
 }
@@ -119,12 +123,13 @@ public sealed interface SaveOutcome {
 /** How restoring a backup ended (keething-spec databases.backups-window AC6-AC8). */
 public sealed interface RestoreOutcome {
     /**
-     * The file is the backup's bytes. [beforeRestoring]: the backup the file as it was is in, which Undo restores.
+     * The file is the backup's bytes. [beforeRestoring]: the backup the file as it was is in, which Undo restores; null
+     * when the file was gone and the backup was written as a new file (no Undo).
      * [olderKey]: the database was open and the backup does not open with its key, so it locked
      * ([LockReason.RestoredOlderKey]); open with it, the vault is the backup read back. [mayNotSync]: as
      * [SaveOutcome.Saved.mayNotSync].
      */
-    public data class Restored(val beforeRestoring: String, val olderKey: Boolean, val mayNotSync: Boolean = false) : RestoreOutcome
+    public data class Restored(val beforeRestoring: String?, val olderKey: Boolean, val mayNotSync: Boolean = false) : RestoreOutcome
 
     /** Nothing was replaced and no backup added; why. */
     public data class Failed(val failure: SaveFailure) : RestoreOutcome

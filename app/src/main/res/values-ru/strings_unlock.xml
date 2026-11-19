@@ -7,7 +7,7 @@
         <item quantity="other">Заблокировано через %1$d минуты в фоне</item>
     </plurals>
     <string name="unlock_password_changed">Пароль базы изменился. Введите новый.</string>
-    <string name="unlock_restored_older_key">Восстановлена резервная копия, сделанная до смены мастер-ключа. Введите пароль, который был тогда.</string>
+    <string name="unlock_restored_older_key">Восстановлена резервная копия, сделанная до смены мастер-ключа. Введите тогдашний пароль и тогдашний файл-ключ.</string>
 
     <string name="unlock_fingerprint_not_available">Отпечаток пальца нельзя использовать: %1$s.</string>
     <string name="unlock_fingerprint_key_invalidated">Отпечатки на этом телефоне изменились. Введите пароль, чтобы снова настроить вход по отпечатку.</string>

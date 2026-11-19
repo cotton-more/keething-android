@@ -203,14 +203,69 @@ internal object BackupTexts {
     fun olderKey(name: String, date: UiText?): UiText =
         date?.let { uiText(R.string.databases_backups_older_key, name, onDate(it)) } ?: uiText(R.string.databases_backups_older_key_then, name)
 
-    /** A restore that did not happen (AC8): the file and the backups as they were, and why. [file]: the database's. */
-    fun notRestored(file: File, failure: SaveFailure): UiText = when (failure) {
+    /** Remove from list's question (keething-spec databases.list AC6). */
+    fun removeTitle(name: String): UiText = uiText(R.string.databases_remove_title, name)
+
+    /** A database whose file is not found: its file's name and its folder. */
+    data class NotFound(val fileName: String, val folder: String)
+
+    /**
+     * What Remove from list does: the stored password and the [backups] go, the file stays; with its file [notFound],
+     * that the backups may be its last copies (keething-spec databases.list AC6, databases.backups-window AC6).
+     */
+    fun removeText(backups: Int, notFound: NotFound?): UiText = when {
+        backups == 0 -> uiText(R.string.databases_remove_text)
+        notFound != null -> uiPlural(R.plurals.databases_remove_text_last_copies, backups, backups, notFound.fileName, notFound.folder)
+        else -> uiPlural(R.plurals.databases_remove_text_backups, backups, backups)
+    }
+
+    val REMOVE_RESTORE_FIRST: UiText = uiText(R.string.databases_remove_restore_first)
+
+    /** Under Remove from list… on a database's page. */
+    val REMOVE_NOTE: UiText = uiText(R.string.databases_page_remove_note)
+
+    /** Not found, with a backup to offer (keething-spec databases.not-open AC5): the newest's [date]. */
+    fun notFoundOffer(fileName: String, folder: String, date: UiText): UiText = uiText(R.string.databases_backups_not_found_offer, fileName, folder, ofDate(date))
+
+    val RESTORE_NEWEST: UiText = uiText(R.string.databases_backups_restore_newest)
+
+    val RESTORE_BACKUP: UiText = uiText(R.string.databases_backups_restore_backup)
+
+    val OTHER_BACKUPS: UiText = uiText(R.string.databases_backups_other)
+
+    /** Under Restore its newest backup…: its date, its size, how many there are. */
+    fun newestDetail(date: UiText, size: String, count: Int): UiText = uiPlural(R.plurals.databases_backups_newest_detail, count, date, size, count)
+
+    /** The restore's question while the database's file is gone (keething-spec databases.backups-window AC6). */
+    fun restoreGoneTitle(name: String): UiText = uiText(R.string.databases_backups_restore_gone_title, name)
+
+    fun restoreGoneText(fileName: String, folder: String, date: UiText): UiText = uiText(R.string.databases_backups_restore_gone_text, fileName, folder, onDate(date))
+
+    val RESTORE_GONE_NOTE: UiText = uiText(R.string.databases_backups_restore_gone_note)
+
+    /** Done, the file written again: said in the section. */
+    fun restoredAsNew(fileName: String, folder: String, date: UiText): UiText = uiText(R.string.databases_backups_restored_as_new, fileName, folder, onDate(date))
+
+    /**
+     * A restore that did not happen (AC8): the file and the backups as they were, and why. [file]: the database's;
+     * [folder]: its folder in words, for one whose file was gone.
+     */
+    fun notRestored(file: File, failure: SaveFailure, folder: String = ""): UiText = when (failure) {
+        SaveFailure.FileThereNow -> uiText(R.string.databases_backups_not_restored_there_now, file.name, folder)
+        SaveFailure.FolderGone -> uiText(R.string.databases_backups_not_restored_folder_gone, folder)
         is SaveFailure.WriteFailed -> uiText(R.string.databases_backups_not_restored_write, file.name, failure.detail)
         SaveFailure.FileKeepsChanging -> uiText(R.string.databases_backups_not_restored_changing, file.name)
         SaveFailure.Locked -> uiText(R.string.databases_backups_not_restored_locked)
         is SaveFailure.CannotOpen ->
             uiText(R.string.databases_backups_not_restored_cannot_open, failure.failure.describe(file.path).afterColon())
         else -> uiText(R.string.databases_backups_not_restored, failure.describe(file).withoutFullStop())
+    }
+
+    /** A backup's [date] after "of": "Mon 9 Nov, 08:15", but "today, 14:03" and "yesterday, 21:40". */
+    private fun ofDate(date: UiText): UiText = when {
+        date is UiText.Res && date.id == R.string.databases_backups_date_today -> UiText.Res(R.string.databases_backups_on_today, date.args)
+        date is UiText.Res && date.id == R.string.databases_backups_date_yesterday -> UiText.Res(R.string.databases_backups_on_yesterday, date.args)
+        else -> date
     }
 
     /** A backup's [date] in a sentence: "on Mon 9 Nov, 08:15", but "today, 14:03" and "yesterday, 21:40". */
@@ -235,10 +290,21 @@ internal object BackupTexts {
  * scope with a line here while it does; done, it is said through [onNotice] with Undo ([onRestored] told, the page's
  * header shows the file's new time), a deletion so too; a failure,
  * or a database locked by a backup with an older key, is said here. Not offered for a damaged backup or in a
- * read-only database.
+ * read-only database. While its file is [notFound] a restore writes the backup as a new file: its question says so,
+ * there is no Undo, and what it did is said here (keething-spec databases.backups-window AC6). [ask]: a backup whose
+ * restore is asked at once (Restore its newest backup…; databases.not-open AC5), [onAsked] told once it is.
  */
 @Composable
-internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: String, onNotice: (Notice) -> Unit, onRestored: () -> Unit = {}) {
+internal fun BackupsOfDatabase(
+    container: AppContainer,
+    id: DatabaseId,
+    name: String,
+    onNotice: (Notice) -> Unit,
+    onRestored: () -> Unit = {},
+    notFound: BackupTexts.NotFound? = null,
+    ask: String? = null,
+    onAsked: () -> Unit = {},
+) {
     val list = container.sessions.list
     val databases by list.state.collectAsStateWithLifecycle()
     val record = databases.record(id) ?: return
@@ -267,6 +333,11 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
     val count = all.size
     val zone = remember { ZoneId.systemDefault() }
     fun date(backup: FileDatabaseBackups.Backup) = BackupTexts.date(backup.at, read?.now ?: Instant.now(), zone)
+    LaunchedEffect(ask, all) {
+        val asked = all.firstOrNull { it.name == ask } ?: return@LaunchedEffect
+        askingRestore = asked
+        onAsked()
+    }
     fun size(bytes: Long) = Formatter.formatShortFileSize(context, bytes)
 
     fun change(work: () -> Unit, then: () -> Unit = {}) {
@@ -290,15 +361,18 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
                 is RestoreOutcome.Restored -> {
                     onRestored()
                     if (outcome.olderKey) info = BackupTexts.olderKey(name, date)
-                    onNotice(
-                        if (undo) {
-                            savedNotice(BackupTexts.undone(name), outcome.mayNotSync)
-                        } else {
-                            savedNotice(BackupTexts.restored(date ?: uiPlain("")), outcome.mayNotSync, undo = { restore(outcome.beforeRestoring, date = null, undo = true) })
-                        },
-                    )
+                    val before = outcome.beforeRestoring
+                    when {
+                        undo -> onNotice(savedNotice(BackupTexts.undone(name), outcome.mayNotSync))
+                        // The file was gone: written as a new file, nothing to undo to (AC6).
+                        before == null -> {
+                            info = BackupTexts.restoredAsNew(record.file.fileName, notFound?.folder.orEmpty(), date ?: uiPlain(""))
+                            onNotice(savedNotice(BackupTexts.restored(date ?: uiPlain("")), outcome.mayNotSync))
+                        }
+                        else -> onNotice(savedNotice(BackupTexts.restored(date ?: uiPlain("")), outcome.mayNotSync, undo = { restore(before, date = null, undo = true) }))
+                    }
                 }
-                is RestoreOutcome.Failed -> problem = BackupTexts.notRestored(File(record.file.fileName), outcome.failure)
+                is RestoreOutcome.Failed -> problem = BackupTexts.notRestored(File(record.file.fileName), outcome.failure, notFound?.folder.orEmpty())
             }
         }
     }
@@ -307,11 +381,16 @@ internal fun BackupsOfDatabase(container: AppContainer, id: DatabaseId, name: St
         val date = date(backup)
         AlertDialog(
             onDismissRequest = { askingRestore = null },
-            title = { Text(BackupTexts.RESTORE_TITLE.resolve()) },
+            title = { Text((if (notFound != null) BackupTexts.restoreGoneTitle(name) else BackupTexts.RESTORE_TITLE).resolve()) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(BackupTexts.restoreText(name, date).resolve())
-                    Text(BackupTexts.RESTORE_NOTE.resolve(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (notFound != null) {
+                        Text(BackupTexts.restoreGoneText(notFound.fileName, notFound.folder, date).resolve())
+                        Text(BackupTexts.RESTORE_GONE_NOTE.resolve(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text(BackupTexts.restoreText(name, date).resolve())
+                        Text(BackupTexts.RESTORE_NOTE.resolve(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             },
             confirmButton = {

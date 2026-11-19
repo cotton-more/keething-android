@@ -53,7 +53,6 @@ class NewEntryDatabasesTest {
         assertEquals(emptyList(), NewEntryDatabases.offered(listOf(empty, p)), "one left to choose: no Save into")
     }
 
-    // spec: databases.one-list/AC5
     @Test
     fun saveIntoOffersTheOpenDatabasesWhileTwoOrMoreAreOpenAndNamesThoseNotOpen() {
         assertEquals(emptyList(), NewEntryDatabases.offered(listOf(p)), "one open: nothing of this shows")
@@ -66,7 +65,6 @@ class NewEntryDatabasesTest {
         assertNull(alike.detail, "the label says the folder already (names alike): not twice")
     }
 
-    // spec: databases.one-list/AC6
     @Test
     fun aDraftGoesWhenItsDatabaseLocksAndStaysWhenAnotherDoes() {
         assertTrue(NewEntryDatabases.isOpen(work, 2, listOf(p, w)))
@@ -75,7 +73,6 @@ class NewEntryDatabasesTest {
         assertFalse(NewEntryDatabases.isOpen(work, 2, listOf(p, open(work, "Work", 7))), "Work closed and put back meanwhile: another session")
     }
 
-    // spec: databases.one-list/AC6
     @Test
     fun theDraftFollowsItsOwnDatabaseAndASaveInFlightKeepsItsSheetUntilItEnds() {
         val draft = DraftFollower()
@@ -98,7 +95,6 @@ class NewEntryDatabasesTest {
         assertTrue(moved.follow(personal, 1, listOf(w), editing = true), "then Personal locking takes it")
     }
 
-    // spec: sharing.receiving/AC8
     @Test
     fun receivedEntriesGoIntoTheLastNewEntrysDatabaseUntilAnotherIsChosenAndStayOnceASaveWasTried() {
         assertEquals(work, NewEntryDatabases.following(null, listOf(p, w), last = work, keep = false)?.id, "to start with: the last new entry's")

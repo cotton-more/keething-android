@@ -169,6 +169,10 @@ internal class ChangeMasterKeyModel(
     var mayNotSync: Boolean by mutableStateOf(false)
         private set
 
+    /** Once changed: the database locked while the change was written, after it was in the file (AC6). */
+    var lockedMeanwhile: UiText? by mutableStateOf(null)
+        private set
+
     /** The key typed at the first step, while the form is open: the password kept, when it is kept. */
     private var confirmed: Secret? = null
     private var confirmedWithPassword = true
@@ -314,7 +318,8 @@ internal class ChangeMasterKeyModel(
     /**
      * Change master key: a new key file made (or one read), the key put together, and the file written with it
      * (keething-spec databases.change-master-key AC4-AC6). A new key file is removed again when the key was not changed
-     * (AC5). Its job (the tests wait for it).
+     * (AC5); a lock that came once the file was being replaced leaves it changed, and it is said (AC6). Its job (the tests
+     * wait for it).
      */
     fun changeKey(): Job? {
         if (!canChange) return null
@@ -359,6 +364,7 @@ internal class ChangeMasterKeyModel(
                 }
                 fingerprintProblem = result.fingerprintProblem
                 mayNotSync = result.outcome.syncWarning
+                lockedMeanwhile = uiText(R.string.databases_change_key_locked_meanwhile).takeIf { (result.outcome as? SaveOutcome.Saved)?.lockedMeanwhile == true }
                 keyFileAfter = location?.fileName
                 passwordAfter = password != null
                 fields.clear()
@@ -418,10 +424,14 @@ internal class MasterKeyChanges(private val start: (DatabaseId) -> ChangeMasterK
         if (shown.close()) form = null
     }
 
-    /** The app locked: the form and what was typed go, unless the change is being written (the lock stops that). */
+    /**
+     * The app locked: the form and what was typed go, unless the change is being written (the lock's grace may let it
+     * end), or it ended saying the database locked meanwhile: nothing typed is left in it, and it stays until Done so
+     * that is read (keething-spec databases.change-master-key AC6).
+     */
     fun locked() {
         val shown = form ?: return
-        if (shown.changing) return
+        if (shown.changing || shown.lockedMeanwhile != null) return
         shown.close()
         form = null
     }

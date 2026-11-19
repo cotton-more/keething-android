@@ -118,10 +118,93 @@ class BackupTextsTest {
         assertEquals("Restored the backup of Mon 9 Nov, 08:15", BackupTexts.restored(uiPlain("Mon 9 Nov, 08:15")).english())
         assertEquals("Back to Family as it was before the restore", BackupTexts.undone("Family").english())
         assertEquals(
-            "Restored. This backup opens with the master key Family had on Sun 1 Nov, 10:20, so Family is locked: unlock it with that password. Its fingerprint stays off until then.",
+            "Restored. This backup opens with the master key Family had on Sun 1 Nov, 10:20, so Family is locked: unlock it with its password, and its key file then. Its fingerprint stays off until then.",
             BackupTexts.olderKey("Family", uiPlain("Sun 1 Nov, 10:20")).english(),
         )
         assertTrue(BackupTexts.olderKey("Family", BackupTexts.date(berlin("2026-11-11T20:40:00Z"), now, zone)).english().contains("the master key Family had yesterday, 21:40, so"))
+    }
+
+    // spec: databases.list/AC6
+    @Test
+    fun removeSaysTheBackupsGoWithItAndWhenItsFileIsNotFoundThatTheyMayBeItsLastCopies() {
+        assertEquals("Remove “Family” from the list?", BackupTexts.removeTitle("Family").english())
+        assertEquals(
+            "Keething forgets it on this phone, with its stored password. The file stays where it is.",
+            BackupTexts.removeText(backups = 0, notFound = null).english(),
+        )
+        assertEquals(
+            "Keething forgets it on this phone, with its stored password and its backup. The file stays where it is.",
+            BackupTexts.removeText(backups = 1, notFound = null).english(),
+        )
+        assertEquals(
+            "Keething forgets it on this phone, with its stored password and its 7 backups. The file stays where it is.",
+            BackupTexts.removeText(backups = 7, notFound = null).english(),
+        )
+        val gone = BackupTexts.NotFound("Family.kdbx", "Sync/KeePass")
+        assertEquals(
+            "Family.kdbx is not in Sync/KeePass any more, so its 7 backups on this phone may be its last copies. They are deleted with its stored password, and can’t be brought back.",
+            BackupTexts.removeText(backups = 7, notFound = gone).english(),
+        )
+        assertEquals(
+            "Family.kdbx is not in Sync/KeePass any more, so its backup on this phone may be its last copy. It is deleted with its stored password, and can’t be brought back.",
+            BackupTexts.removeText(backups = 1, notFound = gone).english(),
+        )
+        assertEquals("To keep it, restore its newest backup first.", BackupTexts.REMOVE_RESTORE_FIRST.english())
+        assertEquals(
+            "Keething forgets it on this phone, with its stored password. The file stays where it is.",
+            BackupTexts.removeText(backups = 0, notFound = gone).english(),
+            "no backups: nothing more to say",
+        )
+        assertEquals("Forgets it on this phone, with its stored password and its backups. The file stays.", BackupTexts.REMOVE_NOTE.english())
+    }
+
+    // spec: databases.not-open/AC5
+    @Test
+    fun notFoundOffersTheNewestBackupByItsDate() {
+        assertEquals(
+            "Family.kdbx is not in Sync/KeePass any more. Locate the file, or restore its newest backup, of today, 14:03.",
+            BackupTexts.notFoundOffer("Family.kdbx", "Sync/KeePass", BackupTexts.date(berlin("2026-11-12T13:03:00Z"), now, zone)).english(),
+        )
+        assertEquals(
+            "Family.kdbx is not in Sync/KeePass any more. Locate the file, or restore its newest backup, of Mon 9 Nov, 08:15.",
+            BackupTexts.notFoundOffer("Family.kdbx", "Sync/KeePass", uiPlain("Mon 9 Nov, 08:15")).english(),
+        )
+        assertEquals("Restore its newest backup…", BackupTexts.RESTORE_NEWEST.english())
+        assertEquals("Today, 14:03 · 1.2 MB · 7 kept on this phone", BackupTexts.newestDetail(uiPlain("Today, 14:03"), "1.2 MB", 7).english())
+        assertEquals("Other backups…", BackupTexts.OTHER_BACKUPS.english())
+        assertEquals("Restore backup…", BackupTexts.RESTORE_BACKUP.english())
+    }
+
+    // spec: databases.backups-window/AC6
+    @Test
+    fun aRestoreWithTheFileGoneAsksSayingItWritesTheFileAgainWithNoUndo() {
+        assertEquals("Restore Family from its backup?", BackupTexts.restoreGoneTitle("Family").english())
+        assertEquals(
+            "Family.kdbx is written again in Sync/KeePass, as it was today, 14:03. Changes made after that are not in it.",
+            BackupTexts.restoreGoneText("Family.kdbx", "Sync/KeePass", BackupTexts.date(berlin("2026-11-12T13:03:00Z"), now, zone)).english(),
+        )
+        assertEquals(
+            "There is no file to keep first, so this restore has no Undo. If the file was only renamed, or is not synced yet, Locate… finds it instead.",
+            BackupTexts.RESTORE_GONE_NOTE.english(),
+        )
+        assertEquals(
+            "Restored: Family.kdbx is back in Sync/KeePass, as it was on Mon 9 Nov, 08:15. It opens with the master key it had then.",
+            BackupTexts.restoredAsNew("Family.kdbx", "Sync/KeePass", uiPlain("Mon 9 Nov, 08:15")).english(),
+        )
+    }
+
+    // spec: databases.backups-window/AC8
+    @Test
+    fun aRestoreWithTheFileGoneThatFindsAFileOrNoFolderSaysSo() {
+        val file = java.io.File("/storage/emulated/0/Sync/KeePass/Family.kdbx")
+        assertEquals(
+            "Not restored: there is a Family.kdbx in Sync/KeePass again. Nothing was written: unlock it as it is.",
+            BackupTexts.notRestored(file, SaveFailure.FileThereNow, folder = "Sync/KeePass").english(),
+        )
+        assertEquals(
+            "Not restored: Sync/KeePass is not there any more. Nothing was written: locate the file, or choose its folder again.",
+            BackupTexts.notRestored(file, SaveFailure.FolderGone, folder = "Sync/KeePass").english(),
+        )
     }
 
     // spec: databases.backups-window/AC8

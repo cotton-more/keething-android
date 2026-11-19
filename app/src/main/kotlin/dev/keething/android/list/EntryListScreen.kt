@@ -195,6 +195,7 @@ import java.text.NumberFormat
 import java.time.Instant
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
+import dev.keething.android.databases.BackupsSheet
 
 /**
  * The list (SPEC §6.2): nothing typed shows the recently used entries, then all by title; the search field
@@ -229,6 +230,8 @@ internal fun EntryListScreen(
     /** A database's lock screen, with Back (a chip's tap, Unlock… in its sheet). */
     onLockScreen: (DatabaseId) -> Unit = {},
     onCloseDatabase: (DatabaseId) -> Unit = {},
+    /** A backup restored from a database's sheet: the line looks at the files again. */
+    onBackupRestored: () -> Unit = {},
     onDatabases: () -> Unit = {},
 ) {
     // Beside the card (two panes), the open entry's rows are marked.
@@ -261,6 +264,8 @@ internal fun EntryListScreen(
     NoticeEffect(remember { container.windowNotices.receiveAsFlow() }, snackbar)
     // A chip's long press: its sheet (keething-spec databases.not-open AC5).
     var sheetOf by rememberSaveable { mutableStateOf<String?>(null) }
+    var backupsOf by rememberSaveable { mutableStateOf<String?>(null) }
+    var backupsAsk by rememberSaveable { mutableStateOf<String?>(null) }
     val files = rememberFileActions(container, onProblem = { problem -> problem?.let { container.windowNotices.trySend(Notice(uiPlain(it), isProblem = true)) } })
     notOpen.firstOrNull { it.id.value == sheetOf }?.let { database ->
         NotOpenSheet(
@@ -283,7 +288,16 @@ internal fun EntryListScreen(
                 onCloseDatabase(database.id)
             },
             onDismiss = { sheetOf = null },
+            onBackups = { ask ->
+                sheetOf = null
+                backupsOf = database.id.value
+                backupsAsk = ask
+            },
         )
+    }
+    // Its backups, from the sheet of one whose file is not found (keething-spec databases.not-open AC5).
+    notOpen.firstOrNull { it.id.value == backupsOf }?.let { database ->
+        BackupsSheet(container, database.line, backupsAsk, onNotice = { container.windowNotices.trySend(it) }, onDismiss = { backupsOf = null }, onRestored = onBackupRestored)
     }
     // A read-only database's chip: its sheet (keething-spec databases.read-only-mark AC4).
     var readOnlySheetOf by rememberSaveable { mutableStateOf<String?>(null) }

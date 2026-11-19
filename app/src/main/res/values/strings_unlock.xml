@@ -6,7 +6,7 @@
         <item quantity="other">Locked after %1$d minutes in the background</item>
     </plurals>
     <string name="unlock_password_changed">The database password was changed. Enter the new one.</string>
-    <string name="unlock_restored_older_key">A backup made before its master key changed was restored. Enter the password it had then.</string>
+    <string name="unlock_restored_older_key">A backup made before its master key changed was restored. Enter its password, and its key file then.</string>
 
     <!-- After a fingerprint attempt (unlock/LockTexts.kt) -->
     <!-- %1$s: why, in a few words ("no fingerprint is set up on this phone") -->

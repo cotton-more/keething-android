@@ -29,4 +29,5 @@
     <string name="autofill_save_saved">Сохранено в Keething</string>
     <string name="autofill_save_new_title">Сохранить логин, введённый в %1$s</string>
     <string name="autofill_save_new_text">Новая запись; проверьте её название и группу.</string>
+    <string name="autofill_ok">OK</string>
 </resources>

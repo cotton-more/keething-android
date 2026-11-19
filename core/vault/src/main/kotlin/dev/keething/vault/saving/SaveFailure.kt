@@ -91,6 +91,15 @@ public sealed interface SaveFailure {
      */
     public data class BackupNotOpened(val failure: OpenFailure) : SaveFailure
 
+    /**
+     * A backup restored where the database's file was gone found a file there by the time it wrote (a sync brought it
+     * back): nothing was written over it (keething-spec databases.backups-window AC8).
+     */
+    public data object FileThereNow : SaveFailure
+
+    /** A backup restored where the database's file was gone found no folder to write it in: nothing was written (AC8). */
+    public data object FolderGone : SaveFailure
+
     /** The file changed on disk while saving, twice in a row. */
     public data object FileKeepsChanging : SaveFailure
 
@@ -136,9 +145,10 @@ internal sealed interface RestoreResult {
     /**
      * The file was replaced with the backup's bytes. [opened]: those read back with the database's key, ready to be the
      * vault; null when no key was given (locked) or the backup does not open with it ([olderKey]). [beforeRestoring]:
-     * the backup the file as it was is in, to undo it with. [mayNotSync]: as [SaveResult.Saved.mayNotSync].
+     * the backup the file as it was is in, to undo it with; null when there was no file (written as a new one, no Undo).
+     * [mayNotSync]: as [SaveResult.Saved.mayNotSync].
      */
-    class Restored(val opened: OpenedVault?, val olderKey: Boolean, val beforeRestoring: String, val mayNotSync: Boolean = false) : RestoreResult
+    class Restored(val opened: OpenedVault?, val olderKey: Boolean, val beforeRestoring: String?, val mayNotSync: Boolean = false) : RestoreResult
 
     class Failed(val failure: SaveFailure) : RestoreResult
 }

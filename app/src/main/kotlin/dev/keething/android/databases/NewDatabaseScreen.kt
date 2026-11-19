@@ -424,11 +424,13 @@ private fun KeyFileSection(model: NewDatabaseModel, onMake: () -> Unit, onHave: 
                         Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.extraColors.warn)
                     }
                 }
-                Text(
-                    stringResource(R.string.databases_key_file_lose),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                model.keyFileLoss?.let {
+                    Text(
+                        it.resolve(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

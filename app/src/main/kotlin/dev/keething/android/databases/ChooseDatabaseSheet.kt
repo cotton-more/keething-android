@@ -66,10 +66,14 @@ import dev.keething.android.R
 /** A folder the user granted: its grant and where it is on the storage. */
 internal data class GrantedPlace(val grant: String, val place: StoragePlace)
 
-/** The folders the list's databases and key files are reached through, in the list's order (keething-spec databases.saf AC3). */
-internal fun Databases.grantedFolders(): List<GrantedPlace> =
+/**
+ * The folders the list's databases and key files are reached through, in the list's order (keething-spec databases.saf
+ * AC3); only those whose grant is [held] (null: every one), as a grant gone is no way in (AC10).
+ */
+internal fun Databases.grantedFolders(held: Set<String>? = null): List<GrantedPlace> =
     records.flatMap { listOfNotNull(it.file, it.keyFile) }
         .filterIsInstance<FileLocation.InFolder>()
+        .filter { held == null || it.grant in held }
         .map { GrantedPlace(it.grant, it.folder) }
         .distinctBy { it.grant }
 

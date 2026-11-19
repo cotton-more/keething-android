@@ -28,6 +28,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import dev.keething.android.ui.english
+import dev.keething.domain.text.UserText
 
 /**
  * The chooser and its run as the app keeps them (plan AD13; keething-spec databases.chooser AC2, AC6–AC8; the Mac's
@@ -74,10 +75,17 @@ class WindowChooserTest {
         /** What a fingerprint opens of those it is asked for. */
         var fingerprintOpens = emptySet<DatabaseId>()
 
+        /** Why typing cannot open each: the run skips it by itself. */
+        val cannot = mutableMapOf<DatabaseId, String>()
+
+        /** Those whose unlock was counted told (with how many notices were told by then), and those counted tried. */
+        val markedTold = mutableListOf<Pair<List<DatabaseId>, Int>>()
+        val markedTried = mutableSetOf<DatabaseId>()
+
         val chooser = WindowChooser(
             list = list,
             startRun = { ids ->
-                UnlockRun(ids, cannotOpen = { null }, isOpen = { it in opened }) { id, password ->
+                UnlockRun(ids, cannotOpen = { id -> cannot[id]?.let(UserText::plain) }, isOpen = { it in opened }) { id, password ->
                     tried += id
                     password.wipe()
                     failures[id]?.let { UnlockRun.Attempt.Failed(it) } ?: UnlockRun.Attempt.Opened.also { opened += id }
@@ -87,8 +95,9 @@ class WindowChooserTest {
                 fingerprints++
                 fingerprintedFor += among
                 duringFingerprint()
-                opened += fingerprintOpens.filter { among == null || it in among }
-                WindowFingerprintResult(fingerprint, emptyMap())
+                val opens = fingerprintOpens.filter { among == null || it in among }
+                opened += opens
+                WindowFingerprintResult(fingerprint, opens.associateWith { FingerprintOutcome.Unlocked })
             },
             canUnlockAny = { among ->
                 askedFor += among
@@ -103,6 +112,8 @@ class WindowChooserTest {
             scope = scope.backgroundScope,
             window = window,
             lockCount = locks,
+            markTold = { markedTold += it to told.size },
+            markTried = { markedTried += it },
         )
 
         /** Skip on the database the run asks now; the run moves on. */
@@ -216,6 +227,51 @@ class WindowChooserTest {
         assertEquals(emptySet(), f.chooser.skipped.value, "a wrong password on its own lock screen")
     }
 
+    // spec: databases.chooser/AC7
+    @Test
+    fun theUnlocksTheRunOpenedCountToldBeforeItsEndIsToldSoItsNoticeComesAlone() = runTest {
+        val f = Fixture(this)
+        f.chooser.start(listOf(personal, work))
+        runCurrent()
+        f.type()
+        runCurrent()
+        f.skip()
+
+        assertEquals(listOf(listOf(personal) to 0), f.markedTold, "before the run's notice")
+        assertEquals(listOf("1 of 2 open · Work: skipped"), f.told)
+    }
+
+    // spec: databases.not-open/AC1
+    @Test
+    fun thoseTheRunSkippedByItselfWaitOnTheLine() = runTest {
+        val f = Fixture(this)
+        f.cannot[work] = "not found"
+        f.chooser.start(listOf(personal, work))
+        runCurrent()
+        f.type()
+        runCurrent()
+
+        assertNull(f.chooser.run.value)
+        assertEquals(listOf("1 of 2 open · Work: not found"), f.told)
+        assertEquals(setOf(work), f.markedTried, "on the line, its state what its files say")
+    }
+
+    @Test
+    fun theCheckedOnesASummonsFingerprintDidNotOpenWaitOnTheLine() = runTest {
+        val f = Fixture(this)
+        val third = list.add(FileLocation.InFolder("grant-sync", sync, "Old.kdbx")).id
+        list.update(third) { it.copy(checkedInChooser = false) }
+        f.window.value += WindowDatabase(third, locked, off)
+        f.fingerprint = FingerprintOutcome.Unlocked
+        f.fingerprintOpens = setOf(personal)
+
+        f.chooser.offer(Visit(1, beganLocked = true))
+        runCurrent()
+
+        assertEquals(1, f.shownOpened)
+        assertEquals(setOf(work), f.markedTried, "checked and not opened; the unchecked one is under Databases only")
+    }
+
     // spec: databases.chooser/AC2
     @Test
     fun theFingerprintsAnswerIsSaidOverTheChooserOnlyWhenNoneOpened() = runTest {
@@ -233,7 +289,6 @@ class WindowChooserTest {
         assertEquals(1, f.shownOpened, "the vault on the first that opened")
     }
 
-    // spec: databases.chooser/AC1
     @Test
     fun theFingerprintIsOfferedOncePerVisitThatBeganLockedAndOnlyWhenOneWouldOpen() = runTest {
         val f = Fixture(this)
@@ -254,7 +309,6 @@ class WindowChooserTest {
         assertEquals(1, f.fingerprints, "not after the user's own Lock")
     }
 
-    // spec: databases.chooser/AC4
     @Test
     fun aCheckIsRememberedAtOnceAndARunNeedsOneChecked() = runTest {
         val f = Fixture(this)

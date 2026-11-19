@@ -1,6 +1,7 @@
 package dev.keething.android.databases
 
 import dev.keething.android.R
+import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.android.ui.UiText
 import dev.keething.android.ui.uiListed
 import dev.keething.android.ui.uiPlain
@@ -54,7 +55,18 @@ internal data class FileLook(val reach: Reach, val modified: Instant? = null)
 internal fun interface DatabaseFiles {
     /** [location]'s file, reached through a grant (one kept by its path is never looked at: [Reach.NEEDS_FOLDER]). */
     fun look(location: FileLocation): FileLook
+
+    /** [id]'s newest backup that would open, asked of a database whose file is not found (keething-spec databases.not-open AC5). */
+    fun newestBackup(id: DatabaseId): FileDatabaseBackups.Newest? = null
 }
+
+/** [DatabaseFiles] with [look] and [newestBackup]. */
+internal fun DatabaseFiles(look: (FileLocation) -> FileLook, newestBackup: (DatabaseId) -> FileDatabaseBackups.Newest?): DatabaseFiles =
+    object : DatabaseFiles {
+        override fun look(location: FileLocation): FileLook = look(location)
+
+        override fun newestBackup(id: DatabaseId): FileDatabaseBackups.Newest? = newestBackup(id)
+    }
 
 /**
  * Every file of [databases] reached through a grant looked at side by side, a few at a time on the io dispatcher (each
@@ -63,7 +75,7 @@ internal fun interface DatabaseFiles {
 internal suspend fun DatabaseFiles.lookedAt(databases: Databases): DatabaseFiles {
     val locations = databases.records.flatMap { listOfNotNull(it.file, it.keyFile) }.filterNot { it is FileLocation.ByPath }.distinct()
     val found = withContext(LOOKING) { locations.map { async { it to look(it) } }.awaitAll().toMap() }
-    return DatabaseFiles { found[it] ?: look(it) }
+    return DatabaseFiles({ found[it] ?: look(it) }) { newestBackup(it) }
 }
 
 /** At most this many files looked at at once. */
@@ -104,7 +116,12 @@ internal data class DatabaseLine(
     val usesFingerprint: Boolean = false,
     /** Its colour, an index into [DatabasePalette.shades]. */
     val colorIndex: Int = 0,
+    /** Its file not found: its newest backup that would open, offered to restore (keething-spec databases.not-open AC5). */
+    val newestBackup: FileDatabaseBackups.Newest? = null,
 ) {
+    /** Its file is not found (not No access: its file may be there): its name and folder, for the backups' words. */
+    val notFound: BackupTexts.NotFound? get() = if (reach == Reach.NOT_FOUND) BackupTexts.NotFound(fileName, folder) else null
+
     /** Its file cannot be reached now: not found, no access any more, or its folder not asked for yet (Locate… or Choose its folder…). */
     val isMissing: Boolean get() = reach == Reach.NOT_FOUND || reach == Reach.NO_ACCESS || reach == Reach.NEEDS_FOLDER
 
@@ -432,12 +449,21 @@ private fun Databases.line(
         lastOpened = record.lastOpened,
         usesFingerprint = record.useBiometric,
         colorIndex = colorIndex,
+        // Not No access: its file may well be there (A3's, not this).
+        newestBackup = if (look.reach == Reach.NOT_FOUND) files.newestBackup(record.id) else null,
     )
 }
 
-/** [file] as the app can reach it now: one kept by its path needs its folder first, and is not looked at (AC1, AC13). */
-private fun look(file: FileLocation, files: DatabaseFiles): FileLook =
-    if (file is FileLocation.ByPath) FileLook(Reach.NEEDS_FOLDER) else files.look(file)
+/**
+ * A database's [file] as the app can reach it now: one kept by its path needs its folder first, and is not looked at
+ * (AC1, AC13); one reached through a grant to its file alone is never read through it, so it has no access until it is
+ * located (app.upgrade-safety AC3).
+ */
+private fun look(file: FileLocation, files: DatabaseFiles): FileLook = when (file) {
+    is FileLocation.ByPath -> FileLook(Reach.NEEDS_FOLDER)
+    is FileLocation.Granted -> FileLook(Reach.NO_ACCESS)
+    is FileLocation.InFolder -> files.look(file)
+}
 
 /** What the lock screen shows of [line]'s database. */
 internal fun DatabaseRecord.lockScreen(line: DatabaseLine): LockScreenDatabase {

@@ -152,13 +152,29 @@
     <string name="databases_backups_undoing">Возвращаем %1$s к виду до восстановления…</string>
     <string name="databases_backups_restored">Восстановлена резервная копия от %1$s</string>
     <string name="databases_backups_undone">%1$s снова такая, какой была до восстановления</string>
-    <string name="databases_backups_older_key">Восстановлено. Эта копия открывается мастер-ключом, который был у %1$s %2$s, поэтому %1$s заблокирована: разблокируйте её тем паролем. До тех пор вход по отпечатку для неё выключен.</string>
-    <string name="databases_backups_older_key_then">Восстановлено. Эта копия открывается мастер-ключом, который был у %1$s тогда, поэтому %1$s заблокирована: разблокируйте её тем паролем. До тех пор вход по отпечатку для неё выключен.</string>
+    <string name="databases_backups_older_key">Восстановлено. Эта копия открывается мастер-ключом, который был у %1$s %2$s, поэтому %1$s заблокирована: разблокируйте её тогдашним паролем и тогдашним файлом-ключом. До тех пор вход по отпечатку для неё выключен.</string>
+    <string name="databases_backups_older_key_then">Восстановлено. Эта копия открывается мастер-ключом, который был у %1$s тогда, поэтому %1$s заблокирована: разблокируйте её тогдашним паролем и тогдашним файлом-ключом. До тех пор вход по отпечатку для неё выключен.</string>
     <string name="databases_backups_not_restored_write">Не восстановлено: не удалось записать %1$s (%2$s). Ничего не изменилось, резервная копия не добавлена.</string>
     <string name="databases_backups_not_restored_changing">Не восстановлено: %1$s всё время менялась (синхронизация?). Ничего не изменилось, резервная копия не добавлена; попробуйте через минуту.</string>
     <string name="databases_backups_not_restored_locked">Не восстановлено: база заблокировалась, пока открывалась резервная копия. Ничего не изменилось, резервная копия не добавлена.</string>
     <string name="databases_backups_not_restored_cannot_open">Не восстановлено: %1$s Ничего не изменилось, резервная копия не добавлена.</string>
     <string name="databases_backups_not_restored">Не восстановлено. %1$s, резервная копия не добавлена.</string>
+    <string name="databases_backups_not_restored_there_now">Не восстановлено: в %2$s снова есть %1$s. Ничего не записано: откройте её такой, как есть.</string>
+    <string name="databases_backups_not_restored_folder_gone">Не восстановлено: папки %1$s больше нет. Ничего не записано: найдите файл или снова выберите его папку.</string>
+    <string name="databases_backups_restore_gone_title">Восстановить %1$s из резервной копии?</string>
+    <string name="databases_backups_restore_gone_text">%1$s будет снова записан в %2$s в том виде, каким был %3$s. Изменений, сделанных после, в нём не будет.</string>
+    <string name="databases_backups_restore_gone_note">Файла нет, сохранять перед этим нечего, поэтому отменить восстановление нельзя. Если файл только переименован или ещё не синхронизирован, лучше найдите его.</string>
+    <string name="databases_backups_restored_as_new">Восстановлено: %1$s снова в %2$s в том виде, каким был %3$s. Она открывается мастер-ключом, который был у неё тогда.</string>
+    <string name="databases_backups_not_found_offer">%1$s больше нет в %2$s. Найдите файл или восстановите последнюю резервную копию, от %3$s.</string>
+    <string name="databases_backups_restore_newest">Восстановить последнюю копию…</string>
+    <string name="databases_backups_restore_backup">Восстановить копию…</string>
+    <string name="databases_backups_other">Другие копии…</string>
+    <plurals name="databases_backups_newest_detail">
+        <item quantity="one">%1$s · %2$s · на телефоне %3$d копия</item>
+        <item quantity="few">%1$s · %2$s · на телефоне %3$d копии</item>
+        <item quantity="many">%1$s · %2$s · на телефоне %3$d копий</item>
+        <item quantity="other">%1$s · %2$s · на телефоне %3$d копии</item>
+    </plurals>
 
     <plurals name="databases_strength_passphrase">
         <item quantity="one">Надёжный · %1$d слово, около %2$d бит</item>
@@ -247,6 +263,7 @@
     <string name="databases_change_key_opens_with_its_password_and_key_file">Теперь %1$s открывается своим паролем и файлом %2$s.</string>
     <string name="databases_change_key_opens_with_new_password_and_key_file">Теперь %1$s открывается новым паролем и файлом %2$s.</string>
     <string name="databases_change_key_fingerprint_problem">Не удалось сохранить новый пароль для входа по отпечатку: %1$s. Он сохранится при следующей разблокировке паролем.</string>
+    <string name="databases_change_key_locked_meanwhile">База заблокировалась, пока изменение записывалось; изменение в файле. Откройте её новым ключом.</string>
     <string name="databases_change_key_other_devices">Ваши другие устройства попросят новый ключ, как только до них дойдёт файл; сохранённый там отпечаток перестанет работать, пока не введут новый пароль.</string>
     <string name="databases_change_key_old_copies">Копии файла, сделанные раньше, по-прежнему открываются старым ключом: резервные копии на этом телефоне и в других местах, копии на других устройствах, старые версии от синхронизации (.stversions у Syncthing). После утечки удалите те, что можете.</string>
     <string name="databases_done">Готово</string>
@@ -330,6 +347,7 @@
     <string name="databases_chooser_key_no_access">%1$s: нет доступа</string>
     <string name="databases_chooser_cannot_be_read">Не читается</string>
     <string name="databases_chooser_damaged">Повреждена или не синхронизирована</string>
+    <string name="databases_chooser_not_found_backups">Не найдена · есть копии</string>
     <string name="databases_chooser_out_of_memory">Не хватает памяти</string>
     <string name="databases_chooser_read_failed">Ошибка чтения</string>
     <string name="databases_chooser_key_unusable">%1$s нельзя использовать</string>
@@ -434,6 +452,19 @@
 
     <string name="databases_remove_title">Убрать «%1$s» из списка?</string>
     <string name="databases_remove_text">Keething забудет её на этом телефоне вместе с сохранённым паролем. Файл останется на месте.</string>
+    <plurals name="databases_remove_text_backups">
+        <item quantity="one">Keething забудет её на этом телефоне вместе с сохранённым паролем и %1$d резервной копией. Файл останется на месте.</item>
+        <item quantity="few">Keething забудет её на этом телефоне вместе с сохранённым паролем и %1$d резервными копиями. Файл останется на месте.</item>
+        <item quantity="many">Keething забудет её на этом телефоне вместе с сохранённым паролем и %1$d резервными копиями. Файл останется на месте.</item>
+        <item quantity="other">Keething забудет её на этом телефоне вместе с сохранённым паролем и %1$d резервными копиями. Файл останется на месте.</item>
+    </plurals>
+    <plurals name="databases_remove_text_last_copies">
+        <item quantity="one">%2$s больше нет в %3$s, и %1$d резервная копия на этом телефоне может быть последней. Она удалится вместе с сохранённым паролем, вернуть её будет нельзя.</item>
+        <item quantity="few">%2$s больше нет в %3$s, и %1$d резервные копии на этом телефоне могут быть последними. Они удалятся вместе с сохранённым паролем, вернуть их будет нельзя.</item>
+        <item quantity="many">%2$s больше нет в %3$s, и %1$d резервных копий на этом телефоне могут быть последними. Они удалятся вместе с сохранённым паролем, вернуть их будет нельзя.</item>
+        <item quantity="other">%2$s больше нет в %3$s, и %1$d резервной копии на этом телефоне могут быть последними. Они удалятся вместе с сохранённым паролем, вернуть их будет нельзя.</item>
+    </plurals>
+    <string name="databases_remove_restore_first">Чтобы сохранить её, сначала восстановите последнюю копию.</string>
     <string name="databases_remove">Убрать</string>
     <string name="databases_shown_now">Показана сейчас</string>
     <string name="databases_remove_named">Убрать «%1$s» из списка…</string>
@@ -541,7 +572,7 @@
     <string name="databases_page_forget">Забыть</string>
     <string name="databases_page_key_file_note">Запоминается по месту, а не по содержимому: рядом с базой или отдельно выбранный файл. Он должен быть на месте при каждой разблокировке, в том числе отпечатком.</string>
     <string name="databases_page_backups">Резервные копии</string>
-    <string name="databases_page_remove_note">Keething забудет её на этом телефоне вместе с сохранённым паролем. Файл останется.</string>
+    <string name="databases_page_remove_note">Keething забудет её на этом телефоне вместе с сохранённым паролем и резервными копиями. Файл останется.</string>
     <string name="databases_page_use_fingerprint">Входить по отпечатку</string>
     <string name="databases_page_fingerprint_not_deleted">Не удалось удалить её сохранённый пароль: %1$s.</string>
     <string name="databases_page_fingerprint_not_set_up">Не удалось настроить: %1$s. Попытка повторится при следующей разблокировке паролем.</string>
