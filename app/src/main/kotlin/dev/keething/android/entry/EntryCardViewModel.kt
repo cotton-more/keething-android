@@ -64,6 +64,7 @@ import java.time.Instant
 import java.time.LocalDate
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,7 +79,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** What the SSH face says of the entry's key (SPEC §6.2): where it is, and its public half when it can be read. */
-internal data class SshKeyView(val location: SshKeyLocation, val publicKey: SshPublicKey?, val problem: UiText?)
+internal data class SshKeyView(val location: SshKeyLocation?, val publicKey: SshPublicKey?, val problem: UiText?)
 
 /** The open card: built from the entry in the vault shown now. */
 internal data class CardContent(
@@ -295,12 +296,12 @@ internal class EntryCardViewModel(
         mutableNotices.trySend(Notice.copied(what))
     }
 
-    /** The SSH face's key: read from the entry's KeeAgent settings and key attachment when the card opens or the vault is read again. */
+    /** The SSH face's key: read from the entry's KeeAgent settings and key attachment when the card opens and each time the vault is read again. */
     var sshKey: SshKeyView? by mutableStateOf(null)
         private set
 
-    /** What [sshKey] was read from, so that a vault read again reads it again only when that changed. */
-    private var extrasKey: Any? = null
+    /** The read of [sshKey] under way: cancelled by the next vault read, so that the latest read is the one shown. */
+    private var sshRead: Job? = null
 
     init {
         viewModelScope.launch { content.collect(::loadSshKey) }
@@ -310,30 +311,34 @@ internal class EntryCardViewModel(
         val card = content?.card
         val entry = unlockedVault()?.let { vault -> (vault.entries + vault.recycleBin).firstOrNull { it.id == entryId } }
         val sshWanted = card?.ssh != null && entry != null && SshKeyLocation.hasSettings(entry.attachments)
-        val key = listOf(sshWanted, entry?.attachments)
-        if (key == extrasKey) return
-        extrasKey = key
+        sshRead?.cancel()
         if (!sshWanted) {
+            sshRead = null
             sshKey = null
             return
         }
-        val attachments = entry!!.attachments
-        viewModelScope.launch { sshKey = withContext(Dispatchers.Default) { readSshKey(attachments) } }
+        // Read again on every vault read: a key replaced by one of the same name and size is a new key.
+        val attachments = entry.attachments
+        sshRead = viewModelScope.launch { sshKey = withContext(Dispatchers.Default) { readSshKey(attachments) } }
     }
 
-    private fun readSshKey(attachments: List<dev.keething.domain.vault.Attachment>): SshKeyView? {
+    private fun readSshKey(attachments: List<dev.keething.domain.vault.Attachment>): SshKeyView {
         val settings = database.session.attachment(entryId, SshKeyLocation.SETTINGS_ATTACHMENT)
         val location = try {
             settings?.useBytes { SshKeyLocation.of(it, attachments) } ?: SshKeyLocation.of(null, attachments)
         } finally {
             settings?.wipe()
         }
-        location ?: return null
+        location ?: return SshKeyView(null, null, uiText(R.string.entry_ssh_key_not_found))
         if (location !is SshKeyLocation.InAttachment) return SshKeyView(location, null, null)
         val bytes = database.session.attachment(entryId, location.name) ?: return SshKeyView(location, null, uiText(R.string.entry_ssh_key_missing, location.name))
         return try {
-            val key = bytes.useBytes(SshPublicKey::ofPrivateKey)
-            SshKeyView(location, key, if (key == null) uiText(R.string.entry_ssh_key_not_openssh) else null)
+            // A parsing mistake is an unreadable key, never the end of the app.
+            when (val read = runCatching { bytes.useBytes(SshPublicKey::ofPrivateKey) }.getOrDefault(SshPublicKey.Read.Unreadable)) {
+                is SshPublicKey.Read.Key -> SshKeyView(location, read.key, null)
+                SshPublicKey.Read.OtherFormat -> SshKeyView(location, null, uiText(R.string.entry_ssh_key_not_openssh))
+                SshPublicKey.Read.Unreadable -> SshKeyView(location, null, uiText(R.string.entry_ssh_key_unreadable, location.name))
+            }
         } finally {
             bytes.wipe()
         }

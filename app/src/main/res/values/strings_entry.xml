@@ -90,6 +90,9 @@
     <!-- %1$s: the key's attachment -->
     <string name="entry_ssh_key_missing">%1$s is not in the database</string>
     <string name="entry_ssh_key_not_openssh">Only keys in the OpenSSH format can be read</string>
+    <!-- %1$s: the key's attachment -->
+    <string name="entry_ssh_key_unreadable">%1$s is not a readable SSH key</string>
+    <string name="entry_ssh_key_not_found">Cannot tell which attachment holds the key</string>
 
     <!-- The card's rows (entry/CardSections.kt) -->
     <!-- %1$s: the field, as the card names it, in lower case -->

@@ -146,6 +146,11 @@ tasks:
     cmds:
       - tools/make-otp-database.py {{.CLI_ARGS | default "otp-formats.kdbx"}}
 
+  ssh:database:
+    desc: "The SSH keys test database (keething-spec ssh.key-details): task ssh:database -- [file] (default T12-ssh.kdbx; password pw; needs keepassxc-cli)"
+    cmds:
+      - tools/make-ssh-database.py {{.CLI_ARGS | default "T12-ssh.kdbx"}}
+
   large:database:
     desc: "A large fictitious database for app.large-database's measurements: task large:database -- <new.kdbx> [entries] [attachments MiB] [Argon2 MiB] [iterations] (password pw)"
     cmds:

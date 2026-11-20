@@ -341,7 +341,7 @@ internal fun SshSection(section: CardSection, login: SshLogin, key: SshKeyView?,
                         val port = login.port ?: 22
                         Text(
                             when {
-                                location != null -> stringResource(R.string.entry_ssh_chip_key, port)
+                                location != null || key != null -> stringResource(R.string.entry_ssh_chip_key, port)
                                 hasPassword -> stringResource(R.string.entry_ssh_chip_password, port)
                                 else -> stringResource(R.string.entry_ssh_chip_port, port)
                             },
@@ -459,13 +459,16 @@ private fun KeyLine(key: SshKeyView, actions: CardActions) {
     ) {
         Icon(Icons.Rounded.Key, contentDescription = null, Modifier.padding(top = 2.dp).size(18.dp), tint = Terminal.prompt)
         Column(Modifier.weight(1f)) {
-            val name = key.location.name.substringAfterLast('/')
-            Text(listOfNotNull(name, publicKey?.displayType).joinToString(" · "), color = Terminal.ink, fontFamily = MonospaceFamily, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val name = key.location?.name?.substringAfterLast('/')
+            listOfNotNull(name, publicKey?.displayType).takeIf { it.isNotEmpty() }?.let {
+                Text(it.joinToString(" · "), color = Terminal.ink, fontFamily = MonospaceFamily, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             publicKey?.let { Text(it.fingerprint, color = Terminal.label, fontFamily = MonospaceFamily, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             Text(
                 key.problem?.resolve() ?: when (key.location) {
                     is SshKeyLocation.InAttachment -> stringResource(R.string.entry_ssh_key_in_attachment)
                     is SshKeyLocation.InFile -> stringResource(R.string.entry_ssh_key_in_file)
+                    null -> stringResource(R.string.entry_ssh_key_not_found)
                 },
                 color = Terminal.label,
                 style = MaterialTheme.typography.bodySmall,

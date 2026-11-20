@@ -69,6 +69,8 @@
     <string name="entry_restored_to_top">Восстановлена в верхнюю группу</string>
     <string name="entry_ssh_key_missing">В базе нет %1$s</string>
     <string name="entry_ssh_key_not_openssh">Читаются только ключи в формате OpenSSH</string>
+    <string name="entry_ssh_key_unreadable">%1$s не читается как ключ SSH</string>
+    <string name="entry_ssh_key_not_found">Непонятно, в каком вложении ключ</string>
 
     <string name="entry_row_copy">Скопировать: %1$s</string>
     <string name="entry_row_hide">Скрыть: %1$s</string>

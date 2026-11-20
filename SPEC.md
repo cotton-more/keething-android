@@ -1696,10 +1696,15 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     port 22; `-i <file>` for a key in a file; words the shell would split quoted), host / user / port (the user is
     the `ssh.user` field, else the one written in the host, else the entry's username, marked "the username"), the
     key when the entry has KeePassXC's SSH agent settings (Mac SPEC §3.15: the `KeeAgent.settings` attachment names
-    an attachment of the entry or a file on the computer; unreadable, the only key-like attachment): its name, type
-    and `SHA256:` fingerprint as `ssh-keygen -l` prints it, read only up to the public key, which the OpenSSH format
-    keeps in the clear even under a passphrase (`SshPublicKey`, the Mac's `OpenSSHPrivateKey.publicKey`); a tap
-    copies the `authorized_keys` line. Then a `~/.ssh/config` block with its own Copy (`Host` from the entry's title,
+    an attachment of the entry or a file on the computer; settings that cannot be read or name no key: the only other
+    attachment, `.pub` files aside, else the only one named `id_…`): its name, type and `SHA256:` fingerprint as
+    `ssh-keygen -l` prints it, read only up to the public key, which the OpenSSH format keeps in the clear even under
+    a passphrase (`SshPublicKey`, the Mac's `OpenSSHPrivateKey.publicKey`); a tap copies the `authorized_keys` line.
+    The key line says otherwise where the key is or why it shows nothing: a key in a file is only named ("Key file on
+    the computer, from KeePassXC's settings"); "`<name>` is not in the database"; "Only keys in the OpenSSH format can
+    be read" (PEM, PKCS#8, PuTTY); "`<name>` is not a readable SSH key" (OpenSSH text cut short or broken: never the
+    end of the app); "Cannot tell which attachment holds the key" (the chip still `key`). Read again each time the
+    database is read. An entry with the settings and no host shows nothing of its key (the idea `ssh.key-alone`). Then a `~/.ssh/config` block with its own Copy (`Host` from the entry's title,
     `HostName`, `User`, `Port`; a key in a file as `IdentityFile` with `IdentitiesOnly yes`; an attachment's key as a
     comment, the agent gives it to ssh). The phone runs no agent. A tap copies a line; **Copy ssh command**; **Open
     in <app>** when an app on the phone opens `ssh://` links (ConnectBot, JuiceSSH; `ssh://user@host:port`), "an SSH

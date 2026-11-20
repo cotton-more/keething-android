@@ -291,13 +291,13 @@ class MoreFacesTest {
 
     @Test
     fun thePublicKeyIsReadWithoutThePassphrase() {
-        val plain = SshPublicKey.ofPrivateKey(KEY.encodeToByteArray())!!
+        val plain = (SshPublicKey.ofPrivateKey(KEY.encodeToByteArray()) as SshPublicKey.Read.Key).key
         assertEquals("ED25519", plain.displayType)
         assertEquals("SHA256:6IK1fKL0N2ghqRZbLPbeRBBpe1b09igI53UhdvRz3yY", plain.fingerprint)
         assertEquals("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOWVGtt4PNJgXEX0ZbWQVkWXPlxRNb3iQfdsZIhbH5OP", plain.line)
-        val protected = SshPublicKey.ofPrivateKey(PROTECTED_KEY.encodeToByteArray())!!
+        val protected = (SshPublicKey.ofPrivateKey(PROTECTED_KEY.encodeToByteArray()) as SshPublicKey.Read.Key).key
         assertEquals("SHA256:XKASjHadgaZNyf2Uk3YtKG5uLZ6gw7SRihou3Wt24qo", protected.fingerprint)
-        assertNull(SshPublicKey.ofPrivateKey("-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----".encodeToByteArray()))
+        assertEquals(SshPublicKey.Read.OtherFormat, SshPublicKey.ofPrivateKey("-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----".encodeToByteArray()))
     }
 
     // The offer
@@ -323,7 +323,7 @@ class MoreFacesTest {
         assertNull(TypeSuggestion.of(Entry("h", customFields = listOf(field("Server", "mail.example.com")))), "a host alone could be a website's")
     }
 
-    private companion object {
+    internal companion object {
         /** Throwaway keys made for these tests (`ssh-keygen -t ed25519`), the second with a passphrase. */
         const val KEY = """-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW

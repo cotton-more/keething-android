@@ -96,25 +96,45 @@ public class SshPublicKey private constructor(private val blob: ByteArray) {
 
     override fun toString(): String = "SshPublicKey($displayType $fingerprint)" // not user text
 
+    /** What a private key's file gave. */
+    public sealed interface Read {
+        public data class Key(val key: SshPublicKey) : Read
+
+        /** Not in the OpenSSH format (PKCS#8, PEM, PuTTY, or no key at all). */
+        public data object OtherFormat : Read
+
+        /** OpenSSH text that cannot be read: cut short or broken. */
+        public data object Unreadable : Read
+    }
+
     public companion object {
         private val HEADER = "-----BEGIN OPENSSH PRIVATE KEY-----".encodeToByteArray() // not user text
         private val MAGIC = "openssh-key-v1\u0000".encodeToByteArray()
 
+        /** As far as the public key is decoded at most. */
+        private const val LIMIT = 17_000
+
         /**
          * The public key of a private key in the OpenSSH format (Mac `OpenSSHPrivateKey.publicKey`). The format keeps it
          * in the clear in front of the private part, also under a passphrase, so the base64 text is decoded only up to
-         * its end, into a buffer wiped afterwards; null for another format or a broken file.
+         * its end, into a buffer wiped afterwards. Without the OpenSSH header it is [Read.OtherFormat]; OpenSSH text
+         * that cannot be read is [Read.Unreadable] (the Mac's `notOpenSSHFormat` and `malformed`).
          */
-        public fun ofPrivateKey(key: ByteArray): SshPublicKey? {
-            val start = indexOf(key, HEADER) ?: return null
+        public fun ofPrivateKey(key: ByteArray): Read {
+            val start = indexOf(key, HEADER) ?: return Read.OtherFormat
+            return publicKey(key, start)?.let(Read::Key) ?: Read.Unreadable
+        }
+
+        private fun publicKey(key: ByteArray, start: Int): SshPublicKey? {
             val decoder = PrefixBase64(key, start + HEADER.size)
             try {
                 if (!decoder.decode(MAGIC.size) || !decoder.output.copyOf(MAGIC.size).contentEquals(MAGIC)) return null
                 var offset = MAGIC.size
-                // cipher, kdf, kdf options, then the number of keys and the first public key.
-                repeat(3) { offset += 4 + (decoder.uint32(offset) ?: return null) }
+                // cipher, kdf, kdf options, then the number of keys and the first public key; each length is checked
+                // against the room left, so a broken one never reaches past the buffer.
+                repeat(3) { offset += 4 + (decoder.uint32(offset)?.takeIf { it <= LIMIT - offset - 8 } ?: return null).toInt() }
                 offset += 4
-                val length = decoder.uint32(offset)?.takeIf { it in 1 until 16_384 } ?: return null
+                val length = decoder.uint32(offset)?.takeIf { it in 1 until 16_384 && it <= LIMIT - offset - 4 }?.toInt() ?: return null
                 if (!decoder.decode(offset + 4 + length)) return null
                 val blob = decoder.output.copyOfRange(offset + 4, offset + 4 + length)
                 return SshPublicKey(blob).takeIf { it.type.isNotEmpty() }
@@ -125,9 +145,9 @@ public class SshPublicKey private constructor(private val blob: ByteArray) {
 
         private fun wireString(data: ByteArray): ByteArray? {
             if (data.size < 4) return null
-            val length = data.take(4).fold(0) { acc, b -> acc shl 8 or (b.toInt() and 0xFF) }
-            if (length <= 0 || data.size < 4 + length) return null
-            return data.copyOfRange(4, 4 + length)
+            val length = data.take(4).fold(0L) { acc, b -> acc shl 8 or (b.toLong() and 0xFF) }
+            if (length <= 0 || length > data.size - 4) return null
+            return data.copyOfRange(4, 4 + length.toInt())
         }
 
         private fun indexOf(bytes: ByteArray, needle: ByteArray): Int? {
@@ -141,13 +161,13 @@ public class SshPublicKey private constructor(private val blob: ByteArray) {
 
     /** Decodes base64 from a buffer, skipping line breaks, only as far as asked: the private part is never decoded. */
     private class PrefixBase64(private val source: ByteArray, private var position: Int) {
-        var output = ByteArray(17_000)
+        var output = ByteArray(LIMIT + 2) // room for the last group of four, which may pass the count asked
         var size = 0
         private val quad = IntArray(4)
         private var filled = 0
 
         fun decode(count: Int): Boolean {
-            if (count > output.size) return false
+            if (count > LIMIT) return false
             while (size < count) {
                 if (position >= source.size) return false
                 val c = source[position++].toInt().toChar()
@@ -164,9 +184,10 @@ public class SshPublicKey private constructor(private val blob: ByteArray) {
             return true
         }
 
-        fun uint32(offset: Int): Int? {
-            if (!decode(offset + 4)) return null
-            return (0 until 4).fold(0) { acc, i -> acc shl 8 or (output[offset + i].toInt() and 0xFF) }
+        /** Unsigned, so that a length of 2³¹ or more is not read as negative. */
+        fun uint32(offset: Int): Long? {
+            if (offset < 0 || !decode(offset + 4)) return null
+            return (0 until 4).fold(0L) { acc, i -> acc shl 8 or (output[offset + i].toLong() and 0xFF) }
         }
 
         fun wipe() {
