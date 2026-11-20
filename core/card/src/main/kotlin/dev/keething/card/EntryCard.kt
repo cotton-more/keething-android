@@ -134,8 +134,8 @@ public data class EntryCard(
 /**
  * Lays an entry out as card rows (Mac `EntryCardBuilder`): a note's text first (SPEC §6.4); username, password, URL
  * (and additional URLs), the one-time code; a view per kind of entry its typed fields make (payment card, Wi-Fi
- * network); notes, unless they are a note's text; custom fields in file order grouped by 1Password section; the
- * attachments.
+ * network, bank account, identity document, SSH login, crypto wallet); notes, unless they are a note's text; custom
+ * fields in file order grouped by 1Password section; the attachments.
  */
 public object EntryCardBuilder {
     /** The views of kinds of entries, in card order. */
@@ -207,9 +207,19 @@ public object EntryCardBuilder {
                 if (entry.isExpired(now)) EntryExpiry.Expired(at, hint) else EntryExpiry.Expires(at, hint)
             }
         }
-        // KeePass's own expiry has its banner.
-        val pressing = DeadlineList.deadlines(entry, context.interpreter, now, zone)
-            .filter { it.source != Deadline.Source.EntryExpiry && it.hint.status != ExpiryHint.Status.VALID }
+        // KeePass's own expiry has its banner, a face's own expiry (a card's, a document's) its chip.
+        val faceExpiries = sections.mapNotNull { section ->
+            when (val kind = section.kind) {
+                is CardSection.Kind.PaymentCard -> kind.card.expiryRowId
+                is CardSection.Kind.Document -> kind.document.expiryRowId
+                else -> null
+            }
+        }.toSet()
+        val pressing = DeadlineList.deadlines(entry, context.interpreter, now, zone).filter { deadline ->
+            val source = deadline.source
+            source != Deadline.Source.EntryExpiry && deadline.hint.status != ExpiryHint.Status.VALID &&
+                !(source is Deadline.Source.Field && RowIds.custom(source.index) in faceExpiries)
+        }
         return EntryCard(
             id = entry.id,
             title = entry.displayTitle,
@@ -347,8 +357,8 @@ internal class CardContext(
      * A custom field's row: an unprotected value may be a date or a link; a protected one is never read as
      * either. A typed field is what its type says (only `until` and `card.expiry` end something); an untyped one
      * is a date in an unmistakable form, ending something when the name says so, or a link (Mac SPEC §3.6.2). An
-     * unprotected value typed `password`, or plainly a secret (a private key, an `otpauth://` link), is masked
-     * anyway.
+     * unprotected value typed `password` or as a card's secret, or plainly a secret (a private key, an `otpauth://`
+     * link), is masked anyway ([Masking]).
      */
     fun row(index: Int, field: CustomField, label: UserText, notice: UserText): FieldRow {
         val id = RowIds.custom(index)
@@ -391,7 +401,7 @@ internal class CardContext(
         }
         return FieldRow(
             id, FieldRow.Kind.CUSTOM, label, field.value, noticeLabel = notice, type = type,
-            concealed = type == FieldType.PASSWORD || ValueShape.isPlainlySecret(text),
+            concealed = Masking.isMasked(type, isProtected = false, text),
         )
     }
 }

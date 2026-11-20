@@ -113,7 +113,7 @@ internal fun BankAccountSection(section: CardSection, account: BankAccount, reve
                     StickerLine(account.numberLabel.text.resolve(), number, actions) {
                         val text = if (shown) account.numberShown ?: number?.let(reveal::displayValue).orEmpty() else RevealState.MASK
                         val accent = MaterialTheme.extraColors.digit
-                        // One line, never wrapped (keething-spec types.bank-account AC2): smaller first, down to 13 sp,
+                        // One line, never wrapped (keething-spec types.bank-account AC10): smaller first, down to 13 sp,
                         // where the longest IBAN (34 characters, 42 grouped) fits a phone's face; then cut with "…".
                         Text(
                             buildAnnotatedString {
@@ -211,7 +211,8 @@ internal fun DocumentSection(section: CardSection, document: IdentityDocument, r
                                 Text(document.heading.resolve().uppercase(locale), Modifier.weight(1f), color = ink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.6.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 document.country?.let { country ->
                                     Text(
-                                        listOf(document.countryCode?.let(Countries::flag) ?: Countries.UNKNOWN_FLAG, country.uppercase(locale)).joinToString(" "),
+                                        // A country it cannot read has no flag (keething-spec types.identity-document AC4).
+                                        listOfNotNull(document.countryCode?.let(Countries::flag), country.uppercase(locale)).joinToString(" "),
                                         Modifier.widthIn(max = width * 0.5f),
                                         color = ink,
                                         fontSize = 12.sp,

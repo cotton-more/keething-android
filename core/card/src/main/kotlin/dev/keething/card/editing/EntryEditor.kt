@@ -2,7 +2,6 @@ package dev.keething.card.editing
 
 import dev.keething.card.AddressCheck
 import dev.keething.card.CardText
-import dev.keething.card.CryptoWallet
 import dev.keething.card.CryptoAddress
 import dev.keething.card.DerivationPath
 import dev.keething.card.EntryCardBuilder
@@ -10,12 +9,12 @@ import dev.keething.card.ExtendedKey
 import dev.keething.card.FieldDate
 import dev.keething.card.FieldInterpreter
 import dev.keething.card.FieldType
+import dev.keething.card.Masking
 import dev.keething.card.FieldTypes
 import dev.keething.card.ImportedFieldName
 import dev.keething.card.OneTimeCodes
 import dev.keething.card.SeedPhrase
 import dev.keething.card.SshTarget
-import dev.keething.card.ValueShape
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.TotpConfig
@@ -181,12 +180,10 @@ public class EntryEditor private constructor(
     }
 
     /**
-     * The field's value is masked as the card masks it (card.masking AC1, AC2): protected, a password, a wallet's secret,
-     * or plainly a secret (an `otpauth://` link, a private key).
+     * The field's value is masked as the card masks it (card.masking AC1, AC2): protected, a password or a card's secret,
+     * a wallet's secret, or plainly a secret (an `otpauth://` link, a private key).
      */
-    public fun isMasked(field: FieldDraft): Boolean =
-        field.isProtected || field.type?.isPassword == true || CryptoWallet.isNeverCopied(field.type, field.isProtected, field.value) ||
-            ValueShape.isPlainlySecret(field.value)
+    public fun isMasked(field: FieldDraft): Boolean = Masking.isMasked(field.type, field.isProtected, field.value)
 
     /** An `ssh.host` ssh cannot reach, an `ssh.port` outside 1–65535; saved all the same, shown as a plain row. */
     private fun sshWarning(field: FieldDraft): UserText? {

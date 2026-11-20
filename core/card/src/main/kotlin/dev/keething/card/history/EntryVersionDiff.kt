@@ -1,9 +1,8 @@
 package dev.keething.card.history
 
 import dev.keething.card.CardText
-import dev.keething.card.CryptoWallet
 import dev.keething.card.FieldType
-import dev.keething.card.ValueShape
+import dev.keething.card.Masking
 import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
@@ -60,10 +59,7 @@ public object EntryVersionDiff {
         // Masked as the card masks it in either version (card.masking AC1, AC2; a wallet's secret by its value too).
         fun masked(field: CustomField?, entry: Entry): Boolean {
             if (field == null) return false
-            val type = entry.fieldTypes[field.name]?.let(FieldType::of)
-            val text = field.plainText
-            return field.isProtected || type == FieldType.PASSWORD || CryptoWallet.isNeverCopied(field, type) ||
-                text?.let(ValueShape::isPlainlySecret) == true
+            return Masking.isMasked(entry.fieldTypes[field.name]?.let(FieldType::of), field.isProtected, field.plainText)
         }
         fun typeText(name: String?): UserText =
             if (name == null) UserText.of(CardText.CHANGE_NO_TYPE) else UserText.of(CardText.CHANGE_TYPE, FieldType.of(name)?.fullTitle ?: UserText.plain(name))

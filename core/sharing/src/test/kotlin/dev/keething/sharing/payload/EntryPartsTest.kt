@@ -220,6 +220,21 @@ class EntryPartsTest {
     }
 
     @Test
+    fun anUntypedLitecoinPrivateKeyOrOneOfAVersionNotKnownIsNeverSent() {
+        val keys = Entry(
+            "l",
+            customFields = listOf(
+                CustomField.plain("Ltpv", "Ltpv71G8qDifUiNetfhEfSmD7YzYopWSkhLokecdE1XBBqDsoutBvvUiMvAKypUqUMtCjTF967ixYrEwqjwYK2QgbUKGGnu1wGmJ6pmRJhdnqXg"),
+                CustomField.plain("dgpv", "dgpv51eADS3spNJh9ZLLadSaeWTrxKewJcW8TjvzV79cGcuVg3jE8izzadTCfAYffoKViWMKLQ8bw5ZGX3wahDTgfzChUPt4mgrBJ4ShoQxux1C"),
+                CustomField.plain("dgub", "dgub8kXBZ7ymNWy2S8Q3jNgVjFUm5ZJ3QLLaSTdAA89ukSv7Q6MSXwE14b7Nv6eDpE9JJXinTKc8LeLVu19uDPrm5uJuhpKNzV2kAgncwo6bNpP"),
+            ),
+        )
+
+        assertEquals(mapOf<EntryPart, Kind>(EntryPart.Field("Ltpv") to Kind.PRIVATE_KEY, EntryPart.Field("dgpv") to Kind.PRIVATE_KEY), Sending.neverSent(keys))
+        assertEquals(listOf<EntryPart>(EntryPart.Field("dgub")), Sending.parts(keys))
+    }
+
+    @Test
     fun notCaughtAPhraseInsideLongerNotesAndAWrongChecksum() {
         val notes = Entry("n", notes = "My wallet:\n$phrase", password = Secret.of("legal winner thank year wave sausage worth useful legal winner thank thank"))
 

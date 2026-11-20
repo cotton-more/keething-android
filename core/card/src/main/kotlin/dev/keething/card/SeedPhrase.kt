@@ -60,8 +60,9 @@ public data class SeedPhrase(val words: List<String>, val check: Check) {
             val bestIndices = known.getValue(best)
             // The list's own spelling where a word is in it (accents and all), else the word as written.
             val words = tokens.mapIndexed { i, token -> if (bestIndices[i] >= 0) best.word(bestIndices[i]) else Normalizer.normalize(token, Normalizer.Form.NFC) }
-            val electrum = electrumKind(text, tokens.size)
             val full = Bip39Language.entries.filter { language -> known.getValue(language).all { it >= 0 } }
+            // Electrum's seeds are words of these lists too: anything else is never read as one.
+            val electrum = if (full.isEmpty()) null else electrumKind(text, tokens.size)
             val check = when {
                 full.isNotEmpty() && tokens.size in LENGTHS -> {
                     full.firstOrNull { checksumPasses(known.getValue(it)) }?.let(Check::Bip39)
@@ -122,15 +123,15 @@ public data class SeedPhrase(val words: List<String>, val check: Check) {
 
         /**
          * Electrum's seed versions (Electrum `mnemonic.calc_seed_type`): the HMAC-SHA512 of the text, normalized, keyed
-         * "Seed version", starts with the version in hex. Only for the lengths Electrum makes, so that a BIP-39 phrase with
-         * a typo is seldom taken for one.
+         * "Seed version", starts with the version in hex. Only for words of a list and the lengths Electrum makes (12 or
+         * 13 words, a 2FA seed's 20 and more), so that a BIP-39 phrase with a typo, or a password, is seldom taken for one.
          */
         private fun electrumKind(text: String, count: Int): String? {
             val mac = Mac.getInstance("HmacSHA512") // not user text
             mac.init(SecretKeySpec("Seed version".toByteArray(), "HmacSHA512")) // not user text
             val hex = mac.doFinal(electrumNormalized(text).toByteArray()).joinToString("") { "%02x".format(it) }
             return when {
-                count !in 12..13 && !(count >= 20 && hex.startsWith("101")) && !hex.startsWith("102") -> null
+                count !in 12..13 && !(count >= 20 && (hex.startsWith("101") || hex.startsWith("102"))) -> null
                 // Electrum's own names of its seeds, as Electrum shows them.
                 hex.startsWith("01") -> "Standard" // not user text
                 hex.startsWith("100") -> "SegWit" // not user text
@@ -140,21 +141,60 @@ public data class SeedPhrase(val words: List<String>, val check: Check) {
             }
         }
 
-        /** Electrum `normalize_text`: NFKD, lower case, no accents, one space between words, none between CJK characters. */
-        private fun electrumNormalized(text: String): String {
-            val folded = Normalizer.normalize(text, Normalizer.Form.NFKD).lowercase()
-                .filter { Character.getType(it) != Character.NON_SPACING_MARK.toInt() }
-                .split(Regex("[\\s\\u3000]+")).filter { it.isNotEmpty() }.joinToString(" ")
+        /**
+         * Electrum `normalize_text`: NFKD, lower case, no character of a combining class other than 0, one space between
+         * words (any Unicode space), none between CJK characters (Electrum's `CJK_INTERVALS`; the Mac's `ElectrumSeed`).
+         */
+        internal fun electrumNormalized(text: String): String {
+            val folded = Normalizer.normalize(text, Normalizer.Form.NFKD).lowercase().codePoints().toArray().filter { !isCombining(it) }
+            val words = mutableListOf<List<Int>>()
+            var word = mutableListOf<Int>()
+            for (point in folded) {
+                if (Character.isWhitespace(point) || Character.isSpaceChar(point)) {
+                    if (word.isNotEmpty()) words += word
+                    word = mutableListOf()
+                } else {
+                    word += point
+                }
+            }
+            if (word.isNotEmpty()) words += word
+            val joined = words.flatMapIndexed { i, w -> if (i == 0) w else listOf(' '.code) + w }
             return buildString {
-                for ((i, char) in folded.withIndex()) {
-                    if (char == ' ' && i > 0 && i < folded.length - 1 && isCjk(folded[i - 1]) && isCjk(folded[i + 1])) continue
-                    append(char)
+                for ((i, point) in joined.withIndex()) {
+                    if (point == ' '.code && i > 0 && i < joined.size - 1 && isCjk(joined[i - 1]) && isCjk(joined[i + 1])) continue
+                    appendCodePoint(point)
                 }
             }
         }
 
-        private fun isCjk(char: Char): Boolean = Character.UnicodeScript.of(char.code) == Character.UnicodeScript.HAN ||
-            char.code in 0x3040..0x30FF || char.code in 0xAC00..0xD7AF || char.code in 0x3100..0x312F
+        /**
+         * A combining class other than 0 (Python's `unicodedata.combining`), which the JDK does not say: such a mark is put
+         * before a mark of a lower class by canonical ordering, so one probe below it (U+0301, 230) and one above it (U+0334,
+         * 1) tell. Every such character is a mark (Mn or Mc), so nothing else is probed.
+         */
+        private fun isCombining(point: Int): Boolean {
+            val type = Character.getType(point)
+            if (type != Character.NON_SPACING_MARK.toInt() && type != Character.COMBINING_SPACING_MARK.toInt()) return false
+            val mark = String(Character.toChars(point))
+            return Normalizer.normalize("a\u0301$mark", Normalizer.Form.NFD) != "a\u0301$mark" ||
+                Normalizer.normalize("a$mark\u0334", Normalizer.Form.NFD) != "a$mark\u0334"
+        }
+
+        private fun isCjk(point: Int): Boolean = CJK_INTERVALS.any { point in it }
+
+        /** Electrum's `CJK_INTERVALS`, in its order. */
+        private val CJK_INTERVALS: List<IntRange> = listOf(
+            0x4E00..0x9FFF, 0x3400..0x4DBF, 0x20000..0x2A6DF, 0x2A700..0x2B73F, 0x2B740..0x2B81F, // CJK unified ideographs
+            0xF900..0xFAFF, 0x2F800..0x2FA1D, // CJK compatibility ideographs
+            0x3190..0x319F, // Kanbun
+            0x2E80..0x2EFF, 0x2F00..0x2FDF, 0x31C0..0x31EF, 0x2FF0..0x2FFF, // radicals, strokes, ideographic description
+            0xE0100..0xE01EF, // variation selectors supplement
+            0x3100..0x312F, 0x31A0..0x31BF, // Bopomofo
+            0xFF00..0xFFEF, // halfwidth and fullwidth forms
+            0x3040..0x309F, 0x30A0..0x30FF, 0x31F0..0x31FF, 0x1B000..0x1B0FF, // kana
+            0xAC00..0xD7AF, 0x1100..0x11FF, 0xA960..0xA97F, 0xD7B0..0xD7FF, 0x3130..0x318F, // Hangul
+            0xA4D0..0xA4FF, 0x16F00..0x16F9F, 0xA000..0xA48F, 0xA490..0xA4CF, // Lisu, Miao, Yi
+        )
     }
 }
 

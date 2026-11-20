@@ -473,4 +473,16 @@ class EntryEditorTest {
         val editor = EntryEditor.edit(Entry("e", customFields = fields, fieldTypes = mapOf("Backup_1" to "code", "Backup_2" to "code")), now)
         assertEquals(listOf("Backup"), editor.codeLists(editor.start).map { it.title })
     }
+
+    @Test
+    fun aCardsNumberCvcPinAndANetworksKeyAreMaskedWhileTypedUnprotected() {
+        val editor = EntryEditor.edit(Entry("e", title = "T"), now)
+        for (type in listOf("card.number", "card.cvc", "card.pin", "wifi.password", "password")) {
+            assertTrue(editor.isMasked(FieldDraft(1, "F", "123", isProtected = false, typeName = type)), type)
+        }
+        for (type in listOf("card.holder", "card.expiry", "wifi.ssid", null)) {
+            assertFalse(editor.isMasked(FieldDraft(1, "F", "123", isProtected = false, typeName = type)), "$type")
+        }
+    }
+
 }

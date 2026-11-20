@@ -53,6 +53,61 @@ class CryptoWalletTest {
     }
 
     @Test
+    fun theListsAreTheBipsAndTrezorsVectorsPassWholeWithTheirEntropy() {
+        // BIP-39's ten lists, byte for byte (the Mac's are the same).
+        val hashes = mapOf(
+            "english" to "2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda",
+            "japanese" to "2eed0aef492291e061633d7ad8117f1a2b03eb80a29d0e4e3117ac2528d05ffd",
+            "korean" to "9e95f86c167de88f450f0aaf89e87f6624a57f973c67b516e338e8e8b8897f60",
+            "spanish" to "46846a5a0139d1e3cb77293e521c2865f7bcdb82c44e8d0a06a2cd0ecba48c0b",
+            "chinese_simplified" to "5c5942792bd8340cb8b27cd592f1015edf56a8c5b26276ee18a482428e7c5726",
+            "chinese_traditional" to "417b26b3d8500a4ae3d59717d7011952db6fc2fb84b807f3f94ac734e89c1b5f",
+            "french" to "ebc3959ab7801a1df6bac4fa7d970652f1df76b683cd2f4003c941c63d517e59",
+            "italian" to "d392c49fdb700a24cd1fceb237c1f65dcc128f6b34a8aacb58b59384b5c648c2",
+            "czech" to "7e80e161c3e93d9554c2efb78d4e3cebf8fc727e9c52e03b83b94406bdcc95fc",
+            "portuguese" to "2685e9c194c82ae67e10ba59d9ea5345a23dc093e92276fc5361f6667d79cd3f",
+        )
+        fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
+        for ((file, hash) in hashes) {
+            val bytes = javaClass.getResourceAsStream("/dev/keething/card/bip39/$file.txt")!!.use { it.readBytes() }
+            assertEquals(hash, hex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes)), file)
+        }
+        // trezor/python-mnemonic's vectors.json (MIT), the Mac's fixture: its ten BIP lists, every phrase.
+        val json = javaClass.getResourceAsStream("/dev/keething/card/bip39-vectors.json")!!.bufferedReader().use { it.readText() }
+        val sections = Regex("\"(\\w+)\": \\[").findAll(json).toList()
+        val vector = Regex("\\[\\s*\"([0-9a-f]+)\",\\s*\"([^\"]+)\"")
+        var count = 0
+        for ((i, section) in sections.withIndex()) {
+            val language = Bip39Language.entries.firstOrNull { it.name.lowercase() == section.groupValues[1] } ?: continue
+            val body = json.substring(section.range.last, sections.getOrNull(i + 1)?.range?.first ?: json.length)
+            for (match in vector.findAll(body)) {
+                val (entropy, mnemonic) = match.destructured
+                val phrase = assertNotNull(SeedPhrase.read(mnemonic), mnemonic)
+                // Lists share words (the two Chinese ones most): the first list, in the BIP's order, where the words pass.
+                val passing = Bip39Language.entries.mapNotNull { candidate ->
+                    val indices = phrase.words.map { candidate.indexOf(SeedPhrase.key(it)) }
+                    indices.takeIf { it.all { index -> index >= 0 } }?.let { candidate to it }
+                }.filter { (_, indices) -> entropyOf(indices) != null }
+                assertTrue(passing.any { it.first == language }, "$language: $mnemonic")
+                assertEquals(SeedPhrase.Check.Bip39(passing.first().first), phrase.check, mnemonic)
+                assertEquals(entropy, hex(entropyOf(passing.first().second)!!), mnemonic)
+                count++
+            }
+        }
+        assertEquals(240, count)
+    }
+
+    /** BIP-39: the entropy the words' indices make, null when the checksum after it fails. */
+    private fun entropyOf(indices: List<Int>): ByteArray? {
+        val bits = indices.joinToString("") { it.toString(2).padStart(11, '0') }
+        val checksumBits = bits.length / 33
+        val entropy = bits.dropLast(checksumBits).chunked(8).map { it.toInt(2).toByte() }.toByteArray()
+        val hash = java.security.MessageDigest.getInstance("SHA-256").digest(entropy)
+        val expected = hash.joinToString("") { (it.toInt() and 0xFF).toString(2).padStart(8, '0') }.take(checksumBits)
+        return entropy.takeIf { bits.takeLast(checksumBits) == expected }
+    }
+
+    @Test
     fun aTypoOrASwapIsCaughtAndSaidWhere() {
         val good = "legal winner thank year wave sausage worth useful legal winner thank yellow"
         assertTrue(SeedPhrase.read(good)!!.passes)
@@ -90,6 +145,44 @@ class CryptoWalletTest {
         assertEquals(SeedPhrase.Check.Electrum("Standard"), SeedPhrase.read("OSTRICH SECURITY DEER AUNT CLIMB INNER ALPHA ARM MUTUAL MARBLE SOLID TASK")!!.check)
         assertEquals(SeedPhrase.Check.Electrum("SegWit"), SeedPhrase.read("眼 悲 叛 改 节 跃 衡 响 疆 股 遂 冬")!!.check)
         assertEquals(SeedPhrase.Check.Electrum("Standard"), SeedPhrase.read("almíbar tibio superar vencer hacha peatón príncipe matar consejo polen vehículo odisea")!!.check)
+        // Electrum's own cases (its tests), as the Mac's WalletTests read them.
+        for ((text, check) in listOf(
+            "なのか ひろい しなん まなぶ つぶす さがす おしゃれ かわく おいかける けさき かいとう さたん" to SeedPhrase.Check.Electrum("Standard"),
+            "equipo fiar auge langosta hacha calor trance cubrir carro pulmo\u0301n oro a\u0301spero" to SeedPhrase.Check.Electrum("SegWit"),
+            "vidrio jabo\u0301n muestra pa\u0301jaro capucha eludir feliz rotar fogata pez rezar oi\u0301r" to SeedPhrase.Check.Electrum("SegWit"),
+            "   oStRiCh sEcUrItY DeEr aUnT ClImB       InNeR AlPhA ArM MuTuAl mArBlE   SoLiD TaSk  " to SeedPhrase.Check.Electrum("Standard"),
+            " sCience dawn   member doll Dutch rEAl can brick knife deny drive  lisT" to SeedPhrase.Check.Electrum("2FA"),
+            "bind clever room kidney crucial sausage spy edit canvas soul liquid ribbon slam open alpha suffer gate relax voice carpet law hill woman tonight abstract" to SeedPhrase.Check.Electrum("2FA"),
+            "sibling leg cable timber patient foot occur plate travel finger chef scale radio citizen promote immune must chef fluid sea sphere common acid lab" to SeedPhrase.Check.Electrum("2FA"),
+            "  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert " to SeedPhrase.Check.Electrum("SegWit"),
+            // Electrum's "2FA SegWit" and "segwit", but two words are no phrase here: only Electrum's word counts are read.
+            "agree install" to SeedPhrase.Check.WordCount(Bip39Language.ENGLISH),
+            "abandon bike" to SeedPhrase.Check.WordCount(Bip39Language.ENGLISH),
+            "science dawn member doll dutch real ca brick knife deny drive list" to SeedPhrase.Check.UnknownWord(6, Bip39Language.ENGLISH),
+        )) {
+            assertEquals(check, SeedPhrase.read(text)!!.check, text)
+        }
+    }
+
+    @Test
+    fun onlyWordsOfAListAreReadAsAnElectrumSeed() {
+        // Its HMAC starts 102, Electrum's 2FA SegWit; a password, not words of a list.
+        val password = SeedPhrase.read("Garden-Lamp-2778")!!
+        assertFalse(password.passes)
+        assertEquals(SeedPhrase.Check.NotAPhrase, password.check)
+        assertNull(WalletSecrets.password(Entry("p", password = dev.keething.domain.secret.Secret.of("Garden-Lamp-2778"))))
+    }
+
+    @Test
+    fun electrumsNormalisationAsElectrumWritesIt() {
+        assertEquals("almibar tibio superar", SeedPhrase.electrumNormalized("  Almi\u0301bar\tTIBIO\n superar "))
+        assertEquals("眼悲叛", SeedPhrase.electrumNormalized("眼 悲 叛"))
+        // NFKD takes Hangul syllables apart into jamo, which Electrum's ranges hold: the space between them goes.
+        assertEquals(listOf(0x1112, 0x1161, 0x11AB, 0x1100, 0x116E, 0x11A8), SeedPhrase.electrumNormalized("한 국").codePoints().toArray().toList())
+        assertEquals("眼 a 悲", SeedPhrase.electrumNormalized("眼 a 悲"), "a space next to a Latin letter stays")
+        // Any Unicode space separates; a mark of combining class 0 (Thai's) stays, as Electrum keeps it.
+        assertEquals("a b c", SeedPhrase.electrumNormalized("a\u2003b\u00A0c"))
+        assertEquals("\u0E01\u0E31", SeedPhrase.electrumNormalized("\u0E01\u0E31"))
     }
 
     // Addresses
@@ -174,6 +267,32 @@ class CryptoWalletTest {
         val xpub = ExtendedKey.read("xpub661MyMwAqRbcFW31YEwpkMuc5THy2PSt5bDMsktWQcFF8syAmRUapSCGu8ED9W6oDMSgv6Zz8idoc4a6mr8BDzTJY47LJhkJ8UB7WEGuduB")!!
         assertTrue(xpub.passes && !xpub.isPrivate)
         assertTrue(ExtendedKey.read("xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U")!!.let { it.passes && it.isPrivate })
+    }
+
+    // spec: types.crypto-checks/AC9
+    @Test
+    fun litecoinsPrivateKeysAndAKeyOfAnyOtherVersionHoldingOneArePrivate() {
+        // BIP-32's test vector 1, its master keys written under Litecoin's private versions (SLIP-0132).
+        for (text in listOf(
+            "Ltpv71G8qDifUiNetfhEfSmD7YzYopWSkhLokecdE1XBBqDsoutBvvUiMvAKypUqUMtCjTF967ixYrEwqjwYK2QgbUKGGnu1wGmJ6pmRJhdnqXg",
+            "Mtpv7L6Q8tPadPv8jxtMVoYqKe63ynethKLJfm8r1QR4Zqbks1hRBaeGyypU12SRUGY896MwqbKX1WbVj2Z72iphPhzs98bSXBanNYq4hLFCqa1",
+        )) {
+            val key = ExtendedKey.read(text)!!
+            assertTrue(key.passes && key.isPrivate, text)
+            assertEquals(CryptoNetwork.LITECOIN, key.network)
+            assertTrue(CryptoWallet.isNeverCopied(FieldType.CRYPTO_XPUB, false, text))
+            assertTrue(ExtendedKey.isPrivate(text.dropLast(3)), "a typo keeps it private")
+        }
+        // Dogecoin's dgpv and dgub, versions this app does not know: read by the key they hold.
+        val dgpv = "dgpv51eADS3spNJh9ZLLadSaeWTrxKewJcW8TjvzV79cGcuVg3jE8izzadTCfAYffoKViWMKLQ8bw5ZGX3wahDTgfzChUPt4mgrBJ4ShoQxux1C"
+        val dgub = "dgub8kXBZ7ymNWy2S8Q3jNgVjFUm5ZJ3QLLaSTdAA89ukSv7Q6MSXwE14b7Nv6eDpE9JJXinTKc8LeLVu19uDPrm5uJuhpKNzV2kAgncwo6bNpP"
+        assertNull(ExtendedKey.read(dgpv), "not a key this app reads")
+        assertTrue(ExtendedKey.isPrivate(dgpv))
+        assertTrue(CryptoWallet.isNeverCopied(FieldType.CRYPTO_XPUB, false, dgpv))
+        assertFalse(ExtendedKey.isPrivate(dgub))
+        val card = EntryCardBuilder.build(typed(Entry("k", customFields = listOf(field("Key", dgpv))), "Key = crypto.xpub"), now, de)
+        assertTrue(card.rows.single().let { it.neverCopied && it.isConcealed })
+        assertNull(card.crypto!!.xpub)
     }
 
     // The face

@@ -7,8 +7,8 @@ import dev.keething.search.SearchNormalizer
 
 /**
  * An entry whose fields without a type are named as a payment card's, a Wi-Fi network's, a bank account's, an identity
- * document's or an SSH login's parts (SPEC §6.3), as 1Password's import and hand-made entries name them: the card offers
- * to give them those types, which makes the entry's face here (and the Mac's view of cards and networks). Nothing is
+ * document's, an SSH login's or a crypto wallet's parts (SPEC §6.3), as 1Password's import and hand-made entries name
+ * them: the card offers to give them those types, which makes the entry's face, here and on the Mac. Nothing is
  * typed without the user's tap. Read by the names, and by the values where a value says what it is: a card number must
  * look like one, an IBAN is one by its check, a host must be a host.
  */
@@ -23,10 +23,13 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
     public companion object {
         public fun of(entry: Entry): TypeSuggestion? = card(entry) ?: wifi(entry) ?: bank(entry) ?: document(entry) ?: ssh(entry) ?: crypto(entry)
 
+        /** Fields with no type stored: a type this version does not know is a later version's, kept, never offered over. */
+        private fun untyped(entry: Entry): List<CustomField> = entry.customFields.filter { it.name !in entry.fieldTypes }
+
         private fun card(entry: Entry): TypeSuggestion? {
             val interpreter = FieldInterpreter(entry)
             if (entry.customFields.any { interpreter.type(it) == FieldType.CARD_NUMBER }) return null
-            val free = entry.customFields.filter { interpreter.type(it) == null }
+            val free = untyped(entry)
             val number = free.firstOrNull { name(it) in NUMBER && looksLikeNumber(it) } ?: return null
             val types = linkedMapOf(number.name to FieldType.CARD_NUMBER)
             for ((type, names) in CARD_PARTS) {
@@ -40,7 +43,7 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         private fun wifi(entry: Entry): TypeSuggestion? {
             val interpreter = FieldInterpreter(entry)
             if (entry.customFields.any { interpreter.type(it) == FieldType.WIFI_SSID }) return null
-            val free = entry.customFields.filter { interpreter.type(it) == null }
+            val free = untyped(entry)
             val ssid = free.firstOrNull { name(it) in SSID && !it.plainText.isNullOrBlank() } ?: return null
             val password = free.firstOrNull { name(it) in WIFI_PASSWORD && !it.isEmpty }
             val security = free.firstOrNull { name(it) in SECURITY }
@@ -56,7 +59,7 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         private fun bank(entry: Entry): TypeSuggestion? {
             val interpreter = FieldInterpreter(entry)
             if (entry.customFields.any { interpreter.type(it) == FieldType.BANK_IBAN || interpreter.type(it) == FieldType.BANK_ACCOUNT }) return null
-            val free = entry.customFields.filter { interpreter.type(it) == null }
+            val free = untyped(entry)
             // An IBAN by its value (unprotected) or its name (protected); else a Russian account with its БИК.
             val iban = free.firstOrNull { field -> field.plainText?.let(Iban::of) != null } ?: free.firstOrNull { it.plainText == null && name(it) in IBAN }
             val code = free.firstOrNull { name(it) in BANK_CODE && it.plainText?.let(RussianAccount::isBik) == true }
@@ -73,7 +76,7 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         private fun document(entry: Entry): TypeSuggestion? {
             val interpreter = FieldInterpreter(entry)
             if (entry.customFields.any { interpreter.type(it) == FieldType.DOC_NUMBER }) return null
-            val free = entry.customFields.filter { interpreter.type(it) == null }
+            val free = untyped(entry)
             val number = free.firstOrNull { name(it) in DOC_NUMBER && !it.isEmpty } ?: return null
             val types = linkedMapOf(number.name to FieldType.DOC_NUMBER)
             for ((type, names) in DOC_PARTS) {
@@ -90,7 +93,7 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         private fun ssh(entry: Entry): TypeSuggestion? {
             val interpreter = FieldInterpreter(entry)
             if (entry.customFields.any { interpreter.type(it) == FieldType.SSH_HOST }) return null
-            val free = entry.customFields.filter { interpreter.type(it) == null }
+            val free = untyped(entry)
             val host = free.firstOrNull { name(it) in SSH_HOST && it.plainText?.let(SshTarget::parse) != null } ?: return null
             val port = free.firstOrNull { name(it) in SSH_PORT && it.plainText?.trim()?.toIntOrNull() in 1..65535 }
             val user = free.firstOrNull { name(it) in SSH_USER && !it.plainText.isNullOrBlank() }
@@ -107,7 +110,7 @@ public data class TypeSuggestion(val kind: Kind, val types: Map<String, FieldTyp
         private fun crypto(entry: Entry): TypeSuggestion? {
             val interpreter = FieldInterpreter(entry)
             if (entry.customFields.any { interpreter.type(it)?.isCryptoPart == true }) return null
-            val free = entry.customFields.filter { interpreter.type(it) == null }
+            val free = untyped(entry)
             // A phrase by its value (its checksum, or words of a list under a phrase's name), or by its name when protected.
             val seed = free.firstOrNull { field -> field.plainText?.let(SeedPhrase::read)?.passes == true }
                 ?: free.firstOrNull { name(it) in SEED && (it.plainText?.let(SeedPhrase::read)?.isWords ?: !it.isEmpty) }

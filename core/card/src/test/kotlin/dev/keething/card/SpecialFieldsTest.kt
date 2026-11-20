@@ -56,6 +56,43 @@ class SpecialFieldsTest {
         assertEquals("Girocard", CardBrand.name("Girocard"))
     }
 
+    @Test
+    fun everyBrandsLeadingDigitsAndDinersGrouping() {
+        val brands = mapOf(
+            "340000000000009" to CardBrand.AMEX, "370000000000002" to CardBrand.AMEX, "2204000000000000" to CardBrand.MIR,
+            "5100000000000000" to CardBrand.MASTERCARD, "2720990000000000" to CardBrand.MASTERCARD, "6500000000000000" to CardBrand.DISCOVER,
+            "6440000000000000" to CardBrand.DISCOVER, "6490000000000000" to CardBrand.DISCOVER, "3589000000000000" to CardBrand.JCB,
+            "36000000000008" to CardBrand.DINERS, "38000000000000" to CardBrand.DINERS, "39000000000000" to CardBrand.DINERS,
+            "30000000000004" to CardBrand.DINERS, "30500000000000" to CardBrand.DINERS, "5000000000000000" to CardBrand.MAESTRO,
+            "5600000000000000" to CardBrand.MAESTRO, "5800000000000000" to CardBrand.MAESTRO, "6300000000000000" to CardBrand.MAESTRO,
+            "6700000000000000" to CardBrand.MAESTRO, "6201000000000000" to CardBrand.UNION_PAY,
+        )
+        for ((number, brand) in brands) assertEquals(brand, CardBrand.detect(number), number)
+        for (number in listOf("2205000000000000", "2721000000000000", "6430000000000000", "3060000000000000")) assertNull(CardBrand.detect(number), number)
+        assertEquals("3600 000000 0008", CardBrand.group("36000000000008", CardBrand.grouping(14, CardBrand.DINERS)))
+        assertEquals("Mastercard", CardBrand.name("mastercard"))
+        assertEquals(CardBrand.DINERS, CardBrand.known("Diners Club"))
+    }
+
+    @Test
+    fun theSecurityFieldsWordsAsTheCriterionNamesThem() {
+        fun security(text: String?, password: String? = "pw"): String {
+            val fields = listOfNotNull(field("SSID", "N"), password?.let { field("Key", it) }, text?.let { field("Sec", it) })
+            return build(Entry("w", customFields = fields), "SSID = wifi.ssid\nKey = wifi.password\nSec = wifi.security").wifi!!.security
+        }
+        for (open in listOf("none", "OPEN", "Offen", "нет", "Открытая")) assertEquals("nopass", security(open), open)
+        assertEquals("nopass", security("WPA2", password = null), "no password")
+        assertEquals("WEP", security("Shared WEP-128"))
+        for (other in listOf("WPA2", "WPA3-Personal", "", "anything")) assertEquals("WPA", security(other), other)
+    }
+
+    @Test
+    fun aProtectedOrEmptySsidIsNoNetwork() {
+        val types = "SSID = wifi.ssid\nKey = wifi.password"
+        assertNull(build(Entry("p", customFields = listOf(field("SSID", "N", protected = true), field("Key", "pw"))), types).wifi)
+        assertNull(build(Entry("e", customFields = listOf(field("SSID", ""), field("Key", "pw"))), types).wifi)
+    }
+
     // Payment card
 
     @Test
@@ -85,8 +122,16 @@ class SpecialFieldsTest {
         assertTrue(number.isConcealed && !number.isProtected, "concealed on screen, not protected in the database")
         assertEquals("•••• •••• •••• 1111", RevealState().displayValue(number))
         assertEquals("4111 1111 1111 1111", RevealState().toggle(number.id).displayValue(number))
-        assertEquals("4111 1111 1111 1111", number.copyText)
+        assertEquals("4111 1111 1111 1111", number.clipboardText())
         assertEquals("4111 1111 1111 1111", RevealState().toggleAll(card.rows).displayValue(number), "revealed with the protected rows")
+        // Stored without spaces: shown grouped, copied as stored; the CVC and the PIN masked, copied as stored.
+        val plain = build(visaWith(1, field("number", "4111111111111111")), cardTypes)
+        val plainNumber = plain.rows.first { it.id == plain.paymentCard?.numberRowId }
+        assertEquals("4111 1111 1111 1111", RevealState().toggle(plainNumber.id).displayValue(plainNumber))
+        assertEquals("4111111111111111", plainNumber.clipboardText())
+        val secrets = plain.rows.filter { it.type == FieldType.CARD_CVC || it.type == FieldType.CARD_PIN }
+        assertEquals(listOf("123", "0000"), secrets.map { it.clipboardText() })
+        assertTrue(secrets.all { it.isConcealed })
     }
 
     @Test
@@ -178,6 +223,13 @@ class SpecialFieldsTest {
     }
 
     @Test
+    fun aNetworksKeyIsAConcealedRowUnprotected() {
+        val card = build(Entry("w", customFields = listOf(field("SSID", "ExampleNet"), field("Key", "pw"))), "SSID = wifi.ssid\nKey = wifi.password")
+        val key = card.rows.single { it.id == "custom-1" }
+        assertTrue(key.isConcealed && key.isCopyable, "masked, its copy sensitive as a concealed row's is")
+    }
+
+    @Test
     fun theQrCodeOfANetworkWithAPasswordNeedsThePasswordRevealed() {
         val types = "SSID = wifi.ssid\nWLAN-Passwort = wifi.password"
         val home = build(Entry("w", customFields = listOf(field("SSID", "ExampleNet"), field("WLAN-Passwort", "pw;1", protected = true))), types)
@@ -225,6 +277,24 @@ class SpecialFieldsTest {
         assertEquals("VERTRAG › Ende", build(passport, deadlineTypes).deadline?.label?.english())
         assertEquals("Expired 45 days ago", build(passport, deadlineTypes).deadline?.hint?.text?.english(), "the banner says it as the field does")
         assertNull(build(contract, deadlineTypes).deadline, "KeePass's own expiry has its own banner; the field is far off")
+    }
+
+    @Test
+    fun aFacesOwnExpiryIsLeftOutBeforeTheMostPressingIsChosen() {
+        // 2027-01-15: the card ends with January, the notice period a month later; the document has expired.
+        val card = Entry(
+            "c", title = "Visa",
+            customFields = listOf(field("Number", "4111 1111 1111 1111"), field("Expiry", "01/27"), field("Kündigungsfrist", "2027-03-16")),
+        )
+        val cardTypes = "Number = card.number\nExpiry = card.expiry\nKündigungsfrist = until"
+        assertEquals("Kündigungsfrist", build(card, cardTypes).deadline?.label?.english(), "the card's expiry is its chip")
+        val document = Entry(
+            "d", title = "Pass",
+            customFields = listOf(field("Number", "C01X00T47"), field("Expiry", "2026-12-01"), field("Visa", "2027-04-01")),
+        )
+        val documentTypes = "Number = doc.number\nExpiry = doc.expiry\nVisa = until"
+        assertEquals("Visa", build(document, documentTypes).deadline?.label?.english(), "the document's expiry is its chip")
+        assertNull(build(card.copy(customFields = card.customFields.take(2)), cardTypes).deadline, "nothing else: no banner")
     }
 
     @Test

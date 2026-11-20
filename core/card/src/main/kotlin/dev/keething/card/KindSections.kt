@@ -25,7 +25,8 @@ internal object BankAccountSection : TypedSection {
         val rows = parts.zip(labels).map { (part, label) ->
             val row = context.row(part.index, part.value, label, ImportedFieldName.displayName(part.value.name))
             when {
-                row.id == bank.numberRowId && !row.isProtected -> row.copy(shownText = bank.numberShown, copiesCompact = true)
+                // A protected number is not read for the face; its copy, read anyway, goes without spaces too.
+                row.id == bank.numberRowId -> if (row.isProtected) row.copy(copiesCompact = true) else row.copy(shownText = bank.numberShown, copiesCompact = true)
                 row.id in compactItems && !row.isProtected -> row.copy(shownText = compactItems.getValue(row.id).value, copiesCompact = true)
                 else -> row
             }
@@ -75,32 +76,36 @@ public data class BankAccount(
     val faceRowIds: Set<String> get() = setOfNotNull(numberRowId, holderRowId) + items.map { it.rowId }
 
     /**
-     * The details as text for someone who sends money (the face's Share): the holder, the number, the codes, the bank;
-     * Russian details with their Russian names, as such details are written, whatever the phone's language.
+     * The details as text for someone who sends money (the face's Share): the holder, the number, the codes, the bank,
+     * in the words a transfer form uses whatever the app's language (bank-account AC7); Russian details with their
+     * Russian names, as such details are written.
      */
-    public fun shareText(): UserText? {
+    public fun shareText(): String? {
         val number = numberShown ?: return null
-        fun line(label: UserText?, value: String) = if (label == null) UserText.plain(value) else UserText.Joined(listOf(label, UserText.plain(value)), " ")
-        return UserText.Joined(
-            buildList {
-                holder?.let { add(UserText.plain(it)) }
-                val digits = number.filterNot(Char::isWhitespace).let { if (numberLabel == Label.IBAN) Iban.grouped(it) else it }
-                add(line(if (isRussian) UserText.plain("Счёт") else numberLabel.text, digits)) // not user text: Russian details' own name
-                for (item in items) {
-                    val label = when (item.label) {
-                        Label.BANK -> null
-                        Label.BIK -> UserText.plain("БИК") // not user text: Russian details' own name
-                        Label.CORR_ACCOUNT -> if (isRussian) UserText.plain("К/с") else UserText.of(CardText.BANK_SHARE_CORR) // not user text: Russian details' own name
-                        else -> item.label.text
-                    }
-                    add(line(label, if (item.compact) item.value.filterNot(Char::isWhitespace) else item.value))
-                }
-            },
-            "\n",
-        )
+        val names = if (isRussian) RUSSIAN_NAMES else NAMES
+        fun line(label: Label, value: String) = names[label]?.let { "$it $value" } ?: value
+        return buildList {
+            holder?.let { add(if (isRussian) "Получатель $it" else it) } // not user text: Russian details' own name
+            val digits = number.filterNot(Char::isWhitespace).let { if (numberLabel == Label.IBAN) Iban.grouped(it) else it }
+            add(line(numberLabel, digits))
+            for (item in items) add(line(item.label, if (item.compact) item.value.filterNot(Char::isWhitespace) else item.value))
+        }.joinToString("\n")
     }
 
     internal companion object {
+        /** A transfer form's words (bank-account AC7), the same in every language. */
+        private val NAMES = mapOf(
+            Label.IBAN to "IBAN", Label.BIC to "BIC", Label.BIK to "БИК", // not user text
+            Label.ACCOUNT to "Account", // not user text
+            Label.BANK_CODE to "Bank code", // not user text
+            Label.CORR_ACCOUNT to "Correspondent account", // not user text
+        )
+
+        /** Russian details' own names. */
+        private val RUSSIAN_NAMES = mapOf(
+            Label.ACCOUNT to "Счёт", Label.BIC to "BIC", Label.BIK to "БИК", Label.CORR_ACCOUNT to "К/с", Label.BANK to "Банк", // not user text
+        )
+
         fun make(
             number: IndexedValue<CustomField>, isIban: Boolean, otherAccount: IndexedValue<CustomField>?,
             holder: IndexedValue<CustomField>?, bic: IndexedValue<CustomField>?, code: IndexedValue<CustomField>?,
@@ -232,14 +237,16 @@ internal object SshSection : TypedSection {
         val portField = context.typed(FieldType.SSH_PORT).firstOrNull()?.takeIf { !it.value.plainText.isNullOrBlank() }
         val userField = context.typed(FieldType.SSH_USER).firstOrNull()?.takeIf { !it.value.plainText.isNullOrBlank() }
         val target = SshTarget.parse(hostField.value.plainText ?: return null) ?: return null
-        val port = portField?.value?.plainText?.trim()?.toIntOrNull()?.takeIf { it in 1..65535 } ?: target.port
+        val ownPort = portField?.value?.plainText?.trim()?.toIntOrNull()?.takeIf { it in 1..65535 }
+        val port = ownPort ?: target.port
         val user = userField?.value?.plainText?.trim() ?: target.user ?: context.username.takeIf { it.isNotEmpty() }
         val login = SshLogin(
             host = target.host,
             port = port,
             user = user,
             hostRowId = RowIds.custom(hostField.index),
-            portRowId = portField?.takeIf { port != null }?.let { RowIds.custom(it.index) },
+            // A port field that does not read stays a row, beside the host's port.
+            portRowId = portField?.takeIf { ownPort != null }?.let { RowIds.custom(it.index) },
             userRowId = when {
                 userField != null -> RowIds.custom(userField.index)
                 target.user == null && user != null -> RowIds.USERNAME
@@ -314,8 +321,16 @@ public data class SshLogin(
     /** `user@host:port` as the list's line says it. */
     val target: String get() = (user?.let { "$it@" } ?: "") + hostForUri + (otherPort?.let { ":$it" } ?: "")
 
-    /** The link an SSH app opens (ConnectBot, JuiceSSH): `ssh://user@host:port`. */
-    val uri: String get() = "ssh://" + (user?.let { "$it@" } ?: "") + hostForUri + (port?.let { ":$it" } ?: "")
+    /** The link an SSH app opens (ConnectBot, JuiceSSH): `ssh://user@host:port`, the user percent-encoded where a URL needs it. */
+    val uri: String get() = "ssh://" + (user?.let { encodedUser(it) + "@" } ?: "") + hostForUri + (port?.let { ":$it" } ?: "")
+
+    /** RFC 3986's user part (the Mac's `.urlUserAllowed`): unreserved and sub-delimiters as they are, the rest as UTF-8 `%XX`. */
+    private fun encodedUser(user: String): String = buildString {
+        for (byte in user.toByteArray(Charsets.UTF_8)) {
+            val c = (byte.toInt() and 0xFF).toChar()
+            if (c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' || c in "-._~!$&'()*+,;=") append(c) else append("%%%02X".format(byte.toInt() and 0xFF))
+        }
+    }
 
     /** `ssh -i <key file> -p <port> user@host`: `-i` only for a key in a file (an attachment's key comes through the agent). */
     public fun command(key: SshKeyLocation? = keyLocation): String = buildList {

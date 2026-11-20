@@ -341,7 +341,7 @@ internal class EntryCardViewModel(
 
     /** The account's details as text to send (holder, number, codes, bank: nothing secret), for the share sheet. */
     fun bankShareIntent(resources: Resources): Intent? {
-        val text = content.value?.card?.bankAccount?.shareText()?.ui()?.resolve(resources) ?: return null
+        val text = content.value?.card?.bankAccount?.shareText() ?: return null
         return Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
     }
 
@@ -549,7 +549,8 @@ internal class EntryCardViewModel(
             ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.asImageBitmap()
         return CardContent(
             card, inRecycleBin = inBin != null, binName = vault.recycleBinGroup?.name?.takeIf { inBin != null }, icon = icon, binTurnedOff = !vault.recycleBinEnabled, face = EntryFace.of(entry),
-            suggestion = if (inBin == null) TypeSuggestion.of(entry) else null,
+            // Not offered in the bin, nor while the database is open read-only (keething-spec types.type-offer AC9).
+            suggestion = if (inBin == null && !database.isReadOnly) TypeSuggestion.of(entry) else null,
         )
     }
 }

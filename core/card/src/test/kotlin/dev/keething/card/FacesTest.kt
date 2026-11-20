@@ -56,11 +56,29 @@ class FacesTest {
     }
 
     @Test
+    fun aTypeNamingAnotherNetworkThanTheNumbersIsARow() {
+        val fields = cardFields.toMutableList().apply { this[1] = field("Card number", "5555555555554444"); this[5] = field("Type", "Visa") }
+        val built = build(card.copy(customFields = fields), cardTypes)
+        val p = built.paymentCard!!
+        assertEquals("Mastercard", p.brand)
+        assertNull(p.typeRowId, "the number names Mastercard: the type is not the face's")
+        val rows = built.sections.first { it.kind is CardSection.Kind.PaymentCard }.rows.filter { it.id !in p.faceRowIds }
+        assertEquals(listOf("PIN", "Type"), rows.map { it.label.english() })
+        val same = cardFields.toMutableList().apply { this[5] = field("Type", "VISA") }
+        assertEquals("custom-5", build(card.copy(customFields = same), cardTypes).paymentCard!!.typeRowId, "the face's own network")
+    }
+
+    @Test
     fun aTypeIsTheBrandWhenTheNumberIsProtected() {
         val fields = cardFields.toMutableList().apply { this[1] = field("Card number", "4111111111111111", protected = true); this[5] = field("Type", "Girocard") }
         val p = build(card.copy(customFields = fields), cardTypes).paymentCard!!
         assertEquals("Girocard", p.brand)
         assertEquals("custom-5", p.typeRowId)
+    }
+
+    @Test
+    fun openAndWepNetworksAreWeak() {
+        assertEquals(listOf(true, true, false), listOf("nopass", "WEP", "WPA").map { WiFiNetwork("N", null, it).isWeak })
     }
 
     @Test
@@ -128,6 +146,23 @@ class FacesTest {
         assertEquals(TypeSuggestion.Kind.PAYMENT_CARD, hidden?.kind, "a protected number counts by its name")
         val partly = typed(card, "Card number = text")
         assertNull(TypeSuggestion.of(partly), "a field typed otherwise is left alone")
+    }
+
+    @Test
+    fun aFieldWithATypeNotKnownIsNotOffered() {
+        val later = typed(card, "Card number = card.virtual")
+        val offer = TypeSuggestion.of(later)
+        assertEquals(null, offer?.types?.get("Card number"), "a later version typed it")
+        assertNull(offer, "without its number no card is offered")
+    }
+
+    @Test
+    fun theListTriesTheNextKindWhenANetworkOrHostDoesNotRead() {
+        val bank = listOf(field("IBAN", "DE89370400440532013000"))
+        val hiddenSsid = Entry("w", customFields = listOf(field("SSID", "Home", protected = true)) + bank)
+        assertEquals(EntryFace.Bank("DE", "DE89 •• 3000", null), EntryFace.of(typed(hiddenSsid, "SSID = wifi.ssid\nIBAN = bank.iban")))
+        val badHost = Entry("s", customFields = listOf(field("Host", "not a host")) + bank)
+        assertEquals(EntryFace.Bank("DE", "DE89 •• 3000", null), EntryFace.of(typed(badHost, "Host = ssh.host\nIBAN = bank.iban")))
     }
 
     @Test

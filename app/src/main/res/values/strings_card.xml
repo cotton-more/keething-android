@@ -120,7 +120,6 @@
     <string name="card_bank_not_iban">This is not an IBAN: it has the wrong length or country</string>
     <string name="card_bank_account_bik">The account does not match the BIK (a typo?)</string>
     <string name="card_bank_corr_bik">The correspondent account does not match the BIK (a typo?)</string>
-    <string name="card_bank_share_corr">Correspondent account</string>
     <string name="card_document_heading">Identity document</string>
     <!-- A crypto wallet -->
     <string name="card_seed_bip39">The checksum is right: BIP-39, %1$s</string>

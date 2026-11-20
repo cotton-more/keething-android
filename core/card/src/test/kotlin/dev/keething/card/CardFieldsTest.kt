@@ -484,4 +484,15 @@ class CardFieldsTest {
         assertEquals(c.sections.flatMap { s -> s.rows.map { it.id } }, c.rows.map { it.id })
         assertEquals(listOf(CardSection.Kind.Credentials, CardSection.Kind.Custom, CardSection.Kind.Custom), c.sections.map { it.kind })
     }
+
+    @Test
+    fun theTypeNamesAreExactlyTheCriterions() {
+        val names = "text date until url code password card.number card.holder card.expiry card.cvc card.pin card.type " +
+            "wifi.ssid wifi.password wifi.security bank.iban bank.bic bank.name bank.holder bank.account bank.code bank.corr " +
+            "doc.type doc.number doc.name doc.country doc.birth doc.issued doc.expiry ssh.host ssh.port ssh.user " +
+            "crypto.seed crypto.passphrase crypto.address crypto.xpub crypto.path"
+        assertEquals(names.split(" "), FieldType.entries.map { it.typeName })
+        assertEquals(FieldType.entries, FieldType.entries.map { FieldType.of(it.typeName) })
+    }
+
 }

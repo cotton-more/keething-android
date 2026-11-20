@@ -145,7 +145,6 @@ private fun card(key: CardText): Int = when (key) {
     CardText.BANK_NOT_IBAN -> R.string.card_bank_not_iban
     CardText.BANK_ACCOUNT_BIK -> R.string.card_bank_account_bik
     CardText.BANK_CORR_BIK -> R.string.card_bank_corr_bik
-    CardText.BANK_SHARE_CORR -> R.string.card_bank_share_corr
     CardText.DOCUMENT_HEADING -> R.string.card_document_heading
     CardText.SEED_BIP39 -> R.string.card_seed_bip39
     CardText.SEED_ELECTRUM -> R.string.card_seed_electrum

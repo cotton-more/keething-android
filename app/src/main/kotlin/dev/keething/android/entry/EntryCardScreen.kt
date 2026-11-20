@@ -131,12 +131,10 @@ import dev.keething.android.ui.dotsAtLineEnd
 import dev.keething.android.ui.readableWidth
 import dev.keething.android.ui.rememberSecondsNow
 import dev.keething.card.CardSection
-import dev.keething.card.Deadline
 import dev.keething.card.EntryCard
 import dev.keething.card.EntryExpiry
 import dev.keething.card.ExpiryHint
 import dev.keething.card.FieldRow
-import dev.keething.card.RowIds
 import dev.keething.card.TypeSuggestion
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
@@ -677,10 +675,8 @@ private fun Banners(content: CardContent) {
         is EntryExpiry.Expires -> Banner(Icons.Rounded.Schedule, "${expiry.hint.text.resolve()} · ${dates.format(expiry.at)}", problem = false)
         null -> {}
     }
-    // A payment card's own expiry is a chip under its face.
-    // A face's expiry is its chip, not a banner too.
-    val faceExpiries = setOfNotNull(card.paymentCard?.expiryRowId, card.document?.expiryRowId)
-    card.deadline?.takeUnless { (it.source as? Deadline.Source.Field)?.let { field -> RowIds.custom(field.index) } in faceExpiries }?.let { deadline ->
+    // A face's own expiry is its chip, left out of the card's deadline (EntryCardBuilder).
+    card.deadline?.let { deadline ->
         val expired = deadline.hint.status == ExpiryHint.Status.EXPIRED
         Banner(Icons.Rounded.Schedule, "${deadline.label.resolve()} · ${deadline.hint.text.resolve()}", problem = expired, warning = !expired)
     }

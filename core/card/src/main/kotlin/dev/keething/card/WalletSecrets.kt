@@ -53,7 +53,7 @@ public object WalletSecrets {
     /** A phrase by its check, an extended private key (by its prefix or what it holds, checksum or not), a WIF key. */
     private fun inValue(text: String): Kind? = when {
         SeedPhrase.read(text)?.passes == true -> Kind.PHRASE
-        ExtendedKey.read(text)?.isPrivate == true -> Kind.PRIVATE_KEY
+        ExtendedKey.read(text)?.isPrivate ?: ExtendedKey.holdsPrivateKey(text) -> Kind.PRIVATE_KEY
         WifKey.isKey(text) -> Kind.PRIVATE_KEY
         else -> null
     }

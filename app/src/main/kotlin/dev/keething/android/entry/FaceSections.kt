@@ -496,8 +496,9 @@ internal fun StickerLine(label: String, row: FieldRow?, actions: CardActions, va
 @Composable
 private fun SecurityChip(network: WiFiNetwork) {
     val open = network.isOpen
-    val container = if (open) MaterialTheme.extraColors.warnContainer else MaterialTheme.colorScheme.secondaryContainer
-    val content = if (open) MaterialTheme.extraColors.onWarnContainer else MaterialTheme.colorScheme.onSecondaryContainer
+    // Open and WEP are weak (keething-spec types.wifi-network AC3): the warning's colours.
+    val container = if (network.isWeak) MaterialTheme.extraColors.warnContainer else MaterialTheme.colorScheme.secondaryContainer
+    val content = if (network.isWeak) MaterialTheme.extraColors.onWarnContainer else MaterialTheme.colorScheme.onSecondaryContainer
     Row(
         Modifier.heightIn(min = 28.dp).clip(RoundedCornerShape(9.dp)).background(container).padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

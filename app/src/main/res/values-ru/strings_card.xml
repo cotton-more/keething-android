@@ -118,7 +118,6 @@
     <string name="card_bank_not_iban">Это не IBAN: не та длина или страна</string>
     <string name="card_bank_account_bik">Счёт не соответствует БИК (опечатка?)</string>
     <string name="card_bank_corr_bik">Корреспондентский счёт не соответствует БИК (опечатка?)</string>
-    <string name="card_bank_share_corr">Корреспондентский счёт</string>
     <string name="card_document_heading">Документ</string>
     <string name="card_seed_bip39">Контрольная сумма верна: BIP-39, %1$s</string>
     <string name="card_seed_electrum">Seed Electrum (%1$s), не BIP-39: восстанавливайте его в Electrum</string>

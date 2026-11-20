@@ -101,6 +101,9 @@ public enum class FieldType(public val typeName: String) {
     /** A password: the editor offers the generator for it. */
     public val isPassword: Boolean get() = this == PASSWORD || this == WIFI_PASSWORD
 
+    /** Masked by its type although the database does not protect it (card.masking AC2): a password, a card's secrets. */
+    public val isMasked: Boolean get() = isPassword || this == CARD_NUMBER || this == CARD_CVC || this == CARD_PIN
+
     /** The menus' name for it ("Expiry" under *Card*). */
     public val title: UserText
         get() = UserText.of(

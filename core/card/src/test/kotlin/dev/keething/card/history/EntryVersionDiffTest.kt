@@ -106,6 +106,22 @@ class EntryVersionDiffTest {
     }
 
     @Test
+    fun aCardsNumberCvcPinAndANetworksKeyAreMaskedUnprotected() {
+        val types = mapOf("Number" to "card.number", "CVC" to "card.cvc", "PIN" to "card.pin", "Key" to "wifi.password", "Name" to "card.holder")
+        val before = old.copy(
+            customFields = listOf(field("Number", "4111111111111111"), field("CVC", "123"), field("PIN", "1234"), field("Key", "first"), field("Name", "A")),
+            fieldTypes = types,
+        )
+        val after = before.copy(
+            customFields = listOf(field("Number", "4012888888881881"), field("CVC", "456"), field("PIN", "4321"), field("Key", "second"), field("Name", "B")),
+        )
+
+        val masked = EntryVersionDiff.changes(before, after).associate { it.field.english() to it.isProtected }
+
+        assertEquals(mapOf("Number" to true, "CVC" to true, "PIN" to true, "Key" to true, "Name" to false), masked)
+    }
+
+    @Test
     fun theVersionsNewestFirstEachWithWhatItChangedNothingBeforeTheOldest() {
         val middle = old.copy(title = "Mail 2", lastModified = Instant.ofEpochSecond(200))
         val current = middle.copy(password = Secret.of("newest"), lastModified = Instant.ofEpochSecond(300))

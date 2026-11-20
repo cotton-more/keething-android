@@ -130,6 +130,8 @@ public object Countries {
         if (t.isEmpty()) return null
         val upper = t.uppercase(Locale.ROOT)
         if (upper == "D") return "DE"
+        // Kosovo: a code the JDK's list leaves out, `RKS` its ICAO code.
+        if (upper == "XK" || upper == "RKS") return "XK"
         if (upper.length == 2 && upper in CODES) return upper
         if (upper.length == 3) ISO3[upper]?.let { return it }
         return NAMES[fold(t)]

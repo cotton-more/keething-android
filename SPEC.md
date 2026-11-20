@@ -1635,11 +1635,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Keething note (`sharing/ShareSheet`): Keething does not share with itself.
 - **Entry faces** (agreed on the canvas, rows "Entry faces", "More faces" and "Crypto wallets"): a payment card, a
   Wi-Fi network, a bank account, an identity document, an SSH login and a crypto wallet are drawn as what they are,
-  and the face is the interface; the rows under it are only what the face does not show. The Mac draws a card's and
-  a network's fields as a card and rows (Mac SPEC §3.13): their data rules are the Mac's (`PaymentCard`,
-  `WiFiNetwork`), the faces are the phone's. The bank, document, SSH and crypto types are the phone's (§6.3) until
-  the Mac takes them over (`~/Projects/keepass-bar/HANDOVER-more-faces.md`, `HANDOVER-crypto.md`); the Mac keeps
-  them and shows those fields as rows meanwhile.
+  and the face is the interface; the rows under it are only what the face does not show. The Mac draws the same six
+  (Mac SPEC §3.13): the data rules are the same on both (`PaymentCard`, `WiFiNetwork`, `BankAccount`,
+  `IdentityDocument`, `SshLogin`, `CryptoWallet`, ported one for one), each app draws its own faces. What a face masks
+  although the database does not protect it (a card's number, CVC and PIN, a network's key) is masked in the editor
+  and in History too, and its copy is marked sensitive (keething-spec card.masking AC2).
   - **Payment card**: a card 1.586:1 (at most 440 dp wide, as every face, §6.1), in its network's colours (Mac `PaymentCardView`;
     Visa, Mastercard, American Express, Mir; another network in the entry's colour), with a chip, the contactless
     mark and the network's mark drawn simply. Its front: the number masked to its last four digits, the holder,
@@ -1649,10 +1649,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     chip under it says "Expires in 2 months" / "Expired 3 days ago" when the expiry is within 90 days or past,
     the only place the card says it (no banner for that field, no row). A number failing its check digit says
     so ("a typo?"). On the face (`PaymentCard.faceRowIds`): the number, an unprotected holder, an expiry that is
-    a date, the CVC, and the type when the face names the card by it (a known network, or a protected number);
-    the rest (the PIN, other `card.*` fields) are rows under it, with copy buttons.
+    a date, the CVC, and the type when it names the face's network, or the number names none (a protected number,
+    an unknown range); a type naming another network than the number's, the PIN and other `card.*` fields are rows
+    under it, with copy buttons. A face's own expiry is left out of the card's banner, which says the most pressing
+    of the other deadlines.
   - **Wi-Fi network**: the label under a router: "WI-FI NETWORK" with the security as a chip ("WPA2", or "Open ·
-    no password" in the warning colours), the network's name large, the key masked (coloured when shown), and the
+    no password"; open and WEP in the warning colours), the network's name large, the key masked (coloured when shown), and the
     `WIFI:` QR code beside them (Mac SPEC §3.13; `EntryCard.wifiQrPayload`). The code holds the key, so it is
     blurred (drawn without the key) until the key is shown: a tap on it, or **Show**, reveals the key and the
     code; a tap on the code opens it full screen. A tap on the name or the key copies it. **Add to this phone**
@@ -1671,9 +1673,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
     (keething-spec types.bank-account AC10, the owner 2026-11-16), then the
     BIC, the bank code ("BIK" for a Russian БИК, else "BANK CODE"), the correspondent account and the bank as
     small lines. A tap copies a line; the number and the correspondent account copy **without spaces** (bank forms
-    often refuse them or cut them off), and say so in the notice. **Copy IBAN** / **Copy account** copies the
+    often refuse them or cut them off; a protected number too), and say so in the notice. **Copy IBAN** / **Copy account** copies the
     number; **Share** sends the holder, number, codes and bank as text to the share sheet (for someone who sends
-    money; nothing secret, so no warning; Russian details with their Russian names: Счёт, БИК, К/с). An IBAN
+    money; nothing secret, so no warning), in a transfer form's words whatever the app's language (`IBAN`, `Account`,
+    `BIC`, `Bank code`, `Correspondent account`); Russian details with their Russian names: Получатель, Счёт, БИК,
+    К/с, Банк. An IBAN
     failing its mod-97 check (ISO 7064), or of the wrong length for its country, says so ("a typo?"); a Russian
     account checks against its БИК (the Bank of Russia's key: the БИК's last three digits and the account,
     weights 7-1-3), the correspondent account against `0` and the БИК's fifth and sixth digits. A protected number
@@ -1681,8 +1685,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   - **Identity document** (`IdentityDocument`, an entry with a `doc.number`): a card of paper (ID-1, 1.586:1 at
     least, taller with large text; a guilloche drawn behind; paper in either theme), its type as the heading
     ("PASSPORT", else "IDENTITY DOCUMENT"), the issuing country with its flag (a code is named: `D`, `DE` or `DEU`
-    → Germany; a name in English, German, Russian, French, Spanish or the phone's language gives the flag; a
-    country it cannot name gets Antarctica's flag), the
+    → Germany; Kosovo's `XK` or `RKS`; a name in English, German, Russian, French, Spanish or the phone's language
+    gives the flag; a country it cannot name is shown as written, without a flag), the
     name, the number in monospace (masked with Show when protected), born / issued / expires. A tap copies a line.
     No photo: what such entries keep is a scan of the whole document (a PDF or a picture), not the portrait; it
     stays an attachment. The expiry is a chip under it when within 90 days or past (no banner for that field), and
@@ -1905,8 +1909,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (added / removed / changed, a change of protection or of type, the order), tags, expiry, the one-time code or the
   fields it is kept in when they give none (that it changed, never its values), attachments
   (added / removed / size). Old values struck through above the new; masked as the card masks them in either version
-  (protected, typed `password`, a recovery phrase or passphrase, an `otpauth://` link, a private key, a private
-  extended key in an `xpub` field), an eye each; all masked again when the app leaves.
+  (protected, typed `password` or `wifi.password`, a card's number, CVC or PIN, a recovery phrase or passphrase, an
+  `otpauth://` link, a private key, a private extended key in an `xpub` field), an eye each; all masked again when the app leaves.
   The oldest version kept has nothing to compare with; "No earlier versions are kept" when there are none.
   The versions are wiped when the screen goes (a lock closes it); the values compared are plain strings
   while it is open, as in the editor. **Go back to this version…** (keething-spec edit.history-restore; the canvas
@@ -2093,8 +2097,7 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   them is a numbered list at any size), `password` (masked on the card, protected or not; the editor masks
   it too and offers the generator, as for `wifi.password`), and the parts of a payment card (`card.number`,
   `card.holder`, `card.expiry`, `card.cvc`, `card.pin`, `card.type`) and a Wi-Fi network (`wifi.ssid`,
-  `wifi.password`, `wifi.security`), which make the card's payment card and Wi-Fi views. The phone's own, until
-  the Mac takes them over (`~/Projects/keepass-bar/HANDOVER-more-faces.md`): a bank account's (`bank.iban`,
+  `wifi.password`, `wifi.security`), which make the card's payment card and Wi-Fi views; a bank account's (`bank.iban`,
   `bank.bic`, `bank.name`, `bank.holder`, `bank.account` where there is no IBAN, `bank.code` for a national bank
   code such as a БИК or a routing number, `bank.corr` for a correspondent account), an identity document's
   (`doc.type`, `doc.number`, `doc.name`, `doc.country`, `doc.birth`, `doc.issued` dates, `doc.expiry` a date
@@ -2102,14 +2105,14 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   (`crypto.seed` the recovery phrase, `crypto.passphrase`, `crypto.address` a receiving address, several allowed,
   `crypto.xpub` an extended public key, `crypto.path` the derivation path). Type names ignore
   case and outer spaces; field names match exactly. A type this version does not know is kept (the editor
-  too) and counts as none.
+  too): it is read as none, and the offer below leaves its field alone (a later version typed it).
 - **A field without a type** is read by its value (unmistakable dates, http(s) links, numbered codes, and an IBAN:
   the right country, length and mod-97 check, shown in groups of four with its country's flag and copied without
   spaces; the editor names it "IBAN · auto"; it makes no face without the types). The
   rules the settings entry held before (`<field name> = <type>` lines) are no longer read: the Mac's field
   report moves them into the entries. Protected fields are never read, typed or not.
-- **The offer to type a card, a network, an account, a document, an SSH login or a crypto wallet** (the phone's own;
-  `TypeSuggestion`): fields without a type named as a payment card's parts (a number — 12 to 19 digits when unprotected, a protected one by its name — and at least an
+- **The offer to type a card, a network, an account, a document, an SSH login or a crypto wallet** (`TypeSuggestion`,
+  the Mac's rules alike): fields without a type named as a payment card's parts (a number — 12 to 19 digits when unprotected, a protected one by its name — and at least an
   expiry, a CVC or a holder; 1Password's names, English, German and Russian ones, a 1Password section left out) or a
   Wi-Fi network's (a name, and a password field, or a security field saying it is open: a network whose password is
   elsewhere is not offered, its face would call it open) make the card offer "Looks like a payment card · Show as
@@ -2122,9 +2125,10 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
   website's), and a crypto wallet (a recovery phrase by its value when it passes its check, else by its name — "Seed",
   "Recovery phrase", "Mnemonic", "Сид-фраза"… — when protected or when most of its words are a list's; an address or
   extended public key by its checksum, one without a checksum only under an address's name; then a passphrase
-  beside a phrase and a derivation path, "Looks like a crypto wallet · Show as wallet"). The tap saves the types (an edit of the field types only, §3.3), so the face appears here (and the
-  Mac draws a card's and a network's view too); nothing is typed without it. "Not now" is remembered per entry (its ref in the app's settings, as Recent keeps
-  refs, §3.1); not offered in the recycle bin, nor for fields typed otherwise.
+  beside a phrase and a derivation path, "Looks like a crypto wallet · Show as wallet"). The tap saves the types (an edit of the field types only, §3.3), so the face appears, here and on the
+  Mac; nothing is typed without it. "Not now" is remembered per entry (its ref in the app's settings, as Recent keeps
+  refs, §3.1); not offered in the recycle bin, nor while the database is open read-only, nor for fields with any
+  type stored.
 - **The editor**: the type chip under a field's value names the type it has ("Card expiry ▾"), or what its
   value is read as ("Text · auto ▾"), or a type not known here ("“x.y” ▾"); its menu: *Automatic (…)* (no type; what it is read as in brackets), Text, Date, Date until
   (expiry), URL, Code, Password, *Card ›*, *Wi-Fi ›*, *Bank account ›*, *Document ›*, *SSH ›*, *Crypto ›*, and a type not known
@@ -2197,7 +2201,7 @@ the database and group a new entry would go to (§3.1, Save into while two or mo
 Title, then the text and **Protect text** under it in one block ("Hidden on the card until shown, and not searched"),
 the website when it has one or once **+ Website** is tapped, tags, the expiry. What another app gave the note (a
 username, a password, custom fields, a one-time code) shows and stays, editable; nothing of that is offered (no Add
-field). The phone's editor adds no attachments (none of its editors does; they are kept). A new note's text is
+field). Attachments are the editor's as in every layout, after the expiry (keething-spec edit.attachments). A new note's text is
 protected; the switch is written whatever `ProtectNotes` says, an existing note's only when changed (one read as a
 note by its fields keeps the protection it had until switched). Saving marks the entry a note when it has no kind;
 opening and closing writes nothing; a kind this version does not know is never written over (an entry with one opens

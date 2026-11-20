@@ -27,6 +27,16 @@ public object OpenableUrl {
     }
 }
 
+/**
+ * What is masked although the database does not protect it (card.masking AC2), one rule for the card's rows, the editor
+ * and History: a field typed as a password or a card's number, CVC or PIN, a wallet's secret, a value plainly a secret.
+ */
+public object Masking {
+    public fun isMasked(type: FieldType?, isProtected: Boolean, text: String?): Boolean =
+        isProtected || type?.isMasked == true || CryptoWallet.isNeverCopied(type, isProtected, text) ||
+            text?.let(ValueShape::isPlainlySecret) == true
+}
+
 /** A value that is a secret whatever the database says (Mac `ValueShape.isPlainlySecret`): masked like a protected one. */
 internal object ValueShape {
     fun isPlainlySecret(value: String): Boolean {

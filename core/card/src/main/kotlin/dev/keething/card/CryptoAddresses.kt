@@ -133,10 +133,24 @@ public data class ExtendedKey(val text: String, val prefix: String, val isPrivat
             return ExtendedKey(t, prefix, private || keyByte == 0, kind, network, passes = fits && Base58.checks(bytes))
         }
 
-        /** An extended private key: by what it holds when it reads as a key, else by its prefix alone (a typo keeps it one). */
+        /**
+         * An extended private key: by what it holds when it reads as a key, else by its prefix alone (a typo keeps it one),
+         * or by what it holds under a version not known here ([holdsPrivateKey]).
+         */
         public fun isPrivate(text: String): Boolean {
             val t = text.trim()
-            return read(t)?.isPrivate ?: (PREFIXES[t.take(4)]?.second == true)
+            return read(t)?.isPrivate ?: (PREFIXES[t.take(4)]?.second == true || holdsPrivateKey(t))
+        }
+
+        /**
+         * A key under a version not known here (another coin's `dgpv…`): 82 bytes of Base58Check whose key byte is 0x00, a
+         * private key, so it fails closed as a known prefix's would.
+         */
+        internal fun holdsPrivateKey(text: String): Boolean {
+            val t = text.trim()
+            if (t.length !in 100..115) return false
+            val bytes = Base58.decode(t)?.takeIf { it.size == 82 && Base58.checks(it) } ?: return false
+            return bytes[45].toInt() == 0
         }
 
         private val PREFIXES: Map<String, Triple<CryptoNetwork, Boolean, UserText>> = buildMap {
@@ -159,7 +173,9 @@ public data class ExtendedKey(val text: String, val prefix: String, val isPrivat
                 put(prv, Triple(CryptoNetwork.BITCOIN_TESTNET, true, kind))
             }
             put("Ltub", Triple(CryptoNetwork.LITECOIN, false, UserText.plain("BIP-44"))) // not user text
+            put("Ltpv", Triple(CryptoNetwork.LITECOIN, true, UserText.plain("BIP-44"))) // not user text
             put("Mtub", Triple(CryptoNetwork.LITECOIN, false, UserText.plain("SegWit"))) // not user text
+            put("Mtpv", Triple(CryptoNetwork.LITECOIN, true, UserText.plain("SegWit"))) // not user text
         }
     }
 }

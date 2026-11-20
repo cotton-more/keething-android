@@ -88,10 +88,12 @@ public sealed interface EntryFace {
                     expiry = typed(FieldType.CARD_EXPIRY)?.let { interpreter.date(it)?.first?.date },
                 )
             }
+            // A network or a host that does not read makes no face: the next kind is tried.
             typed(FieldType.WIFI_SSID)?.let { ssid ->
                 val password = typed(FieldType.WIFI_PASSWORD)
-                val network = WiFiNetwork.make(ssid, password?.let { it to "" }, typed(FieldType.WIFI_SECURITY)) ?: return null
-                return WiFi(network.ssid, network.securityLabel)
+                WiFiNetwork.make(ssid, password?.let { it to "" }, typed(FieldType.WIFI_SECURITY))?.let { network ->
+                    return WiFi(network.ssid, network.securityLabel)
+                }
             }
             fun text(type: FieldType) = typed(type)?.plainText?.trim()?.takeIf { it.isNotEmpty() }
             (typed(FieldType.BANK_IBAN) ?: typed(FieldType.BANK_ACCOUNT))?.let { number ->
@@ -114,8 +116,7 @@ public sealed interface EntryFace {
                     expiry = typed(FieldType.DOC_EXPIRY)?.let { interpreter.date(it)?.first?.date },
                 )
             }
-            typed(FieldType.SSH_HOST)?.let { host ->
-                val target = host.plainText?.let(SshTarget::parse) ?: return null
+            typed(FieldType.SSH_HOST)?.plainText?.let(SshTarget::parse)?.let { target ->
                 val user = text(FieldType.SSH_USER) ?: target.user ?: entry.username.takeIf { it.isNotEmpty() }
                 val port = text(FieldType.SSH_PORT)?.toIntOrNull()?.takeIf { it in 1..65535 } ?: target.port
                 return Ssh(SshLogin(target.host, port, user, "", null, null, "", null).target)

@@ -114,7 +114,6 @@ public enum class CardText : TextKey {
     BANK_NOT_IBAN,
     BANK_ACCOUNT_BIK,
     BANK_CORR_BIK,
-    BANK_SHARE_CORR,
     DOCUMENT_HEADING,
     // A crypto wallet
     SEED_BIP39,

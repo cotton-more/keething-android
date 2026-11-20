@@ -3,6 +3,7 @@ package dev.keething.card
 import dev.keething.domain.text.english
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.Entry
+import dev.keething.domain.vault.Vault
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -79,9 +80,19 @@ class MoreFacesTest {
         assertEquals(setOf("custom-0", "custom-1", "custom-2", "custom-3"), account.faceRowIds)
         val row = built.rows.first { it.id == "custom-1" }
         assertEquals("DE89370400440532013000", row.clipboardText())
-        assertEquals("Alex Morgan\nIBAN DE89 3704 0044 0532 0130 00\nBIC COBADEFFXXX\nCommerzbank", account.shareText()?.english())
+        assertEquals("Alex Morgan\nIBAN DE89 3704 0044 0532 0130 00\nBIC COBADEFFXXX\nCommerzbank", account.shareText())
         assertEquals(EntryFace.Bank("DE", "DE89 •• 3000", "Commerzbank"), EntryFace.of(typed(bank, bankTypes)))
         assertEquals("DE89 •• 3000 · Commerzbank", EntryFace.of(typed(bank, bankTypes))!!.subtitle.english())
+    }
+
+    @Test
+    fun theDetailsAreWrittenInTheCriterionsWordsWhateverTheLanguage() {
+        val account = Entry(
+            "a",
+            customFields = listOf(field("Konto", "1234 5678 90"), field("BLZ", "37040044"), field("Korr", "30101810900000000974")),
+        )
+        val details = build(account, "Konto = bank.account\nBLZ = bank.code\nKorr = bank.corr").bankAccount!!.shareText()
+        assertEquals("Account 1234567890\nBank code 37040044\nCorrespondent account 30101810900000000974", details)
     }
 
     @Test
@@ -100,6 +111,18 @@ class MoreFacesTest {
     )
 
     @Test
+    fun kosovoIsReadByItsCodes() {
+        assertEquals(listOf("XK", "XK", "XK"), listOf("XK", "RKS", "rks").map(Countries::parse))
+    }
+
+    @Test
+    fun aProtectedNumberCopiesWithoutSpacesToo() {
+        val fields = bank.customFields.toMutableList().apply { this[1] = field("IBAN", "DE89 3704 0044 0532 0130 00", protected = true) }
+        val built = build(bank.copy(customFields = fields), bankTypes)
+        assertEquals("DE89370400440532013000", built.rows.first { it.id == built.bankAccount!!.numberRowId }.clipboardText())
+    }
+
+    @Test
     fun russianDetailsAreAnAccountWithItsBik() {
         val built = build(russian, russianTypes)
         val account = built.bankAccount!!
@@ -111,7 +134,7 @@ class MoreFacesTest {
         assertNull(account.problem?.english())
         assertEquals("30101810900000000974", built.rows.first { it.label.english() == "Корр. счёт" }.clipboardText())
         assertEquals(listOf("ИНН"), built.sections.first { it.kind == CardSection.Kind.Custom }.rows.map { it.label.english() }, "the recipient's numbers stay rows")
-        assertEquals("Морган Алекс\nСчёт 40817810500001234567\nБИК 044525974\nК/с 30101810900000000974\nАО «Тестбанк»", account.shareText()?.english())
+        assertEquals("Получатель Морган Алекс\nСчёт 40817810500001234567\nБИК 044525974\nК/с 30101810900000000974\nБанк АО «Тестбанк»", account.shareText())
         assertEquals("40817 •• 4567 · АО «Тестбанк»", EntryFace.of(typed(russian, russianTypes))!!.subtitle.english())
 
         val wrong = russian.customFields.toMutableList().apply { this[1] = field("Счёт", "40817810500001234568") }
@@ -150,14 +173,63 @@ class MoreFacesTest {
         assertEquals(ExpiryHint.Status.SOON, document.expiryHint!!.status)
         assertEquals((0..6).map { "custom-$it" }.toSet(), document.faceRowIds)
         assertEquals(listOf("Authority"), built.sections.first { it.kind == CardSection.Kind.Custom }.rows.map { it.label.english() })
-        assertNotNull(built.deadline, "the document's expiry is a deadline")
+        assertEquals(listOf("Expires"), DeadlineList.build(Vault(listOf(typed(passport, docTypes))), now, utc).map { it.label.english() }, "a deadline in the list")
+        assertNull(built.deadline, "on the card it is the face's chip, not a banner too")
         assertEquals("Passport · Germany · until 03/2027", EntryFace.of(typed(passport, docTypes))!!.subtitle.english())
+    }
+
+    @Test
+    fun theHeadingIsTheTypeAsWrittenElseIdentityDocument() {
+        assertEquals("Passport", build(passport, docTypes).document!!.heading.english(), "drawn in capitals: PASSPORT")
+        val untyped = passport.copy(customFields = passport.customFields.drop(1))
+        assertEquals("Identity document", build(untyped, docTypes.lines().drop(1).joinToString("\n")).document!!.heading.english())
+    }
+
+    @Test
+    fun countriesInEveryLanguageTheCriterionNames() {
+        val names = mapOf(
+            "Allemagne" to "DE", "Alemania" to "DE", "Deutschland" to "DE", "Германия" to "DE", "germany" to "DE",
+            "USA" to "US", "UK" to "GB", "England" to "GB", "РФ" to "RU", "Россия" to "RU",
+            "Österreich" to "AT", "Osterreich" to "AT", "Теркс и Кайкос" to "TC", "Тёркс и Кайкос" to "TC", "DEU" to "DE", "D" to "DE",
+        )
+        for ((text, code) in names) assertEquals(code, Countries.parse(text), text)
+        assertNull(Countries.parse("Atlantis"))
     }
 
     // SSH
 
     private val sshTypes = "Host = ssh.host\nPort = ssh.port"
     private val server = Entry("s", title = "Database server", username = "alex", customFields = listOf(field("Host", "db.example.com"), field("Port", "2222")))
+
+    @Test
+    fun aPortThatDoesNotReadStaysARowBesideTheHostsPort() {
+        val built = build(Entry("s", customFields = listOf(field("Host", "db.example.com:2200"), field("Port", "99999"))), sshTypes)
+        val login = built.ssh!!
+        assertEquals(2200, login.port)
+        assertNull(login.portRowId)
+        val section = built.sections.first { it.kind is CardSection.Kind.Ssh }
+        assertEquals(listOf("Port"), section.rows.filter { it.id !in login.faceRowIds }.map { it.label.english() })
+    }
+
+    @Test
+    fun theLinksUserIsPercentEncoded() {
+        val login = build(Entry("s", customFields = listOf(field("Host", "h"), field("User", "a b@c:d"))), "Host = ssh.host\nUser = ssh.user").ssh!!
+        assertEquals("ssh://a%20b%40c%3Ad@h", login.uri)
+    }
+
+    @Test
+    fun protectedPartsAreRowsAndAProtectedHostMakesNoFace() {
+        val types = "Host = ssh.host\nUser = ssh.user\nPort = ssh.port"
+        val built = build(Entry("s", customFields = listOf(field("Host", "db.example.com"), field("User", "root", protected = true), field("Port", "22", protected = true))), types)
+        val login = built.ssh!!
+        assertNull(login.user, "the protected user is not read")
+        assertEquals(setOf("custom-0"), login.faceRowIds)
+        val rows = built.sections.first { it.kind is CardSection.Kind.Ssh }.rows.filter { it.id !in login.faceRowIds }
+        assertEquals(listOf("User", "Port"), rows.map { it.label.english() })
+        assertTrue(rows.all { it.isProtected })
+        assertNull(build(Entry("h", customFields = listOf(field("Host", "db.example.com", protected = true))), types).ssh)
+        assertNull(EntryFace.of(typed(Entry("h", customFields = listOf(field("Host", "db.example.com", protected = true))), types)))
+    }
 
     @Test
     fun theSshFaceHasTheCommandAndAConfigBlock() {

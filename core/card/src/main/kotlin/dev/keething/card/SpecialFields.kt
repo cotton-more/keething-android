@@ -41,9 +41,11 @@ internal object PaymentCardSection : TypedSection {
             holderRowId = holder?.takeIf { !it.value.plainText.isNullOrEmpty() }?.let { RowIds.custom(it.index) },
             expiryRowId = expiryField?.takeIf { expiry != null }?.let { RowIds.custom(it.index) },
             cvcRowId = cvc?.let { RowIds.custom(it.index) },
+            // The type on the face when it names the face's network, or the number names none; else a row.
             typeRowId = type?.takeIf { field ->
                 val text = field.value.plainText?.trim().orEmpty()
-                text.isNotEmpty() && CardBrand.detectIn(number.value.value) == null || CardBrand.known(text) != null
+                val network = CardBrand.detectIn(number.value.value)
+                text.isNotEmpty() && (network == null || CardBrand.known(text) == network)
             }?.let { RowIds.custom(it.index) },
         )
         val (title, labels) = context.sectionLabels(parts)
@@ -249,6 +251,9 @@ public data class WiFiNetwork(
 
     /** Without a password: anyone may join. */
     val isOpen: Boolean get() = security == "nopass"
+
+    /** Open, or WEP, which is broken in minutes: the face marks it so (wifi-network AC3). */
+    val isWeak: Boolean get() = isOpen || security == "WEP"
 
     /** The `WIFI:` text of the QR code; `\ ; , : "` are escaped. */
     public fun qrPayload(password: String): String {
