@@ -74,6 +74,7 @@
     <string name="entry_row_hide">Скрыть: %1$s</string>
     <string name="entry_row_show">Показать: %1$s</string>
     <string name="entry_row_open_link">Открыть в браузере</string>
+    <string name="entry_row_empty">Пусто</string>
     <string name="entry_app_could_not_open">Не удалось открыть %1$s</string>
     <string name="entry_app_open">Открыть %1$s</string>
     <string name="entry_app_find_in">Найти в %1$s</string>

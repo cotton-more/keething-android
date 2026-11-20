@@ -203,7 +203,7 @@ class SpecialFieldsTest {
 
     @Test
     fun untilFieldsAndKeePasssOwnExpiryEarliestFirst() {
-        val all = DeadlineList.build(Vault(listOf(passport, contract, visa).map { typed(it, deadlineTypes) }), now)
+        val all = DeadlineList.build(Vault(listOf(passport, contract, visa).map { typed(it, deadlineTypes) }), now, utc)
 
         assertEquals(listOf("Entry expires", "VERTRAG › Ende", "gültig bis", "Kündigungsfrist"), all.map { it.label.english() })
         assertEquals(listOf("DSL", "Reisepass", "Reisepass", "DSL"), all.map { it.entryTitle })
@@ -217,7 +217,7 @@ class SpecialFieldsTest {
 
     @Test
     fun withoutFieldTypesNamesDecide() {
-        assertEquals(listOf("VERTRAG › Ende", "gültig bis"), DeadlineList.build(Vault(listOf(passport)), now).map { it.label.english() })
+        assertEquals(listOf("VERTRAG › Ende", "gültig bis"), DeadlineList.build(Vault(listOf(passport)), now, utc).map { it.label.english() })
     }
 
     @Test
@@ -228,8 +228,32 @@ class SpecialFieldsTest {
     }
 
     @Test
+    fun todayIsThePhonesDayEastAndWestOfUtc() {
+        val berlin = java.time.ZoneId.of("Europe/Berlin")
+        val newYork = java.time.ZoneId.of("America/New_York")
+        fun said(entry: Entry, at: String, zone: java.time.ZoneId) =
+            DeadlineList.build(Vault(listOf(typed(entry, "Ende = until"))), Instant.parse(at), zone).single().let { it.date to it.hint.text.english() }
+        val ends19 = Entry("a", title = "A", customFields = listOf(field("Ende", "2026-11-19")))
+        val ends20 = Entry("b", title = "B", customFields = listOf(field("Ende", "2026-11-20")))
+        // 00:30 on the 20th in Berlin is still the 19th in UTC.
+        assertEquals("Expired yesterday", said(ends19, "2026-11-19T23:30:00Z", berlin).second)
+        // 19:30 on the 20th in New York is the 21st in UTC.
+        assertEquals("Expires today", said(ends20, "2026-11-21T00:30:00Z", newYork).second)
+
+        // KeePass's own expiry: its day is its instant in the phone's zone, as the editor set it and the banner shows it.
+        val dec1 = CalendarDate(2026, 12, 1)
+        val atHalfPastMidnightInBerlin = Entry("c", title = "C", expires = true, expiryTime = Instant.parse("2026-11-30T23:30:00Z"))
+        assertEquals(dec1 to "Expires tomorrow", said(atHalfPastMidnightInBerlin, "2026-11-30T19:00:00Z", berlin))
+        val atEightInNewYork = Entry("d", title = "D", expires = true, expiryTime = Instant.parse("2026-12-02T01:00:00Z"))
+        assertEquals(dec1 to "Expires today", said(atEightInNewYork, "2026-12-01T15:00:00Z", newYork))
+        val card = EntryCardBuilder.build(atEightInNewYork, Instant.parse("2026-12-01T15:00:00Z"), de, newYork)
+        assertEquals("Expires today", card.entryExpiry?.hint?.text?.english(), "the card's banner alike")
+        assertEquals("Expires tomorrow", said(atEightInNewYork, "2026-12-01T15:00:00Z", utc).second, "the same instant is the 2nd in UTC")
+    }
+
+    @Test
     fun theListKnowsHowEachEntrysDeadlinesStand() {
-        val status = DeadlineList.statusByEntry(Vault(listOf(passport, contract, visa).map { typed(it, deadlineTypes) }), now)
+        val status = DeadlineList.statusByEntry(Vault(listOf(passport, contract, visa).map { typed(it, deadlineTypes) }), now, utc)
 
         assertEquals(ExpiryHint.Status.EXPIRED, status["p"])
         assertEquals(ExpiryHint.Status.EXPIRED, status["c"])

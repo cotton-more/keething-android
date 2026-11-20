@@ -1573,7 +1573,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   card, the card's deadline banner and the row after the field's name ("gültig bis · Expires in 36 days"), the
   chip under a card's or a document's face, KeePass's own expiry (its banner then the day, "Expired yesterday ·
   14 Jan 2027"; past its time on its last day "Expired today"); days below 60, months below 24, then years
-  ("Expires today", "Expires tomorrow", "Expires in 5 months", "Expired 45 days ago"). A
+  ("Expires today", "Expires tomorrow", "Expires in 5 months", "Expired 45 days ago"). Today is the phone's day (its
+  time zone), and KeePass's own expiry is the day its moment falls on there, as the editor sets it. A
   payment card's, a Wi-Fi network's, a bank account's, an identity document's, an SSH login's or a crypto wallet's
   row (its fields typed, §6.3) shows the small face instead of the icon (a card in its network's colours, the label
   of a router, a bank with the country's flag at its corner, a small paper document, a terminal's `>_`, a small steel
@@ -1585,8 +1586,16 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   group or tag chip on the card searches for it; Back clears the search first. A Syncthing conflict copy (with
   Resolve…: a sheet keeping the open version or using the other one, §3.4), a reload that failed (the vault read
   before is shown) and a database too large to save or near that (§3.3) are banners above the list.
-- **Card**: as on the Mac (sections, masked values with an eye, live codes with the next one beside them, tap to copy, links
-  open the browser, attachments open in another app / save to a folder, §4). An app's address (`androidapp://<package>`
+- **Card**: as on the Mac (sections, masked values with an eye, live codes with the next one under them on a line of
+  their own (§6), tap to copy, links open the browser, attachments open in another app / save to a folder, §4).
+  Everything shown is masked again when the app leaves the screen (Home, the screen off, another app in front, an
+  attachment or a link opened; keething-spec card.masking AC5), and a vault read again keeps a custom field shown only
+  while it is the same field (by name). An empty custom field shows "—" in the secondary colour, said "Empty", with
+  nothing to copy (card.fields AC2). A one-time code the app cannot use (a Steam code, a counter-based HOTP link, a
+  secret not in Base32, an unknown algorithm; card.totp AC6) keeps its row: the code's tile grey and "This code cannot
+  be used here: Steam codes." in the secondary colour, nothing to copy (agreed on the canvas "Code that cannot be
+  used", https://claude.ai/artifact/H2JLkfxuwC8NYXbKFf1iw2, variant A, 2026-11-20); the editor's own refusals say the
+  same reasons. An app's address (`androidapp://<package>`
   in the URL, a `KP2A_URL…` field or a field typed `url` or untyped; keething-spec card.app-address, canvas
   https://claude.ai/artifact/M7w5or3TN83mFj1DmRPAkE) is shown as the app the phone has: its own icon in place of the
   tile, its name, the address under it, an open button; an app the phone does not have shows the default app icon,
@@ -1608,7 +1617,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   is compact: the icon (56 dp) beside the title, under the title one place chip (the owner, 2026-10-31): while two or more databases are open the entry's database
   first (a dot and its label in its colour on a soft fill of it), then the group's path, on one line cut as the list
   cuts it (the database's name never cut); with one open a folder and the path; a tap searches there (`!Work @Mail `,
-  `@Mail `, `!Work `). The tag chips always on a line of their own under it; a tap searches the tag. Its bar (Back) is clear at the
+  `@Mail `, `!Work `). In the recycle bin the chip shows the path inside the bin, the bin's own name at its top, and a
+  tap searches the bin (`- @Mail `, `- `; card.place-chip AC3). The tag chips always on a line of their own under it; a tap searches the tag. Its bar (Back) is clear at the
   top and opaque once the card scrolls under it; when the large title has gone under, the entry's icon and
   title move into the bar. A password's menu (⋮ on its row): **Show as QR** (full screen at full
   brightness, black on white, for another phone to scan; nothing leaves the device; "Show the password"
@@ -1863,12 +1873,14 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   day in ISO 8601, then ` · `, U+00B7 with a space each side; `card/UsedCode`). So KeePassXC and the Mac show
   it as it is, a field renamed anywhere keeps it, and taking it off gives the code back unchanged. It is saved
   as an ordinary edit of that one field (protected as it was, the old version into the history, SPEC §3.3),
-  with a progress ring on the code meanwhile and a notice with Undo after. Only the codes of a list are read
+  with a progress ring on the code meanwhile and a notice with Undo after; the Undo puts the value back as it was (a mark
+  taken off with the day it had) and offers no further Undo. In a database open read-only (KDBX 3.1, too large to save)
+  both ways to mark are refused before anything is saved, as Move to group… is. Only the codes of a list are read
   so; another field with such a text stays text. On the card a used code is "used Oct 22, 2026" alone while the
   codes are hidden, and struck through above that line when they are shown; the list's title says "3 of 4
-  left" (in the error colour when none are); copying a used
+  left" (left: the codes not marked used that have a value; in the error colour when none are); copying a used
   code copies the code alone. Under the title a bar of one segment per code, on one line however many (thinner for
-  more, in the error colour when two or fewer are left), says how many are left; the next unused code is outlined
+  more, used and empty ones empty, in the error colour when two or fewer are left), says how many are left; the next unused code is outlined
   and **Copy next unused · 4** copies it (its notice offers Mark as used, as any code's does). The editor shows
   the value as it is stored. The Mac app's side:
   `~/Projects/keepass-bar/HANDOVER-used-recovery-codes.md`.

@@ -4,6 +4,7 @@ import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.FieldValue
 import java.time.Instant
+import java.time.ZoneId
 
 /** Nothing in it; a protected value is asked without being revealed. */
 internal val CustomField.isEmpty: Boolean
@@ -34,7 +35,7 @@ internal object PaymentCardSection : TypedSection {
         val type = context.typed(FieldType.CARD_TYPE).firstOrNull()
         val cvc = context.typed(FieldType.CARD_CVC).firstOrNull()?.takeIf { !it.value.isEmpty }
         val card = PaymentCard.make(
-            number.value, RowIds.custom(number.index), holder?.value, expiry, type?.value, context.now,
+            number.value, RowIds.custom(number.index), holder?.value, expiry, type?.value, context.now, context.zone,
         ).copy(
             // On the face only what it can show: an unprotected holder, a date, a type it names the card by.
             holderRowId = holder?.takeIf { !it.value.plainText.isNullOrEmpty() }?.let { RowIds.custom(it.index) },
@@ -112,12 +113,12 @@ public data class PaymentCard(
     val faceRowIds: Set<String> get() = setOfNotNull(numberRowId, holderRowId, expiryRowId, cvcRowId, typeRowId)
 
     internal companion object {
-        fun make(number: CustomField, numberRowId: String, holder: CustomField?, expiry: FieldDate?, type: CustomField?, now: Instant): PaymentCard {
+        fun make(number: CustomField, numberRowId: String, holder: CustomField?, expiry: FieldDate?, type: CustomField?, now: Instant, zone: ZoneId): PaymentCard {
             val typeText = type?.plainText?.takeIf { it.isNotEmpty() }
             val typeBrand = typeText?.let(CardBrand::known)
             val typeName = typeText?.let { typeBrand?.displayName ?: it.trim() }
             val holderName = holder?.plainText?.takeIf { it.isNotEmpty() }
-            val hint = expiry?.expiry(now)
+            val hint = expiry?.expiry(now, zone)
             val text = number.plainText
                 ?: return PaymentCard(numberRowId, typeName, typeBrand, null, RevealState.MASK, null, holderName, expiry, hint)
             val digits = text.filter { it in '0'..'9' }

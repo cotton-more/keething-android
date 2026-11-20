@@ -98,6 +98,19 @@ class EntryCardTest {
     }
 
     @Test
+    fun aCodeThatCannotBeUsedShowsItsRowWithTheReasonAndNothingToCopy() {
+        val steam = CustomField.protected("otp", "otpauth://totp/Steam:alex?secret=GEZDGNBVGY3TQOJQ&encoder=steam")
+        val entry = Entry("1", title = "Steam", codeFields = listOf(steam), hasCodeFields = true)
+        val row = build(entry).rows.single { it.kind == FieldRow.Kind.TOTP }
+        assertNull(row.totp)
+        assertEquals("This code cannot be used here: Steam codes.", row.codeProblem?.english())
+        assertFalse(row.isCopyable)
+        assertEquals("One-time code", row.label.english())
+        assertTrue(build(entry).rows.none { it.kind == FieldRow.Kind.CUSTOM }, "the code field stays apart (kdbx.otp-storage AC2)")
+        assertNull(build(richEntry()).rows.single { it.kind == FieldRow.Kind.TOTP }.codeProblem, "a live code has none")
+    }
+
+    @Test
     fun entryExpiry() {
         val day = Duration.ofDays(1)
         assertNull(build(Entry("1")).entryExpiry)
@@ -149,6 +162,22 @@ class EntryCardTest {
         assertEquals("abcd-efgh", byId.getValue("custom-0").shown(reveal), "toggle all with one revealed reveals the rest")
     }
 
+    @Test
+    fun aReadAgainKeepsARowRevealedOnlyWhenItIsTheSameField() {
+        val pin = CustomField.protected("PIN", "1234")
+        val puk = CustomField.protected("PUK", "99887766")
+        val before = build(Entry("1", password = Secret.of("pw"), customFields = listOf(pin, puk)))
+        val reveal = RevealState().toggle(RowIds.PASSWORD).toggle(RowIds.custom(1))
+        val synced = build(Entry("1", password = Secret.of("pw2"), customFields = listOf(CustomField.protected("Card", "4711"), pin, puk)))
+        val kept = reveal.keptOn(before, synced)
+        assertTrue(kept.isRevealed(RowIds.PASSWORD), "not a custom field: kept")
+        assertFalse(kept.isRevealed(RowIds.custom(1)), "now PIN, revealed was PUK")
+        assertEquals(RevealState.MASK, kept.displayValue(synced.rows.single { it.id == RowIds.custom(1) }))
+        val same = build(Entry("1", customFields = listOf(pin, CustomField.protected("PUK", "11112222"))))
+        assertTrue(reveal.keptOn(before, same).isRevealed(RowIds.custom(1)), "the same field with a new value stays shown")
+        assertFalse(reveal.keptOn(before, build(Entry("1", customFields = listOf(pin)))).isRevealed(RowIds.custom(1)), "the field gone")
+    }
+
     // One-time codes
 
     @Test
@@ -163,7 +192,6 @@ class EntryCardTest {
         assertEquals("287 082", d6.formatted)
     }
 
-    // spec: card.code-timer/AC2
     @Test
     fun theNextCodeIsTheOneTheNextPeriodStartsWith() {
         val c = TotpConfig(Secret.of(sha1))

@@ -40,7 +40,7 @@ class TotpSetupTest {
         assertFailsWith<TotpSetupException.Empty> { TotpSetup.parse("  ") }
         assertFailsWith<TotpSetupException.Unreadable> { TotpSetup.parse("not a secret!") }
         assertFailsWith<TotpSetupException.Unreadable> { TotpSetup.parse("otpauth://totp/S?issuer=x") }
-        assertEquals("steam", assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://totp/S?secret=$base32&encoder=steam") }.reason.english())
+        assertEquals("Steam codes", assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://totp/S?secret=$base32&encoder=steam") }.reason.english(), "as the card says it")
         assertEquals(
             "only time-based (TOTP) links are supported",
             assertFailsWith<TotpSetupException.Unsupported> { TotpSetup.parse("otpauth://hotp/S?secret=$base32&counter=1") }.reason.english(),

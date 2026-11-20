@@ -116,6 +116,15 @@ public object FilterCompletion {
         return query.substring(0, last.start) + token(kind, name) + " "
     }
 
+    /**
+     * What a card's place chip searches, a trailing space ready for a term: its database while two or more are open
+     * and its group, `!Work @Mail `; for an entry in the recycle bin the bin, by the group inside it, `- @Mail `, or
+     * `- ` at the bin's top (search.recycle-bin).
+     */
+    public fun place(database: String?, group: String?, inBin: Boolean): String =
+        listOfNotNull("-".takeIf { inBin }, database?.let { token(FilterKind.DATABASE, it) }, group?.let { token(FilterKind.GROUP, it) })
+            .joinToString(" ") + " "
+
     /** The text of a filter for a name: quoted when it contains whitespace. */
     public fun token(kind: FilterKind, name: String): String =
         "${kind.sigil}${if (name.any(Char::isWhitespace)) "\"$name\"" else name}"

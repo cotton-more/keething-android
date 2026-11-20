@@ -7,6 +7,9 @@ apps keep them in (keething-spec kdbx.otp-storage), for checking on a phone that
 KeePass 2.x's own TimeOtp-* fields in each of its four secret encodings (one broken: no code), KeePassXC's otp link
 and the legacy TOTP Seed / TOTP Settings; further codes (custom fields holding an otpauth link, keething-spec
 app.codes-view), beside an entry's own code and on their own; two entries with nothing but a title and a code. Most of its codes are KeePass's, so a code written into it takes that format.
+Codes the app cannot use, each shown with its reason (keething-spec card.totp AC6): Steam as KeePassXC writes it
+(`encoder=steam`) and in the legacy fields (`30;S`), a counter-based link, an unknown algorithm. A list of recovery
+codes typed `code` (one used, one empty) beside an empty field (card.recovery-codes, card.fields AC2).
 keepassxc-cli writes KDBX 3.1 on import, which the app refuses, so the import is merged into a copy of a KDBX 4
 fixture (that adds the fixture's two entries).
 """
@@ -44,6 +47,18 @@ ENTRIES = [
         (f"Account {n}", f"otpauth://totp/Many:account{n}?secret={base64.b32encode(f'many-codes-{n:02}'.encode()).decode().rstrip('=')}&issuer=Many", True)
         for n in range(2, 13)]),
     ("No code yet (fictitious)", []),
+    ("Steam (fictitious)", [("otp", "otpauth://totp/Steam:me?secret=GEZDGNBVGY3TQOJQ&period=30&digits=5&issuer=Steam&encoder=steam", True)]),
+    ("Steam, legacy (fictitious)", [("TOTP Seed", "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", True), ("TOTP Settings", "30;S")]),
+    ("Counter-based (fictitious)", [("otp", "otpauth://hotp/Counter:me?secret=GEZDGNBVGY3TQOJQ&counter=3&issuer=Counter", True)]),
+    ("Unknown algorithm (fictitious)", [("otp", "otpauth://totp/Algo:me?secret=GEZDGNBVGY3TQOJQ&algorithm=SHA3-256&issuer=Algo", True)]),
+]
+
+# Entries with field types (the entry's CustomData, as the app writes them): a list of recovery codes beside an empty field.
+TYPED_ENTRIES = [
+    ("Recovery codes (fictitious)", [
+        ("Recovery_1", "used 2026-10-22 · 1111-2222", True), ("Recovery_2", "3333-4444", True), ("Recovery_3", "", True),
+        ("Recovery_4", "5555-6666", True), ("Recovery_5", "7777-8888", True), ("Backup e-mail", "")],
+     {f"Recovery_{n}": "code" for n in range(1, 6)}),
 ]
 
 # Entries with nothing but their title and a code (deleting the code moves the entry to the recycle bin).
@@ -62,6 +77,11 @@ def field(key, value, protected=False):
     return f"<String><Key>{escape(key)}</Key><Value{attribute}>{escape(value)}</Value></String>"
 
 
+def field_types(types):
+    """As EntryFieldTypes.encode writes them: a JSON object, keys sorted."""
+    return "{" + ",".join(f'"{k}":"{v}"' for k, v in sorted(types.items())) + "}"
+
+
 def xml():
     entries = "".join(
         f"<Entry><UUID>{uuid()}</UUID>{field('Title', title)}{field('UserName', 'me')}{field('Password', 'Otp-Pa55!', True)}"
@@ -70,6 +90,11 @@ def xml():
     ) + "".join(
         f"<Entry><UUID>{uuid()}</UUID>{field('Title', title)}{''.join(field(*f) for f in fields)}</Entry>"
         for title, fields in BARE_ENTRIES
+    ) + "".join(
+        f"<Entry><UUID>{uuid()}</UUID>{field('Title', title)}{field('UserName', 'me')}{field('Password', 'Otp-Pa55!', True)}"
+        f"{''.join(field(*f) for f in fields)}<CustomData><Item><Key>Keething.FieldTypes</Key>"
+        f"<Value>{escape(field_types(types))}</Value></Item></CustomData></Entry>"
+        for title, fields, types in TYPED_ENTRIES
     )
     return ('<?xml version="1.0" encoding="utf-8" standalone="yes"?><KeePassFile><Meta><Generator>test</Generator>'
             f'<DatabaseName>One-time code formats</DatabaseName></Meta><Root><Group><UUID>{uuid()}</UUID>'

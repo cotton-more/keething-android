@@ -14,6 +14,7 @@ import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultGroup
+import dev.keething.search.FilterCompletion
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.EntryRef
 import java.text.Collator
@@ -293,6 +294,23 @@ class VaultListingTest {
         assertEquals(listOf(w("wiki")), listing.sections("- @Work", emptyList()).single().rows.map { it.id })
         assertEquals(listOf(p("oldP1")), listing.sections("- media", emptyList()).single().rows.map { it.id })
         assertEquals(listOf("Media", "Work"), searchChips("- @", listing, codesOnly = false).chips.map { it.label.english() })
+    }
+
+    @Test
+    fun theCardsPlaceChipOfABinnedEntrySearchesTheBinByThePathInsideIt() {
+        val listing = both()
+        fun found(query: String) = listing.sections(query, emptyList()).flatMap { it.rows }.map { it.id }
+        val wiki = Entry(id = "wiki", title = "Old wiki", groupPath = listOf("Archive", "Recycle Bin", "Work"))
+        val nested = VaultGroup("BIN", "Recycle Bin", listOf("Archive", "Recycle Bin"))
+        assertEquals(listOf("Work"), Vault(emptyList(), recycleBinGroup = nested).pathInBin(wiki))
+        assertEquals(emptyList(), Vault(emptyList(), recycleBinGroup = nested).pathInBin(wiki.copy(groupPath = nested.path)))
+
+        assertEquals("- !Personal @Media ", FilterCompletion.place("Personal", "Media", inBin = true))
+        assertEquals(listOf(p("oldP1")), found(FilterCompletion.place("Personal", "Media", inBin = true)))
+        assertEquals(listOf(p("oldP2"), p("oldP1")), found(FilterCompletion.place("Personal", null, inBin = true)), "at the bin's top: the bin")
+        assertEquals("- @Media ", FilterCompletion.place(null, "Media", inBin = true))
+        assertEquals(listOf(p("tv"), p("same")).toSet(), found(FilterCompletion.place("Personal", "Media", inBin = false)).toSet(), "outside: the live group")
+        assertEquals("!\"Work 2\" @\"Old stuff\" ", FilterCompletion.place("Work 2", "Old stuff", inBin = false))
     }
 
     // Several databases open (plan AD9; the Mac's D6 `DatabasesWindowTests`)

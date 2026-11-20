@@ -4,11 +4,16 @@ import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.FieldValue
 import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Locale
 
 /** 2027-01-15 08:00 UTC, as in the Mac tests. */
 internal val now: Instant = Instant.ofEpochSecond(1_800_000_000)
 internal val de: Locale = Locale.GERMANY
+
+/** The zone the date tests' days are counted in unless a test names its own. */
+internal val utc: ZoneId = ZoneOffset.UTC
 
 internal fun field(name: String, value: String = "x", protected: Boolean = false) =
     if (protected) CustomField.protected(name, value) else CustomField.plain(name, value)

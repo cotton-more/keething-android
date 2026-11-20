@@ -40,6 +40,9 @@ public data class Vault(
     /** `Meta/MasterKeyChanged`: when its master key was last changed; null when the file does not say. */
     val masterKeyChanged: Instant? = null,
 ) {
+    /** A binned entry's path inside the bin: its path with the bin's own cut off, at whatever depth the bin is. */
+    public fun pathInBin(entry: Entry): List<String> = entry.groupPath.drop(recycleBinGroup?.path?.size ?: 0)
+
     /** Overwrites every secret the vault holds (the lock). */
     public fun wipe() {
         entries.forEach(Entry::wipe)

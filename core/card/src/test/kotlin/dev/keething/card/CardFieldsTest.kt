@@ -63,7 +63,7 @@ class CardFieldsTest {
             assertNull(FieldDate.parse(text, typed = false), text)
         }
         val vault = Vault(listOf(Entry("e", title = "T", customFields = listOf(field("gültig bis", "２０２７-１０-３１")))))
-        assertTrue(DeadlineList.build(vault, now).isEmpty())
+        assertTrue(DeadlineList.build(vault, now, utc).isEmpty())
         assertEquals(ValueStyle.Text, card(listOf(field("gültig bis", "٢٠٢٧-١٠-٣١"))).rows.first().style)
     }
 
@@ -85,7 +85,7 @@ class CardFieldsTest {
 
     @Test
     fun howAnEndDateStandsAMonthIsValidToItsLastDay() {
-        fun status(value: String) = FieldDate.parse(value, typed = true)?.expiry(now)?.status
+        fun status(value: String) = FieldDate.parse(value, typed = true)?.expiry(now, utc)?.status
         assertEquals(ExpiryHint.Status.EXPIRED, status("2026-12-01"))
         assertEquals(ExpiryHint.Status.SOON, status("2027-03-01"), "within 90 days")
         assertEquals(ExpiryHint.Status.VALID, status("2031-05-01"))
@@ -96,7 +96,7 @@ class CardFieldsTest {
 
     @Test
     fun theStatusTextCountsDaysThenMonthsThenYears() {
-        fun text(value: String) = FieldDate.parse(value, typed = false)?.expiry(now)?.text?.english()
+        fun text(value: String) = FieldDate.parse(value, typed = false)?.expiry(now, utc)?.text?.english()
         assertEquals("Expires today", text("2027-01-15"))
         assertEquals("Expires tomorrow", text("2027-01-16"))
         assertEquals("Expires in 36 days", text("2027-02-20"))
@@ -211,6 +211,23 @@ class CardFieldsTest {
     }
 
     @Test
+    fun whatIsLeftCountsTheUnusedCodesThatHaveAValue() {
+        fun codes(vararg values: String) = card(
+            values.mapIndexed { i, v -> field("Recovery_${i + 1}", v, protected = true) },
+            types = values.indices.associate { "Recovery_${it + 1}" to "code" },
+        ).sections.single { it.kind == CardSection.Kind.Codes }
+        val some = codes("", "1111", "used 2026-10-22 · 2222", "", "3333")
+        assertEquals(2, some.codesLeft)
+        assertEquals(5, some.rows.size)
+        assertEquals("1111", some.nextUnusedCode?.storedText())
+        assertTrue(some.fewCodesLeft)
+        assertEquals(listOf(false, true, false, false, true), some.rows.map { some.isLeft(it) }, "the bar's segments")
+        val emptyLeft = codes("used 2026-10-22 · 1111", "", "")
+        assertEquals(0, emptyLeft.codesLeft, "\"0 of 3 left\" over \"No unused codes left\"")
+        assertNull(emptyLeft.nextUnusedCode)
+    }
+
+    @Test
     fun theUsedMarkGoesInFrontOfTheCodeAndComesOffAgain() {
         val day = java.time.LocalDate.of(2026, 10, 22)
         assertEquals("used 2026-10-22 \u00B7 1234-5678", UsedCode.mark("1234-5678", day))
@@ -240,6 +257,25 @@ class CardFieldsTest {
         assertEquals("1111", first.reveal(), "the change holds copies: wiping it leaves the entry")
         assertEquals(1, RowIds.customIndex(RowIds.custom(1)))
         assertNull(RowIds.customIndex(RowIds.PASSWORD))
+    }
+
+    @Test
+    fun undoingAMarkPutsBackTheDayItHadAndOffersNoFurtherUndo() {
+        val had = java.time.LocalDate.of(2026, 10, 22)
+        val today = java.time.LocalDate.of(2026, 11, 20)
+        val unmark = UsedCode.Marking(used = false)
+        val undo = assertNotNull(unmark.undo(dayItHad = had))
+        assertEquals(UsedCode.Marking(used = true, day = had, offersUndo = false), undo)
+        assertEquals(had, undo.dayOr(today))
+        assertNull(undo.undo(dayItHad = null), "undoing does not offer another Undo")
+        val mark = UsedCode.Marking(used = true)
+        assertEquals(today, mark.dayOr(today), "a mark of its own is today's")
+        assertEquals(UsedCode.Marking(used = false, offersUndo = false), mark.undo(dayItHad = null))
+        val entry = Entry("e", customFields = listOf(field("Recovery_1", "1111")))
+        val marked = entry.copy(customFields = UsedCode.changes(entry, 0, used = true, had)!!.customFields!!)
+        val off = marked.copy(customFields = UsedCode.changes(marked, 0, unmark.used, unmark.dayOr(today))!!.customFields!!)
+        val back = UsedCode.changes(off, 0, undo.used, undo.dayOr(today))!!.customFields!!
+        assertEquals(marked.customFields, back, "the field as it was, with its day")
     }
 
     // Field types (Mac SPEC §3.12)

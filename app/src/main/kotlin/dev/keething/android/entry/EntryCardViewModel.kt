@@ -6,6 +6,7 @@ import dev.keething.domain.text.UserText
 import android.content.res.Resources
 import android.util.Log
 import dev.keething.android.session.file
+import dev.keething.android.session.isReadOnly
 import dev.keething.android.groups.GroupTexts
 import dev.keething.card.editing.EntryMove
 import dev.keething.card.editing.GroupChoice
@@ -83,6 +84,8 @@ internal data class SshKeyView(val location: SshKeyLocation, val publicKey: SshP
 internal data class CardContent(
     val card: EntryCard,
     val inRecycleBin: Boolean,
+    /** In the recycle bin: the bin's name, what the place chip says at the bin's top. */
+    val binName: String? = null,
     val icon: ImageBitmap?,
     /** Its database has the recycle bin turned off: Delete is for good, asked first (keething-spec edit.delete-for-good AC1). */
     val binTurnedOff: Boolean = false,
@@ -100,7 +103,8 @@ internal data class CardUiState(
 
 /**
  * One entry's card (Mac `EntryCardModel`). Every masked value starts masked; what was revealed stays so when
- * the vault is read again, and goes with the card. Copying copies the value as stored, never the mask; a
+ * the vault is read again (while its row is the same field), and goes with the card or when the app leaves the
+ * screen. Copying copies the value as stored, never the mask; a
  * code row copies the current code. An attachment opens in another app or is saved where the user says
  * (SPEC §4, §6.2; Mac `EntryCardModel.previewAttachment` / `saveAttachment`).
  */
@@ -115,6 +119,8 @@ internal class EntryCardViewModel(
     private val android: AndroidAttachments,
     private val recycleBin: RecycleBinMoves,
     private val settings: AppSettings,
+    /** A change tried on its database open read-only: refused before anything is saved, as Move to group… is. */
+    private val refuseReadOnly: (DatabaseSession) -> Unit,
 ) : ViewModel() {
     private val mutableNotices = Channel<Notice>(Channel.BUFFERED)
     val notices: Flow<Notice> = mutableNotices.receiveAsFlow()
@@ -132,10 +138,13 @@ internal class EntryCardViewModel(
 
     private val reveal = MutableStateFlow(RevealState())
 
+    /** The card [reveal] was made on: a read again keeps only the rows that are still the same field. */
+    private var revealedOn: EntryCard? = null
+
     private val content: StateFlow<CardContent?> = database.session.state
         .map { (it as? SessionState.Unlocked)?.vault }
         .distinctUntilChanged { a, b -> a === b }
-        .map { vault -> vault?.let(::timedBuild) }
+        .map { vault -> vault?.let(::timedBuild).also { carryReveal(it?.card) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, (database.session.state.value as? SessionState.Unlocked)?.vault?.let(::timedBuild))
 
     val state: StateFlow<CardUiState> = combine(content, reveal, ::CardUiState)
@@ -145,8 +154,23 @@ internal class EntryCardViewModel(
         content.value?.takeIf { !it.inRecycleBin }?.let { recents.note(ref.text) }
     }
 
+    /** Before the new card is shown, so that no row is drawn in clear that was not revealed (it only takes away). */
+    private fun carryReveal(card: EntryCard?) {
+        val before = revealedOn
+        if (before != null && card != null && before !== card) reveal.value = reveal.value.keptOn(before, card)
+        if (card != null) revealedOn = card
+    }
+
     fun toggleReveal(rowId: String) {
         reveal.value = reveal.value.toggle(rowId)
+    }
+
+    /**
+     * The app left the screen (Home, the screen off, another app in front, an attachment or a link opened): everything
+     * masked again, protected Notes too, as the Mac's window going (keething-spec card.masking AC5).
+     */
+    fun maskAll() {
+        reveal.value = RevealState()
     }
 
     /** The card's Show all / Hide all (keething-spec card.masking AC4): every masked row shown if any is, else all masked. */
@@ -336,13 +360,19 @@ internal class EntryCardViewModel(
     /**
      * Marks a code of a list used today, or takes the mark off (SPEC §6.2): the mark is written in front of the code
      * ([UsedCode]) and saved as any edit (SPEC §3.3), the old version into the history; the notice says how it went,
-     * with Undo.
+     * with Undo, which puts a mark taken off back with its day and offers no further Undo. In a database open read-only
+     * refused before anything is saved (keething-spec card.recovery-codes AC7).
      */
     fun setUsed(row: FieldRow, used: Boolean) {
+        if (database.isReadOnly) return refuseReadOnly(database)
+        setUsed(row, UsedCode.Marking(used))
+    }
+
+    private fun setUsed(row: FieldRow, mark: UsedCode.Marking) {
         if (marking != null || !canMarkUsed(row)) return
         val entry = unlockedVault()?.entries?.firstOrNull { it.id == entryId } ?: return
         val index = RowIds.customIndex(row.id) ?: return
-        val changes = UsedCode.changes(entry, index, used, LocalDate.now()) ?: return
+        val changes = UsedCode.changes(entry, index, mark.used, mark.dayOr(LocalDate.now())) ?: return
         val pending = database.session.save(VaultEdit.Update(entry.id, entry.lastModified, changes))
         if (pending == null) {
             changes.wipe()
@@ -355,11 +385,12 @@ internal class EntryCardViewModel(
             val outcome = pending.await()
             marking = null
             val failure = outcome.problem(database.file)
+            val text = uiText(if (mark.used) R.string.entry_code_marked_used else R.string.entry_code_marked_not_used, row.noticeLabel.ui())
+            val undo = mark.undo(dayItHad = row.usedOn)
             mutableNotices.trySend(
                 when {
                     failure != null -> Notice(failure, isProblem = true)
-                    used -> savedNotice(uiText(R.string.entry_code_marked_used, row.noticeLabel.ui()), outcome.syncWarning, undo = { setUsed(row, false) })
-                    else -> savedNotice(uiText(R.string.entry_code_marked_not_used, row.noticeLabel.ui()), outcome.syncWarning, undo = { setUsed(row, true) })
+                    else -> savedNotice(text, outcome.syncWarning, undo = undo?.let { { setUsed(row, it) } })
                 },
             )
         }
@@ -512,11 +543,12 @@ internal class EntryCardViewModel(
     private fun build(vault: Vault): CardContent? {
         val inBin = vault.recycleBin.firstOrNull { it.id == entryId }
         val entry = vault.entries.firstOrNull { it.id == entryId } ?: inBin ?: return null
-        val card = EntryCardBuilder.build(entry, Instant.now())
+        // In the bin its place is the path inside it (keething-spec card.place-chip AC3), as the bin's rows say it.
+        val card = EntryCardBuilder.build(if (inBin != null) entry.copy(groupPath = vault.pathInBin(entry)) else entry, Instant.now())
         val icon = entry.customIconId?.let(vault.customIcons::get)?.image
             ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.asImageBitmap()
         return CardContent(
-            card, inRecycleBin = inBin != null, icon = icon, binTurnedOff = !vault.recycleBinEnabled, face = EntryFace.of(entry),
+            card, inRecycleBin = inBin != null, binName = vault.recycleBinGroup?.name?.takeIf { inBin != null }, icon = icon, binTurnedOff = !vault.recycleBinEnabled, face = EntryFace.of(entry),
             suggestion = if (inBin == null) TypeSuggestion.of(entry) else null,
         )
     }

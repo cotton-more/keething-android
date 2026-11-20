@@ -228,6 +228,14 @@ private fun card(key: CardText): Int = when (key) {
 private fun totp(key: TotpText): Int = when (key) {
     TotpText.UNSUPPORTED_NOT_TOTP -> R.string.totp_unsupported_not_totp
     TotpText.UNSUPPORTED_GOOGLE_EXPORT -> R.string.totp_unsupported_google_export
+    TotpText.UNSUPPORTED_STEAM -> R.string.totp_unsupported_steam
+    TotpText.UNSUPPORTED_ENCODER -> R.string.totp_unsupported_encoder
+    TotpText.UNSUPPORTED_ALGORITHM -> R.string.totp_unsupported_algorithm
+    TotpText.UNSUPPORTED_DIGITS -> R.string.totp_unsupported_digits
+    TotpText.UNSUPPORTED_PERIOD -> R.string.totp_unsupported_period
+    TotpText.UNSUPPORTED_SETTINGS -> R.string.totp_unsupported_settings
+    TotpText.UNSUPPORTED_NO_SECRET -> R.string.totp_unsupported_no_secret
+    TotpText.UNSUPPORTED_NOT_BASE32 -> R.string.totp_unsupported_not_base32
 }
 
 private fun domain(key: DomainText): Int = when (key) {

@@ -4,7 +4,7 @@ import dev.keething.domain.text.UserText
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
@@ -64,9 +64,9 @@ public data class FieldDate(val date: CalendarDate, val isStandard: Boolean) {
         return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(date.lastDay)
     }
 
-    /** How the date stands as the end of something; valid through the last day it covers. */
-    public fun expiry(now: Instant): ExpiryHint {
-        val today = LocalDate.ofInstant(now, ZoneOffset.UTC)
+    /** How the date stands as the end of something; valid through the last day it covers, today being [now]'s day in [zone] (the phone's). */
+    public fun expiry(now: Instant, zone: ZoneId): ExpiryHint {
+        val today = LocalDate.ofInstant(now, zone)
         val end = date.lastDay
         val days = ChronoUnit.DAYS.between(today, end)
         if (days < 0) {

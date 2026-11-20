@@ -66,6 +66,8 @@ public data class FieldRow(
     val maskedText: String? = null,
     /** A one-time code row's configuration: its code is live. */
     val totp: TotpConfig? = null,
+    /** A one-time code row whose fields give no code: why, shown in place of the code (keething-spec card.totp AC6). */
+    val codeProblem: UserText? = null,
     /** An attachment row's size in bytes, when known. */
     val size: Int? = null,
     /** A code of a list marked used ([UsedCode]): the day; the row's text and copy are the code alone. */
@@ -91,11 +93,11 @@ public data class FieldRow(
             is FieldValue.Protected -> value.secret.isEmpty()
         }
 
-    /** An attachment is opened or saved, not copied; a code is always there; a wallet's secrets never are. */
+    /** An attachment is opened or saved, not copied; a code is there unless it cannot be used; a wallet's secrets never are. */
     val isCopyable: Boolean
         get() = !neverCopied && when (kind) {
             Kind.ATTACHMENT -> false
-            Kind.TOTP -> true
+            Kind.TOTP -> totp != null
             else -> !isEmpty
         }
 
@@ -141,6 +143,18 @@ public data class RevealState(val revealed: Set<String> = emptySet()) {
     public fun isRevealed(id: String): Boolean = id in revealed
 
     public fun toggle(id: String): RevealState = RevealState(if (id in revealed) revealed - id else revealed + id)
+
+    /**
+     * What stays revealed when the entry is read again ([before] → [after], a sync or an edit): a custom field's row
+     * only while it is the same field, by name, as a field added or removed before it moves the others' rows.
+     */
+    public fun keptOn(before: EntryCard, after: EntryCard): RevealState = RevealState(
+        revealed.filterTo(mutableSetOf()) { id ->
+            val index = RowIds.customIndex(id) ?: return@filterTo true
+            val name = before.customFieldNames.getOrNull(index)
+            name != null && name == after.customFieldNames.getOrNull(index)
+        },
+    )
 
     /** If any concealed row is still masked, reveal them all; otherwise mask them all. */
     public fun toggleAll(rows: List<FieldRow>): RevealState {

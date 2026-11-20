@@ -2,4 +2,12 @@
 <resources>
     <string name="totp_unsupported_not_totp">поддерживаются только ссылки на коды по времени (TOTP)</string>
     <string name="totp_unsupported_google_export">это экспорт из Google Authenticator; отсканируйте QR-код самого сайта</string>
+    <string name="totp_unsupported_steam">коды Steam</string>
+    <string name="totp_unsupported_encoder">кодировка %1$s</string>
+    <string name="totp_unsupported_algorithm">алгоритм %1$s</string>
+    <string name="totp_unsupported_digits">такое число цифр</string>
+    <string name="totp_unsupported_period">такой период</string>
+    <string name="totp_unsupported_settings">поле TOTP Settings</string>
+    <string name="totp_unsupported_no_secret">в ссылке нет секрета</string>
+    <string name="totp_unsupported_not_base32">секрет не в Base32</string>
 </resources>

@@ -41,7 +41,7 @@ public object TotpSetup {
                 return TotpParser.parseOtpAuthUri(trimmed)
             } catch (e: TotpParseException) {
                 throw when (e) {
-                    is TotpParseException.Unsupported -> TotpSetupException.Unsupported(UserText.plain(e.what))
+                    is TotpParseException.Unsupported -> TotpSetupException.Unsupported(e.reason())
                     is TotpParseException.InvalidUri -> TotpSetupException.Unsupported(UserText.of(TotpText.UNSUPPORTED_NOT_TOTP))
                     is TotpParseException.MissingSecret, is TotpParseException.InvalidBase32 -> TotpSetupException.Unreadable()
                 }

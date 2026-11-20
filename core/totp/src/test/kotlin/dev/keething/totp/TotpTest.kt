@@ -1,6 +1,7 @@
 package dev.keething.totp
 
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.english
 import dev.keething.domain.totp.Base32
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.totp.TotpConfig.Algorithm
@@ -190,6 +191,28 @@ class TotpTest {
         TotpResolver.resolve(
             keePass + listOfNotNull(otp?.let { "otp" to it }, seed?.let { "TOTP Seed" to it }, settings?.let { "TOTP Settings" to it }),
         )
+
+    @Test
+    fun aSourceThatGivesNoCodeSaysWhy() {
+        fun why(otp: String?, seed: String? = null, settings: String? = null, keePass: Map<String, String> = emptyMap()) =
+            TotpResolver.problem(keePass + listOfNotNull(otp?.let { "otp" to it }, seed?.let { "TOTP Seed" to it }, settings?.let { "TOTP Settings" to it }))
+                ?.english()
+        assertEquals("Steam codes", why("otpauth://totp/Steam:alex?secret=$seed&encoder=steam"))
+        assertEquals("Steam codes", why(null, seed, "30;S"))
+        assertEquals("only time-based (TOTP) links are supported", why("otpauth://hotp/x?secret=$seed&counter=3"))
+        assertEquals("only time-based (TOTP) links are supported", why("garbage"))
+        assertEquals("the secret is not Base32", why("otpauth://totp/x?secret=not-base32!"))
+        assertEquals("the link has no secret", why("otpauth://totp/x?digits=6"))
+        assertEquals("the SHA3-256 algorithm", why("otpauth://totp/x?secret=$seed&algorithm=SHA3-256"))
+        assertEquals("the yandex encoder", why("otpauth://totp/x?secret=$seed&encoder=yandex"))
+        assertEquals("its number of digits", why(null, seed, "30;12"))
+        assertEquals("its period", why(null, seed, "0;6"))
+        assertEquals("its TOTP Settings", why(null, seed, "30"))
+        assertEquals("the HMAC-SHA-1024 algorithm", why(null, keePass = mapOf("TimeOtp-Secret-Base32" to seed, "TimeOtp-Algorithm" to "HMAC-SHA-1024")))
+        assertNull(why("otpauth://totp/x?secret=$seed"), "a code: nothing to say")
+        assertNull(why(null), "no code field: nothing to say")
+        assertNull(why("  "), "a blank otp is no source")
+    }
 
     @Test
     fun resolverPrefersTheOtpLinkAndNeverFallsBackFromABrokenOne() {

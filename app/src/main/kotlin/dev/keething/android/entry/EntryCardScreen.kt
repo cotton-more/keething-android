@@ -101,6 +101,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.AppContainer
@@ -176,10 +178,11 @@ internal fun EntryCardScreen(
     val model = viewModel {
         EntryCardViewModel(
             ref, database, container.recents, container.clipboard, container.attachmentFiles, container.androidAttachments,
-            container.recycleBin, container.settings,
+            container.recycleBin, container.settings, container.sessions::readOnlyRefusal,
         )
     }
     val state by model.state.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { model.maskAll() }
     val session by database.session.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     NoticeEffect(model.notices, snackbar)
@@ -492,14 +495,13 @@ private fun Header(content: CardContent, mark: DatabaseMark?, readOnly: Boolean,
                 Modifier.sharedTitle(sharedKey).onGloballyPositioned { onTitlePlaced(it.boundsInRoot().bottom) },
                 style = MaterialTheme.typography.headlineMedium,
             )
-            if (mark != null || card.groupPath.isNotEmpty() || card.tags.isNotEmpty()) {
+            // In the bin, the path inside it; at the bin's top, the bin.
+            val path = card.groupPath.ifEmpty { listOfNotNull(content.binName) }
+            if (mark != null || path.isNotEmpty() || card.tags.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (mark != null || card.groupPath.isNotEmpty()) {
-                        val search = listOfNotNull(
-                            mark?.let { FilterCompletion.token(FilterKind.DATABASE, it.label.full) },
-                            card.groupName.takeIf { it.isNotEmpty() }?.let { FilterCompletion.token(FilterKind.GROUP, it) },
-                        ).joinToString(" ") + " "
-                        PlaceChip(mark, card.groupPath, readOnly, onClick = { onSearch(search) })
+                    if (mark != null || path.isNotEmpty()) {
+                        val search = FilterCompletion.place(mark?.label?.full, card.groupName.takeIf { it.isNotEmpty() }, content.inRecycleBin)
+                        PlaceChip(mark, path, readOnly, onClick = { onSearch(search) })
                     }
                     // The tags always on a line of their own (the owner, 2026-10-31).
                     if (card.tags.isNotEmpty()) {
@@ -519,7 +521,8 @@ private fun Header(content: CardContent, mark: DatabaseMark?, readOnly: Boolean,
  * Where the entry is, as one chip (the owner, 2026-10-31): while two or more databases are open its database first
  * (keething-spec databases.name-colour AC6: its dot and label in its colour on a soft fill of it), then the group's
  * path on one line, cut as the list cuts it (the group's own name and the database's always whole); with one open, a
- * folder and the path. A tap searches there: `!Work @Mail `, `@Mail `, `!Work ` (search.database-filter).
+ * folder and the path. A tap searches there: `!Work @Mail `, `@Mail `, `!Work ` (search.database-filter); in the recycle
+ * bin the path inside it, searching the bin, `- @Mail ` ([FilterCompletion.place]).
  */
 @Composable
 private fun PlaceChip(mark: DatabaseMark?, path: List<String>, readOnly: Boolean, onClick: () -> Unit) {

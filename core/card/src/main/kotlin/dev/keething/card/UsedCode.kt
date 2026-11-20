@@ -16,6 +16,17 @@ import java.time.format.DateTimeParseException
 public object UsedCode {
     public data class Parsed(val day: LocalDate, val code: String)
 
+    /**
+     * A mark set or taken off on the card, and the Undo its notice offers (Mac `EntryCardModel.setUsed`): [day] null is
+     * today. The Undo goes the other way round, a mark taken off put back with the day it had, and offers none itself.
+     */
+    public data class Marking(val used: Boolean, val day: LocalDate? = null, val offersUndo: Boolean = true) {
+        public fun dayOr(today: LocalDate): LocalDate = day ?: today
+
+        /** The Undo of this marking, [dayItHad] the row's day before it; null when it offers none. */
+        public fun undo(dayItHad: LocalDate?): Marking? = if (offersUndo) Marking(!used, dayItHad, offersUndo = false) else null
+    }
+
     private val PATTERN = Regex("^used (\\d{4}-\\d{2}-\\d{2}) · (.*)$", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
 
     /** The day and the code of a value marked used; null for a value that is not. */

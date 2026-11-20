@@ -15,8 +15,10 @@ public sealed class TotpParseException(message: String) : Exception(message) {
 
     public class InvalidBase32 : TotpParseException("the secret is not Base32") // not user text
 
-    /** Something the app does not do, such as Steam codes: [what]. */
-    public class Unsupported(public val what: String) : TotpParseException("unsupported: $what")
+    /** Something the app does not do, such as Steam codes: [what], of [kind]. */
+    public class Unsupported(public val what: String, public val kind: Kind) : TotpParseException("unsupported: $what") {
+        public enum class Kind { STEAM, ENCODER, ALGORITHM, DIGITS, PERIOD, SETTINGS }
+    }
 }
 
 /** A link's issuer ("GitHub") and account ("alex@example.com"); empty when the link names none. */
@@ -39,7 +41,9 @@ public object TotpParser {
         if (!head.substringBefore('/').equals("totp", ignoreCase = true)) throw TotpParseException.InvalidUri()
 
         val params = queryParameters(query)
-        params["encoder"]?.takeIf { it.isNotEmpty() }?.let { throw TotpParseException.Unsupported(it.lowercase()) }
+        params["encoder"]?.takeIf { it.isNotEmpty() }?.lowercase()?.let {
+            throw TotpParseException.Unsupported(it, if (it == "steam") TotpParseException.Unsupported.Kind.STEAM else TotpParseException.Unsupported.Kind.ENCODER)
+        }
         val secretText = params["secret"]?.takeIf { it.isNotEmpty() } ?: throw TotpParseException.MissingSecret()
         val secret = Base32.decode(secretText)?.takeIf { it.isNotEmpty() } ?: throw TotpParseException.InvalidBase32()
 
@@ -47,7 +51,7 @@ public object TotpParser {
         val digits = params["digits"]?.let(::digits) ?: 6
         val algorithm = params["algorithm"]?.let { name ->
             TotpConfig.Algorithm.entries.firstOrNull { it.name == name.uppercase() }
-                ?: throw TotpParseException.Unsupported(name)
+                ?: throw TotpParseException.Unsupported(name, TotpParseException.Unsupported.Kind.ALGORITHM)
         } ?: TotpConfig.Algorithm.SHA1
         return TotpConfig(Secret.adopt(secret), digits, period, algorithm)
     }
@@ -77,8 +81,8 @@ public object TotpParser {
         var digits = 6
         if (settings != null && settings.isNotBlank()) {
             val parts = settings.split(';').map { it.trim() }
-            if (parts.size != 2) throw TotpParseException.Unsupported("settings")
-            if (parts[1].uppercase() == "S") throw TotpParseException.Unsupported("steam")
+            if (parts.size != 2) throw TotpParseException.Unsupported("settings", TotpParseException.Unsupported.Kind.SETTINGS)
+            if (parts[1].uppercase() == "S") throw TotpParseException.Unsupported("steam", TotpParseException.Unsupported.Kind.STEAM)
             period = period(parts[0])
             digits = digits(parts[1])
         }
@@ -100,11 +104,11 @@ public object TotpParser {
         val secret = keePassSecret(present(key)!!, key)?.takeIf { it.isNotEmpty() } ?: throw TotpParseException.InvalidBase32()
 
         val digits = keePassNumber(value(TotpFormat.KEEPASS_LENGTH_FIELD)).takeIf { it != 0 } ?: 6
-        if (digits > TotpFormat.KEEPASS_MAXIMUM_DIGITS) throw TotpParseException.Unsupported("digits")
+        if (digits > TotpFormat.KEEPASS_MAXIMUM_DIGITS) throw TotpParseException.Unsupported("digits", TotpParseException.Unsupported.Kind.DIGITS)
         val period = keePassNumber(value(TotpFormat.KEEPASS_PERIOD_FIELD)).takeIf { it != 0 } ?: 30
         val algorithm = value(TotpFormat.KEEPASS_ALGORITHM_FIELD)?.takeIf { it.isNotEmpty() }?.let { name ->
             TotpConfig.Algorithm.entries.firstOrNull { TotpFormat.keePassAlgorithm(it) == name }
-                ?: throw TotpParseException.Unsupported(name)
+                ?: throw TotpParseException.Unsupported(name, TotpParseException.Unsupported.Kind.ALGORITHM)
         } ?: TotpConfig.Algorithm.SHA1
         return TotpConfig(Secret.adopt(secret), digits, period, algorithm)
     }
@@ -135,11 +139,11 @@ public object TotpParser {
         text?.trim()?.toUIntOrNull()?.takeIf { it <= Int.MAX_VALUE.toUInt() }?.toInt() ?: 0
 
     private fun period(text: String): Int =
-        text.toIntOrNull()?.takeIf { it > 0 } ?: throw TotpParseException.Unsupported("period")
+        text.toIntOrNull()?.takeIf { it > 0 } ?: throw TotpParseException.Unsupported("period", TotpParseException.Unsupported.Kind.PERIOD)
 
     /** A 31-bit truncated value has at most 10 decimal digits. */
     private fun digits(text: String): Int =
-        text.toIntOrNull()?.takeIf { it in 1..10 } ?: throw TotpParseException.Unsupported("digits")
+        text.toIntOrNull()?.takeIf { it in 1..10 } ?: throw TotpParseException.Unsupported("digits", TotpParseException.Unsupported.Kind.DIGITS)
 
     private fun queryParameters(query: String): Map<String, String> =
         query.split('&').filter { it.isNotEmpty() }.associate { pair ->

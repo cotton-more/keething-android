@@ -8,11 +8,25 @@ import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.FieldValue
 import dev.keething.totp.TotpParseException
 import dev.keething.totp.TotpParser
+import dev.keething.totp.TotpResolver
 import java.time.Instant
+import java.time.ZoneId
 import java.util.Locale
 
 /** A group of rows on the card, drawn as one rounded section. */
 public data class CardSection(val id: String, val kind: Kind, val title: String?, val rows: List<FieldRow>) {
+    /** A list of codes: [row] is one left to use, not marked used and with a value (a segment of the bar filled). */
+    public fun isLeft(row: FieldRow): Boolean = row.usedOn == null && row.isCopyable
+
+    /** A list of codes: how many are left to use ("N of M left", M every row). */
+    public val codesLeft: Int get() = rows.count(::isLeft)
+
+    /** A list of codes with two or fewer left: the bar in the error colour. */
+    public val fewCodesLeft: Boolean get() = codesLeft <= 2
+
+    /** A list of codes: the one to use next, outlined and copied by Copy next unused; null when none is left. */
+    public val nextUnusedCode: FieldRow? get() = if (kind == Kind.Codes) rows.firstOrNull(::isLeft) else null
+
     public sealed interface Kind {
         /** Username, password, URL and additional URLs, one-time code. */
         public data object Credentials : Kind
@@ -78,6 +92,8 @@ public data class EntryCard(
     val lastModified: Instant?,
     val created: Instant?,
     val customIconId: String?,
+    /** The entry's custom fields' names, by index: which field a `custom-<index>` row is. */
+    val customFieldNames: List<String> = emptyList(),
 ) {
     /** The entry is a note (SPEC §6.4): its text comes first, and the note tile stands in for its icon. */
     val isNote: Boolean get() = sections.firstOrNull()?.kind == CardSection.Kind.Note
@@ -125,10 +141,10 @@ public object EntryCardBuilder {
     /** The views of kinds of entries, in card order. */
     private val typedSections: List<TypedSection> = listOf(PaymentCardSection, WiFiSection, BankAccountSection, DocumentSection, SshSection, CryptoSection)
 
-    public fun build(entry: Entry, now: Instant, locale: Locale = Locale.getDefault()): EntryCard {
+    public fun build(entry: Entry, now: Instant, locale: Locale = Locale.getDefault(), zone: ZoneId = ZoneId.systemDefault()): EntryCard {
         fun row(id: String, kind: FieldRow.Kind, label: CardText, value: FieldValue) = FieldRow(id, kind, UserText.of(label), value)
         val context = CardContext(
-            entry.customFields.withIndex().toList(), FieldInterpreter(entry), now, locale,
+            entry.customFields.withIndex().toList(), FieldInterpreter(entry), now, zone, locale,
             title = entry.sortTitle, username = entry.username, attachments = entry.attachments,
         )
 
@@ -148,6 +164,20 @@ public object EntryCardBuilder {
         }
         if (entry.totp != null) {
             credentials += FieldRow(RowIds.TOTP, FieldRow.Kind.TOTP, UserText.of(CardText.ROW_ONE_TIME_CODE), FieldValue.Plain(""), totp = entry.totp)
+        } else if (entry.hasCodeFields) {
+            // Code fields that give no code (Steam, a counter-based link, a broken secret): the row says why.
+            val texts = entry.codeFields.associate { field ->
+                field.name to when (val v = field.value) {
+                    is FieldValue.Plain -> v.text
+                    is FieldValue.Protected -> v.secret.reveal()
+                }
+            }
+            TotpResolver.problem(texts)?.let { reason ->
+                credentials += FieldRow(
+                    RowIds.TOTP, FieldRow.Kind.TOTP, UserText.of(CardText.ROW_ONE_TIME_CODE), FieldValue.Plain(""),
+                    codeProblem = UserText.of(CardText.CODE_UNSUPPORTED, reason),
+                )
+            }
         }
 
         val sections = mutableListOf<CardSection>()
@@ -172,13 +202,13 @@ public object EntryCardBuilder {
         if (attachments.isNotEmpty()) sections += CardSection("attachments", CardSection.Kind.Attachments, null, attachments)
 
         val expiry = entry.expiryTime?.takeIf { entry.expires }?.let { at ->
-            DeadlineList.entryExpiryDate(at)?.let { date ->
-                val hint = DeadlineList.entryExpiryHint(date, entry.isExpired(now), now)
+            DeadlineList.entryExpiryDate(at, zone)?.let { date ->
+                val hint = DeadlineList.entryExpiryHint(date, entry.isExpired(now), now, zone)
                 if (entry.isExpired(now)) EntryExpiry.Expired(at, hint) else EntryExpiry.Expires(at, hint)
             }
         }
         // KeePass's own expiry has its banner.
-        val pressing = DeadlineList.deadlines(entry, context.interpreter, now)
+        val pressing = DeadlineList.deadlines(entry, context.interpreter, now, zone)
             .filter { it.source != Deadline.Source.EntryExpiry && it.hint.status != ExpiryHint.Status.VALID }
         return EntryCard(
             id = entry.id,
@@ -194,6 +224,7 @@ public object EntryCardBuilder {
             lastModified = entry.lastModified,
             created = entry.created,
             customIconId = entry.customIconId,
+            customFieldNames = entry.customFields.map { it.name },
         )
     }
 
@@ -281,11 +312,12 @@ public object EntryCardBuilder {
     }
 }
 
-/** What the parts of the card are built from: the entry's custom fields with their index, how they are read, the time, the locale. */
+/** What the parts of the card are built from: the entry's custom fields with their index, how they are read, the time and the phone's zone, the locale. */
 internal class CardContext(
     val fields: List<IndexedValue<CustomField>>,
     val interpreter: FieldInterpreter,
     val now: Instant,
+    val zone: ZoneId,
     val locale: Locale,
     val title: String = "",
     val username: String = "",
@@ -339,7 +371,7 @@ internal class CardContext(
         interpreter.date(field)?.let { (date, ends) ->
             return FieldRow(
                 id, FieldRow.Kind.CUSTOM, label, field.value, style = ValueStyle.Date(date), shownText = date.displayText(locale),
-                noticeLabel = notice, expiry = if (ends) date.expiry(now) else null, type = type,
+                noticeLabel = notice, expiry = if (ends) date.expiry(now, zone) else null, type = type,
             )
         }
         if (type == null || type == FieldType.URL) {

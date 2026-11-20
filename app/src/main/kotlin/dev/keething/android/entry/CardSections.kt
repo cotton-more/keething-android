@@ -163,6 +163,8 @@ private fun credentialTile(row: FieldRow): Tile? {
     return when {
         row.kind == FieldRow.Kind.USERNAME -> Tile(Icons.Rounded.Person, colors.tertiaryContainer, colors.onTertiaryContainer)
         row.kind == FieldRow.Kind.PASSWORD -> Tile(Icons.Rounded.Key, colors.primaryContainer, colors.onPrimaryContainer)
+        // A code that cannot be used: the same tile, grey (agreed on the canvas "Code that cannot be used", variant A).
+        row.kind == FieldRow.Kind.TOTP && row.totp == null -> Tile(Icons.Rounded.VerifiedUser, colors.surfaceContainerHighest, colors.onSurfaceVariant)
         row.kind == FieldRow.Kind.TOTP -> Tile(Icons.Rounded.VerifiedUser, colors.primaryContainer, colors.onPrimaryContainer)
         row.kind == FieldRow.Kind.URL || row.link != null -> Tile(Icons.Rounded.Language, colors.secondaryContainer, colors.onSecondaryContainer)
         else -> null
@@ -232,6 +234,7 @@ internal fun FieldRowView(
             }
             if (row.kind == FieldRow.Kind.TOTP) {
                 row.totp?.let { CodeValue(TotpDisplay.of(it, now.value), onCopyNext = { actions.onCopyNext(row) }) }
+                row.codeProblem?.let { Text(it.resolve(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 FieldValueText(row, reveal)
             }
@@ -372,12 +375,19 @@ private fun PasswordMenu(actions: CardActions) {
     }
 }
 
-/** A value as the card shows it: masked, revealed (monospaced, digits and symbols coloured), a link, or text. */
+/**
+ * A value as the card shows it: masked, revealed (monospaced, digits and symbols coloured), a link, or text; an empty
+ * one as "—" in the secondary colour, said "empty" (keething-spec card.fields AC2).
+ */
 @Composable
 private fun FieldValueText(row: FieldRow, reveal: RevealState) {
     val text = reveal.displayValue(row)
     val style = MaterialTheme.typography.bodyLarge
     when {
+        row.isEmpty -> {
+            val empty = stringResource(R.string.entry_row_empty)
+            Text("—", Modifier.semantics { contentDescription = empty }, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant) // not user text
+        }
         row.isConcealed && !reveal.isRevealed(row.id) -> Text(text, Modifier.spokenMasked(text), style = style, letterSpacing = 2.sp, maxLines = 1)
         row.isConcealed -> Text(colouredSecret(text), style = style, fontFamily = MonospaceFamily)
         row.link != null -> Text(text, style = style, color = MaterialTheme.colorScheme.primary, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -394,7 +404,7 @@ private fun FieldValueText(row: FieldRow, reveal: RevealState) {
 private fun CodesView(section: CardSection, reveal: RevealState, actions: CardActions) {
     val concealed = section.rows.filter { it.isConcealed && !it.isEmpty }
     val shown = concealed.isNotEmpty() && concealed.all { reveal.isRevealed(it.id) }
-    val used = section.rows.count { it.usedOn != null }
+    val left = section.codesLeft
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(OUTER)).background(MaterialTheme.extraColors.row).padding(start = 18.dp, end = 6.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -403,9 +413,9 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
             Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
                 Text(section.title.orEmpty(), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    pluralStringResource(R.plurals.entry_codes_left, section.rows.size - used, section.rows.size - used, section.rows.size),
+                    pluralStringResource(R.plurals.entry_codes_left, left, left, section.rows.size),
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (used == section.rows.size) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (left == 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (concealed.isNotEmpty()) {
@@ -418,8 +428,8 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
                 }
             }
         }
-        LeftBar(section.rows, Modifier.padding(end = 12.dp, bottom = 4.dp))
-        val next = section.rows.firstOrNull { it.usedOn == null && it.isCopyable }
+        LeftBar(section, Modifier.padding(end = 12.dp, bottom = 4.dp))
+        val next = section.nextUnusedCode
         for (pair in section.rows.chunked(2)) {
             Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (row in pair) CodeCell(row, reveal, actions, Modifier.weight(1f), isNext = row.id == next?.id)
@@ -438,11 +448,12 @@ private fun CodesView(section: CardSection, reveal: RevealState, actions: CardAc
     }
 }
 
-/** How many codes are left: one segment per code, on one line however many (thinner for more), used ones empty. */
+/** How many codes are left: one segment per code, on one line however many (thinner for more), used and empty ones empty. */
 @Composable
-private fun LeftBar(rows: List<FieldRow>, modifier: Modifier) {
-    val left = rows.count { it.usedOn == null }
-    val filled = if (left <= 2) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+private fun LeftBar(section: CardSection, modifier: Modifier) {
+    val rows = section.rows
+    val left = section.codesLeft
+    val filled = if (section.fewCodesLeft) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     val empty = MaterialTheme.colorScheme.outlineVariant
     val gap = if (rows.size > 16) 2.dp else 3.dp
     val spoken = pluralStringResource(R.plurals.entry_codes_left, left, left, rows.size)
@@ -451,7 +462,7 @@ private fun LeftBar(rows: List<FieldRow>, modifier: Modifier) {
         horizontalArrangement = Arrangement.spacedBy(gap),
     ) {
         val shape = RoundedCornerShape(if (rows.size > 30) 1.dp else 3.dp)
-        for (row in rows) Box(Modifier.weight(1f).fillMaxHeight().clip(shape).background(if (row.usedOn == null) filled else empty))
+        for (row in rows) Box(Modifier.weight(1f).fillMaxHeight().clip(shape).background(if (section.isLeft(row)) filled else empty))
     }
 }
 

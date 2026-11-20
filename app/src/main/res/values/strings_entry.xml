@@ -99,6 +99,8 @@
     <!-- %1$s: the field, as the card names it, in lower case -->
     <string name="entry_row_show">Show %1$s</string>
     <string name="entry_row_open_link">Open in the browser</string>
+    <!-- A field with no value, drawn as a dash: what a screen reader says for the dash -->
+    <string name="entry_row_empty">Empty</string>
     <!-- An app's address: %1$s is the app's or the store's name -->
     <string name="entry_app_could_not_open">%1$s could not be opened</string>
     <!-- %1$s: the app's name -->

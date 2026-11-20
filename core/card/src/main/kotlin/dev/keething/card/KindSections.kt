@@ -186,7 +186,7 @@ internal object DocumentSection : TypedSection {
             issuedRowId = date(FieldType.DOC_ISSUED)?.first?.let { RowIds.custom(it.index) },
             expiry = expiry?.second,
             expiryRowId = expiry?.first?.let { RowIds.custom(it.index) },
-            expiryHint = expiry?.second?.expiry(context.now),
+            expiryHint = expiry?.second?.expiry(context.now, context.zone),
         )
         val (title, labels) = context.sectionLabels(parts)
         val rows = parts.zip(labels).map { (part, label) -> context.row(part.index, part.value, label, ImportedFieldName.displayName(part.value.name)) }

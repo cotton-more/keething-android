@@ -26,6 +26,7 @@ import dev.keething.search.SearchFacets
 import dev.keething.search.narrowing
 import java.text.Collator
 import java.time.Instant
+import java.time.ZoneId
 
 /** One row of the list (SPEC §6.2): title, username and site, the live codes when there are any. */
 internal data class EntryRow(
@@ -199,8 +200,7 @@ internal class VaultListing(
             val binned = database.vault.recycleBin.map(::copy)
             database.label?.let { label -> repeat(binned.size) { binnedLabels += label } }
             bin += binned
-            val depth = database.vault.recycleBinGroup?.path?.size ?: 0
-            val insideBin = binned.map { it.copy(groupPath = it.groupPath.drop(depth)) }
+            val insideBin = binned.map { it.copy(groupPath = database.vault.pathInBin(it)) }
             inside += insideBin
             deleted += insideBin.asReversed()
             for ((id, icon) in database.vault.customIcons) icons[ref(id)] = icon
@@ -281,7 +281,7 @@ internal class VaultListing(
 
     private val byId: Map<String, Entry> = vault.entries.associateBy { it.id }
     private val binById: Map<String, Entry> = vault.recycleBin.associateBy { it.id }
-    private val deadlines: Map<String, RowDeadline> = DeadlineList.build(vault, now)
+    private val deadlines: Map<String, RowDeadline> = DeadlineList.build(vault, now, ZoneId.systemDefault())
         .filter { it.hint.status != ExpiryHint.Status.VALID }
         .groupBy { it.entryId }
         .mapValues { (_, list) -> rowDeadline(list.minWith(compareBy<Deadline> { it.hint.status }.thenBy { it.date })) }
