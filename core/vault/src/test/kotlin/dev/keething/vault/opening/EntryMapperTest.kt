@@ -7,10 +7,12 @@ import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.EntryFieldTypes
 import dev.keething.domain.vault.FieldValue
+import dev.keething.domain.vault.VaultGroup
 import dev.keething.kdbx.xml.KdbxAttachmentRef
 import dev.keething.kdbx.xml.KdbxDocument
 import dev.keething.kdbx.xml.KdbxEntry
 import dev.keething.kdbx.xml.KdbxField
+import dev.keething.kdbx.xml.KdbxGroup
 import dev.keething.kdbx.xml.KdbxMeta
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -138,6 +140,19 @@ class EntryMapperTest {
         assertEquals(listOf("a", "d"), vault.entries.map { it.id })
         assertEquals(listOf("b", "c"), vault.recycleBin.map { it.id })
         assertEquals(setOf("I"), vault.customIcons.keys)
+    }
+
+    @Test
+    fun theRecycleBinsGroupIsKeptWithItsPathWhereverItIs() {
+        val groups = listOf(
+            KdbxGroup("R", "Root", emptyList(), listOf("R")),
+            KdbxGroup("A", "Archive", listOf("Archive"), listOf("R", "A")),
+            KdbxGroup("BIN", "Recycle Bin", listOf("Archive", "Recycle Bin"), listOf("R", "A", "BIN")),
+        )
+        val vault = VaultAssembler.assemble(KdbxDocument(KdbxMeta(recycleBinUuid = "BIN"), groups, emptyList()), emptyList())
+
+        assertEquals(VaultGroup("BIN", "Recycle Bin", listOf("Archive", "Recycle Bin")), vault.recycleBinGroup)
+        assertNull(VaultAssembler.assemble(KdbxDocument(KdbxMeta(), groups, emptyList()), emptyList()).recycleBinGroup)
     }
 
     @Test

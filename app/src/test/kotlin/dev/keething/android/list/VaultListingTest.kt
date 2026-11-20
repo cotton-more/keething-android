@@ -13,6 +13,7 @@ import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.CustomIcon
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
+import dev.keething.domain.vault.VaultGroup
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.EntryRef
 import java.text.Collator
@@ -29,6 +30,9 @@ internal val UNNAMED_CODE = uiText(R.string.list_one_time_code).english()
 
 class VaultListingTest {
     private val now = Instant.parse("2026-10-18T12:00:00Z")
+
+    /** A recycle bin at the top level, as KeePass makes it. */
+    private val topBin = VaultGroup("BIN", "Recycle Bin", listOf("Recycle Bin"))
 
     private val github = Entry(
         id = "gh", title = "GitHub", username = "octocat", url = "https://github.com/login",
@@ -247,7 +251,12 @@ class VaultListingTest {
         val inGroup = Entry(id = "g", title = "Sparkasse", groupPath = listOf("Finanzen", "Banken"))
         val binned = Entry(id = "b", title = "Old", groupPath = listOf("Recycle Bin", "Work"))
         val binnedAlone = Entry(id = "c", title = "Older", groupPath = listOf("Recycle Bin"))
-        val listing = VaultListing(Vault(entries = listOf(inGroup, bahn), recycleBin = listOf(binned, binnedAlone)), now, Collator.getInstance(Locale.ENGLISH), unnamedCode = UNNAMED_CODE)
+        val listing = VaultListing(
+            Vault(entries = listOf(inGroup, bahn), recycleBin = listOf(binned, binnedAlone), recycleBinGroup = topBin),
+            now,
+            Collator.getInstance(Locale.ENGLISH),
+            unnamedCode = UNNAMED_CODE,
+        )
 
         val rows = listing.sections("", emptyList()).single().rows.associateBy { it.id }
         assertEquals(listOf("Finanzen", "Banken"), rows.getValue("g").group)
@@ -255,6 +264,35 @@ class VaultListingTest {
         val bin = listing.sections("-", emptyList()).single().rows.associateBy { it.id }
         assertEquals(listOf("Work"), bin.getValue("b").group)
         assertEquals(emptyList(), bin.getValue("c").group)
+    }
+
+    // spec: search.recycle-bin/AC2
+    @Test
+    fun theBinsSearchReadsThePathsInsideTheBinTakenOffAtTheBinsOwnDepth() {
+        // KeePass lets the bin be moved under another group: what its rows leave out is down to the bin, not one level.
+        val nested = Vault(
+            entries = listOf(Entry(id = "kept", title = "Archive index", groupPath = listOf("Archive"))),
+            // In the file's order: the bin's own entries, then its groups' (a group "Work" deleted into it).
+            recycleBin = listOf(
+                Entry(id = "router", title = "Old router", groupPath = listOf("Archive", "Recycle Bin")),
+                Entry(id = "wiki", title = "Old wiki", groupPath = listOf("Archive", "Recycle Bin", "Work")),
+            ),
+            recycleBinGroup = VaultGroup("BIN", "Recycle Bin", listOf("Archive", "Recycle Bin")),
+        )
+        val listing = both(w = nested)
+
+        val bin = listing.sections("-", emptyList()).single().rows
+        assertEquals(listOf(p("oldP2"), p("oldP1"), w("wiki"), w("router")), bin.map { it.id }, "each file's order reversed: a deleted group's entries first")
+        val rows = bin.associateBy { it.id }
+        assertEquals(listOf("Media"), rows.getValue(p("oldP1")).group, "a bin at the top level: its own group left out")
+        assertEquals(listOf("Work"), rows.getValue(w("wiki")).group)
+        assertEquals(emptyList(), rows.getValue(w("router")).group)
+        for (word in listOf("recycle", "bin", "archive", "@Rec", "@Arch", "rb")) {
+            assertEquals(emptyList(), listing.sections("- $word", emptyList()), "$word names nothing inside a bin")
+        }
+        assertEquals(listOf(w("wiki")), listing.sections("- @Work", emptyList()).single().rows.map { it.id })
+        assertEquals(listOf(p("oldP1")), listing.sections("- media", emptyList()).single().rows.map { it.id })
+        assertEquals(listOf("Media", "Work"), searchChips("- @", listing, codesOnly = false).chips.map { it.label.english() })
     }
 
     // Several databases open (plan AD9; the Mac's D6 `DatabasesWindowTests`)
@@ -278,6 +316,7 @@ class VaultListingTest {
             Entry(id = "oldP1", title = "Old Personal", groupPath = listOf("Recycle Bin", "Media")),
             Entry(id = "oldP2", title = "Older Personal", groupPath = listOf("Recycle Bin")),
         ),
+        recycleBinGroup = topBin,
     )
     private val work = Vault(
         entries = listOf(
@@ -285,6 +324,7 @@ class VaultListingTest {
             Entry(id = "wbank", title = "Firmenkonto", groupPath = listOf("Finanzen")),
         ),
         recycleBin = listOf(Entry(id = "oldW", title = "Old Work", groupPath = listOf("Recycle Bin", "Engineering"))),
+        recycleBinGroup = topBin,
     )
 
     private fun both(p: Vault = personal, w: Vault = work) = VaultListing(
@@ -331,7 +371,7 @@ class VaultListingTest {
 
     @Test
     fun aMinusListsEveryBinInTheWindowsOrderEachLatestDeletedFirst() {
-        // A file keeps no time of the move, so not one merged order (keething-spec search.recycle-bin AC5).
+        // Each bin in its own file's order, not one merged order (keething-spec search.recycle-bin AC5).
         val listing = both()
         val bin = listing.sections("-", emptyList()).single()
 

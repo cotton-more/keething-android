@@ -1,5 +1,7 @@
 package dev.keething.android.autofill
 
+import dev.keething.android.list.ListedDatabase
+import dev.keething.android.list.VaultListing
 import dev.keething.autofill.matching.AutofillMatcher
 import dev.keething.autofill.saving.SavePlan
 import dev.keething.autofill.saving.SavePlanner
@@ -8,11 +10,16 @@ import dev.keething.autofill.target.FillTarget
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
+import dev.keething.search.EntrySearch
 import dev.keething.search.site.SiteAddress
 import dev.keething.vault.databases.DatabaseId
 import dev.keething.vault.databases.EntryRef
+import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 /** Autofill over several open databases (keething-spec autofill.fill AC6, autofill.save AC7; plan AD11). */
 class AutofillAcrossDatabasesTest {
@@ -53,5 +60,29 @@ class AutofillAcrossDatabasesTest {
             SavePlanner.plan(candidates, TypedLogin("", "new"), page, appName = null),
             "without a username two accounts match, one in each: a new entry, which the editor places",
         )
+    }
+
+    // spec: autofill.fill/AC6
+    @Test
+    fun thePickerLeavesEveryRecycleBinOutAndFillsNoEntryOfOne() {
+        val listing = VaultListing(
+            listOf(
+                ListedDatabase(personal, Vault(entries = listOf(entry("same", "alex")), recycleBin = listOf(entry("old", "alex-old")))),
+                ListedDatabase(work, Vault(entries = listOf(entry("same", "alex.morgan")), recycleBin = listOf(entry("older", "alex-older")))),
+            ),
+            Instant.EPOCH,
+        )
+        val old = EntryRef(personal, "old").text
+
+        assertEquals(emptyList(), listing.pickerSections("-", emptyList()), "as Send's list: the bins are not offered")
+        assertFalse(EntrySearch.isEmpty("-"), "not a bare sign: the picker says nothing matches")
+        assertEquals(emptyList(), listing.pickerSections("- github", emptyList()))
+        assertEquals(
+            listOf(EntryRef(personal, "same").text, EntryRef(work, "same").text),
+            listing.pickerSections("github", emptyList()).flatMap { section -> section.rows.map { it.id } },
+        )
+        assertNull(listing.pickerEntry(old), "a binned ref fills nothing")
+        assertNotNull(listing.entry(old), "the list still finds it")
+        assertEquals("alex.morgan", listing.pickerEntry(EntryRef(work, "same").text)?.username)
     }
 }

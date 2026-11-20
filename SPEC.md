@@ -340,7 +340,8 @@ so the same UUID in two databases (a copy of a file keeps every UUID) is two row
 The list works on copies whose id is the ref (one search ranks them all); the card, the editor, the history, a password
 full screen and a move to the bin or out of it act on the entry in its own database, through its session, saved into
 its file; a row's Delete follows its own database's recycle-bin setting. `-` lists every database's bin, the
-databases in the window's order, each with its latest deleted first (a file keeps no time of the move). **Recent**
+databases in the window's order, each in its file's order reversed (the entries moved in last first, a group deleted
+into the bin elsewhere with its entries before them). **Recent**
 and the declined type offers (§6.3) are kept by ref: 8 are listed in all and 8 kept per database, so a locked
 database's entries are not pushed out by those used meanwhile; its entries are hidden while it is locked and come
 back when it opens; an entry gone from its open database is dropped, a database that left the list takes its refs
@@ -355,7 +356,7 @@ the group goes to that database's top level, the tags offered are its, and the u
 was changed. A new entry's draft goes when its own database locks; another database locking leaves it (a save in
 flight keeps its sheet). Autofill fills and saves from every open database, and received entries choose theirs too
 (§7, §10). Groups & tags has a block per open database; sending reads entries from any open one. The search's **`!` filter** keeps one database's entries (§6.2): the index has each entry's
-database label, also with one open (`!Personal` typed by hand still filters), none for autofill's single vault.
+database label, also with one open (`!Personal` typed by hand still filters), and autofill's picker as the list.
 
 **A database's name and colour** (keething-spec databases.name-colour; the Mac's D7b): its name is its file's
 `Meta/DatabaseName` (outer spaces aside), else the file name without `.kdbx`; KeePassXC's default names "Passwords",
@@ -1515,7 +1516,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   Databases ("2 open", §3.1) and Settings) collapses into a compact opaque bar while the list scrolls, and comes back at the top; it collapses
   too as the search field takes the focus (the keyboard takes half the screen), and comes back when the field
   lets it go with the list at its top. On a screen less than 480 dp high (a phone in landscape) it is the compact
-  bar from the start; beside the card (§6.1) that bar has the title only. Recently used: the last 8 entries whose card was opened or from which something was copied,
+  bar from the start; beside the card (§6.1) that bar has the title only. Recently used: the last 8 entries whose card was opened, from which something was copied or whose site was opened from its row (one in the bin is never noted, and one moved there leaves the list),
   kept as refs only (they survive a lock and say nothing without the database; 8 kept per database, §3.1). Syncthing's
   conflict copies and a failed reload are each open database's own banner (the reload's named while two or more are
   open). Search finds the title, username, URL, Notes, tags, groups and custom fields' names and plain values;
@@ -1531,8 +1532,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   its other filters (terms aside, the filter being typed left out), so a name that would leave nothing (an empty
   group too) is not offered (`!Work @` offers Work's groups); typed by hand such a filter still filters. A name whose
   entries are in two or more databases is one chip with a dot and a count for each (AC8). Inside the bin search its
-  own groups and tags. A tap puts the name in (a database's whole label; quoted when it has a space) with a space
-  after it; none matching, no chips. `!x` keeps the open databases whose label starts with `x` (folded as the
+  own groups (the paths inside the bin, as its rows show them and its search reads them) and tags. A tap puts the name
+  in (a group's own name, not its path, so a name at two places is one filter, though each chip counts its own group;
+  a database's whole label; quoted when it has a space) with a space after it; a name with a `"`, which could not be
+  written back, is not offered; none matching, no chips. `!x` keeps the open databases whose label starts with `x` (folded as the
   search), and a whole label that database only ("Work" does not keep "Workshop"); two different ones keep nothing;
   only at a token's start (`hi!` is a term). A query of bare signs alone (`@`, `!`, `@ #`) lists nothing and says
   nothing — never the whole vault; the bin search still lists its bins. **Narrowing** (keething-spec
@@ -1548,8 +1551,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (its counts would count entries without codes). Closing the keyboard ends the focus and the chips. Back closes the
   keyboard first, then clears the search, then leaves the Codes view.
   **Gestures**: a row swiped right copies the password, swiped left the username; past 88 dp what is under the row
-  turns solid with a tick, and let go the row springs back (a side with nothing to copy says "No password" / "No
-  username" and does nothing; both are accessibility actions too). A long press opens the **quick actions**:
+  turns solid with a tick, and let go the row springs back (a side with nothing to copy says "No password to copy" / "No
+  username to copy" and does nothing; both are accessibility actions too). A long press opens the **quick actions**:
   copy the username (shown), the password or the one-time code (live; with two or more, Copy one-time code… opens their
   sheet), open the site (as the card's link), then
   Edit, Remove from Recent (a recent row: "Removed from Recent" with Undo, which puts it back in its place, the
@@ -1891,7 +1894,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   others off meanwhile; done, the card again with "Back to the version of <date>"; a failure is said on top ("Not
   restored: …") and the versions read again.
 - **Recycle bin**: `-` in the search; a card in the bin has Restore instead of edit, and Delete for good… under ⋮
-  ("Restored to Web & Mail"); a bin row's long press offers both too.
+  ("Restored to Web & Mail"); a bin row's long press offers both too. Its rows and its search read the paths inside
+  the bin, the levels down to the bin's own group left out (a bin KeePass moved under another group too).
 - **Settings**: **Databases**: every database (tile, label, its folder or "Not found · Download", "No access · Sync/Work",
   "Needs its folder · Sync/KeePass" in red, a key for
   one with a key file, a fingerprint for one the fingerprint opens); a tap opens **its page**: tile, label, path from
@@ -2384,7 +2388,8 @@ service, the screen it opens and the system's view structure are in `app/autofil
   it then goes straight to the picker.
 - **The picker** (the autofill screen): "Choose an entry · to fill <site or app>", the search field at the
   bottom; nothing typed: "Suggested" (the matching entries), then recently used and all; typing searches
-  the vault as the list does (URLs included). A tap fills the entry and closes; ✕ closes without filling.
+  every open database as the list does (URLs included), the recycle bins aside (`-` lists nothing, and the picker
+  says nothing matches, as Send's list). A tap fills the entry and closes; ✕ closes without filling.
   Choosing an entry that does not match the target is the user's explicit choice; the title says where it
   goes.
 - **Trust**: the autofill screen acts only on its own immutable intent (the fields, the target, the mode,

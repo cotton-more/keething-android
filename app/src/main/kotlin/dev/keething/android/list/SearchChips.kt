@@ -40,7 +40,7 @@ internal data class ChipLine(val chips: List<SearchChip>, val narrowing: Boolean
  * The chips for [query] (Mac `FilterSuggestions` and the narrowing line, shown as chips over the keyboard; keething-spec
  * search.suggestions, search.database-filter AC5, search.narrowing). Typing a filter at the end of the query: the
  * groups (their paths, in tree order), tags, file names (a bare `+` first "Any file") or open databases it can be,
- * counted over the query's other filters; nothing when none matches. Otherwise, when the last word names a database,
+ * counted over the query's other filters, a name with a `"` left out; nothing when none matches. Otherwise, when the last word names a database,
  * group or tag well: those to narrow to (not in the bin's search nor the Codes view). Otherwise the filters, `!` only
  * while two or more databases are open; the bin's toggles the recycle bin search (not in the Codes view, which has no
  * bin).
@@ -56,9 +56,11 @@ internal fun searchChips(query: String, listing: VaultListing, codesOnly: Boolea
         fun complete(name: String) = FilterCompletion.complete(query, name)
         fun chip(label: String, name: String, count: Int, databases: List<DatabaseCount>) =
             SearchChip(uiPlain(label), complete(name), count = count, shares = shares(databases, marks))
+        // A name with a `"` could not be written back into the query: not offered, as narrowing leaves it out (AC4).
+        fun writable(name: String) = '"' !in name
         val chips = when (active.kind) {
-            FilterKind.GROUP -> from.groups(partial).map { chip(it.path.joinToString(" › "), it.name, it.count, it.databases) }
-            FilterKind.TAG -> from.tags(partial).map { chip(it.name, it.name, it.count, it.databases) }
+            FilterKind.GROUP -> from.groups(partial).filter { writable(it.name) }.map { chip(it.path.joinToString(" › "), it.name, it.count, it.databases) }
+            FilterKind.TAG -> from.tags(partial).filter { writable(it.name) }.map { chip(it.name, it.name, it.count, it.databases) }
             FilterKind.ATTACHMENT -> {
                 // A bare `+` lists every entry with files: choosing it leaves `+ `.
                 val any = if (partial.isBlank() && from.entriesWithAttachments > 0) {
@@ -66,10 +68,10 @@ internal fun searchChips(query: String, listing: VaultListing, codesOnly: Boolea
                 } else {
                     emptyList()
                 }
-                any + from.attachments(partial).map { chip(it.name, it.name, it.count, it.databases) }
+                any + from.attachments(partial).filter { writable(it.name) }.map { chip(it.name, it.name, it.count, it.databases) }
             }
             // Only while two or more are open: with one, `!` offers nothing.
-            FilterKind.DATABASE -> from.databases(partial).mapNotNull { facet ->
+            FilterKind.DATABASE -> from.databases(partial).filter { writable(it.name) }.mapNotNull { facet ->
                 marks[facet.name]?.let { SearchChip(uiPlain(facet.name), complete(facet.name), count = facet.count, database = it) }
             }
         }

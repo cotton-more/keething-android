@@ -7,6 +7,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.vault.Attachment
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.Vault
+import dev.keething.domain.vault.VaultGroup
 import dev.keething.vault.databases.DatabaseId
 import java.text.Collator
 import java.time.Instant
@@ -29,6 +30,7 @@ class SearchChipsTest {
                 Entry(id = "spk", title = "Sparkasse", groupPath = listOf("Family Finance")),
             ),
             recycleBin = listOf(Entry(id = "old", title = "Old Router", groupPath = listOf("Recycle Bin", "Home"))),
+            recycleBinGroup = VaultGroup("BIN", "Recycle Bin", listOf("Recycle Bin")),
         ),
         now,
         english,
@@ -48,6 +50,7 @@ class SearchChipsTest {
             Entry(id = "rt", title = "Router", groupPath = listOf("Family Shared")),
         ),
         recycleBin = listOf(Entry(id = "old", title = "Old Finanzamt", groupPath = listOf("Recycle Bin", "Finanzen"))),
+        recycleBinGroup = VaultGroup("BIN", "Recycle Bin", listOf("Recycle Bin")),
     )
     private val work = Vault(
         entries = listOf(
@@ -128,6 +131,26 @@ class SearchChipsTest {
     @Test
     fun inTheBinTheBinsGroupsAreOffered() {
         assertEquals(listOf("Home"), chips("- @").map { it.label.english() })
+    }
+
+    // spec: search.suggestions/AC4
+    @Test
+    fun aNameWithAQuoteIsNotOfferedItCouldNotBeWrittenBack() {
+        val quoted = VaultListing(
+            Vault(
+                entries = listOf(
+                    Entry(id = "a", title = "Alpha", groupPath = listOf("\"Old\" accounts"), tags = listOf("say \"hi\""), attachments = listOf(Attachment("a\"b.txt", 1))),
+                    Entry(id = "b", title = "Beta", groupPath = listOf("Old", "Mail"), tags = listOf("old"), attachments = listOf(Attachment("old.txt", 1))),
+                ),
+            ),
+            now,
+            english,
+            unnamedCode = UNNAMED_CODE,
+        )
+
+        assertEquals(listOf("Old", "Old › Mail"), searchChips("@", quoted, false).chips.map { it.label.english() })
+        assertEquals(listOf("old"), searchChips("#", quoted, false).chips.map { it.label.english() })
+        assertEquals(listOf("Any file", "old.txt"), searchChips("+", quoted, false).chips.map { it.label.english() })
     }
 
     @Test

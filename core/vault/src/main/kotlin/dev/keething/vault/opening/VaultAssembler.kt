@@ -31,6 +31,7 @@ internal object VaultAssembler {
             settings = settings,
             groups = document.groups.filterNot { inBin(it.ancestorUuids) || it.uuid == templates || inTemplates(it.ancestorUuids) }.map { VaultGroup(it.uuid, it.name, it.path) },
             recycleBin = binned.map(mapper::map),
+            recycleBinGroup = document.groups.firstOrNull { it.uuid == bin && bin.isNotEmpty() }?.let { VaultGroup(it.uuid, it.name, it.path) },
             templates = templated.map(mapper::map),
             templatesGroup = document.groups.firstOrNull { it.uuid == templates }?.let { VaultGroup(it.uuid, it.name, it.path) },
             recycleBinEnabled = document.meta.recycleBinEnabled,

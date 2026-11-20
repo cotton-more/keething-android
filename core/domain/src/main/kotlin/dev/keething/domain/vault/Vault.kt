@@ -16,6 +16,11 @@ public data class Vault(
     /** The entries in the recycle bin (at any depth), in file order. */
     val recycleBin: List<Entry> = emptyList(),
     /**
+     * The recycle bin's group itself, null when the file has none: its [VaultGroup.path] is the part of a binned entry's
+     * path down to the bin (one level when the bin is at the top, as KeePass makes it; more when it was moved).
+     */
+    val recycleBinGroup: VaultGroup? = null,
+    /**
      * The entries in the templates group (at any depth; keething-spec groups.templates): forms another app fills new
      * entries from, never listed, searched or offered. Its groups are not in [groups].
      */

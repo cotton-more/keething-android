@@ -32,7 +32,7 @@ internal data class EntryRow(
     /** The entry's ref ([EntryRef.text]): the same UUID in two databases is two rows. */
     val id: String,
     val title: UiText,
-    /** `username · host`, either part left out when empty. */
+    /** The username, else the web host (keething-spec search.list AC1); a card's, a network's or a note's own line. */
     val subtitle: UiText,
     /** The group's path, `Finanzen`, `Banken` (inside the recycle bin for an entry in it); empty for the root group. */
     val group: List<String>,
@@ -152,11 +152,20 @@ internal class VaultListing(
 
     /**
      * The open databases' entries as one vault, ids and custom icons by ref; its recycle bin is each database's in the
-     * window's order, each in its file's order (a file keeps no time of the move).
+     * window's order, each in its file's order.
      */
     val vault: Vault
 
-    /** The bins' entries, latest deleted first in each database (keething-spec search.recycle-bin AC5). */
+    /**
+     * The bins' entries with their paths inside the bin, as their rows show them and the bin's search reads them
+     * (keething-spec search.recycle-bin AC2, AC3): the levels down to the bin's own group left out, however deep it is.
+     */
+    private val insideBins: List<Entry>
+
+    /**
+     * [insideBins] in each file's order reversed, so the entries moved in last first in each database, a group deleted
+     * into the bin with its entries before them (keething-spec search.recycle-bin AC2, AC5).
+     */
     private val latestDeleted: List<Entry>
 
     private val marks: Map<String, DatabaseMark>
@@ -174,6 +183,7 @@ internal class VaultListing(
     init {
         val entries = ArrayList<Entry>()
         val bin = ArrayList<Entry>()
+        val inside = ArrayList<Entry>()
         val deleted = ArrayList<Entry>()
         val icons = HashMap<String, CustomIcon>()
         val marked = HashMap<String, DatabaseMark>()
@@ -189,10 +199,14 @@ internal class VaultListing(
             val binned = database.vault.recycleBin.map(::copy)
             database.label?.let { label -> repeat(binned.size) { binnedLabels += label } }
             bin += binned
-            deleted += binned.asReversed()
+            val depth = database.vault.recycleBinGroup?.path?.size ?: 0
+            val insideBin = binned.map { it.copy(groupPath = it.groupPath.drop(depth)) }
+            inside += insideBin
+            deleted += insideBin.asReversed()
             for ((id, icon) in database.vault.customIcons) icons[ref(id)] = icon
         }
         vault = Vault(entries = entries, recycleBin = bin, customIcons = icons)
+        insideBins = inside
         latestDeleted = deleted
         marks = marked
         labels = entryLabels.takeIf { labelled }
@@ -200,7 +214,7 @@ internal class VaultListing(
     }
 
     private val index = EntrySearch.index(vault.entries, collator, labels, allLabels)
-    private val binIndex = EntrySearch.index(vault.recycleBin, collator, binLabels, allLabels)
+    private val binIndex = EntrySearch.index(insideBins, collator, binLabels, allLabels)
 
     /**
      * The open databases' one-time codes, one tile each (keething-spec app.codes-view AC1): each entry's own, then its
@@ -265,8 +279,6 @@ internal class VaultListing(
         return EntrySearch.filter(codeIndex, query).map { codeTiles.getValue(it.id) }
     }
 
-    /** The bins' entries with the bin's own group left out of their paths (as their rows show them), for the suggestions. */
-    private val binFacetIndex by lazy { EntrySearch.index(vault.recycleBin.map { it.copy(groupPath = it.groupPath.drop(1)) }, collator, binLabels, allLabels) }
     private val byId: Map<String, Entry> = vault.entries.associateBy { it.id }
     private val binById: Map<String, Entry> = vault.recycleBin.associateBy { it.id }
     private val deadlines: Map<String, RowDeadline> = DeadlineList.build(vault, now)
@@ -293,7 +305,7 @@ internal class VaultListing(
      */
     fun facets(filters: String, inBin: Boolean): SearchFacets {
         lastFacets?.takeIf { it.filters == filters && it.inBin == inBin }?.let { return it.facets }
-        return EntrySearch.facets(if (inBin) binFacetIndex else index, filters).also { lastFacets = Facets(filters, inBin, it) }
+        return EntrySearch.facets(if (inBin) binIndex else index, filters).also { lastFacets = Facets(filters, inBin, it) }
     }
 
     /** The names the query's last word may narrow it to (keething-spec search.narrowing). */
@@ -337,7 +349,8 @@ internal class VaultListing(
         title = entry.displayTitle.ui(),
         // A card or a network says which it is ("Visa •• 4242 · 12/26"), a note its line; other entries their username and site.
         subtitle = faces[entry.id]?.subtitle?.ui() ?: uiPlain(entry.username.ifEmpty { entry.webHost.orEmpty() }),
-        group = if (entry.id in byId) entry.groupPath else entry.groupPath.drop(1),
+        // An entry in a bin comes from [insideBins], its path already inside the bin.
+        group = entry.groupPath,
         avatar = EntryAvatar.of(entry.sortTitle),
         customIconId = entry.customIconId?.takeIf { it in vault.customIcons },
         hasAttachments = entry.attachments.isNotEmpty(),
