@@ -19,10 +19,11 @@ internal enum class AutofillMode {
     PICK,
 
     /**
-     * An entry with a one-time code: the code is made when it is chosen, not when it was offered; it fills
-     * the code field, or goes to the clipboard when the form has none.
+     * An entry: its values are handed over when it is chosen, not when it was offered, so a lock since then asks for
+     * the unlock first. A one-time code is made then too: it fills the code field, or goes to the clipboard when the
+     * form has none.
      */
-    CODE,
+    ENTRY,
 
     /** A sign-up's or a password change's new password: the generator, its password into every new-password field. */
     GENERATE,
@@ -39,6 +40,8 @@ internal class AutofillRequest(
     /** The views of [form]'s fields. */
     val ids: Map<Int, AutofillId>,
     val entryId: String? = null,
+    /** The intent's id ([FillIntents]): it answers without a screen once. */
+    val id: String? = null,
 ) {
     /** For a dataset's authentication: each one its own pending intent (extras do not tell them apart). */
     fun sender(context: Context): IntentSender {
@@ -55,6 +58,8 @@ internal class AutofillRequest(
             .putExtra(PASSWORDS, form.passwords.toIntArray())
             .putExtra(CODES, form.codes.toIntArray())
             .putExtra(NEW_PASSWORDS, form.newPasswords.toIntArray())
+            .putExtra(FILLS_NEW_PASSWORDS, form.fillsNewPasswords)
+            .putExtra(ID, id)
         val flags = PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getActivity(context, requestCodes.incrementAndGet(), intent, flags).intentSender
     }
@@ -71,6 +76,8 @@ internal class AutofillRequest(
         private const val PASSWORDS = "passwords"
         private const val CODES = "codes"
         private const val NEW_PASSWORDS = "newPasswords" // not user text
+        private const val FILLS_NEW_PASSWORDS = "fillsNewPasswords" // not user text
+        private const val ID = "id"
 
         private val requestCodes = AtomicInteger()
 
@@ -90,8 +97,9 @@ internal class AutofillRequest(
                 passwords = intent.getIntArrayExtra(PASSWORDS)?.toList().orEmpty(),
                 codes = intent.getIntArrayExtra(CODES)?.toList().orEmpty(),
                 newPasswords = intent.getIntArrayExtra(NEW_PASSWORDS)?.toList().orEmpty(),
+                fillsNewPasswords = intent.getBooleanExtra(FILLS_NEW_PASSWORDS, false),
             )
-            return AutofillRequest(mode, form, fields.toList().zip(ids).toMap(), intent.getStringExtra(ENTRY))
+            return AutofillRequest(mode, form, fields.toList().zip(ids).toMap(), intent.getStringExtra(ENTRY), intent.getStringExtra(ID))
         }
 
         private fun SiteAddress.text(): String {

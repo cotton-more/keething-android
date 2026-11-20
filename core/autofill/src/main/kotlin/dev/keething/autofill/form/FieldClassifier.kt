@@ -42,6 +42,8 @@ internal object FieldClassifier {
                 hint == "newpassword" -> return FieldKind.NEW_PASSWORD
                 hint == "password" || hint == "currentpassword" -> return words.passwordKind()
                 hint == "username" || hint == "emailaddress" || hint == "email" -> return FieldKind.USERNAME
+                // A phone's country code is no phone number: the username never goes there.
+                hint == "phonecountrycode" || hint == "telcountrycode" || hint == "telareacode" -> return FieldKind.IGNORED
                 hint.startsWith("phone") || hint == "tel" -> return FieldKind.PHONE
                 "otp" in hint || "onetimecode" in hint -> return FieldKind.CODE
                 // A new account's name, or anything a login form does not ask for.
@@ -61,6 +63,7 @@ internal object FieldClassifier {
                 token == "current-password" -> return FieldKind.PASSWORD
                 token == "username" || token == "email" -> return FieldKind.USERNAME
                 token == "one-time-code" -> return FieldKind.CODE
+                token == "tel-country-code" || token == "tel-area-code" -> return FieldKind.IGNORED
                 token.startsWith("tel") -> return FieldKind.PHONE
                 token.startsWith("cc-") || OTHER_AUTOCOMPLETE.any(token::startsWith) -> return FieldKind.IGNORED
             }

@@ -64,6 +64,8 @@ internal fun AutofillScreen(
     container: AppContainer,
     request: AutofillRequest,
     target: String,
+    /** The picker from the start: "Search Keething", or an intent started again while a database is open. */
+    startsPicking: Boolean,
     answerAtOnce: (List<OpenVault>) -> Boolean,
     onFill: (Entry) -> Boolean,
     onClose: () -> Unit,
@@ -73,7 +75,7 @@ internal fun AutofillScreen(
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         val current = database ?: return@Surface NoDatabase(onClose)
         // After the unlock: the one matching entry is filled at once; otherwise, or once picking, the user chooses.
-        var picking by rememberSaveable { mutableStateOf(request.mode == AutofillMode.PICK) }
+        var picking by rememberSaveable { mutableStateOf(startsPicking) }
         LaunchedEffect(open) {
             if (open.isNotEmpty() && !picking && !answerAtOnce(open.map { OpenVault(it.database.id, it.unlocked.vault) })) picking = true
         }

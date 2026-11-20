@@ -2362,8 +2362,14 @@ service, the screen it opens and the system's view structure are in `app/autofil
   or the unnamed text field right before the first password), passwords and codes. Nothing is offered on a
   sign-up (only new passwords: it gets "Generate a password" and the save offer, below), on Keething's own
   screens, or on a screen without such fields; asking for
-  autofill by hand (long press › Autofill) takes the focused unnamed field as the username. A password
-  change gets only the current password. Never a field's text, only what it is.
+  autofill by hand (long press › Autofill; in Chrome the text toolbar's ⋮ › Autofill) takes the focused unnamed field
+  as the username, and a form without a current password (a sign-up, or a login whose password says `new-password` to
+  keep browsers from filling it) gets the chosen entry's password in its new-password fields, "Generate a password"
+  and the save offer kept. A password change gets its current password (and its username when the form shows one),
+  never the new one; a new password keeps "Generate a password" and the save offer whatever else the form asks for,
+  a reset's beside a code too (the code's entries fill the code). A phone's country or area code
+  (`phoneCountryCode`, `tel-country-code`, `tel-area-code`; Chrome hands a page's `autocomplete` over as the field's
+  hints) is ignored, so a username never goes there. Never a field's text, only what it is.
 - **The target**: in a known browser (Chrome, Firefox and their forks, Brave, Edge, Samsung Internet,
   Vivaldi, DuckDuckGo, …; `Browsers`) the web domain of the page, with its scheme; fields of another domain
   (a frame of another site) are left out. A browser is known by its package and the certificate it is signed
@@ -2391,21 +2397,24 @@ service, the screen it opens and the system's view structure are in `app/autofil
   only while none is open (the current database's lock screen opens), otherwise the open ones fill. An update goes
   into the entry's own database; a new login goes into the database the last new entry went into, else the first
   open one, with the editor's Save into while two or more are open.
-- **Unlocked**: up to 6 matching entries, best first (title, username), as the keyboard's chips (inline
-  suggestions, Gboard) or the dropdown under the field; their username and password go into the response,
-  so a tap fills at once. Then "Another entry", pinned at the keyboard's edge as a search icon: it opens
+- **Unlocked**: up to 6 matching entries, best first (title, username), counted among those with something for the
+  form's fields, as the keyboard's chips (inline suggestions, Gboard) or the dropdown under the field. No value goes
+  into the response: the system keeps a response for its screen and offers it again at each focus, a lock after it
+  too (seen on the Pixel 6, 2026-11-20: Chrome's login page, its chips shown while unlocked, filled an entry with no
+  unlock after the timeout had locked). A tap opens the autofill screen: invisibly while a database is open, which
+  fills the entry's username and password at once; after a lock, the lock screen, then the entry. Then "Another entry", pinned at the keyboard's edge as a search icon: it opens
   the picker. With no entry offered, "Search Keething" is a chip with its title instead (a lone icon at the
   keyboard's edge passes for the keyboard's own search). A form that asks only for a code offers only
   entries with one.
-- **One-time code**: an entry with a code is offered without its values; the tap opens the autofill screen
-  invisibly, which makes the current code then and fills it (with the username and password when the form
+- **One-time code**: an entry with a code, as every entry, is offered without its values; the tap opens the autofill
+  screen invisibly, which makes the current code then and fills it (with the username and password when the form
   has them). Checked: the code filled in Chrome was the one keepassxc-cli showed. Firefox does not give a
   lone code field to autofill services at all (it registers login forms only); Chrome does.
 - **The code after a login**: when autofill fills the username or password of an entry
   that has a one-time code and the form has no code field, the current code goes to the clipboard as any
   copy does (marked sensitive, cleared after 30 s, §4), so the next page's code field takes a paste: in
-  Firefox, in a row of one-digit boxes, in a field autofill does not recognise. Such an entry's dataset goes
-  through the invisible autofill screen like a code's, so the code is made when it is tapped. The code may
+  Firefox, in a row of one-digit boxes, in a field autofill does not recognise. Its dataset goes
+  through the invisible autofill screen as every entry's, so the code is made when it is tapped. The code may
   be near the end of its period; most sites also take the one before. Checked on the test phone (Chrome, the local
   login page): the username and password filled, the code pasted into another field was the one
   keepassxc-cli showed, and a paste 35 s later gave nothing.
@@ -2413,7 +2422,8 @@ service, the screen it opens and the system's view structure are in `app/autofil
   autofill screen: the lock screen (the fingerprint is offered at once), then the one matching entry is
   filled at once, or the picker shows when there are several or none. After a cancelled unlock the item
   still says "Unlock" for the rest of that screen's autofill session (the system keeps the first answer);
-  it then goes straight to the picker.
+  while still locked it opens the lock screen again, and once a database is open it fills the one matching entry at
+  once or shows the picker, as after an unlock.
 - **The picker** (the autofill screen): "Choose an entry · to fill <site or app>", the search field at the
   bottom; nothing typed: "Suggested" (the matching entries), then recently used and all; typing searches
   every open database as the list does (URLs included), the recycle bins aside (`-` lists nothing, and the picker
@@ -2422,7 +2432,10 @@ service, the screen it opens and the system's view structure are in `app/autofil
   goes.
 - **Trust**: the autofill screen acts only on its own immutable intent (the fields, the target, the mode,
   the entry), never on the view structure the system adds to it: the app being filled starts that intent
-  and could add a structure that names another app. The screen is not exported and has `FLAG_SECURE`.
+  and could add a structure that names another app. The screen is not exported and has `FLAG_SECURE`. The app being
+  filled could also keep an entry's intent and start it again later: each intent carries a random id the process keeps
+  (`FillIntents`), and the screen answers without being seen once per id; an intent started again, or unknown (after
+  a restart too), shows the picker, or the lock screen.
 - **Never** offered: a protected custom value; an entry that matches neither the page's site nor the app.
   The log says kinds and counts only (`fill request: 2 fields, web page, 1 username, 1 password, 0 code`),
   never a value, a domain or an app.
@@ -2430,29 +2443,35 @@ service, the screen it opens and the system's view structure are in `app/autofil
   is an app; its page is not trusted; `android://<hash>@<package>` URLs
   (Chrome's way to name an app; not known to be in the owner's database); honouring an app's
   `importantForAutofill="no"` (apps set it on login fields too).
-- **Save**: a form with a password gets `SaveInfo` (the password, or a sign-up's or a password change's new
-  one, required; the username optional; also when all its fields go, for an app that changes screens), locked
-  or not, so the system offers "Save username and password to Keething" after the form is sent with a
-  password no dataset filled (a login filled from an entry and sent unchanged is not offered: the system
-  compares). On Save, the service reads what was typed (`ScreenFields` with the texts, the one place it does;
+- **Save**: a form with a password gets `SaveInfo` (the password, or a sign-up's, a password change's or a reset's
+  new one, required; the username optional, and beside a new password the code; also when all its fields go, for an
+  app that changes screens), locked or not, so the system offers "Save username and password to Keething" after the
+  form is sent with one of those fields not as a dataset filled it (a login filled from an entry and sent unchanged is
+  not offered: the system compares; a generated password is a dataset's too, so its offer comes from the username or
+  the code typed beside it, and a password change whose current password was filled gets none). On Save, the service reads what was typed (`ScreenFields` with the texts, the one place it does;
   the username from an earlier screen of the same form when this one has none) and keeps it in the app's
-  memory as a wipeable secret for up to 10 minutes (`PendingSaves`); the save screen's intent carries only a
+  memory as a wipeable secret for up to 10 minutes (`PendingSaves`: wiped then, whether the save screen took it or
+  not); the save screen's intent carries only a
   random token, so the password never goes through the system in an intent. The save screen
   (`SaveLoginActivity`, not exported, `FLAG_SECURE`) unlocks first if need be, then decides
   (`SavePlanner`, `core/autofill`): the matching entry with the username typed (any case) — or, without one,
   the one whose current password was typed in a password change, or the only matching entry — gets the new
   password: the editor of that entry opens with it, under "Update the password of “…”?" and "Save as a new
-  entry instead"; it has the password already: "Already saved in Keething" and nothing written (when
-  locked; unlocked the system does not ask); otherwise the new-entry editor opens prefilled: title the page's
-  host without `www.` or the app's name, the username, the password, the address (`https://host`, or
-  `androidapp://<package>`), the root group to start with. Saving is the editor's (§3.3, "Saving and
+  entry instead"; it has the password already: "Already saved in Keething" and nothing written (unlocked the system
+  does not ask for a login filled and sent unchanged; one typed by hand with the password the entry has gets the same
+  answer); otherwise the new-entry editor opens prefilled: title the page's host without `www.` or the app's name, the
+  username, the password, the address (the page's, `https://www.shop.example`, `http://localhost:8000` for a plain
+  http page; or `androidapp://<package>`), the root group to start with. With every open database read-only, the
+  screen says "No open database takes new entries: open one that is not read-only." and keeps the login; the editor
+  shows once one that takes new entries is open. Saving is the editor's (§3.3, "Saving and
   checking…", then Done and a toast back in the app or browser).
-- **Generate**: a new-password field (a sign-up, or a password change's new one) gets "Generate a password"
-  (a wand), also locked: it opens the password generator (§6.2) over the app or page; "Use this password"
+- **Generate**: a new-password field (a sign-up's, a password change's, a reset's beside a code, by hand too) gets
+  "Generate a password" (a wand), also locked: it opens the password generator (§6.2) over the app or page; "Use this password"
   fills every new-password field (the repetition too), and the save offer then carries it. Nothing of an
   entry is offered on a sign-up.
 - Not done, and why: choosing an entry by hand for an app does not yet offer to add its `androidapp://`
-  address (ROADMAP Later); a password change's "which entry" by the current password is JVM-tested only.
+  address (the idea `autofill.remember-app`); a password change's "which entry" by the current password is
+  JVM-tested only.
 - Save checked on the test phone (release build, `autofill.kdbx`, the local `save-signup` / `save-login`
   pages): in Chrome a sign-up's password generated (Strong, 20 characters, both fields), saved as a new entry
   `localhost`; the same username with another password typed: "Update the password of “localhost”?", saved;
@@ -2467,6 +2486,12 @@ service, the screen it opens and the system's view structure are in `app/autofil
   apps by hand: Keep by `androidapp://`, Translate by its verified `translate.google.com` (an
   `accounts.google.com` entry). Not checked: a real app's login screen (none on the test phone without
   touching the owner's accounts), the dropdown in dark mode.
+- Checked on the Pixel 6, 2026-11-20 (debug build, `autofill.kdbx`, Chrome, the local pages with `reset`,
+  `login-new-password` and `phone`): a chip tapped after the timeout locked asked for the unlock, then filled; open,
+  filled with nothing seen; the reset page offered the code's entry on the code, "Generate a password" on the new
+  password and, the code typed, the save offer; the `new-password` login and a sign-up filled by hand; the country
+  code left empty; the save offer with only a KDBX 3.1 database open (view only) said no database takes new entries,
+  and showed the editor once `autofill.kdbx` was opened, its entry saved there.
 
 ## 8. Build and install
 

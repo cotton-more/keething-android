@@ -32,6 +32,19 @@ class FieldClassifierTest {
     }
 
     @Test
+    fun aCountryOrAreaCodeIsNoPhoneNumber() {
+        assertEquals(FieldKind.IGNORED, kind(hints = listOf("phoneCountryCode")))
+        // Chrome hands a page's autocomplete over as the field's hints.
+        assertEquals(FieldKind.IGNORED, kind(hints = listOf("tel-country-code"), html = mapOf("type" to "tel")))
+        assertEquals(FieldKind.IGNORED, kind(hints = listOf("tel-area-code"), html = mapOf("type" to "tel")))
+        assertEquals(FieldKind.PHONE, kind(hints = listOf("tel-national"), html = mapOf("type" to "tel")))
+        assertEquals(FieldKind.IGNORED, kind(html = mapOf("type" to "tel", "autocomplete" to "tel-country-code")))
+        assertEquals(FieldKind.IGNORED, kind(html = mapOf("autocomplete" to "tel-area-code")))
+        assertEquals(FieldKind.PHONE, kind(hints = listOf("phoneNational")))
+        assertEquals(FieldKind.PHONE, kind(html = mapOf("autocomplete" to "tel-national")))
+    }
+
+    @Test
     fun aHintThatSaysNothingLeavesItToTheRest() {
         assertEquals(FieldKind.PASSWORD, kind(hints = listOf("off"), inputType = TEXT or 0x80))
         assertEquals(FieldKind.USERNAME, kind(hints = listOf("on"), id = "login"))
@@ -109,6 +122,8 @@ class FieldClassifierTest {
         assertEquals(FieldKind.CODE, kind(hint = "Код подтверждения"))
         assertEquals(FieldKind.CODE, kind(hint = "Код"))
         assertEquals(FieldKind.CODE, kind(html = mapOf("name" to "totp")))
+        assertEquals(FieldKind.CODE, kind(hint = "Bestätigungscode"))
+        assertEquals(FieldKind.CODE, kind(hint = "Einmalpasswort"))
         assertEquals(FieldKind.PLAIN, kind(hint = "Postal code"))
         assertEquals(FieldKind.PLAIN, kind(hint = "Promo code"))
         assertEquals(FieldKind.PLAIN, kind(hint = "Gutscheincode"))

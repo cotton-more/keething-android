@@ -15,17 +15,22 @@ public data class AutofillForm(
     val usernames: List<Int>,
     val passwords: List<Int>,
     val codes: List<Int>,
-    /** A sign-up's or a password change's new password (and its repetition): generated and saved, never filled from an entry. */
+    /**
+     * A new password (and its repetition), whatever else the form asks for: a sign-up's, a password change's, a reset's
+     * beside a code. Generated and saved; filled from an entry only when [fillsNewPasswords].
+     */
     val newPasswords: List<Int> = emptyList(),
+    /** Asked for by hand on a form without a current password: the chosen entry's password goes into [newPasswords]. */
+    val fillsNewPasswords: Boolean = false,
 ) {
     /** Every field an entry's value goes to, in screen order. */
-    public val fields: List<Int> get() = (usernames + passwords + codes).sorted()
+    public val fields: List<Int> get() = (usernames + passwords + codes + if (fillsNewPasswords) newPasswords else emptyList()).sorted()
 
     /** Every field of the form, the new passwords too. */
-    public val allFields: List<Int> get() = (fields + newPasswords).sorted()
+    public val allFields: List<Int> get() = (fields + newPasswords).distinct().sorted()
 
     /** A sign-up: only new passwords, no current one. Nothing of an entry is offered; a password can be generated. */
-    public val isSignUp: Boolean get() = passwords.isEmpty() && codes.isEmpty() && newPasswords.isNotEmpty()
+    public val isSignUp: Boolean get() = passwords.isEmpty() && codes.isEmpty() && newPasswords.isNotEmpty() && !fillsNewPasswords
 
     /** The fields whose password is saved (SPEC §7, Save): the new one when there is one, else the one typed. */
     public val savedPasswords: List<Int> get() = newPasswords.ifEmpty { passwords }
@@ -41,7 +46,7 @@ public data class AutofillForm(
      */
     public fun valuesFor(entry: Entry, code: String?): Map<Int, String?> =
         usernames.associateWith { entry.username.ifEmpty { null } } +
-            passwords.associateWith { if (entry.password.isEmpty()) null else entry.password.reveal() } +
+            (passwords + if (fillsNewPasswords) newPasswords else emptyList()).associateWith { if (entry.password.isEmpty()) null else entry.password.reveal() } +
             codes.associateWith { code }
 
     public companion object {
@@ -49,7 +54,8 @@ public data class AutofillForm(
          * The form on a screen of [packageName], or null when there is nothing to fill or save: no login, code
          * or new-password field, Keething itself ([ownPackage]), or a browser page that is not an http(s)
          * site. A sign-up ([isSignUp]) is saved, never filled. [manual]: the user asked for autofill on a field
-         * (long press › Autofill), so a focused field that says nothing about itself is taken as the username.
+         * (long press › Autofill), so a focused field that says nothing about itself is taken as the username, and
+         * a form without a current password gets the entry's password in its new-password fields.
          * [signing] tells whether a listed browser is signed as listed ([Browsers]).
          */
         public fun parse(packageName: String, fields: List<FormField>, ownPackage: String, signing: SigningCheck, manual: Boolean = false): AutofillForm? {
@@ -89,13 +95,14 @@ public data class AutofillForm(
             if (passwords.isEmpty() && codes.isEmpty() && newPasswords.isNotEmpty() && !manual) {
                 return AutofillForm(target, usernames.map { it.index }, emptyList(), emptyList(), newPasswords.map { it.index })
             }
-            if (usernames.isEmpty() && passwords.isEmpty() && codes.isEmpty() && manual) {
+            if (usernames.isEmpty() && passwords.isEmpty() && codes.isEmpty() && newPasswords.isEmpty() && manual) {
                 usernames = listOfNotNull(kinds.keys.firstOrNull { it.isFocused && kinds[it] == FieldKind.PLAIN })
             }
-            if (usernames.isEmpty() && passwords.isEmpty() && codes.isEmpty()) return null
-            // A password change: the entry fills the current password; the new one is saved.
-            val changed = if (passwords.isNotEmpty() && !manual) newPasswords.map { it.index } else emptyList()
-            return AutofillForm(target, usernames.map { it.index }, passwords.map { it.index }, codes.map { it.index }, changed)
+            // By hand, the user's choice: a form without a current password takes the entry's password as its new one.
+            val fillsNew = manual && passwords.isEmpty() && newPasswords.isNotEmpty()
+            if (usernames.isEmpty() && passwords.isEmpty() && codes.isEmpty() && !fillsNew) return null
+            // A password change or a reset: the entry fills the current password or the code; the new one is generated and saved.
+            return AutofillForm(target, usernames.map { it.index }, passwords.map { it.index }, codes.map { it.index }, newPasswords.map { it.index }, fillsNew)
         }
     }
 }

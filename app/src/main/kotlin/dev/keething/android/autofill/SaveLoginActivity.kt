@@ -39,6 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -164,6 +167,10 @@ private fun SaveLoginScreen(
         // Decided once on the databases as they were when one was open: the save itself changes its vault.
         val plan = remember(model.asNew) { plan(container, open, save, label, model.asNew) }
         val password = remember { save.password.reveal() }
+        // A new login's database, chosen once one takes new entries; until then the login waits here while the user
+        // opens one (keething-spec autofill.save AC7).
+        val takesEntries = container.sessions.newEntryDatabases(open).isNotEmpty()
+        val newDatabase = remember(takesEntries) { if (takesEntries) newLoginDatabase(container, open) else null }
         when (plan) {
             is SavePlan.Unchanged -> LaunchedEffect(plan) { onDone(AutofillSaved.of(uiText(R.string.autofill_save_already_saved, plan.entry.displayTitle), mayNotSync = false)) }
             is SavePlan.Update -> EntryEditorScreen(
@@ -194,7 +201,7 @@ private fun SaveLoginScreen(
                 },
             )
             is SavePlan.New -> EntryEditorScreen(
-                database = remember { newLoginDatabase(container, open) } ?: current,
+                database = newDatabase ?: return@Surface NoDatabaseTakesEntries(onClose),
                 entryId = null,
                 groupId = null,
                 generator = container::passwordGenerator,
@@ -255,6 +262,25 @@ private fun Banner(title: String, text: String, action: Pair<String, () -> Unit>
             Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
             action?.let { (label, run) -> TextButton(onClick = run, modifier = Modifier.align(Alignment.End)) { Text(label) } }
         }
+    }
+}
+
+/** Every open database read-only (keething-spec autofill.save AC7): said once, the login kept while one is opened. */
+@Composable
+private fun NoDatabaseTakesEntries(onClose: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            stringResource(R.string.autofill_save_no_database_takes_entries),
+            Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Spacer(Modifier.height(24.dp))
+        FilledTonalButton(onClick = onClose) { Text(stringResource(R.string.autofill_close)) }
     }
 }
 

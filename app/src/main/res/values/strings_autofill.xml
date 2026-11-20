@@ -13,6 +13,7 @@
     <string name="autofill_no_database_title">No database chosen yet</string>
     <string name="autofill_no_database_text">Open Keething and choose the database first.</string>
     <string name="autofill_close">Close</string>
+    <string name="autofill_save_no_database_takes_entries">No open database takes new entries: open one that is not read-only.</string>
 
     <!-- Choosing an entry to fill (autofill/AutofillScreen.kt) -->
     <string name="autofill_pick_title">Choose an entry</string>

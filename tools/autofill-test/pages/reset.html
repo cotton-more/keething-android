@@ -1,0 +1,4 @@
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;margin:24px}input{display:block;font-size:18px;margin:8px 0 16px;padding:8px;width:90%}</style><title>Reset</title><h1>Reset password (saves)</h1><p>The code from the SMS beside a new password: the code's entries are offered for the code, Generate on the new password, and the save offer after it.
+<form id="f"><label>Code from the SMS<input name="code" inputmode="numeric" autocomplete="one-time-code"></label>
+<input type="password" name="new" autocomplete="new-password" placeholder="New password"><input type="password" name="repeat" autocomplete="new-password" placeholder="Repeat"><button>Reset</button></form>
+<script>f.onsubmit = e => { e.preventDefault(); setTimeout(() => location.href = 'welcome.html', 100) }</script>

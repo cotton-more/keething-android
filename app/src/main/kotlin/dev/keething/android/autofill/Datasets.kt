@@ -33,7 +33,12 @@ internal fun filledDataset(form: AutofillForm, ids: Map<Int, AutofillId>, entry:
  * is open; keething-spec autofill.fill AC6), "Generate a password" for a new-password field, and the save offer for the
  * password typed.
  */
-internal class FillResponses(private val context: Context, private val sessions: Sessions, private val entries: AutofillEntries) {
+internal class FillResponses(
+    private val context: Context,
+    private val sessions: Sessions,
+    private val entries: AutofillEntries,
+    private val intents: FillIntents,
+) {
     fun response(screen: ScreenFields, form: AutofillForm, inline: InlineSuggestionsRequest?): FillResponse? {
         // No database chosen yet: nothing to offer.
         sessions.current.value ?: return null
@@ -56,26 +61,22 @@ internal class FillResponses(private val context: Context, private val sessions:
     private fun addEntries(response: FillResponse.Builder, open: List<OpenVault>, form: AutofillForm, ids: Map<Int, AutofillId>, presentations: AutofillPresentations) {
         val label = entries.label(form.target)
         if (open.isEmpty()) {
-            val unlock = AutofillRequest(AutofillMode.UNLOCK, form, ids)
+            val unlock = AutofillRequest(AutofillMode.UNLOCK, form, ids, id = intents.issue())
             response.addDataset(authenticated(unlock, form.fields, presentations.action(context.getString(R.string.autofill_offer_unlock), context.getString(R.string.autofill_offer_to_fill, label), R.drawable.ic_autofill_lock, 0, pinned = false)))
             return
         }
-        // Each entry by its ref: the screen a dataset opens finds it in its own database.
-        val candidates = entries.candidates(open, form).take(MAX_SUGGESTIONS)
+        // Each entry by its ref: the screen a dataset opens finds it in its own database. No value is in the response,
+        // which the system keeps for the screen after a lock: the screen hands them over, without being seen while a
+        // database is open, after the unlock otherwise (SPEC §7, Unlocked). An entry with a code makes it when tapped:
+        // for the code field, or for the clipboard after a login. One with nothing for these fields is left out.
         var shown = 0
-        for (candidate in candidates) {
+        for (candidate in entries.candidates(open, form)) {
+            if (shown == MAX_SUGGESTIONS) break
             val entry = candidate.entry
+            if (entry.totp == null && form.valuesFor(entry, code = null).values.all { it == null }) continue
             val presentation = presentations.entry(shown, entry.displayTitle.ui().resolve(context.resources), entry.username.ifEmpty { null })
-            // An entry with a code makes it when tapped: for the code field, or for the clipboard after a login.
-            val dataset = if (entry.totp != null) {
-                authenticated(AutofillRequest(AutofillMode.CODE, form, ids, entry.id), form.fields, presentation)
-            } else {
-                filledDataset(form, ids, entry, code = null, presentation)
-            }
-            if (dataset != null) {
-                response.addDataset(dataset)
-                shown++
-            }
+            response.addDataset(authenticated(AutofillRequest(AutofillMode.ENTRY, form, ids, entry.id, intents.issue()), form.fields, presentation))
+            shown++
         }
         val pick = AutofillRequest(AutofillMode.PICK, form, ids)
         // Alone it is a chip with its title: pinned, it is an icon only at the keyboard's edge, easily missed.
@@ -84,14 +85,16 @@ internal class FillResponses(private val context: Context, private val sessions:
     }
 
     /**
-     * The system offers to save when the form is sent with a password that no dataset filled (SPEC §7, Save):
-     * the password (the new one, when there is one) is required, the username optional. Also when every
-     * field has gone (an app that changes screens without leaving the activity).
+     * The system offers to save when the form is sent with one of these fields not as a dataset filled it (SPEC §7,
+     * Save): the password (the new one, when there is one) is required, the username optional, and beside a new
+     * password the code (a reset: its password generated, the code typed from the SMS). Also when every field has
+     * gone (an app that changes screens without leaving the activity).
      */
     private fun saveInfo(form: AutofillForm, ids: Map<Int, AutofillId>): SaveInfo? {
         if (form.savedPasswords.isEmpty()) return null
+        val optional = form.usernames + if (form.newPasswords.isNotEmpty()) form.codes else emptyList()
         return SaveInfo.Builder(SaveInfo.SAVE_DATA_TYPE_USERNAME or SaveInfo.SAVE_DATA_TYPE_PASSWORD, form.savedPasswords.map(ids::getValue).toTypedArray())
-            .apply { if (form.usernames.isNotEmpty()) setOptionalIds(form.usernames.map(ids::getValue).toTypedArray()) }
+            .apply { if (optional.isNotEmpty()) setOptionalIds(optional.map(ids::getValue).toTypedArray()) }
             .setFlags(SaveInfo.FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE)
             .build()
     }

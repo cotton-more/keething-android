@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import dev.keething.android.attachment.AndroidAttachments
 import dev.keething.android.attachment.AttachmentFiles
 import dev.keething.android.autofill.AutofillEntries
+import dev.keething.android.autofill.FillIntents
 import dev.keething.android.autofill.FillResponses
 import dev.keething.android.autofill.PendingSaves
 import dev.keething.android.biometric.FingerprintPrompt
@@ -324,10 +325,13 @@ internal class AppContainer(context: Context) {
     /** Autofill's matching, built once per vault read (SPEC §7). */
     val autofillEntries = AutofillEntries(context)
 
-    val fillResponses = FillResponses(context, sessions, autofillEntries)
+    /** The fill screen's intents handed out, each answering without a screen once (SPEC §7, Trust). */
+    val fillIntents = FillIntents()
+
+    val fillResponses = FillResponses(context, sessions, autofillEntries, fillIntents)
 
     /** Logins typed elsewhere, on their way to the save screen (SPEC §7). */
-    val pendingSaves = PendingSaves()
+    val pendingSaves = PendingSaves(appScope)
 
     /** The requests for entries, both ways (SPEC §10): read when the vault unlocks, wiped when it locks. */
     val shareRequests = ShareRequests(FileSharingStore(File(context.noBackupFilesDir, "sharing/requests")), AndroidClock)

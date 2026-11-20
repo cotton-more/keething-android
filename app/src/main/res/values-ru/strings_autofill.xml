@@ -10,6 +10,7 @@
     <string name="autofill_no_database_title">База ещё не выбрана</string>
     <string name="autofill_no_database_text">Сначала откройте Keething и выберите базу.</string>
     <string name="autofill_close">Закрыть</string>
+    <string name="autofill_save_no_database_takes_entries">Ни одна открытая база не принимает новые записи: откройте ту, что не только для чтения.</string>
 
     <string name="autofill_pick_title">Выберите запись</string>
     <string name="autofill_pick_subtitle">для %1$s</string>

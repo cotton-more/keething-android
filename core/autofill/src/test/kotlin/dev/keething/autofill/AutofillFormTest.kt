@@ -110,6 +110,42 @@ class AutofillFormTest {
     }
 
     @Test
+    fun aCodeBesideNewPasswordsKeepsThem() {
+        // A password reset: the code from the SMS, a new password and its repetition.
+        val fields = listOf(text(0, hint = "Code from the SMS"), password(1, "new_password"), password(2, "repeat_new_password"))
+        val form = AutofillForm.parse(app, fields, own, signed)!!
+        assertEquals(listOf(0), form.codes)
+        assertEquals(listOf(0), form.fields, "the code's entries fill the code alone")
+        assertEquals(listOf(1, 2), form.newPasswords, "generated")
+        assertEquals(listOf(1, 2), form.savedPasswords, "and saved")
+        assertFalse(form.isSignUp)
+        assertEquals(mapOf(0 to "123456"), form.valuesFor(Entry(id = "e", username = "alice", password = Secret.of("old")), "123456"))
+    }
+
+    @Test
+    fun byHandASignUpsNewPasswordsGetTheEntrysPassword() {
+        // A login whose password says new-password (to keep browsers from filling it), or a sign-up, asked for by hand.
+        val fields = listOf(FormField(0, inputType = 0x21), FormField(1, listOf("newPassword"), isFocused = true))
+        val form = AutofillForm.parse(app, fields, own, signed, manual = true)!!
+        assertFalse(form.isSignUp, "entries are offered")
+        assertEquals(listOf(0, 1), form.fields)
+        assertEquals(listOf(1), form.newPasswords, "Generate kept")
+        assertEquals(listOf(1), form.savedPasswords, "the save offer kept")
+        assertEquals(mapOf(0 to "alice", 1 to "s3cret"), form.valuesFor(Entry(id = "e", username = "alice", password = Secret.of("s3cret")), null))
+        assertTrue(AutofillForm.parse(app, fields, own, signed)!!.isSignUp, "not by hand: a sign-up still")
+    }
+
+    @Test
+    fun byHandAPasswordChangeKeepsItsNewPasswords() {
+        val fields = listOf(password(0, "current_password", focused = true), password(1, "new_password"), password(2, "confirm_password"))
+        val form = AutofillForm.parse(app, fields, own, signed, manual = true)!!
+        assertEquals(listOf(0), form.fields, "the entry fills the current one only")
+        assertEquals(listOf(1, 2), form.newPasswords)
+        assertEquals(listOf(1, 2), form.savedPasswords)
+        assertEquals(mapOf(0 to "s3cret"), form.valuesFor(Entry(id = "e", password = Secret.of("s3cret")), null))
+    }
+
+    @Test
     fun aLoginSavesItsPassword() {
         val form = AutofillForm.parse(app, listOf(text(0, "login"), password(1)), own, signed)!!
         assertEquals(listOf(1), form.savedPasswords)

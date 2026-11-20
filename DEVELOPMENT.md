@@ -341,7 +341,9 @@ it (an entry received, §10) takes KeePass's fields.
 ## Checking autofill on the phone
 
 `tools/autofill-test/` holds local test pages (a login with and without hints, username first, a one-time
-code, a sign-up, a frame of another site, and a login and a sign-up that are sent, for the save offer) and a script that writes a fictitious database whose entries
+code, a sign-up, a frame of another site, a login and a sign-up that are sent, for the save offer, a password reset with
+a code, a login whose password says `new-password`, and a phone number with a country code) and a script that writes a
+fictitious database whose entries
 match them (password `pw`):
 
     tools/autofill-test/make-database.py autofill.kdbx        # needs KeePassXC's keepassxc-cli

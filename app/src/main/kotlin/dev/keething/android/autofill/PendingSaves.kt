@@ -3,6 +3,9 @@ package dev.keething.android.autofill
 import android.os.SystemClock
 import dev.keething.autofill.target.FillTarget
 import dev.keething.domain.secret.Secret
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 /** A login typed into another app or page, on its way to the save screen (SPEC §7, Save). */
@@ -22,14 +25,20 @@ internal class PendingSave(
 /**
  * The logins between the save request and the save screen. They stay in this process: the screen's intent
  * carries only a random token, so the password never passes through the system in an intent. One that is
- * not taken within [LIFETIME_MS] is wiped.
+ * not taken within [LIFETIME_MS] is wiped then, in [scope], whether another comes or not.
  */
-internal class PendingSaves(private val now: () -> Long = SystemClock::elapsedRealtime) {
+internal class PendingSaves(private val scope: CoroutineScope, private val now: () -> Long = SystemClock::elapsedRealtime) {
     private val saves = mutableMapOf<String, Pair<Long, PendingSave>>()
 
     fun put(save: PendingSave): String = synchronized(this) {
         expire()
-        UUID.randomUUID().toString().also { saves[it] = now() to save }
+        UUID.randomUUID().toString().also { token ->
+            saves[token] = now() to save
+            scope.launch {
+                delay(LIFETIME_MS + 1)
+                synchronized(this@PendingSaves) { expire() }
+            }
+        }
     }
 
     /** The login for [token], once; null when it was taken, has expired or the process started anew. */

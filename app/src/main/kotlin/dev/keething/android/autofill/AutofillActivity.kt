@@ -25,10 +25,11 @@ import java.time.Instant
 
 /**
  * The screen autofill opens over the app being filled (SPEC §7): the unlock while no database is open, then
- * the entry to fill, from every open one (keething-spec autofill.fill AC6; a dataset names its entry by ref). Its answer is the dataset to fill; closing it fills nothing. An entry with a one-time
- * code comes here too, without a screen while the vault is open, so the code is the current one: filled
- * into the code field, or copied when the form has none (the next page asks for it). A new-password field
- * comes here for the password generator.
+ * the entry to fill, from every open one (keething-spec autofill.fill AC6; a dataset names its entry by ref). Its answer is the dataset to fill; closing it fills nothing. Every
+ * entry offered comes here when tapped, without a screen while a database is open (once per intent, [FillIntents]), so
+ * a lock since the offer asks for the unlock and a one-time code is the current one: filled into the code field, or
+ * copied when the form has none (the next page asks for it). A new-password field comes here for the password
+ * generator.
  */
 class AutofillActivity : ComponentActivity() {
     private val container: AppContainer get() = (application as KeethingApplication).container
@@ -52,24 +53,27 @@ class AutofillActivity : ComponentActivity() {
             return
         }
         val open = container.sessions.openNow().map { OpenVault(it.database.id, it.unlocked.vault) }
-        if (savedInstanceState == null && open.isNotEmpty() && answerAtOnce(open)) return
+        // Started again (the app being filled may keep the intent), or unknown: the picker is shown, or the lock screen.
+        val unseen = savedInstanceState == null && container.fillIntents.answersAtOnce(request.id)
+        if (unseen && open.isNotEmpty() && answerAtOnce(open)) return
         enableEdgeToEdge()
         val target = container.autofillEntries.label(request.form.target)
+        val picking = request.mode == AutofillMode.PICK || (!unseen && open.isNotEmpty())
         setContent {
             KeethingTheme {
-                AutofillScreen(container, request, target, answerAtOnce = ::answerAtOnce, onFill = ::fill, onClose = ::finish)
+                AutofillScreen(container, request, target, picking, answerAtOnce = ::answerAtOnce, onFill = ::fill, onClose = ::finish)
             }
         }
     }
 
     /**
-     * What needs no choice: the entry of a code, or the one entry that matches after an unlock. False when
-     * the user chooses.
+     * What needs no choice: the entry tapped, or the one entry that matches after an unlock. False when the user
+     * chooses.
      */
     private fun answerAtOnce(open: List<OpenVault>): Boolean {
         val candidates = container.autofillEntries.candidates(open, request.form).map { it.entry }
         val entry = when (request.mode) {
-            AutofillMode.CODE -> candidates.firstOrNull { it.id == request.entryId }
+            AutofillMode.ENTRY -> candidates.firstOrNull { it.id == request.entryId }
             AutofillMode.UNLOCK -> candidates.singleOrNull()
             AutofillMode.PICK, AutofillMode.GENERATE -> null
         }
