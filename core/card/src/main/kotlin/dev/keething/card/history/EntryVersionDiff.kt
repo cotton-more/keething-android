@@ -1,7 +1,9 @@
 package dev.keething.card.history
 
 import dev.keething.card.CardText
+import dev.keething.card.CryptoWallet
 import dev.keething.card.FieldType
+import dev.keething.card.ValueShape
 import dev.keething.domain.text.UserText
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
@@ -32,8 +34,8 @@ public object EntryVersionDiff {
     /**
      * From [old] to [new], in the card's order: the standard fields, Notes' protection, the kind of entry (SPEC §6.4),
      * the custom fields (by name, in [new]'s order,
-     * then the removed ones; a change of protection or of type; the order), tags, expiry, the one-time code (that
-     * it changed, never its values), attachments. [day] writes the expiry's date, [size] an attachment's size.
+     * then the removed ones; a change of protection or of type; the order), tags, expiry, the one-time code or its fields
+     * (that it changed, never its values), attachments. [day] writes the expiry's date, [size] an attachment's size.
      */
     public fun changes(
         old: Entry,
@@ -55,9 +57,14 @@ public object EntryVersionDiff {
         }
         fun compare(field: CardText, a: String?, b: String?, protected: Boolean = false) = compare(UserText.of(field), a, b, protected)
         fun protection(protected: Boolean) = UserText.of(if (protected) CardText.CHANGE_PROTECTED else CardText.CHANGE_NOT_PROTECTED)
-        // A recovery phrase is masked as a protected value is, protected or not.
-        fun secret(name: String): Boolean =
-            listOf(old.fieldTypes[name], new.fieldTypes[name]).any { it?.let(FieldType::of)?.isNeverCopied == true }
+        // Masked as the card masks it in either version (card.masking AC1, AC2; a wallet's secret by its value too).
+        fun masked(field: CustomField?, entry: Entry): Boolean {
+            if (field == null) return false
+            val type = entry.fieldTypes[field.name]?.let(FieldType::of)
+            val text = field.plainText
+            return field.isProtected || type == FieldType.PASSWORD || CryptoWallet.isNeverCopied(field, type) ||
+                text?.let(ValueShape::isPlainlySecret) == true
+        }
         fun typeText(name: String?): UserText =
             if (name == null) UserText.of(CardText.CHANGE_NO_TYPE) else UserText.of(CardText.CHANGE_TYPE, FieldType.of(name)?.fullTitle ?: UserText.plain(name))
 
@@ -87,7 +94,7 @@ public object EntryVersionDiff {
                 result += VersionChange(name, VersionChange.Kind.ADDED, null, UserText.plain(""), isProtected = false)
                 continue
             }
-            compare(name, before?.text(), value, protected = field.isProtected || before?.isProtected == true || secret(field.name))
+            compare(name, before?.text(), value, protected = masked(field, new) || masked(before, old))
             if (before != null && before.text() == value && before.isProtected != field.isProtected) {
                 result += VersionChange(name, VersionChange.Kind.CHANGED, protection(before.isProtected), protection(field.isProtected), isProtected = false)
             }
@@ -100,7 +107,7 @@ public object EntryVersionDiff {
         }
         for (field in old.customFields) {
             if (field.name in newNames) continue
-            compare(UserText.plain(field.name), field.text(), null, protected = field.isProtected || secret(field.name))
+            compare(UserText.plain(field.name), field.text(), null, protected = masked(field, old))
             if (field.text().isEmpty()) result += VersionChange(UserText.plain(field.name), VersionChange.Kind.REMOVED, UserText.plain(""), null, isProtected = false)
         }
         if (old.customFields.map { it.name } != new.customFields.map { it.name } && old.customFields.map { it.name }.toSet() == newNames) {
@@ -120,10 +127,13 @@ public object EntryVersionDiff {
             }
             result += VersionChange(UserText.of(CardText.CHANGE_EXPIRES), kind, oldExpiry, newExpiry, isProtected = false)
         }
-        if (old.totp != new.totp) {
+        // The code, or the fields it is kept in when they give none (a Steam code): that it changed.
+        fun hasCode(entry: Entry) = entry.totp != null || entry.hasCodeFields
+        fun codeTexts(entry: Entry) = entry.codeFields.associate { it.name to it.text() }
+        if (old.totp != new.totp || codeTexts(old) != codeTexts(new)) {
             val kind = when {
-                old.totp == null -> VersionChange.Kind.ADDED
-                new.totp == null -> VersionChange.Kind.REMOVED
+                !hasCode(old) -> VersionChange.Kind.ADDED
+                !hasCode(new) -> VersionChange.Kind.REMOVED
                 else -> VersionChange.Kind.CHANGED
             }
             result += VersionChange(UserText.of(CardText.ROW_ONE_TIME_CODE), kind, null, null, isProtected = true)

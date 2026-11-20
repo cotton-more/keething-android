@@ -2,7 +2,7 @@
 """Writes otp-formats.kdbx: a fictitious KDBX 4 database (password `pw`) with one-time codes in every format other
 apps keep them in (keething-spec kdbx.otp-storage), for checking on a phone that each is read as the entry's code.
 
-    tools/make-otp-database.py <output.kdbx>
+    tools/make-otp-database.py <output.kdbx> [--recycle-bin-off]
 
 KeePass 2.x's own TimeOtp-* fields in each of its four secret encodings (one broken: no code), KeePassXC's otp link
 and the legacy TOTP Seed / TOTP Settings; further codes (custom fields holding an otpauth link, keething-spec
@@ -10,8 +10,11 @@ app.codes-view), beside an entry's own code and on their own; two entries with n
 Codes the app cannot use, each shown with its reason (keething-spec card.totp AC6): Steam as KeePassXC writes it
 (`encoder=steam`) and in the legacy fields (`30;S`), a counter-based link, an unknown algorithm. A list of recovery
 codes typed `code` (one used, one empty) beside an empty field (card.recovery-codes, card.fields AC2).
-keepassxc-cli writes KDBX 3.1 on import, which the app refuses, so the import is merged into a copy of a KDBX 4
-fixture (that adds the fixture's two entries).
+keepassxc-cli writes KDBX 3.1 on import, so the import is merged into a copy of a KDBX 4 fixture (that adds the
+fixture's two entries). With --recycle-bin-off the import itself is written, KDBX 3.1 with `RecycleBinEnabled` False
+(a merge does not carry Meta; keepassxc-cli has no switch for it): a row's long press then offers no Move to the
+recycle bin (keething-spec edit.delete-for-good). A KDBX 3.1 file holds no field types, so the recovery codes are
+plain fields there.
 """
 import base64
 import os
@@ -51,7 +54,16 @@ ENTRIES = [
     ("Steam, legacy (fictitious)", [("TOTP Seed", "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", True), ("TOTP Settings", "30;S")]),
     ("Counter-based (fictitious)", [("otp", "otpauth://hotp/Counter:me?secret=GEZDGNBVGY3TQOJQ&counter=3&issuer=Counter", True)]),
     ("Unknown algorithm (fictitious)", [("otp", "otpauth://totp/Algo:me?secret=GEZDGNBVGY3TQOJQ&algorithm=SHA3-256&issuer=Algo", True)]),
+    # A field whose link gives no code: warned of in the editor, masked there and on the card (edit.one-time-code AC7).
+    ("Broken link (fictitious)", [("GitHub 2FA", "otpauth://totp/GitHub:me?secret=0OIL&issuer=GitHub")]),
 ]
+
+# An entry that never expired, its ExpiryTime its creation time long ago, as KeePassXC leaves it: Expires switched on
+# in the editor starts a year ahead (edit.entry-fields).
+OLD_TIMES = ("Never expired (fictitious)", "<Times><CreationTime>2019-04-01T10:00:00Z</CreationTime>"
+             "<LastModificationTime>2019-04-01T10:00:00Z</LastModificationTime><LastAccessTime>2019-04-01T10:00:00Z</LastAccessTime>"
+             "<ExpiryTime>2019-04-01T10:00:00Z</ExpiryTime><Expires>False</Expires><UsageCount>0</UsageCount>"
+             "<LocationChanged>2019-04-01T10:00:00Z</LocationChanged></Times>")
 
 # Entries with field types (the entry's CustomData, as the app writes them): a list of recovery codes beside an empty field.
 TYPED_ENTRIES = [
@@ -82,7 +94,7 @@ def field_types(types):
     return "{" + ",".join(f'"{k}":"{v}"' for k, v in sorted(types.items())) + "}"
 
 
-def xml():
+def xml(recycle_bin=True):
     entries = "".join(
         f"<Entry><UUID>{uuid()}</UUID>{field('Title', title)}{field('UserName', 'me')}{field('Password', 'Otp-Pa55!', True)}"
         f"{''.join(field(*f) for f in fields)}</Entry>"
@@ -95,23 +107,30 @@ def xml():
         f"{''.join(field(*f) for f in fields)}<CustomData><Item><Key>Keething.FieldTypes</Key>"
         f"<Value>{escape(field_types(types))}</Value></Item></CustomData></Entry>"
         for title, fields, types in TYPED_ENTRIES
-    )
+    ) + (f"<Entry><UUID>{uuid()}</UUID>{OLD_TIMES[1]}{field('Title', OLD_TIMES[0])}{field('UserName', 'me')}"
+         f"{field('Password', 'Otp-Pa55!', True)}</Entry>")
     return ('<?xml version="1.0" encoding="utf-8" standalone="yes"?><KeePassFile><Meta><Generator>test</Generator>'
-            f'<DatabaseName>One-time code formats</DatabaseName></Meta><Root><Group><UUID>{uuid()}</UUID>'
+            f'<DatabaseName>One-time code formats</DatabaseName>'
+            f'<RecycleBinEnabled>{"True" if recycle_bin else "False"}</RecycleBinEnabled></Meta><Root><Group><UUID>{uuid()}</UUID>'
             f'<Name>One-time code formats</Name><Group><UUID>{uuid()}</UUID><Name>Codes</Name>{entries}</Group></Group>'
             '</Root></KeePassFile>')
 
 
 def main():
-    if len(sys.argv) != 2:
+    args = [a for a in sys.argv[1:] if a != "--recycle-bin-off"]
+    if len(args) != 1:
         sys.exit(__doc__)
-    out = sys.argv[1]
+    out = args[0]
+    bin_off = "--recycle-bin-off" in sys.argv[1:]
     with tempfile.TemporaryDirectory() as tmp:
         source = os.path.join(tmp, "otp.xml")
-        imported = os.path.join(tmp, "imported.kdbx")
+        imported = out if bin_off else os.path.join(tmp, "imported.kdbx")
         with open(source, "w") as f:
-            f.write(xml())
+            f.write(xml(recycle_bin=not bin_off))
         subprocess.run([CLI, "import", "-q", "-p", source, imported], input=b"pw\npw\n", check=True)
+        if bin_off:
+            print(f"wrote {out}")
+            return
         with open(FIXTURE, "rb") as src, open(out, "wb") as dst:
             dst.write(src.read())
         subprocess.run([CLI, "merge", "-q", "-s", out, imported], input=b"pw\n", check=True)

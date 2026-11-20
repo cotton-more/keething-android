@@ -13,6 +13,7 @@ import dev.keething.kdbx.editing.EditingFixtures.reread
 import dev.keething.kdbx.schema.KdbxSchema
 import dev.keething.kdbx.tree.XElement
 import dev.keething.kdbx.xml.KdbxField
+import dev.keething.kdbx.xml.KdbxTime
 import java.io.File
 import java.nio.file.Files
 import java.time.Instant
@@ -90,6 +91,19 @@ class EntryEditingTest {
         assertEquals("Entry <one> ü", snapshot.string("Title").text)
         assertNull(snapshot.first("History"), "a history entry has no history of its own")
         assertEquals(Secret.of("p&ss<w>rd \"ü\" 🔑"), snapshot.string("Password").secret, "still protected in the history")
+        assertEquals(KdbxTime.base64(now), element.first("Times")!!.first("LastAccessTime")!!.text)
+
+        // An entry without Tags given tags (an empty one left out): its Tags before Times. Its times in ISO 8601 stay so.
+        val second = editable.element(EditingFixtures.document("kdbx4-aes-aeskdf").entry("Second renamed").uuid)
+        second.first("Tags")?.let(second::remove)
+        second.first("Times")!!.elements.filter { it.name.endsWith("Time") }.forEach { it.text = KdbxTime.iso(Instant.ofEpochSecond(1_600_000_000)) }
+        EntryEditing.apply(EntryChanges(tags = listOf("", "home")), second, editable.root, now)
+        assertEquals("home", second.first("Tags")?.text)
+        assertTrue(second.elements.indexOf(second.first("Tags")) < second.elements.indexOf(second.first("Times")))
+        assertEquals(emptyList<Any>(), KdbxSchema.violations(editable.root).toList())
+        val times = second.first("Times")!!
+        assertEquals(KdbxTime.iso(now), times.first("LastModificationTime")!!.text)
+        assertEquals(KdbxTime.iso(now), times.first("LastAccessTime")!!.text)
     }
 
     @Test
@@ -259,6 +273,14 @@ class EntryEditingTest {
         assertEquals(2, history.size)
         assertEquals("v2", history.last().all("String").first { it.first("Key")?.text == "Notes" }.first("Value")?.text)
         assertNull(EntryEditing.entry("nope", editable.root))
+
+        // Ten when the file does not say; none at all with -1.
+        meta.first("HistoryMaxItems")?.let(meta::remove)
+        for (i in 0 until 12) EntryEditing.apply(EntryChanges(notes = "w$i"), element, editable.root, now)
+        assertEquals(10, element.first("History")!!.all("Entry").size)
+        meta.append(XElement("HistoryMaxItems", "-1"))
+        for (i in 0 until 3) EntryEditing.apply(EntryChanges(notes = "x$i"), element, editable.root, now)
+        assertEquals(13, element.first("History")!!.all("Entry").size)
     }
 
     @Test

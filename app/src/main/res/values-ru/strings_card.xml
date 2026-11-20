@@ -185,6 +185,7 @@
     <string name="card_code_unreadable">Это не секрет одноразового кода (буквы Base32 A–Z и цифры 2–7) и не ссылка otpauth://.</string>
     <string name="card_code_too_short">Секрет слишком короткий для настоящего; проверьте, что скопирован целиком.</string>
     <string name="card_code_unsupported">Этот код здесь использовать нельзя: %1$s.</string>
+    <string name="card_link_not_a_code">Это не одноразовый код: %1$s.</string>
     <string name="card_change_protected">защищено</string>
     <string name="card_change_not_protected">не защищено</string>
     <string name="card_change_kind">Вид</string>

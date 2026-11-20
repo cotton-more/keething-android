@@ -93,6 +93,103 @@ class OneTimeCodeEditorTest {
         assertFalse(editor.isDirty(readded))
     }
 
+    private fun protectedField(name: String, value: String) = CustomField(name, FieldValue.Protected(Secret.of(value)))
+
+    private fun texts(change: TotpChange?): List<Triple<String, String, Boolean>> =
+        assertIs<TotpChange.Fields>(change).fields.map { Triple(it.name, it.text(), it.isProtected) }
+
+    @Test
+    fun aCodeThatCannotBeUsedIsEditedAsTheTextOfItsFieldsAndNeverOverwritten() {
+        val steam = "otpauth://totp/Steam:alex?secret=$base32&encoder=steam"
+        val entry = Entry("e", title = "Steam", hasCodeFields = true, codeFields = listOf(protectedField("otp", steam)))
+        val editor = EntryEditor.edit(entry, now)
+        val start = editor.start
+        assertNull(start.code)
+        assertEquals(listOf(CodeFieldDraft("otp", steam, isProtected = true)), start.codeFields)
+        assertEquals("This code cannot be used here: Steam codes.", editor.codeFieldsProblem(start)?.english())
+        assertNull(editor.codeFieldsCode(start))
+        assertNull(editor.changes(start).totp, "an ordinary edit keeps the fields")
+        assertTrue(editor.offersAnotherCode(start))
+
+        // Edited until it reads: its live code instead of the reason, saved as typed, its protection kept.
+        val fixed = "otpauth://totp/Steam:alex?secret=$base32"
+        val reads = start.withCodeField("otp", fixed)
+        assertNull(editor.codeFieldsProblem(reads))
+        assertEquals(config(), editor.codeFieldsCode(reads))
+        assertEquals(listOf(Triple("otp", fixed, true)), texts(editor.changes(reads).totp))
+        assertTrue(editor.canSave(reads))
+
+        // Left broken, saved as typed all the same.
+        val other = start.withCodeField("otp", "$steam&digits=5")
+        assertEquals("This code cannot be used here: Steam codes.", editor.codeFieldsProblem(other)?.english())
+        assertEquals(listOf(Triple("otp", "$steam&digits=5", true)), texts(editor.changes(other).totp))
+
+        // Removed with the save; Undo puts the text back.
+        val removed = start.copy(codeFields = null)
+        assertEquals(TotpChange.Remove, editor.changes(removed).totp)
+        assertNull(editor.changes(removed.copy(codeFields = start.codeFields)).totp)
+
+        // A code added goes into a field of its own; the Steam code stays.
+        val another = added(editor.addOneTimeCode(start, base32))
+        assertEquals("One-time code 2", another.field)
+        assertNull(another.draft.code)
+        assertEquals(start.codeFields, another.draft.codeFields)
+        assertNull(editor.changes(another.draft).totp)
+    }
+
+    @Test
+    fun legacyFieldsAreEditedOneByOne() {
+        val entry = Entry(
+            "e", title = "Old", hasCodeFields = true,
+            codeFields = listOf(protectedField("TOTP Seed", base32), CustomField("TOTP Settings", FieldValue.Plain("30;S"))),
+        )
+        val editor = EntryEditor.edit(entry, now)
+        assertEquals("This code cannot be used here: Steam codes.", editor.codeFieldsProblem(editor.start)?.english())
+        val reads = editor.start.withCodeField("TOTP Settings", "30;6")
+        assertEquals(config(), editor.codeFieldsCode(reads))
+        assertEquals(listOf(Triple("TOTP Seed", base32, true), Triple("TOTP Settings", "30;6", false)), texts(editor.changes(reads).totp))
+    }
+
+    @Test
+    fun anEntryWithAWorkingCodeHasNoCodeFieldsToEdit() {
+        val entry = Entry(
+            "e", title = "T", totp = config(), hasCodeFields = true,
+            codeFields = listOf(protectedField("otp", "otpauth://totp/T?secret=$base32")),
+        )
+        val editor = EntryEditor.edit(entry, now)
+        assertNull(editor.start.codeFields)
+        assertEquals(CodeDraft(base32), editor.start.code)
+    }
+
+    // A link is a code in the editor only as the editor opens it or as the code dialog adds it (the owner's rule, AC7).
+    @Test
+    fun aLinkTypedIntoAFieldStaysTextAndABrokenOneIsWarnedOfAndMasked() {
+        val link = "otpauth://totp/Admin?secret=$base32"
+        val entry = Entry("e", title = "T", customFields = listOf(CustomField("Hotp", FieldValue.Plain("otpauth://hotp/X?secret=$base32&counter=1"))))
+        val editor = EntryEditor.edit(entry, now)
+        val broken = editor.start.fields.single()
+        assertNull(editor.oneTimeCode(broken))
+        assertEquals("Not a one-time code: only time-based (TOTP) links are supported.", editor.fieldWarning(broken)?.english())
+        assertTrue(editor.isMasked(broken), "masked as the card masks it, protected or not")
+
+        // Typed (or pasted) into a field: text while the editor is open, no warning, masked.
+        var draft = editor.start.addField()
+        val typed = draft.fields.last()
+        draft = draft.changeField(typed.id) { it.copy(name = "Typed", value = "otpauth://totp/Admin?secret=AB") }
+        assertNull(editor.oneTimeCode(draft.fields.last()), "a short secret no longer makes it a code mid-typing")
+        draft = draft.changeField(typed.id) { it.copy(value = link) }
+        assertNull(editor.oneTimeCode(draft.fields.last()))
+        assertNull(editor.fieldWarning(draft.fields.last()))
+        assertTrue(editor.isMasked(draft.fields.last()))
+        assertEquals(link, editor.changes(draft).customFields?.last()?.text())
+
+        // Edited into a broken link: warned of, saved all the same.
+        draft = draft.changeField(typed.id) { it.copy(value = "otpauth://totp/Admin") }
+        assertEquals("Not a one-time code: the link has no secret.", editor.fieldWarning(draft.fields.last())?.english())
+        assertTrue(editor.canSave(draft))
+        assertFalse(editor.isMasked(draft.copy(fields = listOf(FieldDraft(99, "Plain", "hello", isProtected = false))).fields.single()))
+    }
+
     @Test
     fun aFieldHoldingACodeLinkIsAnotherCodeNamedAndRemovedAsAnyField() {
         val link = "otpauth://totp/Admin?secret=$base32"
@@ -137,4 +234,9 @@ class OneTimeCodeEditorTest {
         assertIs<TotpChange.Set>(assertIs<VaultEdit.Create>(editor.edit(draft)).fields.totp)
         assertFalse(EntryEditor.createNote(vault, groupId = null, now = now, dates = null).offersFields)
     }
+}
+
+private fun CustomField.text(): String = when (val v = value) {
+    is FieldValue.Plain -> v.text
+    is FieldValue.Protected -> v.secret.reveal()
 }

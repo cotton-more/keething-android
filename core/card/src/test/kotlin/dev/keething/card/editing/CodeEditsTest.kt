@@ -150,6 +150,14 @@ class CodeEditsTest {
         assertEquals(listOf("One-time code 2", "One-time code 3"), names(next.customFields))
         assertIs<FieldValue.Protected>(next.customFields!!.last().value)
         assertNull(next.totp)
+        // Code fields that give no code (a Steam code) are kept: the new code goes into a field of its own.
+        val steam = Entry(
+            id = "s", title = "Steam", hasCodeFields = true,
+            codeFields = listOf(CustomField("otp", FieldValue.Protected(Secret.of("otpauth://totp/Steam?secret=JBSWY3DPEHPK3PXP&encoder=steam")))),
+        )
+        val (kept, keptField) = CodeEdits.addTo(steam, code)
+        assertEquals("One-time code 2", keptField)
+        assertNull(kept.totp)
 
         val created = CodeEdits.newEntry(" Dropbox ", "alex@posteo.de", code)
         assertEquals("Dropbox", created.title)

@@ -125,12 +125,13 @@ public object CodeEdits {
     }
 
     /**
-     * A code added to an existing entry (AC7, edit.one-time-code AC5): its own when it has none, else a protected field
-     * "One-time code N" holding its link. The field's name, null for the own code.
+     * A code added to an existing entry (AC7, edit.one-time-code AC5): its own when it has no code fields, else a protected
+     * field "One-time code N" holding its link (code fields that give no code are never overwritten). The field's name,
+     * null for the own code.
      */
     public fun addTo(entry: Entry, config: TotpConfig): Pair<EntryChanges, String?> {
         val link = TotpSetup.otpauthUri(config, entry.title, entry.username)
-        if (entry.totp == null) return EntryChanges(totp = TotpChange.Set(config.copy(secret = config.secret.copy()), link)) to null
+        if (entry.totp == null && !entry.hasCodeFields) return EntryChanges(totp = TotpChange.Set(config.copy(secret = config.secret.copy()), link)) to null
         val taken = entry.customFields.mapTo(HashSet()) { it.name.trim() }
         val name = generateSequence(2) { it + 1 }.map { "${EntryEditor.ANOTHER_CODE} $it" }.first { it !in taken }
         val fields = entry.customFields.map(::copied) + CustomField(name, FieldValue.Protected(Secret.of(link)))

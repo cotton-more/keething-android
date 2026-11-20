@@ -106,6 +106,8 @@ internal data class QuickActions(
     val url: String?,
     val host: String?,
     val inRecycleBin: Boolean,
+    /** Its database has the recycle bin turned on: off, Move to the recycle bin is left out (Delete for good… is the card's). */
+    val binOn: Boolean = true,
 )
 
 /** What the sections are listed from. */
@@ -530,7 +532,8 @@ internal class EntryListViewModel(
         val listing = prepared.value?.listing ?: return null
         val entry = entry(row.id) ?: return null
         val url = OpenableUrl.of(entry.url)
-        return QuickActions(row.id, row, entry.username, url, url?.let { entry.urlHost ?: it }, listing.inRecycleBin(row.id))
+        val binOn = (openEntry(EntryRef.of(row.id))?.database?.session?.state?.value as? SessionState.Unlocked)?.vault?.recycleBinEnabled != false
+        return QuickActions(row.id, row, entry.username, url, url?.let { entry.urlHost ?: it }, listing.inRecycleBin(row.id), binOn)
     }
 
     /** Delete from the quick actions: as the card's (SPEC §6.2), into its own database's bin at once, with Undo. */

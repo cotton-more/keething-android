@@ -78,7 +78,7 @@ only for frequent copying into apps autofill does not reach), Google Play (§8.1
 
 The app stands on its own (the owner, 2026-11-08; keething-spec plans/android-release-1.0.md D5): nothing in 1.0 sends
 the user to a computer for what the phone lacks. So changing the master key, the database's name and colour, resolving a
-conflict copy, adding, renaming and removing attachments, restoring a version and the backups seen and restored are
+conflict copy, adding, replacing and removing attachments, restoring a version and the backups seen and restored are
 planned for 1.0, no longer non-goals.
 
 Planned beyond the first releases (decided by the owner on 2026-10-27; keething-spec `OPEN.md`, `plans/`): several
@@ -489,7 +489,7 @@ their types, tags, expiry), a new entry at the end of a group's entries, an entr
 an entry deleted for good (`VaultEdit.DeleteForGood`: from the bin, or any entry when the bin is turned off; with its
 history, a `DeletedObjects` record, and its attachments nothing else uses dropped as every write drops them; keething-spec
 edit.delete-for-good), an entry's one-time code set, changed or removed (`EntryChanges.totp`; the editor's, §6.2, and
-an entry received, §10), an entry's attachments added, renamed and removed (`EntryChanges.attachments`, below; the
+an entry received, §10), an entry's attachments added, replaced and removed (`EntryChanges.attachments`, below; the
 editor's, §6.2), an earlier version restored (`VaultEdit.RestoreVersion`, below; History's, §6.2). Renaming tags and the
 recycle bin's groups are left to the Mac (§1). The groups' edits are built in the save (`VaultEdit.EntryEdit` and
 `VaultEdit.GroupEdit`: an entry moved, with an edit or alone, new groups made for a new or moved entry, a group renamed,
@@ -1556,7 +1556,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   copy the username (shown), the password or the one-time code (live; with two or more, Copy one-time code… opens their
   sheet), open the site (as the card's link), then
   Edit, Remove from Recent (a recent row: "Removed from Recent" with Undo, which puts it back in its place, the
-  entry itself untouched) and Move to the recycle bin (as Delete on the card, with Undo); an entry in the bin has
+  entry itself untouched) and Move to the recycle bin (as Delete on the card, with Undo; left out when the database has the bin turned off,
+  Delete for good… being the card's); an entry in the bin has
   the copies, the site, Restore (the list then says "Restored to …", as the card does) and Delete for good… (asked
   first, as on its card).
   A row's code is a pill beside the title, or under it where the pill would leave
@@ -1733,9 +1734,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Editor** (the card's Edit; a new entry from the `+` next to the search field, a menu: New entry, New note, New
   note from clipboard, §6.4): title, username,
   password (masked, an eye shows it coloured; masked, it shows the card's fixed dots, not its length, and a dot a
-  character only while typed in), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept), and the custom fields:
+  character only while typed in), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept; switched on with a day already past, as KeePassXC leaves an
+  entry that never expired, the day starts a year from today), and the custom fields:
   name above value, each with the row's whole width, and under them the type as a chip (§6.3), a Protected chip
-  (a lock, closed when on) and remove; a protected value is masked as the password is. The text menu of the
+  (a lock, closed when on) and remove; a protected value is masked as the password is, and so is a value the card masks (a
+  password-typed one, an `otpauth://` link, a private key). What was revealed is masked again when the app leaves
+  (`ON_STOP`), as on the card. The text menu of the
   password, a protected or password-typed value and the lock screen's master password has no items other apps add
   ("Ask Gemini", "Translate", "Read aloud": they would hand it the text); the master password's and a recovery
   phrase's have no Copy or Cut either (a keyboard's Ctrl+C or Copy there copies nothing, and its Cut is refused); the others' Copy and Cut go
@@ -1756,7 +1760,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   at most 50) and adds them as protected fields `<list>_1`, `_2`, … typed `code`, which the card shows as a
   numbered list; such a list is folded into one row in the editor ("Recovery codes · 10 codes · protected")
   until tapped. **One-time code…** (keething-spec edit.one-time-code; the Mac's §3.23; *Another one-time code…* once
-  the entry has one) asks in a dialog for the secret a site shows or its `otpauth://` link, typed (masked, an eye
+  the entry has one, or code fields that give none) asks in a dialog for the secret a site shows or its `otpauth://` link, typed (masked, an eye
   shows it) or pasted (*Paste*: the clipboard's text, else the QR codes of its image, a screenshot copied), or its
   QR code from an image file (*Image*: the system's file picker, any image, SVG too, as GitHub gives it) or the camera
   (*Scan*: full screen until a QR code that is a code is seen; another's problem shown, the camera kept on). Of several
@@ -1769,7 +1773,16 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   is removed with the save." with Undo). Saved as KeePassXC writes it, in the entry's own format (§3.3). A further code
   becomes a protected field "One-time code 2" (3, …) holding its link (the title as issuer, the username as account);
   a field holding a code's link shows its live code instead of its value, without a type chip, and is renamed or
-  removed but not edited by hand. **Attachments** (keething-spec edit.attachments; the Mac's §3.18), after the fields
+  removed but not edited by hand: only a field whose link reads as a code as the editor opens it, or one the dialog
+  added. A link typed or pasted into a field stays text while the editor is open; one that gives no code says "Not a
+  one-time code: <reason>." under it in the warning's colour, is saved as typed and is masked, here and on the card. An
+  entry whose own code cannot be used here (Steam, a counter-based link, a broken secret; the canvas "Keething editor
+  codes", agreed 2026-11-20) shows in the code's place the fields it is kept in (`otp`; `TOTP Seed` and `TOTP Settings`;
+  KeePass's `TimeOtp-*`) under their own names, not edited, each masked with an eye, and under them the card's reason
+  in the secondary colour ("This code cannot be used here: Steam codes."); once their text reads, the live code and
+  "Changed: …" instead (they stay text while the editor is open). They are saved as typed, each field's protection
+  kept, never overwritten by a new code; remove takes them with the save (Undo back). The Codes view's Add code alike
+  puts a code into a field of its own. **Attachments** (keething-spec edit.attachments; the Mac's §3.18), after the fields
   (a note's after its expiry): each attachment a row, its name over its size, NEW for one added or REPLACED for one put
   in another's place, remove at its end; not renamed (the owner, 2026-11-08: a name comes from its file). **Add files**
   opens the system's picker for one file or several (any app's documents, a cloud drive's too), each read off the main
@@ -1889,8 +1902,11 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   marked, each with what it changed from the one before (`card/history`, the Mac's `EntryVersionDiff`):
   title, username, password, URL, notes (masked when either version protects them; a change of their protection
   alone, "not protected" → "protected", its own line), the kind (§6.4: "Kind" added / removed), custom fields
-  (added / removed / changed, a change of protection or of type, the order), tags, expiry, the one-time code (that it changed, never its values), attachments
-  (added / removed / size). Old values struck through above the new; protected ones masked, an eye each.
+  (added / removed / changed, a change of protection or of type, the order), tags, expiry, the one-time code or the
+  fields it is kept in when they give none (that it changed, never its values), attachments
+  (added / removed / size). Old values struck through above the new; masked as the card masks them in either version
+  (protected, typed `password`, a recovery phrase or passphrase, an `otpauth://` link, a private key, a private
+  extended key in an `xpub` field), an eye each; all masked again when the app leaves.
   The oldest version kept has nothing to compare with; "No earlier versions are kept" when there are none.
   The versions are wiped when the screen goes (a lock closes it); the values compared are plain strings
   while it is open, as in the editor. **Go back to this version…** (keething-spec edit.history-restore; the canvas

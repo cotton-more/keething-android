@@ -18,7 +18,18 @@ import java.util.Locale
  * stored (Mac SPEC §3.12), null for none (it is read by its value); a type this version does not know is kept as
  * it is.
  */
-public data class FieldDraft(val id: Int, val name: String, val value: String, val isProtected: Boolean, val typeName: String? = null) {
+public data class FieldDraft(
+    val id: Int,
+    val name: String,
+    val value: String,
+    val isProtected: Boolean,
+    val typeName: String? = null,
+    /**
+     * Shown as a live code, its link not edited by hand (keething-spec edit.one-time-code AC7): its link read as one when
+     * the editor opened it, or the code dialog added it. Decided once: a link typed or pasted stays text.
+     */
+    val isCode: Boolean = false,
+) {
     /** Its type; null when it has none (or one this version does not know). */
     val type: FieldType? get() = typeName?.let(FieldType::of)
 
@@ -46,6 +57,15 @@ public data class CodeDraft(
     public companion object {
         public fun of(config: TotpConfig): CodeDraft = CodeDraft(config.secret.useBytes(Base32::encode), config.digits, config.period, config.algorithm)
     }
+}
+
+/**
+ * One of the fields the entry's own code is kept in (`otp`, or `TOTP Seed` and `TOTP Settings`, or KeePass's `TimeOtp-*`),
+ * as its text: how the editor holds a code that cannot be used here, so it is edited and never overwritten.
+ */
+public data class CodeFieldDraft(val name: String, val value: String, val isProtected: Boolean) {
+    // It holds the key: never in a log.
+    override fun toString(): String = "CodeFieldDraft($name, •••)" // not user text
 }
 
 /**
@@ -94,7 +114,7 @@ public data class EntryDraft(
     val tagInput: String = "",
     val fields: List<FieldDraft> = emptyList(),
     val expires: Boolean = false,
-    /** When the entry expires, while [expires]: the entry's own time, else a year from when the editor opened. */
+    /** When the entry expires, while [expires]: the entry's own time (a past one only while it expires), else a year from when the editor opened. */
     val expiryTime: Instant = Instant.EPOCH,
     /** The group the entry goes into: an existing entry's own until another is chosen (a move with the save). */
     val groupId: String = "",
@@ -102,9 +122,18 @@ public data class EntryDraft(
     val newGroups: List<String> = emptyList(),
     /** The entry's own one-time code; null: none. Further codes are custom fields holding their links. */
     val code: CodeDraft? = null,
+    /**
+     * The entry's code fields as text while they give no code (Steam, a counter-based link, a broken secret): edited, saved
+     * as typed; null: none, or removed with the save.
+     */
+    val codeFields: List<CodeFieldDraft>? = null,
     /** The attachments in order: the entry's (perhaps renamed) and new ones (keething-spec edit.attachments). */
     val attachments: List<AttachmentDraft> = emptyList(),
 ) {
+    /** The code field [name] with [value] typed into it. */
+    public fun withCodeField(name: String, value: String): EntryDraft =
+        copy(codeFields = codeFields?.map { if (it.name == name) it.copy(value = value) else it })
+
     /** Where the entry goes, as the group picker says it. */
     val group: GroupChoice get() = GroupChoice(groupId, newGroups)
 

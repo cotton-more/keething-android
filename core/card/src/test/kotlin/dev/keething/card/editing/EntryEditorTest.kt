@@ -62,6 +62,12 @@ class EntryEditorTest {
         assertTrue(editor.changes(draft).expiry?.time != null)
         assertTrue(editor.canSave(draft))
         assertEquals(VaultEdit.Update("e", Instant.ofEpochSecond(100), editor.changes(draft)), editor.edit(draft))
+
+        // The standard fields, each only when it changed.
+        val standard = editor.start.copy(title = "Mail 2", username = "me2", url = "https://new.example", notes = "n2")
+        val changes = editor.changes(standard)
+        assertEquals(listOf("Mail 2", "me2", "https://new.example", "n2"), listOf(changes.title, changes.username, changes.url, changes.notes))
+        assertEquals(EntryChanges(), editor.changes(editor.start.copy(title = entry.title)))
     }
 
     @Test
@@ -156,6 +162,14 @@ class EntryEditorTest {
         val never = EntryEditor.edit(entry, now)
         assertEquals(now.atOffset(ZoneOffset.UTC).plusYears(1).toInstant(), never.start.expiryTime, "a year from now to start with")
         assertNull(never.changes(never.start.copy(expiryTime = now)).expiry, "a date without expiring is no change")
+
+        // KeePassXC keeps the creation time in ExpiryTime of an entry that never expires: switched on, it starts a year ahead.
+        val old = EntryEditor.edit(entry.copy(expires = false, expiryTime = Instant.parse("2019-04-01T10:00:00Z")), now)
+        assertEquals(now.atOffset(ZoneOffset.UTC).plusYears(1).toInstant(), old.start.expiryTime)
+        assertNull(old.changes(old.start).expiry)
+        assertEquals(EntryChanges.Expiry(true, old.start.expiryTime), old.changes(old.start.copy(expires = true)).expiry)
+        val expired = EntryEditor.edit(entry.copy(expires = true, expiryTime = Instant.parse("2019-04-01T10:00:00Z")), now)
+        assertEquals(Instant.parse("2019-04-01T10:00:00Z"), expired.start.expiryTime, "an entry that has expired keeps its day")
     }
 
     @Test
@@ -284,6 +298,11 @@ class EntryEditorTest {
     fun aBlockOfCodesBecomesNumberedProtectedFieldsThatTheCardListsAsCodes() {
         assertEquals(listOf("1234 5678", "abcd-efgh", "zz99", "04711"), EntryEditor.codes("1. 1234 5678\n2) abcd-efgh\n\n• zz99\n  04711  \n"))
         assertEquals(listOf("a1", "b2", "c3"), EntryEditor.codes("a1, b2; c3"), "one line split at commas and semicolons")
+        assertEquals(
+            listOf("1111-2222", "3333-4444", "5555-6666"),
+            EntryEditor.codes("\n1111-2222, 3333-4444, 5555-6666\n\n"),
+            "one line with its line end and blank lines around it is still one line",
+        )
 
         val editor = EntryEditor.edit(Entry("e", title = "Shop"), now)
         var draft = assertIs<AddedCodes.Added>(editor.addCodes(editor.start, "1. 1234 5678\n2) abcd-efgh\n\n• zz99\n  04711  \n", " Backup codes ")).draft

@@ -74,7 +74,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.ui.spokenMasked
@@ -280,6 +282,8 @@ private fun sizeText(context: Context, bytes: Int?): String =
 internal fun EntryHistoryScreen(database: DatabaseSession, entryId: String, onBack: () -> Unit, onRestored: (Notice) -> Unit) {
     val context = LocalContext.current.applicationContext
     val model = viewModel { EntryHistoryViewModel(database, entryId) { sizeText(context, it) } }
+    // Every value revealed is masked again when the app leaves, as the card (history AC5's Android note).
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { model.revealed.clear() }
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
     val state = model.state
     Scaffold(

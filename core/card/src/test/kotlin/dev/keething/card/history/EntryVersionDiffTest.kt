@@ -74,6 +74,38 @@ class EntryVersionDiffTest {
     }
 
     @Test
+    fun aChangeOfTheCodeFieldsIsAChangeOfTheCodeWithoutItsValues() {
+        fun steam(link: String) = old.copy(hasCodeFields = true, codeFields = listOf(field("otp", link, protected = true)))
+        val before = steam("otpauth://totp/S?secret=JBSWY3DPEHPK3PXP&encoder=steam")
+        val code = Said("One-time code", VersionChange.Kind.CHANGED, null, null, isProtected = true)
+
+        assertEquals(listOf(code), EntryVersionDiff.changes(before, steam("otpauth://totp/S?secret=JBSWY3DPEHPK3PXQ&encoder=steam")).map { it.english() })
+        assertEquals(listOf(code.copy(kind = VersionChange.Kind.REMOVED)), EntryVersionDiff.changes(before, old).map { it.english() })
+        assertEquals(listOf(code.copy(kind = VersionChange.Kind.ADDED)), EntryVersionDiff.changes(old, before).map { it.english() })
+        assertEquals(emptyList(), EntryVersionDiff.changes(before, steam("otpauth://totp/S?secret=JBSWY3DPEHPK3PXP&encoder=steam")))
+    }
+
+    @Test
+    fun aValueTheCardMasksIsMaskedInEitherVersionUnprotected() {
+        val xprv = "xprv9s21ZrQH143K3h3fDYiay8mocZ3afhfULfb5GX8kCBdno77K4HiA15Tg23wpbeF1pLfs1c5SPmYHrEpTuuRhxMwvKDwqdKiGJS9XFKzUsAF"
+        val pem = "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----"
+        val before = old.copy(
+            customFields = listOf(field("Password 2", "first"), field("Code", "x"), field("Key", pem), field("Wallet key", "xpub-old"), field("Plain", "a")),
+            fieldTypes = mapOf("Password 2" to "password", "Wallet key" to "crypto.xpub"),
+        )
+        val after = before.copy(
+            customFields = listOf(
+                field("Password 2", "second"), field("Code", "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP"), field("Key", "gone"),
+                field("Wallet key", xprv), field("Plain", "b"),
+            ),
+        )
+
+        val masked = EntryVersionDiff.changes(before, after).associate { it.field.english() to it.isProtected }
+
+        assertEquals(mapOf("Password 2" to true, "Code" to true, "Key" to true, "Wallet key" to true, "Plain" to false), masked)
+    }
+
+    @Test
     fun theVersionsNewestFirstEachWithWhatItChangedNothingBeforeTheOldest() {
         val middle = old.copy(title = "Mail 2", lastModified = Instant.ofEpochSecond(200))
         val current = middle.copy(password = Secret.of("newest"), lastModified = Instant.ofEpochSecond(300))

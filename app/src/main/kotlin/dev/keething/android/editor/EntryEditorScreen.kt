@@ -127,6 +127,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -164,6 +165,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -185,6 +187,8 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.keething.android.generator.GeneratorUse
 import dev.keething.android.generator.PasswordGeneratorSheet
@@ -417,6 +421,8 @@ private fun EditorForm(
     // A note shows a username, a password and fields only when another app gave it them (keething-spec types.note AC3).
     if (editor.showsUsername) EditorField(stringResource(R.string.editor_field_username), draft.username, { update(draft.copy(username = it)) }, keyboardType = KeyboardType.Email)
     var passwordShown by remember { mutableStateOf(false) }
+    // What was revealed is masked again when the app leaves, as the card (entry-fields AC1's Android note).
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { passwordShown = false }
     var generating by rememberSaveable { mutableStateOf(false) }
     if (editor.showsPassword) {
         PasswordField(
@@ -513,7 +519,7 @@ private fun CustomFieldsSection(
                 focusing = added.fields.last().id
             },
             onCodes = { addingCodes = true },
-            anotherCode = draft.code != null,
+            anotherCode = editor.offersAnotherCode(draft),
             onOneTimeCode = { addingCode = true },
         )
     }
@@ -521,7 +527,7 @@ private fun CustomFieldsSection(
     if (addingCode) {
         val resources = LocalResources.current
         AddOneTimeCodeDialog(
-            another = draft.code != null,
+            another = editor.offersAnotherCode(draft),
             onAdd = { text ->
                 when (val added = editor.addOneTimeCode(draft, text)) {
                     is AddedCode.Added -> null.also { update(added.draft) }
@@ -652,12 +658,14 @@ private fun EditorField(
         )
     }
     val copySecret = LocalSecretCopy.current
-    when {
-        !secret -> field()
-        copyable -> SecretTextMenu(copyable = true) { CopiedThroughTheApp(copySecret, field) }
-        // Never copied (a recovery phrase): a keyboard's Ctrl+C or Copy, which the menu does not offer, goes nowhere.
-        else -> SecretTextMenu(copyable = false) { CopiedThroughTheApp(onCopy = {}, content = field) }
+    // One place in the tree whatever it is: a field that becomes secret as it is typed (a code's link) keeps its focus.
+    // Never copied (a recovery phrase): a keyboard's Ctrl+C or Copy, which the menu does not offer, goes nowhere.
+    val onCopy: ((String) -> Unit)? = when {
+        !secret -> null
+        copyable -> copySecret
+        else -> { _ -> }
     }
+    SecretTextMenu(copyable = copyable || !secret, active = secret) { CopiedThroughTheApp(onCopy, field) }
 }
 
 /** Cut as a key: the Cut key (which a keyboard's Cut sends too), or Ctrl+X / Meta+X. */
@@ -1055,7 +1063,8 @@ private fun CustomFields(
         }
         FieldEditor(
             field,
-            code = remember(field.value) { editor.oneTimeCode(field) },
+            code = remember(field.value, field.isCode) { editor.oneTimeCode(field) },
+            masked = editor.isMasked(field),
             problem = editor.fieldProblem(draft, field)?.resolve(),
             warning = editor.fieldWarning(field)?.resolve(),
             guessed = guesses[field.id] ?: FieldType.TEXT,
@@ -1116,6 +1125,8 @@ private fun FieldEditor(
     field: FieldDraft,
     /** The field holds a one-time code's link: its live code instead of the value, which is not edited by hand. */
     code: TotpConfig?,
+    /** Its value is masked, with an eye, as the card masks it (protected, a password, plainly a secret). */
+    masked: Boolean,
     problem: String?,
     warning: String?,
     guessed: FieldType,
@@ -1128,11 +1139,11 @@ private fun FieldEditor(
     onRemove: () -> Unit,
 ) {
     var revealed by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { revealed = false }
     var generating by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf(false) }
     val type = field.type
     val neverCopied = CryptoWallet.isNeverCopied(type, field.isProtected, field.value)
-    val masked = field.isProtected || type?.isPassword == true || neverCopied
     val valueFocus = remember { FocusRequester() }
     val bringIntoView = remember { BringIntoViewRequester() }
     if (focusNow) {
@@ -1175,7 +1186,8 @@ private fun FieldEditor(
             keyboardType = when {
                 type == FieldType.CARD_NUMBER || type == FieldType.CARD_CVC || type == FieldType.CARD_PIN -> KeyboardType.NumberPassword
                 type == FieldType.SSH_PORT -> KeyboardType.Number
-                masked -> KeyboardType.Password
+                // Not by the value: a link typed becomes masked mid-word, and a new keyboard then would drop what follows.
+                field.isProtected || type?.isPassword == true || neverCopied -> KeyboardType.Password
                 type == FieldType.URL -> KeyboardType.Uri
                 else -> KeyboardType.Text
             },
@@ -1453,6 +1465,7 @@ private fun ProtectedChip(checked: Boolean, onChange: (Boolean) -> Unit) {
 private fun OwnCodeRow(editor: EntryEditor, draft: EntryDraft, update: (EntryDraft) -> Unit) {
     val code = draft.code
     val had = editor.start.code
+    if (code == null && editor.start.codeFields != null) return CodeFieldsRow(editor, draft, update)
     if (code == null) {
         if (had == null) return
         Row(
@@ -1573,6 +1586,81 @@ private fun AnotherCode(config: TotpConfig) {
 }
 
 /**
+ * The entry's code fields as their text while they give no code (the owner's rule for codes in the editor): each under
+ * its own name, masked with an eye; why there is no code under them, the card's words, or the live code once they read
+ * (they stay text while the editor is open). Removed with the save, with Undo.
+ */
+@Composable
+private fun CodeFieldsRow(editor: EntryEditor, draft: EntryDraft, update: (EntryDraft) -> Unit) {
+    val had = editor.start.codeFields ?: return
+    val fields = draft.codeFields
+    if (fields == null) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(stringResource(R.string.editor_code_removed), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = { update(draft.copy(codeFields = had)) }) { Text(stringResource(R.string.editor_undo)) }
+        }
+        return
+    }
+    val config = remember(fields) { editor.codeFieldsCode(draft) }
+    val problem = editor.codeFieldsProblem(draft)?.resolve()
+    val now = rememberSecondsNow()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.editor_code), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(onClick = { update(draft.copy(codeFields = null)) }) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.editor_code_remove), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        for (field in fields) key(field.name) {
+            var revealed by remember { mutableStateOf(false) }
+            LifecycleEventEffect(Lifecycle.Event.ON_STOP) { revealed = false }
+            // Its name is not edited: under another name it is no longer the code's.
+            EditorField(
+                field.name,
+                field.value,
+                { update(draft.withCodeField(field.name, it)) },
+                modifier = Modifier.padding(end = 12.dp),
+                containerColor = Color.Transparent,
+                keyboardType = KeyboardType.Password,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = MonospaceFamily),
+                visualTransformation = colouredSecretTransformation(),
+                hidden = !revealed,
+                secret = true,
+                trailingIcon = { RevealButton(revealed, Revealed.VALUE) { revealed = !revealed } },
+            )
+        }
+        if (config != null) {
+            CodeValue(TotpDisplay.of(config, now.value))
+            Text(
+                stringResource(R.string.editor_code_changed_check),
+                Modifier.padding(end = 12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else if (problem != null) {
+            Row(Modifier.padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Rounded.Block, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(problem, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/**
  * Adding a one-time code (keething-spec edit.one-time-code AC1–AC5, AC8): the secret a site shows or its whole
  * `otpauth://` link, typed or pasted, or its QR code from an image, the clipboard's image or the camera ([onAddAny]:
  * the first that is a code); why it is not taken, under it.
@@ -1586,6 +1674,7 @@ private fun AddOneTimeCodeDialog(
 ) {
     var text by remember { mutableStateOf("") }
     var shown by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { shown = false }
     var problem by remember { mutableStateOf<String?>(null) }
     var scanning by remember { mutableStateOf(false) }
     val context = LocalContext.current

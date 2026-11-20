@@ -187,6 +187,7 @@
     <string name="card_code_unreadable">That is not a one-time code secret (Base32 letters A–Z and digits 2–7) or an otpauth:// link.</string>
     <string name="card_code_too_short">That secret is too short to be a real one; check that all of it was copied.</string>
     <string name="card_code_unsupported">This code cannot be used here: %1$s.</string>
+    <string name="card_link_not_a_code">Not a one-time code: %1$s.</string>
     <!-- An entry's history -->
     <string name="card_change_protected">protected</string>
     <string name="card_change_not_protected">not protected</string>

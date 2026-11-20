@@ -72,7 +72,7 @@ private class Action(val label: String, val icon: ImageVector, val detail: Strin
 
 /**
  * A long press on a row (SPEC §6.2): what the card would take two taps for. Copy the username, the password or the
- * code, open the site; then Edit, Remove from Recent (a recent row) and Move to the recycle bin. An entry in the bin
+ * code, open the site; then Edit, Remove from Recent (a recent row) and Move to the recycle bin (with the bin turned on). An entry in the bin
  * has the copies, the site, Restore and Delete for good… (asked first). Each action closes the sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,7 +109,7 @@ internal fun QuickActionsSheet(
         listOfNotNull(
             Action(stringResource(R.string.list_edit), Icons.Rounded.Edit, act = done { handler.edit(id) }),
             Action(stringResource(R.string.list_remove_from_recent), Icons.Rounded.HistoryToggleOff, act = done { handler.removeFromRecent(id) }).takeIf { fromRecent },
-            Action(stringResource(R.string.list_move_to_bin), Icons.Rounded.Delete, danger = true, act = done { handler.moveToRecycleBin(id) }),
+            Action(stringResource(R.string.list_move_to_bin), Icons.Rounded.Delete, danger = true, act = done { handler.moveToRecycleBin(id) }).takeIf { actions.binOn },
         )
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {

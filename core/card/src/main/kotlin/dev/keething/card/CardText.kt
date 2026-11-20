@@ -178,6 +178,7 @@ public enum class CardText : TextKey {
     CODE_UNREADABLE,
     CODE_TOO_SHORT,
     CODE_UNSUPPORTED,
+    LINK_NOT_A_CODE,
     // An entry's history
     CHANGE_PROTECTED,
     CHANGE_NOT_PROTECTED,

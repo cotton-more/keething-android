@@ -207,6 +207,7 @@ private fun card(key: CardText): Int = when (key) {
     CardText.CODE_UNREADABLE -> R.string.card_code_unreadable
     CardText.CODE_TOO_SHORT -> R.string.card_code_too_short
     CardText.CODE_UNSUPPORTED -> R.string.card_code_unsupported
+    CardText.LINK_NOT_A_CODE -> R.string.card_link_not_a_code
     CardText.CHANGE_PROTECTED -> R.string.card_change_protected
     CardText.CHANGE_NOT_PROTECTED -> R.string.card_change_not_protected
     CardText.CHANGE_KIND -> R.string.card_change_kind

@@ -2,6 +2,7 @@ package dev.keething.card.editing
 
 import dev.keething.card.AddressCheck
 import dev.keething.card.CardText
+import dev.keething.card.CryptoWallet
 import dev.keething.card.CryptoAddress
 import dev.keething.card.DerivationPath
 import dev.keething.card.EntryCardBuilder
@@ -14,9 +15,11 @@ import dev.keething.card.ImportedFieldName
 import dev.keething.card.OneTimeCodes
 import dev.keething.card.SeedPhrase
 import dev.keething.card.SshTarget
+import dev.keething.card.ValueShape
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.TotpConfig
+import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.vault.AttachmentChange
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
@@ -33,6 +36,7 @@ import dev.keething.domain.vault.TotpChange
 import dev.keething.domain.vault.Vault
 import dev.keething.domain.vault.VaultEdit
 import dev.keething.domain.vault.VaultGroup
+import dev.keething.totp.TotpResolver
 import dev.keething.totp.TotpSetup
 import dev.keething.totp.TotpSetupException
 import java.time.Duration
@@ -159,12 +163,30 @@ public class EntryEditor private constructor(
      * empty, protected (never read) or of another type. The same for an SSH host or port that is not one.
      */
     public fun fieldWarning(field: FieldDraft): UserText? {
+        linkWarning(field)?.let { return it }
         if (field.type?.isCryptoPart == true) return cryptoWarning(field)
         sshWarning(field)?.let { return it }
         val type = field.type?.takeIf { it.isDate } ?: return null
         if (field.isProtected || field.value.isBlank() || FieldDate.parse(field.value, typed = true) != null) return null
         return UserText.of(if (type == FieldType.CARD_EXPIRY) CardText.MONTH_WARNING else CardText.DATE_WARNING)
     }
+
+    /**
+     * An `otpauth://` link that gives no code, in a field that is not one: saved all the same, masked (the owner's rule,
+     * keething-spec edit.one-time-code AC7). One that reads stays text while the editor is open, without a word.
+     */
+    private fun linkWarning(field: FieldDraft): UserText? {
+        if (field.isCode || !field.value.trim().lowercase().startsWith("otpauth://")) return null // not user text
+        return TotpResolver.problem(mapOf(TotpFormat.LINK_FIELD to field.value.trim()))?.let { UserText.of(CardText.LINK_NOT_A_CODE, it) }
+    }
+
+    /**
+     * The field's value is masked as the card masks it (card.masking AC1, AC2): protected, a password, a wallet's secret,
+     * or plainly a secret (an `otpauth://` link, a private key).
+     */
+    public fun isMasked(field: FieldDraft): Boolean =
+        field.isProtected || field.type?.isPassword == true || CryptoWallet.isNeverCopied(field.type, field.isProtected, field.value) ||
+            ValueShape.isPlainlySecret(field.value)
 
     /** An `ssh.host` ssh cannot reach, an `ssh.port` outside 1–65535; saved all the same, shown as a plain row. */
     private fun sshWarning(field: FieldDraft): UserText? {
@@ -301,7 +323,14 @@ public class EntryEditor private constructor(
             tags = shape.tags,
             expiry = shape.expiry,
             group = if (isNew) null else destination(draft),
-            totp = if (!shape.codeChanged) null else draft.code?.config()?.let { TotpChange.Set(it, TotpSetup.otpauthUri(it, savedTitle(draft), draft.username)) } ?: TotpChange.Remove,
+            totp = when {
+                shape.codeChanged -> draft.code?.config()?.let { TotpChange.Set(it, TotpSetup.otpauthUri(it, savedTitle(draft), draft.username)) } ?: TotpChange.Remove
+                // A code that cannot be used, saved as typed: each field's protection kept.
+                shape.codeFields -> draft.codeFields?.let { fields ->
+                    TotpChange.Fields(fields.map { CustomField(it.name, if (it.isProtected) FieldValue.Protected(Secret.of(it.value)) else FieldValue.Plain(it.value)) })
+                } ?: TotpChange.Remove
+                else -> null
+            },
             // A new one's content is copied: the change is wiped once saved, the draft keeps its own for another try.
             attachments = shape.attachments?.let {
                 draft.attachments.map { attachment ->
@@ -353,6 +382,7 @@ public class EntryEditor private constructor(
         val tags: List<String>?,
         val expiry: EntryChanges.Expiry?,
         val codeChanged: Boolean,
+        val codeFields: Boolean,
         val attachments: List<AttachmentText>?,
     )
 
@@ -385,6 +415,7 @@ public class EntryEditor private constructor(
             tags = tags.takeIf { it != original.tags },
             expiry = if (draft.expires != original.expires || moved) EntryChanges.Expiry(draft.expires, draft.expiryTime.takeIf { draft.expires }) else null,
             codeChanged = codeChanged(draft),
+            codeFields = draft.codeFields != start.codeFields,
             // Only a list that differs from the entry's (AC4).
             attachments = draft.attachments.map { AttachmentText(it.original, it.name.trim(), if (it.isNew) it.id else null) }
                 .takeIf { it != loadedAttachments },
@@ -395,6 +426,21 @@ public class EntryEditor private constructor(
 
     /** The entry's own code differs from the one it had (set, changed or removed): "new" or "changed" beside it. */
     public fun codeChanged(draft: EntryDraft): Boolean = draft.code != start.code
+
+    private fun codeTexts(draft: EntryDraft): Map<String, String>? = draft.codeFields?.associate { it.name to it.value }
+
+    /**
+     * Why the code fields as typed give no code ("This code cannot be used here: Steam codes.", the card's words); null
+     * once they read, or when there are none.
+     */
+    public fun codeFieldsProblem(draft: EntryDraft): UserText? =
+        codeTexts(draft)?.let(TotpResolver::problem)?.let { UserText.of(CardText.CODE_UNSUPPORTED, it) }
+
+    /** The code the code fields give as typed, with a key of its own to wipe; null while they give none. */
+    public fun codeFieldsCode(draft: EntryDraft): TotpConfig? = codeTexts(draft)?.let(TotpResolver::resolve)
+
+    /** A code added now goes into a field of its own: the entry has one, or code fields that give none (AC5). */
+    public fun offersAnotherCode(draft: EntryDraft): Boolean = draft.code != null || draft.codeFields != null
 
     /**
      * A code from a secret or an `otpauth://` link (typed, pasted, or read from a QR code): the entry's own when it has
@@ -407,11 +453,11 @@ public class EntryEditor private constructor(
             return AddedCode.Refused(codeProblem(problem))
         }
         try {
-            if (draft.code == null) return AddedCode.Added(draft.copy(code = CodeDraft.of(config)), field = null)
+            if (!offersAnotherCode(draft)) return AddedCode.Added(draft.copy(code = CodeDraft.of(config)), field = null)
             val taken = draft.fields.map { it.name.trim() }.toSet()
             val name = generateSequence(2) { it + 1 }.map { "$ANOTHER_CODE $it" }.first { it !in taken }
             val link = TotpSetup.otpauthUri(config, draft.title, draft.username)
-            return AddedCode.Added(draft.copy(fields = draft.fields + FieldDraft(draft.nextFieldId(), name, link, isProtected = true)), field = name)
+            return AddedCode.Added(draft.copy(fields = draft.fields + FieldDraft(draft.nextFieldId(), name, link, isProtected = true, isCode = true)), field = name)
         } finally {
             config.secret.wipe()
         }
@@ -429,9 +475,11 @@ public class EntryEditor private constructor(
 
     /**
      * The code of a custom field holding an `otpauth://` link (another one-time code), with a key of its own to wipe;
-     * null for any other field. Its link is not edited by hand (AC7): removed, and the code added again.
+     * null for any other field, and for a link typed into one ([FieldDraft.isCode]). Its link is not edited by hand (AC7):
+     * removed, and the code added again.
      */
-    public fun oneTimeCode(field: FieldDraft): TotpConfig? = OneTimeCodes.config(CustomField(field.name, FieldValue.Plain(field.value)))
+    public fun oneTimeCode(field: FieldDraft): TotpConfig? =
+        if (field.isCode) OneTimeCodes.config(CustomField(field.name, FieldValue.Plain(field.value))) else null
 
     // A block of codes (Mac SPEC §3.16)
 
@@ -496,17 +544,20 @@ public class EntryEditor private constructor(
         /** An existing entry, as loaded. */
         public fun edit(entry: Entry, now: Instant, dates: NoteDates? = null): EntryEditor {
             val fields = entry.customFields.mapIndexed { i, field ->
-                val value = when (val v = field.value) {
-                    is FieldValue.Plain -> v.text
-                    is FieldValue.Protected -> v.secret.reveal()
-                }
-                FieldDraft(i + 1, field.name, value, field.isProtected, entry.fieldTypes[field.name])
+                val value = field.text()
+                val isCode = OneTimeCodes.config(field)?.also { it.secret.wipe() } != null
+                FieldDraft(i + 1, field.name, value, field.isProtected, entry.fieldTypes[field.name], isCode)
             }
             val draft = EntryDraft(
                 title = entry.title, username = entry.username, password = entry.password.reveal(), url = entry.url,
                 notes = entry.notes, notesProtected = entry.notesProtected, tags = entry.tags, fields = fields,
-                expires = entry.expires, expiryTime = entry.expiryTime ?: aYearAfter(now), groupId = entry.groupId,
+                // An entry that never expired often keeps its creation time there: Expires switched on starts a year ahead.
+                expires = entry.expires, expiryTime = entry.expiryTime?.takeIf { entry.expires || it > now } ?: aYearAfter(now), groupId = entry.groupId,
                 code = entry.totp?.let(CodeDraft::of),
+                // Code fields that give no code are kept as their text (the owner's rule for codes in the editor).
+                codeFields = entry.codeFields.takeIf { entry.totp == null && entry.hasCodeFields && it.isNotEmpty() }?.map { field ->
+                    CodeFieldDraft(field.name, field.text(), field.isProtected)
+                },
                 attachments = entry.attachments.mapIndexed { i, attachment -> AttachmentDraft(i + 1, attachment.name, attachment.name, attachment.size) },
             )
             val layout = if (entry.isNote) EditorLayout.NOTE else EditorLayout.ENTRY
@@ -545,9 +596,9 @@ public class EntryEditor private constructor(
             return EntryEditor(Entry(id), isNew = true, start = note.start.choosing(inbox), groups = vault.groups, layout = EditorLayout.NOTE, openedAt = now, dates = dates)
         }
 
-        /** The codes in [text]: every line (or, on one line, every part between commas or semicolons), numbering and bullets dropped. */
+        /** The codes in [text]: every line that is not blank (or, on one line, every part between commas or semicolons), numbering and bullets dropped. */
         public fun codes(text: String): List<String> {
-            var parts = text.lines()
+            var parts = text.lines().filter { it.isNotBlank() }
             if (parts.size == 1) parts = parts[0].split(',', ';')
             return parts.map(::cleanCode).filter { it.isNotEmpty() }
         }
@@ -566,6 +617,11 @@ public class EntryEditor private constructor(
             var text = line.trim()
             for (bullet in listOf("•", "·", "-", "*")) if (text.startsWith("$bullet ")) text = text.drop(2)
             return text.replaceFirst(numbering, "").trim()
+        }
+
+        private fun CustomField.text(): String = when (val v = value) {
+            is FieldValue.Plain -> v.text
+            is FieldValue.Protected -> v.secret.reveal()
         }
 
         private fun aYearAfter(now: Instant): Instant = now.atOffset(ZoneOffset.UTC).plusYears(1).toInstant()
