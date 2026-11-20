@@ -203,6 +203,11 @@ internal fun GroupPickerSheet(
                             Text(text.resolve(), Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
+                    GroupTexts.hiddenTaken(tree, view)?.takeIf { canMake }?.let { text ->
+                        item(key = "hidden") {
+                            Text(text.resolve(), Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                     view.offer?.takeIf { canMake }?.let { offer ->
                         item(key = "new") { NewGroupsRow(GroupTexts.newGroups(offer.newNames).resolve(), GroupTexts.newGroupsPlace(tree, offer, made).resolve()) { onChoose(offer) } }
                     }

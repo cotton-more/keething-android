@@ -1,5 +1,6 @@
 package dev.keething.android.groups
 
+import dev.keething.card.editing.GroupTree
 import dev.keething.domain.vault.Vault
 import dev.keething.search.FilterCompletion
 import dev.keething.search.FilterKind
@@ -20,7 +21,10 @@ internal class GroupsOverview(
     /** The templates group's name and how many entries it holds, never shown (keething-spec groups.templates AC3). */
     val templates: Pair<String, Int>? = null,
 ) {
-    /** A group outside the bin, in tree order (parents first, siblings by name); the root group first. */
+    /**
+     * A group outside the bin, in tree order (parents first, siblings by name); the root group first. Groups go by id
+     * ([GroupTree]): of two groups of one name in one parent each has its own counts and its own groups under it.
+     */
     data class GroupRow(
         val id: String,
         val name: String,
@@ -30,6 +34,8 @@ internal class GroupsOverview(
         val here: Int,
         /** Entries in it and below it. */
         val total: Int,
+        /** Its parent has another group of its name, case and accents aside (made by another app), as the picker marks it. */
+        val hasNamesake: Boolean = false,
     ) {
         val isRoot: Boolean get() = path.isEmpty()
         val depth: Int get() = path.size
@@ -49,14 +55,11 @@ internal class GroupsOverview(
 
         fun of(vault: Vault, collator: Collator = Collator.getInstance()): GroupsOverview {
             val entries = vault.entries
-            val facets = SearchFacets.of(entries, collator, groupPaths = vault.groups.map { it.path })
+            val facets = SearchFacets.of(entries, collator)
             val here = entries.groupingBy { it.groupId }.eachCount()
-            val byPath = vault.groups.groupBy { it.path }
-            val groups = buildList {
-                vault.groups.firstOrNull { it.isRoot }?.let { add(GroupRow(it.id, it.name, it.path, here[it.id] ?: 0, entries.size)) }
-                for (facet in facets.groups) {
-                    for (group in byPath[facet.path].orEmpty()) add(GroupRow(group.id, group.name, group.path, here[group.id] ?: 0, facet.count))
-                }
+            val groups = GroupTree.of(vault, collator).nodes.map { node ->
+                val group = node.group
+                GroupRow(group.id, group.name, group.path, here[group.id] ?: 0, node.total, node.hasNamesake)
             }
             val tags = facets.tags.map { tag ->
                 val folded = SearchNormalizer.normalize(tag.name)

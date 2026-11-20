@@ -174,6 +174,32 @@ class GroupPickerTest {
         assertEquals(listOf("ab"), ids(ab), "the group the path names is a row")
     }
 
+    @Test
+    fun noNewGroupIsOfferedBesideTheBinOrTheTemplatesGroupOfItsNameTheReasonInstead() {
+        val bin = GroupTree.Hidden(VaultGroup("bin", "Recycle Bin", listOf("Recycle Bin")), "R", isRecycleBin = true)
+        val templates = GroupTree.Hidden(VaultGroup("tpl", "Templates", listOf("Travel", "Templates")), "travel", isRecycleBin = false)
+        val picker = GroupPicker(GroupTree(groups, entries, Collator.getInstance(Locale.ENGLISH), hidden = listOf(bin, templates)))
+        fun view(text: String) = picker.view(GroupPicker.Query(text))
+
+        val typed = view(" recycle BIN ")
+        assertNull(typed.offer)
+        assertNull(typed.typed, "the keyboard's Done does nothing")
+        assertEquals(bin, typed.hidden)
+        val deeper = view("Recycle Bin / Old")
+        assertEquals(listOf("Recycle Bin"), deeper.missing)
+        assertNull(deeper.offer)
+        assertEquals(bin, deeper.hidden)
+        assertEquals(templates, view("travel / templates").hidden)
+        // Elsewhere the name is free, and a group of one's own is chosen as ever.
+        assertEquals(GroupChoice("foo", listOf("Recycle Bin")), view("Foo / Recycle Bin").offer)
+        assertEquals(GroupChoice("R", listOf("Templates")), view("Templates").offer)
+        assertNull(view("Templates").hidden)
+        assertNull(view("rec").hidden, "only the whole name")
+        val own = GroupPicker(GroupTree(groups + VaultGroup("mine", "Recycle bin", listOf("Recycle bin")), entries, hidden = listOf(bin)))
+        assertEquals(GroupChoice("mine"), own.view(GroupPicker.Query("recycle bin")).typed, "a visible group of the name is that group")
+        assertNull(own.view(GroupPicker.Query("recycle bin")).hidden)
+    }
+
     // spec: groups.new-groups/AC2
     @Test
     fun aRowsArrowPutsItsPathInTheFieldAndListsItsGroupsTheOneEnteredEvenWithANamesakeFirst() {

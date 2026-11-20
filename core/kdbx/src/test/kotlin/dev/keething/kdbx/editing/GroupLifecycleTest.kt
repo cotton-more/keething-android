@@ -52,9 +52,13 @@ class GroupLifecycleTest {
 
     private fun newGroup(name: String) = NewGroup(Entry.newId(), name)
 
-    /** Made directly, as another app would have made it. */
+    /** Made directly, as another app would have made it: a namesake beside it too. */
     private fun made(name: String, parent: String, root: XElement): String =
-        newGroup(name).also { GroupLifecycle.create(listOf(it), parent, root, now) }.id
+        newGroup(name).let { new ->
+            GroupLifecycle.create(listOf(new.copy(name = new.id)), parent, root, now)
+            group(new.id, root).first("Name")!!.text = name
+            new.id
+        }
 
     /** The `DeletedObjects` records, UUID and `DeletionTime` as written. */
     private fun deleted(root: XElement): List<Pair<String?, String?>> =
@@ -144,6 +148,28 @@ class GroupLifecycleTest {
         val gone = GroupDestination("gone", listOf(x))
         assertEquals(gone, GroupLifecycle.resolving(gone, root))
         assertEquals(GroupDestination(web), GroupLifecycle.resolving(GroupDestination(web), root))
+    }
+
+    @Test
+    fun noNewLevelIsMadeBesideTheBinOrTheTemplatesGroupOfItsNameInAnyCase() {
+        val root = open("kdbx4-aes-aeskdf").root
+        val top = id(top(root))
+        val web = web(root)
+        binned("Old", root)
+        val templates = made("Templates", web, root)
+        assertNotNull(root.first("Meta")!!.first("EntryTemplatesGroup")).text = templates
+
+        // A path never names them (resolving), so the level would be a namesake beside them: refused.
+        val besideBin = GroupLifecycle.resolving(GroupDestination(top, listOf(newGroup("recycle bin"), newGroup("Old"))), root)
+        assertEquals(top, besideBin.groupId)
+        assertFailsWith<EditException.GroupNameTaken> { GroupLifecycle.create(besideBin.newGroups, besideBin.groupId, root, now) }
+        assertFailsWith<EditException.GroupNameTaken> { GroupLifecycle.create(listOf(newGroup(" TEMPLATES ")), web, root, now) }
+        assertFailsWith<EditException.GroupNameTaken> { GroupLifecycle.createNamed(newGroup("Recycle Bin"), top, root, now) }
+        assertFailsWith<EditException.GroupNameTaken> { GroupLifecycle.rename(made("Mine", web, root), "templates", root, now) }
+        // Elsewhere the names are free.
+        GroupLifecycle.create(listOf(newGroup("Recycle Bin")), web, root, now)
+        GroupLifecycle.create(listOf(newGroup("Templates")), top, root, now)
+        assertEquals(1, top(root).all("Group").count { name(it) == "Recycle Bin" }, "the bin alone at the top level")
     }
 
     @Test

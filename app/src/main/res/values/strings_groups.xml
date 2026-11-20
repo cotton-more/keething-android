@@ -112,6 +112,8 @@
     <string name="groups_sheet_delete_detail">It is empty: deleted at once</string>
     <!-- Under its path. %1$s: the database's name -->
     <string name="groups_sheet_meta_empty">%1$s · empty</string>
+    <!-- No entry or group listed, but not empty (the recycle bin, the templates group or the Mac app's settings entry in it): no Delete. %1$s: the database's name -->
+    <string name="groups_sheet_meta_nothing_shown">%1$s · nothing shown in it</string>
     <!-- %1$s: the database's name; %2$d: the groups inside -->
     <plurals name="groups_sheet_meta_no_entries">
         <item quantity="one">%1$s · no entries, %2$d group</item>
@@ -145,6 +147,16 @@
     <string name="groups_name_taken_top">Top level has a group “%1$s” already.</string>
     <!-- %1$s: the group it would be in; %2$s: the name taken -->
     <string name="groups_name_taken">“%1$s” has a group “%2$s” already.</string>
+    <!-- The name the recycle bin or the templates group has, beside it: groups not shown on the screen. %1$s: the bin's name -->
+    <string name="groups_name_taken_bin_top">Top level has the recycle bin, “%1$s”, which is not shown among the groups.</string>
+    <!-- %1$s: the group it would be in; %2$s: the bin's name -->
+    <string name="groups_name_taken_bin">“%1$s” has the recycle bin, “%2$s”, which is not shown among the groups.</string>
+    <!-- %1$s: the templates group's name -->
+    <string name="groups_name_taken_templates_top">Top level has another app\'s templates group, “%1$s”, which is not listed.</string>
+    <!-- %1$s: the group it would be in; %2$s: the templates group's name -->
+    <string name="groups_name_taken_templates">“%1$s” has another app\'s templates group, “%2$s”, which is not listed.</string>
+    <!-- The group picker, instead of New group. %1$s: one of the four above -->
+    <string name="groups_picker_hidden_taken">%1$s A new group there needs another name.</string>
 
     <!-- Move to… %1$s: the group's name -->
     <string name="groups_move_title">Move “%1$s” to…</string>
@@ -164,6 +176,14 @@
     <string name="groups_move_refused_taken_top">Top level has a “%1$s” already</string>
     <!-- %1$s: the target; %2$s: the name taken -->
     <string name="groups_move_refused_taken">“%1$s” has a “%2$s” already</string>
+    <!-- %1$s: the bin's name -->
+    <string name="groups_move_refused_taken_bin_top">Top level has the recycle bin, “%1$s”, not shown among the groups</string>
+    <!-- %1$s: the target; %2$s: the bin's name -->
+    <string name="groups_move_refused_taken_bin">“%1$s” has the recycle bin, “%2$s”, not shown among the groups</string>
+    <!-- %1$s: the templates group's name -->
+    <string name="groups_move_refused_taken_templates_top">Top level has another app\'s templates group, “%1$s”, not listed</string>
+    <!-- %1$s: the target; %2$s: the templates group's name -->
+    <string name="groups_move_refused_taken_templates">“%1$s” has another app\'s templates group, “%2$s”, not listed</string>
 
     <!-- The snackbars once a change is saved. %1$s: the new name -->
     <string name="groups_renamed">Renamed to “%1$s”</string>

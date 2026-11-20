@@ -46,6 +46,17 @@ class QuickNoteEditorTest {
     }
 
     @Test
+    fun aRecycleBinOrTemplatesGroupCalledInboxAtTheTopLevelSendsTheNoteToTheTopLevelItself() {
+        for (vault in listOf(
+            Vault(entries = emptyList(), groups = listOf(root, work), recycleBinGroup = VaultGroup("B", "Inbox", listOf("Inbox")), recycleBinParentId = "R"),
+            Vault(entries = emptyList(), groups = listOf(root, work), templatesGroup = VaultGroup("T", "inbox", listOf("inbox")), templatesParentId = "R"),
+        )) {
+            val editor = EntryEditor.createQuickNote(vault, now, dates, id = "new")
+            assertEquals(GroupChoice("R"), editor.start.group, "no second Inbox beside it")
+        }
+    }
+
+    @Test
     fun noTopLevelInboxSoOneIsMadeAtTheTopLevelWithTheNoteADeeperOneIsNotIt() {
         val editor = quickNote(root, work, deeperInbox)
         val draft = editor.start.copy(notes = "Dune")

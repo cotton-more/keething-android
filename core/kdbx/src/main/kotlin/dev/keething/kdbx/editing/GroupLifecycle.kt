@@ -27,12 +27,15 @@ internal object GroupLifecycle {
 
     /**
      * Makes [groups] in the group [parentId] (outside the recycle bin), each inside the one before, their names
-     * trimmed. Returns the last one (the parent when [groups] is empty).
+     * trimmed. Returns the last one (the parent when [groups] is empty). The first is refused beside a group of its name
+     * ([isTaken]): after [resolving] only the recycle bin or the templates group can be one, and a path never names
+     * them (groups.new-groups AC3).
      */
     fun create(groups: List<NewGroup>, parentId: String, root: XElement, now: Instant): XElement {
         val path = EntryLifecycle.group(parentId, root)
         if (path == null || EntryLifecycle.isInRecycleBin(path, root) || EntryLifecycle.isInTemplates(path, root)) throw EditException.GroupNotFound()
         if (groups.any { it.name.isBlank() }) throw EditException.InvalidName()
+        groups.firstOrNull()?.let { if (isTaken(it.name, path.last(), except = null)) throw EditException.GroupNameTaken() }
         var parent = path.last()
         for (group in groups) parent = make(NewGroup(group.id, group.name.trim()), parent, root, now)
         return parent

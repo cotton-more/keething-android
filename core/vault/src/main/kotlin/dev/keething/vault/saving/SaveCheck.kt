@@ -157,10 +157,11 @@ internal object SaveCheck {
                     ?: fail("the new groups are not those asked")
             }
             if (reached != destination.groupId) fail("the new groups are not those asked")
-            // ... and the first level made is one it did not have: no namesake made beside it.
+            // ... and the first level made is one it did not have: no namesake made beside it, the recycle bin or the
+            // templates group either.
             destination.newGroups.firstOrNull()?.let { first ->
                 val name = TextFolding.fold(first.name.trim())
-                if (before.groups.any { inside[it.id] == reached && TextFolding.fold(it.name.trim()) == name }) fail("the new groups are not those asked")
+                if (fileBefore.any { parentsBefore[it.id] == reached && TextFolding.fold(it.name.trim()) == name }) fail("the new groups are not those asked")
             }
             var path = groups[destination.groupId]?.path ?: fail("the new groups are not those asked")
             var parent = destination.groupId

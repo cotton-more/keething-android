@@ -16,9 +16,16 @@ public data class GroupChoice(val groupId: String, val newNames: List<String> = 
 /**
  * The groups of a database outside the recycle bin as the group picker and the editor's group row show them: each
  * in its own parent (found by the file's order, so two groups of one name in one parent are each themselves), the
- * tree in Groups & tags' order, and how many entries each holds.
+ * tree in Groups & tags' order, and how many entries each holds. The recycle bin and the templates group are not in it,
+ * but are known in their parents ([hidden]): a name either has is taken beside it (keething-spec groups.new-groups AC3,
+ * groups.manage AC1, AC3, AC5), and a group holding either is not empty (AC6).
  */
-public class GroupTree(groups: List<VaultGroup>, entries: List<Entry> = emptyList(), collator: Collator = Collator.getInstance()) {
+public class GroupTree(
+    groups: List<VaultGroup>,
+    entries: List<Entry> = emptyList(),
+    collator: Collator = Collator.getInstance(),
+    private val hidden: List<Hidden> = emptyList(),
+) {
     /** A group in tree order: [depth] 0 for the root group; [total] its entries and those below it. */
     public data class Node(
         val group: VaultGroup,
@@ -29,6 +36,9 @@ public class GroupTree(groups: List<VaultGroup>, entries: List<Entry> = emptyLis
         /** How many groups are right inside it. */
         val subgroups: Int,
     )
+
+    /** The recycle bin ([isRecycleBin]) or the templates group: [group] in the listed group [parentId]. */
+    public data class Hidden(val group: VaultGroup, val parentId: String, val isRecycleBin: Boolean)
 
     /** One level of a path as the editor's group row shows it; [isNew]: made with the save. */
     public data class Level(val name: String, val isNew: Boolean)
@@ -76,6 +86,15 @@ public class GroupTree(groups: List<VaultGroup>, entries: List<Entry> = emptyLis
 
     public fun children(id: String): List<VaultGroup> = inside[id].orEmpty()
 
+    /** The recycle bin and the templates group when they are right inside [id]. */
+    public fun hiddenIn(id: String): List<Hidden> = hidden.filter { it.parentId == id }
+
+    /** The recycle bin or the templates group in [parentId] called [name], case and accents aside; null for neither. */
+    public fun hiddenNamed(parentId: String, name: String): Hidden? {
+        val folded = fold(name)
+        return hidden.firstOrNull { it.parentId == parentId && fold(it.group.name) == folded }
+    }
+
     /** Whether [id] is somewhere below [ancestorId]. */
     public fun isBelow(id: String, ancestorId: String): Boolean {
         var parent = parents[id]
@@ -107,7 +126,13 @@ public class GroupTree(groups: List<VaultGroup>, entries: List<Entry> = emptyLis
     }
 
     public companion object {
-        public fun of(vault: Vault, collator: Collator = Collator.getInstance()): GroupTree = GroupTree(vault.groups, vault.entries, collator)
+        public fun of(vault: Vault, collator: Collator = Collator.getInstance()): GroupTree = GroupTree(vault.groups, vault.entries, collator, hidden(vault))
+
+        /** [vault]'s recycle bin and templates group with their parents. */
+        public fun hidden(vault: Vault): List<Hidden> = listOfNotNull(
+            vault.recycleBinGroup?.let { bin -> vault.recycleBinParentId?.let { Hidden(bin, it, isRecycleBin = true) } },
+            vault.templatesGroup?.let { templates -> vault.templatesParentId?.let { Hidden(templates, it, isRecycleBin = false) } },
+        )
     }
 }
 
@@ -148,6 +173,11 @@ public class GroupPicker(private val tree: GroupTree) {
         val offer: GroupChoice?,
         /** What is typed, taken as it is (the keyboard's Done): the group it names, or new groups; null with nothing typed. */
         val typed: GroupChoice?,
+        /**
+         * The recycle bin or the templates group whose name the first new level has, beside it: no new group is offered
+         * or taken ([offer] and [typed] null), this says why.
+         */
+        val hidden: GroupTree.Hidden? = null,
     )
 
     public fun view(query: Query): View {
@@ -182,6 +212,8 @@ public class GroupPicker(private val tree: GroupTree) {
             ?.let { Row(it, it.group.path.dropLast(1), null) }
         val rows = listOfNotNull(named) + found
         val isLevel = level != null && last.isEmpty()
+        val hidden = typed.newNames.firstOrNull()?.let { tree.hiddenNamed(typed.groupId, it) }
+        if (hidden != null) return View(isLevel, rows, level, parent.newNames, last, offer = null, typed = null, hidden)
         return View(isLevel, rows, level, parent.newNames, last, typed.takeIf { it.newNames.isNotEmpty() }, typed.takeIf { !text.isBlank() })
     }
 

@@ -584,12 +584,15 @@ public class EntryEditor private constructor(
         /**
          * A quick note's editor (SPEC §6.4; keething-spec app.quick-note AC2, AC3; the Mac's `EntryEditorModel(quickNoteIn:)`):
          * [createNote]'s new note, its group the path [QuickNote.INBOX] found as every typed path is (the top-level group
-         * of the name, the first, in any case), else made at the top level with the note. The text it was given goes
+         * of the name, the first, in any case), else made at the top level with the note; the top level itself when the
+         * recycle bin or the templates group there has the name (no second one beside it). The text it was given goes
          * into the draft, not the start, so that it counts as a change.
          */
         public fun createQuickNote(vault: Vault, now: Instant, dates: NoteDates?, id: String = Entry.newId()): EntryEditor {
             val note = createNote(vault, groupId = null, now, dates, id)
-            val inbox = GroupTree(vault.groups).resolve(listOf(QuickNote.INBOX)) ?: return note
+            val tree = GroupTree(vault.groups, hidden = GroupTree.hidden(vault))
+            val found = tree.resolve(listOf(QuickNote.INBOX)) ?: return note
+            val inbox = if (found.newNames.isNotEmpty() && tree.hiddenNamed(found.groupId, QuickNote.INBOX) != null) GroupChoice(found.groupId) else found
             return EntryEditor(Entry(id), isNew = true, start = note.start.choosing(inbox), groups = vault.groups, layout = EditorLayout.NOTE, openedAt = now, dates = dates)
         }
 

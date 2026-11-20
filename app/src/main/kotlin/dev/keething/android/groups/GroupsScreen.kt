@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -218,8 +219,9 @@ internal class GroupsViewModel(
         }
     }
 
-    /** Its changes (the sheet holds only those); a database read-only says why instead. */
+    /** Its changes (the sheet holds only those); a database read-only says why instead. Not while a change saves: one at a time. */
     fun openSheet(ref: GroupRef) {
+        if (saving != null) return
         val database = open.value.firstOrNull { it.mark.id == ref.database } ?: return
         if (database.unlocked.readOnly) return readOnly(database.database)
         sheet = ref
@@ -529,7 +531,7 @@ private fun GroupSheet(block: GroupsBlock, row: GroupsOverview.GroupRow, model: 
                             Spacer(Modifier.width(8.dp))
                         }
                         Text(
-                            GroupTexts.sheetMeta(block.mark.label.full, row.total, row.here, subgroups).resolve(),
+                            GroupTexts.sheetMeta(block.mark.label.full, row.total, row.here, subgroups, deletable = changes.canDelete(row.id)).resolve(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -610,7 +612,8 @@ private fun NameDialog(block: GroupsBlock, dialog: GroupsViewModel.NameDialog, m
                     label = { Text(stringResource(R.string.groups_name_label)) },
                     singleLine = true,
                     isError = problem != null,
-                    supportingText = problem?.let { { Text(it.resolve()) } },
+                    // Drawn after Save, the focus on the button: announced once (keething-spec app.accessibility AC6).
+                    supportingText = problem?.let { { Text(it.resolve(), Modifier.semantics { liveRegion = LiveRegionMode.Polite }) } },
                     enabled = !saving,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { model.submitName(field.text) }),
@@ -732,6 +735,7 @@ private fun LazyListScope.content(block: GroupsBlock, saving: GroupsViewModel.Gr
             icon = if (row.isRoot) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
             title = if (row.isRoot) GroupTexts.TOP_LEVEL.resolve() else row.name,
             supporting = if (saving == GroupsViewModel.GroupRef(block.id, row.id)) stringResource(R.string.groups_saving) else groupCounts(row),
+            namesake = row.hasNamesake,
             // A dialog open says it on its button instead (the row is behind it).
             announced = announceSaving && saving == GroupsViewModel.GroupRef(block.id, row.id),
             count = row.total,
@@ -817,6 +821,8 @@ private fun OverviewRow(
     onLongClick: (() -> Unit)? = null,
     /** [supporting] says what is happening by itself ("Saving…"): announced once (keething-spec app.accessibility AC6). */
     announced: Boolean = false,
+    /** Another group beside it has its name: marked ⚠ as in the group picker. */
+    namesake: Boolean = false,
 ) {
     val entries = pluralStringResource(R.plurals.groups_entries, count, count)
     Row(
@@ -854,6 +860,12 @@ private fun OverviewRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            if (namesake) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Rounded.WarningAmber, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.groups_picker_namesake), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         Spacer(Modifier.width(12.dp))

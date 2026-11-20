@@ -60,6 +60,10 @@
     <string name="editor_show_secret">Show secret</string>
     <string name="editor_hide_secret">Hide secret</string>
     <string name="editor_expires">Expires</string>
+    <!-- Read by a screen reader on the expiry's day. %1$s: the day -->
+    <string name="editor_expires_on">Expires on %1$s</string>
+    <!-- What a tap on the day does, for a screen reader -->
+    <string name="editor_expires_choose_day">Choose the day</string>
     <!-- %1$s: the problems, each a sentence -->
     <string name="editor_save_is_off">Save is off. %1$s</string>
 

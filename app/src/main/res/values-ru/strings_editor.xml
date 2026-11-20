@@ -49,6 +49,8 @@
     <string name="editor_show_secret">Показать секрет</string>
     <string name="editor_hide_secret">Скрыть секрет</string>
     <string name="editor_expires">Срок</string>
+    <string name="editor_expires_on">Истекает %1$s</string>
+    <string name="editor_expires_choose_day">Выбрать день</string>
     <string name="editor_save_is_off">Сохранить пока нельзя. %1$s</string>
 
     <string name="editor_note_text">Текст</string>

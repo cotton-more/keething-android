@@ -26,14 +26,18 @@ internal object VaultAssembler {
         val entries = kept.map(mapper::map).toMutableList()
         val settingsIndex = entries.indexOfFirst { it.title.trim() == Vault.SETTINGS_TITLE }
         val settings = if (settingsIndex >= 0) entries.removeAt(settingsIndex) else null
+        val binGroup = document.groups.firstOrNull { it.uuid == bin && bin.isNotEmpty() }
+        val templatesGroup = document.groups.firstOrNull { it.uuid == templates }
         return Vault(
             entries = entries,
             settings = settings,
             groups = document.groups.filterNot { inBin(it.ancestorUuids) || it.uuid == templates || inTemplates(it.ancestorUuids) }.map { VaultGroup(it.uuid, it.name, it.path) },
             recycleBin = binned.map(mapper::map),
-            recycleBinGroup = document.groups.firstOrNull { it.uuid == bin && bin.isNotEmpty() }?.let { VaultGroup(it.uuid, it.name, it.path) },
+            recycleBinGroup = binGroup?.let { VaultGroup(it.uuid, it.name, it.path) },
+            recycleBinParentId = binGroup?.ancestorUuids?.getOrNull(binGroup.ancestorUuids.size - 2),
             templates = templated.map(mapper::map),
-            templatesGroup = document.groups.firstOrNull { it.uuid == templates }?.let { VaultGroup(it.uuid, it.name, it.path) },
+            templatesGroup = templatesGroup?.let { VaultGroup(it.uuid, it.name, it.path) },
+            templatesParentId = templatesGroup?.ancestorUuids?.getOrNull(templatesGroup.ancestorUuids.size - 2),
             recycleBinEnabled = document.meta.recycleBinEnabled,
             defaultUsername = document.meta.defaultUserName,
             customIcons = document.meta.customIcons,

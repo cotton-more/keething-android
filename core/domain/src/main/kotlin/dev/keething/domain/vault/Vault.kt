@@ -20,6 +20,8 @@ public data class Vault(
      * path down to the bin (one level when the bin is at the top, as KeePass makes it; more when it was moved).
      */
     val recycleBinGroup: VaultGroup? = null,
+    /** The group the recycle bin is in (one of [groups] unless another app put it in the templates group); null without a bin. */
+    val recycleBinParentId: String? = null,
     /**
      * The entries in the templates group (at any depth; keething-spec groups.templates): forms another app fills new
      * entries from, never listed, searched or offered. Its groups are not in [groups].
@@ -27,6 +29,8 @@ public data class Vault(
     val templates: List<Entry> = emptyList(),
     /** The templates group itself, null when the file has none. */
     val templatesGroup: VaultGroup? = null,
+    /** The group the templates group is in, one of [groups]; null without one. */
+    val templatesParentId: String? = null,
     /** `Meta/RecycleBinEnabled`. */
     val recycleBinEnabled: Boolean = true,
     /** `Meta/DefaultUserName`: the username a new entry starts with. */

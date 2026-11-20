@@ -51,7 +51,7 @@ internal object GroupTexts {
         return when {
             view.isLevel && level != null && view.rows.size <= 1 ->
                 uiText(if (canMake) R.string.groups_picker_level_empty_make else R.string.groups_picker_level_empty, path(tree, level.id))
-            view.isLevel || view.rows.isNotEmpty() || (canMake && view.offer != null) -> null
+            view.isLevel || view.rows.isNotEmpty() || (canMake && (view.offer != null || view.hidden != null)) -> null
             else -> uiText(R.string.groups_picker_none_found, view.last)
         }
     }
@@ -89,7 +89,23 @@ internal object GroupTexts {
         is GroupChanges.Name.Taken ->
             if (name.parent.isRoot) uiText(R.string.groups_name_taken_top, name.taken.name)
             else uiText(R.string.groups_name_taken, name.parent.name, name.taken.name)
+        is GroupChanges.Name.TakenByHidden -> hiddenTaken(name.parent, name.hidden)
         is GroupChanges.Name.Ok, GroupChanges.Name.Unchanged -> null
+    }
+
+    /** "Top level has the recycle bin, “Recycle Bin”, which is not shown among the groups.": the name is that hidden group's. */
+    private fun hiddenTaken(parent: VaultGroup, hidden: GroupTree.Hidden): UiText = when {
+        hidden.isRecycleBin && parent.isRoot -> uiText(R.string.groups_name_taken_bin_top, hidden.group.name)
+        hidden.isRecycleBin -> uiText(R.string.groups_name_taken_bin, parent.name, hidden.group.name)
+        parent.isRoot -> uiText(R.string.groups_name_taken_templates_top, hidden.group.name)
+        else -> uiText(R.string.groups_name_taken_templates, parent.name, hidden.group.name)
+    }
+
+    /** In the picker, in place of New group: the recycle bin or the templates group has the name there; null otherwise. */
+    fun hiddenTaken(tree: GroupTree, view: GroupPicker.View): UiText? {
+        val hidden = view.hidden ?: return null
+        val parent = tree.group(hidden.parentId) ?: return null
+        return uiText(R.string.groups_picker_hidden_taken, hiddenTaken(parent, hidden))
     }
 
     /** Move to…'s picker: "Move “Japan” to…", under it the group's path and what goes with it. */
@@ -108,11 +124,25 @@ internal object GroupTexts {
         is GroupChanges.MoveRefusal.NameTaken ->
             if (refusal.target.isRoot) uiText(R.string.groups_move_refused_taken_top, refusal.taken.name)
             else uiText(R.string.groups_move_refused_taken, refusal.target.name, refusal.taken.name)
+        is GroupChanges.MoveRefusal.NameTakenByHidden -> {
+            val (target, hidden) = refusal.target to refusal.hidden
+            when {
+                hidden.isRecycleBin && target.isRoot -> uiText(R.string.groups_move_refused_taken_bin_top, hidden.group.name)
+                hidden.isRecycleBin -> uiText(R.string.groups_move_refused_taken_bin, target.name, hidden.group.name)
+                target.isRoot -> uiText(R.string.groups_move_refused_taken_templates_top, hidden.group.name)
+                else -> uiText(R.string.groups_move_refused_taken_templates, target.name, hidden.group.name)
+            }
+        }
     }
 
-    /** Under a group's path on its sheet: its database, then what it holds ("Personal · 12 entries · 3 here"). */
-    fun sheetMeta(database: String, total: Int, here: Int, subgroups: Int): UiText = when {
-        total == 0 && subgroups == 0 -> uiText(R.string.groups_sheet_meta_empty, database)
+    /**
+     * Under a group's path on its sheet: its database, then what it holds ("Personal · 12 entries · 3 here"); "empty"
+     * only when it can be deleted ([deletable]), else "nothing shown in it" (the bin, the templates group or the Mac
+     * app's settings entry is in it).
+     */
+    fun sheetMeta(database: String, total: Int, here: Int, subgroups: Int, deletable: Boolean): UiText = when {
+        total == 0 && subgroups == 0 && deletable -> uiText(R.string.groups_sheet_meta_empty, database)
+        total == 0 && subgroups == 0 -> uiText(R.string.groups_sheet_meta_nothing_shown, database)
         total == 0 -> uiPlural(R.plurals.groups_sheet_meta_no_entries, subgroups, database, subgroups)
         here == total -> uiPlural(R.plurals.groups_sheet_meta_entries, total, database, total)
         here == 0 -> uiPlural(R.plurals.groups_sheet_meta_entries_none_here, total, database, total)

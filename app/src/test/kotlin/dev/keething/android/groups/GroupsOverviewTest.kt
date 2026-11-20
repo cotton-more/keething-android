@@ -64,4 +64,26 @@ class GroupsOverviewTest {
         assertEquals(listOf("bank", "Bänk"), overview.tags[0].otherSpellings)
         assertEquals(listOf("Dev"), overview.tags[1].otherSpellings)
     }
+
+    @Test
+    fun twoGroupsOfOneNameInOneParentAreEachThemselvesWithTheirOwnCountsAndGroupsMarkedAsNamesakes() {
+        // Another app made them: by the file's order each group's groups follow it.
+        val alpha = VaultGroup("alpha", "Alpha", listOf("Work", "Alpha"))
+        val otherWork = VaultGroup("work2", "work", listOf("work"))
+        val zed = VaultGroup("zed", "Zed", listOf("work", "Zed"))
+        val empty = VaultGroup("work3", "Work", listOf("Work"))
+        val vault = Vault(
+            entries = listOf(entry("a", work), entry("b", work), entry("c", alpha), entry("d", zed)),
+            groups = listOf(root, work, alpha, otherWork, zed, empty),
+        )
+        val rows = GroupsOverview.of(vault, Collator.getInstance(Locale.ENGLISH)).groups.associateBy { it.id }
+        assertEquals(3 to 2, rows.getValue("work").let { it.total to it.here })
+        assertEquals(1 to 0, rows.getValue("work2").let { it.total to it.here })
+        assertEquals(0 to 0, rows.getValue("work3").let { it.total to it.here })
+        val order = GroupsOverview.of(vault, Collator.getInstance(Locale.ENGLISH)).groups.map { it.id }
+        assertEquals(order.indexOf("work") + 1, order.indexOf("alpha"), "Alpha under its own Work")
+        assertEquals(order.indexOf("work2") + 1, order.indexOf("zed"), "Zed under its own work")
+        assertEquals(setOf("work", "work2", "work3"), rows.values.filter { it.hasNamesake }.map { it.id }.toSet())
+        assertEquals(false, rows.getValue("root").hasNamesake)
+    }
 }

@@ -104,6 +104,7 @@
     <string name="groups_sheet_delete">Удалить</string>
     <string name="groups_sheet_delete_detail">Она пустая: удаляется сразу</string>
     <string name="groups_sheet_meta_empty">%1$s · пустая</string>
+    <string name="groups_sheet_meta_nothing_shown">%1$s · в ней ничего не показано</string>
     <plurals name="groups_sheet_meta_no_entries">
         <item quantity="one">%1$s · нет записей, %2$d группа</item>
         <item quantity="few">%1$s · нет записей, %2$d группы</item>
@@ -138,6 +139,11 @@
     <string name="groups_name_empty">У группы должно быть имя.</string>
     <string name="groups_name_taken_top">На верхнем уровне уже есть группа «%1$s».</string>
     <string name="groups_name_taken">В «%1$s» уже есть группа «%2$s».</string>
+    <string name="groups_name_taken_bin_top">На верхнем уровне есть корзина «%1$s», она не показана среди групп.</string>
+    <string name="groups_name_taken_bin">В «%1$s» есть корзина «%2$s», она не показана среди групп.</string>
+    <string name="groups_name_taken_templates_top">На верхнем уровне есть группа шаблонов другого приложения, «%1$s», её нет в списке.</string>
+    <string name="groups_name_taken_templates">В «%1$s» есть группа шаблонов другого приложения, «%2$s», её нет в списке.</string>
+    <string name="groups_picker_hidden_taken">%1$s Новой группе там нужно другое имя.</string>
 
     <string name="groups_move_title">Переместить «%1$s» в…</string>
     <string name="groups_move_subtitle_empty">%1$s · пустая</string>
@@ -152,6 +158,10 @@
     <string name="groups_move_refused_here_now">Она уже здесь</string>
     <string name="groups_move_refused_taken_top">На верхнем уровне уже есть «%1$s»</string>
     <string name="groups_move_refused_taken">В «%1$s» уже есть «%2$s»</string>
+    <string name="groups_move_refused_taken_bin_top">На верхнем уровне есть корзина «%1$s», она не показана среди групп</string>
+    <string name="groups_move_refused_taken_bin">В «%1$s» есть корзина «%2$s», она не показана среди групп</string>
+    <string name="groups_move_refused_taken_templates_top">На верхнем уровне есть группа шаблонов другого приложения, «%1$s», её нет в списке</string>
+    <string name="groups_move_refused_taken_templates">В «%1$s» есть группа шаблонов другого приложения, «%2$s», её нет в списке</string>
 
     <string name="groups_renamed">Переименована в «%1$s»</string>
     <string name="groups_made_top">Группа «%1$s» создана на верхнем уровне</string>

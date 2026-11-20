@@ -102,16 +102,46 @@ class GroupTextsTest {
     }
 
     @Test
-    fun aGroupsSheetSaysItsDatabaseAndWhatItHolds() {
-        assertEquals("Personal · 12 entries · 3 here", GroupTexts.sheetMeta("Personal", total = 12, here = 3, subgroups = 2).english())
-        assertEquals("Personal · 12 entries", GroupTexts.sheetMeta("Personal", total = 12, here = 12, subgroups = 0).english())
-        assertEquals("Personal · 1 entry", GroupTexts.sheetMeta("Personal", total = 1, here = 1, subgroups = 0).english())
-        assertEquals("Personal · 2 entries · none here", GroupTexts.sheetMeta("Personal", total = 2, here = 0, subgroups = 1).english())
-        assertEquals("Personal · empty", GroupTexts.sheetMeta("Personal", total = 0, here = 0, subgroups = 0).english())
-        assertEquals("Personal · no entries, 2 groups", GroupTexts.sheetMeta("Personal", total = 0, here = 0, subgroups = 2).english())
+    fun aNameTheBinOrTheTemplatesGroupHasIsRefusedAsTheirsTheyAreNotShown() {
+        val bin = GroupTree.Hidden(VaultGroup("bin", "Recycle Bin", listOf("Recycle Bin")), "R", isRecycleBin = true)
+        val templates = GroupTree.Hidden(VaultGroup("tpl", "Templates", listOf("Travel", "Templates")), "travel", isRecycleBin = false)
+        assertEquals(
+            "Top level has the recycle bin, “Recycle Bin”, which is not shown among the groups.",
+            GroupTexts.nameProblem(GroupChanges.Name.TakenByHidden(top, bin))?.english(),
+        )
+        assertEquals(
+            "“Travel” has another app's templates group, “Templates”, which is not listed.",
+            GroupTexts.nameProblem(GroupChanges.Name.TakenByHidden(travel, templates))?.english(),
+        )
+        assertEquals(
+            "Top level has the recycle bin, “Recycle Bin”, not shown among the groups",
+            GroupTexts.moveRefusal(hotels, GroupChanges.MoveRefusal.NameTakenByHidden(top, bin)).english(),
+        )
+        assertEquals(
+            "“Travel” has another app's templates group, “Templates”, not listed",
+            GroupTexts.moveRefusal(hotels, GroupChanges.MoveRefusal.NameTakenByHidden(travel, templates)).english(),
+        )
+        val hiddenTree = GroupTree(listOf(top, travel), hidden = listOf(bin, templates))
+        val typed = GroupPicker(hiddenTree).view(GroupPicker.Query("recycle bin"))
+        assertEquals(
+            "Top level has the recycle bin, “Recycle Bin”, which is not shown among the groups. A new group there needs another name.",
+            GroupTexts.hiddenTaken(hiddenTree, typed)?.english(),
+        )
+        assertNull(GroupTexts.empty(hiddenTree, typed), "not “No group has …” beside it")
+        assertNull(GroupTexts.hiddenTaken(hiddenTree, GroupPicker(hiddenTree).view(GroupPicker.Query("Travel / Recycle Bin"))))
     }
 
-    // spec: groups.manage/AC8
+    @Test
+    fun aGroupsSheetSaysItsDatabaseAndWhatItHolds() {
+        assertEquals("Personal · 12 entries · 3 here", GroupTexts.sheetMeta("Personal", total = 12, here = 3, subgroups = 2, deletable = false).english())
+        assertEquals("Personal · 12 entries", GroupTexts.sheetMeta("Personal", total = 12, here = 12, subgroups = 0, deletable = false).english())
+        assertEquals("Personal · 1 entry", GroupTexts.sheetMeta("Personal", total = 1, here = 1, subgroups = 0, deletable = false).english())
+        assertEquals("Personal · 2 entries · none here", GroupTexts.sheetMeta("Personal", total = 2, here = 0, subgroups = 1, deletable = false).english())
+        assertEquals("Personal · empty", GroupTexts.sheetMeta("Personal", total = 0, here = 0, subgroups = 0, deletable = true).english())
+        assertEquals("Personal · nothing shown in it", GroupTexts.sheetMeta("Personal", total = 0, here = 0, subgroups = 0, deletable = false).english(), "the bin in it")
+        assertEquals("Personal · no entries, 2 groups", GroupTexts.sheetMeta("Personal", total = 0, here = 0, subgroups = 2, deletable = false).english())
+    }
+
     @Test
     fun eachChangeSavedSaysSoInTheSnackbar() {
         assertEquals("Renamed to “Kyoto”", GroupTexts.renamed("Kyoto").english())

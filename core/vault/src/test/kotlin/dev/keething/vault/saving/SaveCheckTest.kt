@@ -466,6 +466,20 @@ class SaveCheckTest {
     }
 
     @Test
+    fun aNewLevelBesideTheRecycleBinOfItsNameIsRefused() {
+        val asked = GroupDestination("W", listOf(NewGroup("X", "recycle bin")))
+        val edit = VaultEdit.Update("a", a.lastModified, EntryChanges(group = asked))
+        val made = VaultGroup("X", "recycle bin", listOf("Work", "recycle bin"))
+        val after = withBin.copy(entries = listOf(a.at(made).copy(lastModified = seconds), b), groups = listOf(root, work, mail, made))
+        assertEquals(
+            "the new groups are not those asked",
+            assertFailsWith<SaveCheck.Failed> {
+                SaveCheck.verify(withBin, after, edit, AppliedEdit("X", createdGroupIds = listOf("X"), destination = asked), now, withBinFile, withBinFile + made)
+            }.detail,
+        )
+    }
+
+    @Test
     fun theBinARecycledEntryMakesIsInTheRootGroup() {
         val recycle = VaultEdit.MoveToRecycleBin("a", a.lastModified)
         val nested = VaultGroup("BIN", "Recycle Bin", listOf("Work", "Recycle Bin"))

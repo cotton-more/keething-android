@@ -1738,7 +1738,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
 - **Editor** (the card's Edit; a new entry from the `+` next to the search field, a menu: New entry, New note, New
   note from clipboard, §6.4): title, username,
   password (masked, an eye shows it coloured; masked, it shows the card's fixed dots, not its length, and a dot a
-  character only while typed in), website, notes, tags, KeePass's expiry (a switch and a day; the time of day kept; switched on with a day already past, as KeePassXC leaves an
+  character only while typed in), website, notes, tags, KeePass's expiry (a switch and a day, shown while it is on and read "Expires on …", its action "Choose the day"; the time of day kept; switched on with a day already past, as KeePassXC leaves an
   entry that never expired, the day starts a year from today), and the custom fields:
   name above value, each with the row's whole width, and under them the type as a chip (§6.3), a Protected chip
   (a lock, closed when on) and remove; a protected value is masked as the password is, and so is a value the card masks (a
@@ -1816,8 +1816,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   inside first (`qu`: Qux, Foo › Bar › Qux); a path can be typed with `/` (`Foo / Bar / qu`), its levels any case and
   accent, a group with `/` in its name spanning them. Last, while the levels typed are not all groups, "+ New group
   “qu”" / "+ New groups “Baz › Zed”" "in Foo · made when the entry is saved"; the keyboard's Done takes what is typed
-  as it is (a group directly inside of that name, else new groups). Nothing is made until the entry is saved; a level
-  another app made meanwhile is taken (§3.3). An existing entry moved goes with the save, alone or with an edit, and
+  as it is (a group directly inside of that name, else new groups). A level never names the recycle bin or the
+  templates group, and none is made beside them with their name (keething-spec groups.new-groups AC3): typed there,
+  no "+ New group", Done does nothing, and a line says why ("Top level has the recycle bin, “Recycle Bin”, which is not
+  shown among the groups. A new group there needs another name."; "…has another app's templates group, “Templates”,
+  which is not listed. …"); the file and the save's check refuse it too. Nothing is made until the entry is saved; a
+  level another app made meanwhile is taken (§3.3). An existing entry moved goes with the save, alone or with an edit, and
   the snackbar names the empty groups the move deleted. While two or more databases are open, **Save into** (its dot,
   label and folder) sits over the group as one block (another database: its top level, new levels typed dropped), and its sheet ("The group, tags and username follow the database
   chosen.") lists the open ones with a check on the chosen one, "Not open: …" under them (§3.1). Save shows "Saving and checking…"; saved, the editor goes back to the
@@ -1857,7 +1861,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   **Groups** as segmented rows, "Top level" (the root group) first, then tree order
   (parents first, siblings by name, indented by depth), each with how many entries are in it and below it
   and, when some are in its groups, how many right in it ("3 here"); empty groups too. The counts are that
-  database's (the Mac app's settings entry left out). Then the **Recycle bin** with its count, when it has
+  database's (the Mac app's settings entry left out). The rows go by id (`GroupTree`): two groups of one name in one
+  parent (another app made them) are each a row with its own counts and its own groups under it, both marked ⚠
+  "Another group beside it has this name", as in the picker. Then the **Recycle bin** with its count, when it has
   entries. **Tags**: every tag outside the bin by name with its count, spellings differing only in case or
   diacritics as one ("also bank, Bänk"). A tap goes back to the list searching for it, as the card's chips
   do: `@Work`, `#bank`, `-` for the bin, "Top level" the whole list; with two or more open the search keeps that
@@ -1867,17 +1873,23 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   with each one's dot and label; a tap shows its lock screen, Back comes back here. Each block follows its
   database: read again (a save, a sync) it is built again, locked or closed alone it goes, opened it comes.
   **Changing groups** (keething-spec groups.manage, `plans/done/android-groups.md` G5; `card/editing/GroupChanges`): a long
-  press on a group's row opens its sheet: its path, its database and what it holds ("Personal · 12 entries · 3 here",
-  "empty"), then **New group inside…**, **Rename…**, **Move to…** ("With everything in it") and, only when it holds no
-  entry (the Mac app's settings entry counted) and no group, **Delete** ("It is empty: deleted at once", no question:
+  press on a group's row opens its sheet (not while a change saves): its path, its database and what it holds
+  ("Personal · 12 entries · 3 here", "empty" when it can be deleted, "nothing shown in it" when only the bin, the
+  templates group or the Mac app's settings entry is in it), then **New group inside…**, **Rename…**, **Move to…**
+  ("With everything in it") and, only when it holds no entry (the Mac app's settings entry counted) and no group (the
+  recycle bin and the templates group counted), **Delete** ("It is empty: deleted at once", no question:
   nothing is lost). Top level's sheet has New group… only; the bin's row has none. **New group** is also in the bar (a
   folder with +), at the top level; with two or more open it asks which database first (Save into's sheet, "New
   group"). A name goes in a dialog ("Rename “Work”", "New group in “Work”", "New group at the top level"; Save, Cancel):
   trimmed; the same name closes it without writing; an empty name ("A group needs a name.") or one the parent has in
   any case or accents ("“Work” has a group “Mail” already.", "Top level has …") is refused under the field and the
-  dialog stays. **Move to…** opens the group picker titled "Move “Japan” to…" (its path and "12 entries, all go with
+  dialog stays, the reason announced. The recycle bin and the templates group count among the parent's groups, and
+  their name is refused as theirs, since the screen does not show them ("Top level has the recycle bin, “Recycle Bin”,
+  which is not shown among the groups.", "“Work” has another app's templates group, “Templates”, which is not
+  listed."). **Move to…** opens the group picker titled "Move “Japan” to…" (its path and "12 entries, all go with
   it" under it), existing groups only (no new groups; "Find a group"): a target it may not go to is greyed with why
-  ("The group itself", "Inside “Japan”", "It is here now", "“Archive” has a “Japan” already"); Top level is a target,
+  ("The group itself", "Inside “Japan”", "It is here now", "“Archive” has a “Japan” already", "Top level has the
+  recycle bin, “Recycle Bin”, not shown among the groups"); Top level is a target,
   the bin never. Each change is saved at once, one at a time, through the checked save: "Saving…" under the row (in
   the dialog, Save waits), then the snackbar "Renamed to “Mail”", "Made “Mail” in “Work”", "Moved “Old” into
   “Archive”" / "to the top level", "Deleted the empty group “Work › Old”"; no Undo (as on the Mac). A save refused
@@ -2238,7 +2250,8 @@ list stays set, Settings saying "The database chosen before is no longer in the 
 one." until another is chosen. In that database the note goes to the group path `Inbox`, found as a typed path is
 (`GroupTree.resolve`: the first top-level group of the name in any case, accents and outer spaces aside; a deeper
 Inbox is not it; the recycle bin never), else a new top-level group made with the note at Save (the group row shows
-it new). The saver meets the file as it is then (`GroupLifecycle.resolving`, groups.new-groups AC3): an Inbox another
+it new); when the recycle bin or the templates group at the top level is called Inbox, the note goes to the top level
+itself (no second Inbox beside it). The saver meets the file as it is then (`GroupLifecycle.resolving`, groups.new-groups AC3): an Inbox another
 app made since the read is taken, never a second one.
 
 **A quick note's editor** (`EntryEditor.createQuickNote`, `NewNote(text, quick = true)`; app.quick-note AC3): New

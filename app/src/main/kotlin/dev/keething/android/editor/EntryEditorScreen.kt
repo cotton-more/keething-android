@@ -20,6 +20,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -821,8 +822,18 @@ private fun ExpiryRow(draft: EntryDraft, update: (EntryDraft) -> Unit) {
         val expires = stringResource(R.string.editor_expires)
         Text(expires, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         if (draft.expires) {
-            TextButton(onClick = { picking = true }) {
-                Text(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(zone).format(draft.expiryTime))
+            val day = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(zone).format(draft.expiryTime)
+            // Read with what it is and does, not as a bare date (keething-spec app.accessibility AC1).
+            val label = stringResource(R.string.editor_expires_on, day)
+            val choose = stringResource(R.string.editor_expires_choose_day)
+            TextButton(
+                onClick = { picking = true },
+                Modifier.semantics {
+                    contentDescription = label
+                    onClick(label = choose) { picking = true; true }
+                },
+            ) {
+                Text(day)
             }
         }
         Switch(checked = draft.expires, onCheckedChange = { update(draft.copy(expires = it)) }, Modifier.semantics { contentDescription = expires })

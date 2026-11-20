@@ -134,7 +134,7 @@ class VaultAssemblerTest {
                 "<String><Key>Notes</Key><Value>$notes</Value></String></Entry>"
         val xml = """
             <KeePassFile><Meta><RecycleBinUUID>BIN</RecycleBinUUID></Meta><Root><Group><UUID>R</UUID><Name>Passwords</Name>
-            <Group><UUID>BIN</UUID><Name>Recycle Bin</Name>${entry("binned", "Keething", "old")}</Group>
+            <Group><UUID>BIN</UUID><Name>Recycle Bin</Name>${entry("binned", "Keething", "old")}<Group><UUID>OLD</UUID><Name>Old</Name></Group></Group>
             ${entry("a", "Mail")}
             <Group><UUID>G</UUID><Name>Tools</Name>${entry("kb", " Keething ", "x = date")}</Group>
             ${entry("kb2", "Keething", "second")}
@@ -146,7 +146,26 @@ class VaultAssemblerTest {
         assertEquals("kb", v.settings?.id)
         assertEquals("x = date", v.settings?.notes)
         assertEquals(listOf("a", "kb2"), v.entries.map { it.id }, "only the first one is set apart")
-        assertEquals(listOf("R", "G"), v.groups.map { it.id }, "groups outside the bin")
+        assertEquals(listOf("R", "G"), v.groups.map { it.id }, "groups outside the bin, neither it nor a group in it")
         assertNull(sample().settings)
+    }
+
+    @Test
+    fun theBinAndTheTemplatesGroupAreKnownWithTheirParents() {
+        val xml = """
+            <KeePassFile><Meta><RecycleBinUUID>BIN</RecycleBinUUID><EntryTemplatesGroup>TPL</EntryTemplatesGroup></Meta><Root>
+            <Group><UUID>R</UUID><Name>Passwords</Name>
+            <Group><UUID>TPL</UUID><Name>Templates</Name></Group>
+            <Group><UUID>K</UUID><Name>Keep</Name><Group><UUID>BIN</UUID><Name>Recycle Bin</Name></Group></Group>
+            </Group></Root></KeePassFile>
+        """.trimIndent()
+
+        val v = VaultAssembler.assemble(KdbxXml.readExport(xml.encodeToByteArray()), emptyList())
+
+        assertEquals("BIN", v.recycleBinGroup?.id)
+        assertEquals("K", v.recycleBinParentId)
+        assertEquals("TPL", v.templatesGroup?.id)
+        assertEquals("R", v.templatesParentId)
+        assertEquals(listOf("R", "K"), v.groups.map { it.id })
     }
 }

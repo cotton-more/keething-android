@@ -105,6 +105,49 @@ class GroupChangesTest {
         assertFalse(changes.canDelete("conf"), "the Mac app's settings entry is in it")
     }
 
+    // A bin another app put into Keep (KeePass 2.x lets any group be the bin) and KeePassDX's templates group at the top
+    // level: neither is in the tree, both are known with their parents.
+    private val hiddenGroups = listOf(
+        VaultGroup("R", "Vault", emptyList()),
+        VaultGroup("keep", "Keep", listOf("Keep")),
+        VaultGroup("work", "Work", listOf("Work")),
+        VaultGroup("mine", "templates", listOf("Work", "templates")),
+        VaultGroup("empty", "Empty", listOf("Empty")),
+    )
+    private val bin = VaultGroup("bin", "Recycle Bin", listOf("Keep", "Recycle Bin"))
+    private val templates = VaultGroup("tpl", "Templates", listOf("Templates"))
+    private val hidden = GroupChanges.of(
+        Vault(
+            entries = emptyList(),
+            groups = hiddenGroups,
+            recycleBinGroup = bin,
+            recycleBinParentId = "keep",
+            templatesGroup = templates,
+            templatesParentId = "R",
+        ),
+        Collator.getInstance(Locale.ENGLISH),
+    )
+
+    @Test
+    fun aGroupHoldingOnlyTheBinOrTheTemplatesGroupIsNotEmpty() {
+        assertFalse(hidden.canDelete("keep"), "the bin is a group inside it")
+        assertTrue(hidden.canDelete("empty"))
+        assertFalse(GroupChanges.of(Vault(entries = emptyList(), groups = hiddenGroups.take(1) + VaultGroup("t", "T", listOf("T")), templatesGroup = VaultGroup("tpl", "Templates", listOf("T", "Templates")), templatesParentId = "t")).canDelete("t"))
+    }
+
+    @Test
+    fun aNameTheBinOrTheTemplatesGroupHasBesideThemIsTakenByThemInAnyCase() {
+        val binHidden = GroupTree.Hidden(bin, "keep", isRecycleBin = true)
+        val templatesHidden = GroupTree.Hidden(templates, "R", isRecycleBin = false)
+        assertEquals(GroupChanges.Name.TakenByHidden(hiddenGroups[1], binHidden), hidden.create("keep", " recycle bin "))
+        assertEquals(GroupChanges.Name.TakenByHidden(hiddenGroups[0], templatesHidden), hidden.create("R", "TEMPLATES"))
+        assertEquals(GroupChanges.Name.TakenByHidden(hiddenGroups[0], templatesHidden), hidden.rename("work", "Templates"))
+        assertEquals(GroupChanges.Name.Ok("Recycle Bin"), hidden.create("R", "Recycle Bin"), "the bin is in Keep, not at the top level")
+        assertEquals(GroupChanges.Name.Taken(hiddenGroups[2], hiddenGroups[3]), hidden.create("work", "Templates"), "Work's own templates group")
+        assertEquals(GroupChanges.MoveRefusal.NameTakenByHidden(hiddenGroups[0], templatesHidden), hidden.moveRefusal("mine", "R"))
+        assertNull(hidden.moveRefusal("mine", "keep"))
+    }
+
     // spec: groups.manage/AC5
     @Test
     fun aMoveIsRefusedIntoItselfOrAGroupInsideItWhereItIsAndBesideAGroupOfItsName() {
