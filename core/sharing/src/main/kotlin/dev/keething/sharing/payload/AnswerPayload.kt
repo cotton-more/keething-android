@@ -7,6 +7,7 @@ import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.EntryType
 import dev.keething.domain.vault.FieldValue
 import dev.keething.sharing.message.MalformedShareException
+import dev.keething.sharing.message.ShareRequest
 import dev.keething.sharing.message.WireReader
 import dev.keething.sharing.message.WireWriter
 import java.time.Instant
@@ -152,10 +153,13 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
         internal fun decode(bytes: ByteArray): AnswerPayload {
             val taken = mutableListOf<SharedEntry>()
             try {
+                // One form only: padded to a multiple of 128, as the length's other forms are refused too.
+                if (bytes.size % PADDING != 0) throw MalformedShareException("a length not padded") // English detail
                 val r = WireReader(bytes)
                 val version = r.byte()
                 if (version != VERSION && version != VERSION_NOTES) throw MalformedShareException("a version this app does not know") // English detail
                 val from = r.text(MAX_TEXT)
+                if (!ShareRequest.isLine(from, ShareRequest.MAX_NAME_LENGTH)) throw MalformedShareException("a sender's name") // English detail
                 repeat(r.count(MAX_ENTRIES)) { taken += entry(r, version) }
                 if (r.field(PADDING).any { it != 0.toByte() }) throw MalformedShareException("padding")
                 r.end()
@@ -246,12 +250,38 @@ public class AnswerPayload(public val from: String, public val entries: List<Sha
             if (text.any { it < ' ' && it !in "\t\n\r" || it == '\uFFFE' || it == '\uFFFF' }) throw MalformedShareException("a control character") // English detail
         }
 
+        /** A secret as [xmlText] is text, checked on its bytes: nothing of it is decoded into a String. */
         private fun WireReader.xmlSecret(): Secret = secret(MAX_TEXT).also { secret ->
-            val bad = secret.useBytes { bytes -> bytes.any { it in 0..0x1F && it != 0x09.toByte() && it != 0x0A.toByte() && it != 0x0D.toByte() } }
-            if (bad) {
+            if (!secret.useBytes(::isXmlUtf8)) {
                 secret.wipe()
-                throw MalformedShareException("a control character") // English detail
+                throw MalformedShareException("a secret that is not text") // English detail
             }
+        }
+
+        /** Strict UTF-8 (no overlong form, surrogate or code point beyond U+10FFFF) of characters XML can hold. */
+        private fun isXmlUtf8(bytes: ByteArray): Boolean {
+            var i = 0
+            while (i < bytes.size) {
+                val lead = bytes[i].toInt() and 0xFF
+                val (length, least) = when {
+                    lead < 0x80 -> 1 to 0
+                    lead in 0xC2..0xDF -> 2 to 0x80
+                    lead in 0xE0..0xEF -> 3 to 0x800
+                    lead in 0xF0..0xF4 -> 4 to 0x10000
+                    else -> return false
+                }
+                if (i + length > bytes.size) return false
+                var point = if (length == 1) lead else lead and (0xFF shr (length + 1))
+                for (k in 1 until length) {
+                    val next = bytes[i + k].toInt() and 0xFF
+                    if (next and 0xC0 != 0x80) return false
+                    point = (point shl 6) or (next and 0x3F)
+                }
+                val xml = point >= 0x20 || point == 0x09 || point == 0x0A || point == 0x0D
+                if (point < least || point > 0x10FFFF || point in 0xD800..0xDFFF || point == 0xFFFE || point == 0xFFFF || !xml) return false
+                i += length
+            }
+            return true
         }
     }
 }

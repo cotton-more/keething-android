@@ -164,18 +164,12 @@ public object EntryCardBuilder {
         }
         if (entry.totp != null) {
             credentials += FieldRow(RowIds.TOTP, FieldRow.Kind.TOTP, UserText.of(CardText.ROW_ONE_TIME_CODE), FieldValue.Plain(""), totp = entry.totp)
-        } else if (entry.hasCodeFields) {
+        } else {
             // Code fields that give no code (Steam, a counter-based link, a broken secret): the row says why.
-            val texts = entry.codeFields.associate { field ->
-                field.name to when (val v = field.value) {
-                    is FieldValue.Plain -> v.text
-                    is FieldValue.Protected -> v.secret.reveal()
-                }
-            }
-            TotpResolver.problem(texts)?.let { reason ->
+            OneTimeCodes.problem(entry)?.let { problem ->
                 credentials += FieldRow(
                     RowIds.TOTP, FieldRow.Kind.TOTP, UserText.of(CardText.ROW_ONE_TIME_CODE), FieldValue.Plain(""),
-                    codeProblem = UserText.of(CardText.CODE_UNSUPPORTED, reason),
+                    codeProblem = problem,
                 )
             }
         }
@@ -409,15 +403,37 @@ internal class CardContext(
 /** One-time codes beyond the entry's own: custom fields holding an `otpauth://` link (Mac `OneTimeCodes`). */
 public object OneTimeCodes {
     public fun config(field: CustomField): TotpConfig? {
-        val value = when (val v = field.value) {
-            is FieldValue.Plain -> v.text
-            is FieldValue.Protected -> v.secret.reveal()
-        }.trim()
-        if (!value.lowercase().startsWith("otpauth://")) return null
+        val value = text(field)
+        if (!isLink(value)) return null
         return try {
             TotpParser.parseOtpAuthUri(value)
         } catch (_: TotpParseException) {
             null
         }
     }
+
+    /**
+     * Why [entry]'s code fields give no code, "This code cannot be used here: Steam codes." (keething-spec card.totp
+     * AC6); null when it has a code or no code fields.
+     */
+    public fun problem(entry: Entry): UserText? {
+        if (entry.totp != null || !entry.hasCodeFields) return null
+        val texts = entry.codeFields.associate { field ->
+            field.name to when (val v = field.value) {
+                is FieldValue.Plain -> v.text
+                is FieldValue.Protected -> v.secret.reveal()
+            }
+        }
+        return TotpResolver.problem(texts)?.let { UserText.of(CardText.CODE_UNSUPPORTED, it) }
+    }
+
+    /** [field] holds a one-time code's link, whether it gives a code or not. */
+    public fun holdsLink(field: CustomField): Boolean = isLink(text(field))
+
+    private fun text(field: CustomField): String = when (val v = field.value) {
+        is FieldValue.Plain -> v.text
+        is FieldValue.Protected -> v.secret.reveal()
+    }.trim()
+
+    private fun isLink(value: String): Boolean = value.lowercase().startsWith("otpauth://")
 }

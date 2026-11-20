@@ -85,9 +85,10 @@ internal class ReceivedModel(
 
         /**
          * All saved, the request closed; [refs] of the new entries. [mayNotSync]: the last save's file may not be synced
-         * (databases.saf AC6), said under it.
+         * (databases.saf AC6), said under it. [notNoted]: the requests' file could not be written, so the request is not
+         * closed or the envelope not marked saved; said, so the entries are not saved twice.
          */
-        data class Saved(val refs: List<EntryRef>, val group: UiText, val mayNotSync: Boolean = false) : Saving
+        data class Saved(val refs: List<EntryRef>, val group: UiText, val mayNotSync: Boolean = false, val notNoted: Boolean = false) : Saving
 
         /** Stopped at [saved] of them: the rest is not saved, the request kept. */
         data class Failed(val saved: Int, val problem: UiText) : Saving
@@ -119,8 +120,11 @@ internal class ReceivedModel(
     /** A save was tried: its database stays (a write interrupted by a lock may have landed in it). */
     private var tried by mutableStateOf(false)
 
-    /** The open databases as new entries see them. */
-    private var open: List<NewEntryDatabase> by mutableStateOf(emptyList())
+    /** The open databases as new entries see them (none read-only); null until first read. */
+    private var open: List<NewEntryDatabase>? by mutableStateOf(null)
+
+    /** Every open database is read-only: nothing can be saved, said over Save. */
+    val noneTakesEntries: Boolean get() = open?.isEmpty() == true
 
     /** The database the entries go into: the last new entry's, else the first open one, to start with. */
     var database: NewEntryDatabase? by mutableStateOf(null)
@@ -137,10 +141,10 @@ internal class ReceivedModel(
     private var destination: GroupDestination? = null
 
     /** Save into's databases while two or more are open and nothing is saved yet; empty otherwise. */
-    val offered: List<NewEntryDatabase> get() = if (!tried && saving !is Saving.Busy) NewEntryDatabases.offered(open) else emptyList()
+    val offered: List<NewEntryDatabase> get() = if (!tried && saving !is Saving.Busy) NewEntryDatabases.offered(open.orEmpty()) else emptyList()
 
     /** Under the databases offered: "Not open: Family Shared, Crypto". */
-    val notOpen: UiText? get() = NewEntryDatabases.notOpen(places.window(), open)
+    val notOpen: UiText? get() = NewEntryDatabases.notOpen(places.window(), open.orEmpty())
 
     var saving by mutableStateOf<Saving>(Saving.Not)
         private set
@@ -304,7 +308,7 @@ internal class ReceivedModel(
             var mayNotSync = false
             for (index in savedIds.size until entries.size) {
                 // Its database locked since: the rest wait for it (they never go into another one).
-                val database = places.session(place.id)?.takeIf { NewEntryDatabases.isOpen(place.id, it.number, open) }
+                val database = places.session(place.id)?.takeIf { NewEntryDatabases.isOpen(place.id, it.number, open.orEmpty()) }
                 if (database == null) {
                     saving = Saving.Failed(index, uiText(R.string.sharing_received_locked, place.mark.label.full))
                     return@launch
@@ -337,20 +341,26 @@ internal class ReceivedModel(
                 }
                 savedIds += id
             }
-            opened.request?.let { requests.delete(it.request.id) } ?: envelope?.let(requests::saved)
+            val noted = opened.request?.let { requests.delete(it.request.id) } ?: envelope?.let(requests::saved) ?: true
             places.created(place.id)
             saving = Saving.Saved(
                 savedIds.map { EntryRef(place.id, it) },
                 groupName(place, GroupChoice(destination.groupId, destination.newGroups.map { it.name })),
                 mayNotSync,
+                notNoted = !noted,
             )
         }
     }
 
-    /** Closes the request without saving: the key goes, the answer can no longer be opened. */
-    fun close() {
-        val opened = opening as? Opening.Opened ?: return
-        opened.request?.let { requests.delete(it.request.id) }
+    /**
+     * Closes the request without saving: the key goes, the answer can no longer be opened. False when the requests' file
+     * could not be written: it stays open, said in a notice.
+     */
+    fun close(): Boolean {
+        val opened = opening as? Opening.Opened ?: return true
+        val closed = opened.request?.let { requests.delete(it.request.id) } ?: true
+        if (!closed) mutableNotices.trySend(Notice(uiText(R.string.sharing_not_kept), isProblem = true))
+        return closed
     }
 
     private fun groupName(database: NewEntryDatabase, choice: GroupChoice): UiText {

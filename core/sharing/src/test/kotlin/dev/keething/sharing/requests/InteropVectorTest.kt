@@ -4,6 +4,7 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.sharing.crypto.hex
+import dev.keething.sharing.message.PartCollector
 import dev.keething.sharing.message.ShareAnswer
 import dev.keething.sharing.message.ShareCode
 import dev.keething.sharing.message.ShareEnvelope
@@ -18,8 +19,8 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
 /**
- * One request and its answer, every byte fixed, for another implementation to check against (the Mac's handover,
- * `~/Projects/keepass-bar/HANDOVER-sharing.md`). The keys are RFC 9180 A.2's (skRm the asker's, skEm the
+ * One request and its answer, every byte fixed, for another implementation to check against (keething-spec
+ * `plans/sharing-interop.md`, what the Mac builds from). The keys are RFC 9180 A.2's (skRm the asker's, skEm the
  * ephemeral one). [CRYPTOKIT_ANSWER] was sealed by Apple's CryptoKit (`HPKE.Sender`, Curve25519 / HKDF-SHA256 /
  * AES-GCM-256) for the same request and content: both implementations open each other's answers.
  *
@@ -60,6 +61,26 @@ class InteropVectorTest {
             "keething:AQEAAAAAatuEgAAAAABq33kAQw9LmFlmUUWmsbonQCRIe9ZvA6LdV313U8aNfX0AwAwEQWxleCJTcGFya2Fzc2UgbG9naW4gZm9yIHRoZSB0YXggcmV0dXJu.",
             ShareCode.text(request.encoded()),
         )
+    }
+
+    // spec: sharing.codes/AC3
+    @Test
+    fun theAnswerInTwoPartsIsTheseBytes() {
+        val answer = hex(ANSWER)
+        // Parts of at most 200 bytes (a phone's QR codes take 600): 01 03 | the answer's SHA-256, first 8 bytes | index |
+        // count | its piece.
+        val parts = ShareCode.qrTexts(answer, maxBytes = 200).map { ShareCode.find(it).messages.single() }
+
+        assertEquals(2, parts.size)
+        assertContentEquals(hex("0103" + "a966938396f51d93" + "0002") + answer.copyOfRange(0, 188), parts[0])
+        assertContentEquals(hex("0103" + "a966938396f51d93" + "0102") + answer.copyOfRange(188, 322), parts[1])
+        val collector = PartCollector()
+        for (part in parts.reversed()) {
+            when (val read = ShareCode.read(part)) {
+                is ShareCode.Read.Part -> (collector.add(read.part) as? PartCollector.Progress.Complete)?.let { assertContentEquals(answer, it.message) }
+                else -> error("not a part")
+            }
+        }
     }
 
     @Test

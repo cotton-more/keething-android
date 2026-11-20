@@ -57,6 +57,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.graphics.Shape
 import dev.keething.android.AppContainer
 import dev.keething.android.R
 import dev.keething.android.session.OpenDatabase
@@ -78,6 +79,8 @@ import dev.keething.android.ui.NoLearningKeyboard
 import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.EntryAvatar
+import dev.keething.card.FieldTypes
+import dev.keething.card.Masking
 import dev.keething.card.WalletSecrets
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.FieldValue
@@ -162,12 +165,14 @@ internal class ReviewModel(
                 }
             }
             sealing = false
-            answer.onSuccess { sealed ->
-                if (sealed == null) {
-                    problem = uiText(R.string.sharing_review_request_gone)
-                } else {
-                    made = true
-                    onMade(MadeAnswer(their.request.name, their.request.reason, entries.size, sealed.encoded()))
+            answer.onSuccess { answering ->
+                when (answering) {
+                    ShareRequests.Answering.Gone -> problem = uiText(R.string.sharing_review_request_gone)
+                    ShareRequests.Answering.NotKept -> problem = uiText(R.string.sharing_not_kept)
+                    is ShareRequests.Answering.Sealed -> {
+                        made = true
+                        onMade(MadeAnswer(their.request.name, their.request.reason, entries.size, answering.answer.encoded()))
+                    }
                 }
             }.onFailure { problem = uiText(R.string.sharing_review_not_made, it.message.toString()) }
         }
@@ -184,13 +189,15 @@ internal class ReviewModel(
             }
         }
         sealing = false
-        sent.onSuccess { envelope ->
-            if (envelope == null) {
-                problem = uiText(R.string.sharing_review_locked)
-            } else {
-                Log.i("Sharing", "envelope made in ${started.elapsedNow()}")
-                made = true
-                onSent(envelope.envelope.id)
+        sent.onSuccess { result ->
+            when (result) {
+                ShareRequests.Sent.Closed -> problem = uiText(R.string.sharing_review_locked)
+                ShareRequests.Sent.NotKept -> problem = uiText(R.string.sharing_not_kept)
+                is ShareRequests.Sent.Kept -> {
+                    Log.i("Sharing", "envelope made in ${started.elapsedNow()}")
+                    made = true
+                    onSent(result.envelope.envelope.id)
+                }
             }
         }.onFailure { problem = uiText(R.string.sharing_review_not_sealed, it.message.toString()) }
     }
@@ -293,12 +300,15 @@ internal fun ReviewScreen(
 @Composable
 private fun NameField(value: String, onChange: (String) -> Unit, label: String, placeholder: String) {
     val fill = MaterialTheme.colorScheme.surfaceContainerHigh
+    val refused = value.isNotBlank() && !ShareRequest.isLine(value.trim(), ShareRequest.MAX_NAME_LENGTH)
     TextField(
         value = value,
-        onValueChange = { onChange(it.replace('\n', ' ').take(ShareRequest.MAX_NAME_LENGTH)) },
+        onValueChange = { onChange(ShareRequest.cut(it.replace('\n', ' '), ShareRequest.MAX_NAME_LENGTH)) },
         modifier = Modifier.keepOutOfAutofill().fillMaxWidth(),
         label = { Text(label) },
         placeholder = { Text(placeholder) },
+        supportingText = if (refused) ({ Text(stringResource(R.string.sharing_not_a_line)) }) else null,
+        isError = refused,
         singleLine = true,
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
         shape = RoundedCornerShape(18.dp),
@@ -315,7 +325,8 @@ private fun NameField(value: String, onChange: (String) -> Unit, label: String, 
 private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String?, onToggle: (EntryPart) -> Unit) {
     val parts = remember(entry) { Sending.parts(entry) }
     val never = remember(entry) { Sending.neverSent(entry) }
-    val rows = parts.size + never.size + 1 + if (entry.attachments.isNotEmpty()) 1 else 0
+    val codeLeft = remember(entry) { Sending.codeLeftBehind(entry) }
+    val rows = parts.size + never.size + 1 + (if (codeLeft != null) 1 else 0) + if (entry.attachments.isNotEmpty()) 1 else 0
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 72.dp).clip(segmentShape(0, rows)).background(MaterialTheme.extraColors.row).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -360,7 +371,7 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String?, onT
                     )
                     val warning = when {
                         !on -> null
-                        Sending.isSecondStep(part) ->
+                        Sending.isSecondStep(entry, part) ->
                             name?.let { stringResource(R.string.sharing_review_second_step, it) } ?: stringResource(R.string.sharing_review_second_step_anyone)
                         Sending.isWalletKey(entry, part) ->
                             name?.let { stringResource(R.string.sharing_review_wallet_key, it) } ?: stringResource(R.string.sharing_review_wallet_key_anyone)
@@ -380,24 +391,17 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String?, onT
             }
         }
         never.entries.forEachIndexed { index, (part, kind) ->
-            val (what, why) = kind.words().let { (what, why) -> stringResource(what) to stringResource(why) }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 64.dp)
-                    .clip(segmentShape(parts.size + index + 1, rows))
-                    .background(MaterialTheme.extraColors.row)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(part.label(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(what, style = MaterialTheme.typography.bodyLarge)
-                    Text(why, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Rounded.Lock, contentDescription = stringResource(R.string.sharing_review_never_sent), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            val (what, why) = kind.words()
+            LockedRow(part.label(), stringResource(what), stringResource(why), segmentShape(parts.size + index + 1, rows))
+        }
+        // Code fields that give no code here have no switch: they stay, the card's reason said.
+        codeLeft?.let { reason ->
+            LockedRow(
+                EntryPart.OneTimeCode.label(),
+                stringResource(R.string.sharing_review_code_stays),
+                reason.resolve(),
+                segmentShape(parts.size + never.size + 1, rows),
+            )
         }
         if (entry.attachments.isNotEmpty()) {
             val count = entry.attachments.size
@@ -408,6 +412,28 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String?, onT
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/** A part that stays on this phone whatever is switched: what it is, and why. */
+@Composable
+private fun LockedRow(label: String, what: String, why: String, shape: Shape) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(shape)
+            .background(MaterialTheme.extraColors.row)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(what, style = MaterialTheme.typography.bodyLarge)
+            Text(why, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.Rounded.Lock, contentDescription = stringResource(R.string.sharing_review_never_sent), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -428,14 +454,15 @@ private fun EntryPart.label(): String = when (this) {
     EntryPart.OneTimeCode -> stringResource(R.string.sharing_field_one_time_code)
 }
 
-/** What the row shows of the part: never a protected value. */
+/** What the row shows of the part: never a protected value, nor one the card masks (card.masking AC2). */
 internal fun EntryPart.preview(entry: Entry): UiText = when (this) {
     EntryPart.Username -> uiPlain(entry.username)
     EntryPart.Password -> uiPlain("••••••••••••")
     EntryPart.Website -> uiPlain(entry.url)
     EntryPart.Notes -> uiPlain(if (entry.notesProtected) "••••••••" else entry.notes.lineSequence().first())
     is EntryPart.Field -> when (val value = entry.customFields.firstOrNull { it.name == name }?.value) {
-        is FieldValue.Plain -> uiPlain(value.text.lineSequence().first())
+        is FieldValue.Plain ->
+            if (Masking.isMasked(FieldTypes(entry).type(name), isProtected = false, value.text)) uiPlain("••••••••") else uiPlain(value.text.lineSequence().first())
         else -> uiPlain("••••••••")
     }
     EntryPart.OneTimeCode -> uiText(R.string.sharing_review_otp_preview)

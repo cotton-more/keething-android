@@ -70,6 +70,7 @@ import dev.keething.sharing.requests.ShareRequests
 internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () -> Unit, onChoose: () -> Unit) {
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
     val their = book?.theirs?.firstOrNull { it.request.id == id }
+    PurgeExpired(container.shareRequests)
     LaunchedEffect(their == null) { if (their == null) onBack() }
     if (their == null) return
     val request = their.request
@@ -77,12 +78,18 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
     val haptics = LocalHapticFeedback.current
     var heard by rememberSaveable { mutableStateOf(intArrayOf()) }
     var mismatched by rememberSaveable { mutableStateOf(false) }
+    /** The book could not be written: the check or the delete did not happen. */
+    var notKept by rememberSaveable { mutableStateOf(false) }
+    val delete = { notKept = !container.shareRequests.delete(id) }
     val tap = { picture: Int ->
         if (heard.size < Pictures.COUNT) {
             heard += picture
             if (heard.size == Pictures.COUNT) {
                 val checked = container.shareRequests.check(id, heard.toList())
                 mismatched = checked == ShareRequests.Checked.Mismatched
+                notKept = checked == ShareRequests.Checked.NotKept
+                // Not kept: tapped again once the file can be written.
+                if (notKept) heard = intArrayOf()
                 haptics.performHapticFeedback(if (mismatched) HapticFeedbackType.Reject else HapticFeedbackType.Confirm)
             }
         }
@@ -99,7 +106,7 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                 title = {},
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.sharing_back)) } },
                 actions = {
-                    IconButton(onClick = { container.shareRequests.delete(id) }) {
+                    IconButton(onClick = delete) {
                         Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.sharing_delete_request), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
@@ -115,7 +122,7 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                         heard = intArrayOf()
                         mismatched = false
                     }, modifier = Modifier.fillMaxWidth().height(56.dp)) { Text(stringResource(R.string.sharing_tap_again)) }
-                    TextButton(onClick = { container.shareRequests.delete(id) }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    TextButton(onClick = delete, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                         Text(stringResource(R.string.sharing_their_differ), color = MaterialTheme.colorScheme.error)
                     }
                 }
@@ -135,6 +142,7 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                     overline = stringResource(R.string.sharing_their_asks, request.name),
                 )
             }
+            if (notKept) ProblemLine(stringResource(R.string.sharing_not_kept))
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.extraColors.row).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -163,7 +171,7 @@ internal fun TheirRequestScreen(container: AppContainer, id: String, onBack: () 
                     if (mismatched) {
                         Text(
                             stringResource(R.string.sharing_their_mismatch),
-                            Modifier.padding(horizontal = 4.dp),
+                            Modifier.padding(horizontal = 4.dp).announced(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
                         )

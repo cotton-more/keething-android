@@ -2557,7 +2557,7 @@ in tests.
 Entries encrypted for one phone, carried any way: a messenger, mail, a picture, a phone's screen scanned in
 person. Both sides run Keething. Agreed with the owner on 2026-10-23 (the mock-ups are the canvas's "Sharing"
 rows); sending without a request agreed on 2026-10-24 (§10.4); contacts, a person's key kept so that no request is
-needed each time, come later (ROADMAP).
+needed each time, come later (the idea keething-spec `sharing.contacts`).
 
 ### 10.1 How it works
 
@@ -2583,9 +2583,15 @@ needed each time, come later (ROADMAP).
   notes, each custom field, and the one-time code, off to start with ("With it, <name> can sign in without you: the
   second step is no longer yours alone"); so are custom fields that still hold a code's secret
   (`HmacOtp-…`, KeePass's counter-based codes, not made here, or `TimeOtp-…` under a name KeePass does not read; its
-  own `TimeOtp-*` are the entry's code, §3.2), with the same warning. The title, tags, expiry and the custom fields' types always go; attachments
+  own `TimeOtp-*` are the entry's code, §3.2), and custom fields holding a code's link (a value starting
+  `otpauth://`, whether it gives a code or not: a second code such as "One-time code 2", §6.2), with the same warning;
+  each keeps its switch, so a code is sent on purpose with one tap. An entry whose code fields give no code here
+  (Steam, a counter-based link, a broken secret) has none to send: a locked row "One-time code · stays on this phone"
+  with the card's reason. The title, tags, expiry and the custom fields' types always go; attachments
   ("1 attachment stays on this phone"), history and the icon never do. Each part's row shows the start of its value,
-  never a protected one: a password, a protected field and protected Notes (a note's text by default, §6.4) are dots.
+  never a protected one nor one the card masks (keething-spec card.masking AC2: a typed CVC or password, a network's
+  key, a code's link, a private key): a password, such a field and protected Notes (a note's text by default, §6.4)
+  are dots.
   A note arrives as it was (keething-spec sharing.content AC9, sharing.receiving AC9): Notes sent protected are
   written protected, others as the receiving database protects new Notes; the kind (`Keething.EntryType`, §6.4) goes
   whatever parts are switched off, as the title does, and is written as it was stored, a value this version does not
@@ -2609,9 +2615,9 @@ needed each time, come later (ROADMAP).
   `info` "Keething answer v1" followed by the request's whole SHA-256: it opens only for the very request it
   answers, its name, reason and validity included. Making it removes the request on the sender's phone and keeps
   its id until it expires: one answer per request, the same request read again is "Answered already". The answer
-  stays on its screen until Done.
+  stays on its screen until Done or a lock, and is lost then (nothing keeps it): the asker asks again.
 - **Receiving.** The asking phone opens it with the request's private key: "From <name>", the entries with their
-  fields (protected ones masked with an eye, protected Notes too, a note's text named Note; each copied as the card
+  fields (protected ones and those the card masks masked with an eye, protected Notes too, a note's text named Note; each copied as the card
   copies), and "Only this phone could open it,
   but anyone who saw your request could have made it, and the name is theirs to choose". Under a wallet's address
   (typed `crypto.address`, or read as one): "Check it with <name> another way before paying to it"; an envelope's
@@ -2626,9 +2632,13 @@ needed each time, come later (ROADMAP).
   format the database's codes use (§3.3; KeePassXC's `otp` link when it has none), tagged `received` besides the sender's tags (once,
   in any case): what came from outside is found with `#received`, and taking the tag off says it was looked at.
   When all are saved the request is closed: its key goes and the answer can no longer be opened. A save that
-  fails stops there; trying again saves the rest only.
+  fails stops there; trying again saves the rest only. With every open database read-only, the line over Save says
+  "No open database takes new entries: open one that is not read-only." Saved, but the requests' file not written (a
+  full disk): "Saved, but the request is not closed: close it in Sharing, so its answer is not saved again." (an
+  envelope: "… do not save these entries again from the same code.").
   "Close the request without saving" closes it too, after a question.
-- **Expiry.** A request goes with its key when it has expired (whenever the requests are read or changed); an
+- **Expiry.** A request goes with its key when it has expired (whenever the requests are read or changed, and as
+  the screens that show them tick: it leaves Sharing and its screen closes); an
   expired request cannot be answered ("It ran out on …. Ask <name> to send a new one"). One made more than a day
   ahead of this phone's clock, or valid for longer than a week and a day from now, is refused ("dates are wrong").
 - Not done, and why: who answered cannot be proven (anyone who has the request can seal an answer for it), so
@@ -2643,13 +2653,16 @@ needed each time, come later (ROADMAP).
   code without its end is "cut short".
 - **Request**: version 1, kind 1, created and expires (seconds, 64-bit big-endian), the public key (32 bytes),
   the name and the reason (UTF-8 after their length, unsigned LEB128, the shortest form only). The name at most
-  64 characters, the reason 200, one line each, no control or format characters (a right-to-left override, a
-  zero-width space). A public key of small order is refused. Its id: the first 16 bytes of its SHA-256.
+  64 characters (code points), the reason 200, one line each, no control or format characters (a right-to-left
+  override, a zero-width space, the joiner inside some emoji, a tag character), by code point outside the BMP too.
+  Ask's and What to send's fields keep at most that many code points, and one the rule refuses says so under it ("Only
+  plain text on one line: invisible characters, also inside some emoji, cannot be sent."). A public key of small order is refused. Its id: the first 16 bytes of its SHA-256.
 - **Answer**: version 1, kind 2, the request's id, HPKE's `enc` (32 bytes), the ciphertext with its tag; the
   first three are the AEAD's associated data.
 - **Content** (sealed): version 1, the sender's name, the entries (title, username, password, URL, notes, tags,
   expiry, custom fields with a protected flag, field types, the one-time code as its key, digits, period and
-  algorithm), then zeros up to a multiple of 128 bytes (its length says little about a password's). Version 2
+  algorithm), then zeros up to a multiple of 128 bytes (its length says little about a password's; a content of
+  another length is refused). Version 2
   (since 2026-11-01, sharing.content AC9) has after each entry's notes a byte 1 when they are protected, and the kind
   (a byte 1 and its stored value, or 0); it is written only when an entry sends protected Notes or has a kind, else
   version 1, so a phone that reads only version 1 (before this change) still gets everything else, and refuses a
@@ -2657,14 +2670,17 @@ needed each time, come later (ROADMAP).
   strictly: a field named as KeePass's own fields or the code's (since 2026-10-29 all ten of §3.2: an answer from an
   older phone that sends `TimeOtp-Secret`, `-Secret-Hex` or `-Secret-Base64` as a field is refused), two fields of
   one name, a type for a field that
-  is not there, a control character XML cannot hold, a date outside the years 1 to 9999, more than 50 entries, no
-  entries: refused. The sender reads what it made by the same rules before sealing, so what one side sends the
+  is not there, a character XML cannot hold (a secret checked on its bytes as strict UTF-8), a date outside the years
+  1 to 9999, a one-time code out of range, more than 50 entries, no entries, a sender's name the line rule refuses:
+  refused. The sender reads what it made by the same rules before sealing, so what one side sends the
   other reads. The secrets are read into wipeable buffers. Any failure reading a code is "cannot be read", never
   a crash.
 - **Parts**: a message over 600 bytes (a QR code of version 23 at medium correction, which a phone camera reads
   off another phone's screen) is split: version 1, kind 3, the first 8 bytes of the whole message's SHA-256, the
   index, the count, the piece; at most 16 parts. They are read in any order, from one picture or several, also
-  one picture at a time from a messenger; pieces of two messages never make one. Text carries any message whole.
+  one picture at a time from a messenger; pieces of two messages never make one. Text carries any message whole. A
+  message that needs more than 16 parts (over 9,408 bytes: notes of about 9 KB, a few dozen entries) has no codes:
+  its screen says "Too large for QR codes · Send it as text: a messenger or mail carries it whole."
 
 ### 10.3 On the phone
 
@@ -2672,7 +2688,13 @@ needed each time, come later (ROADMAP).
   (§10.4), are one file, `noBackupFilesDir/sharing/requests` (version 2; version 1, without envelopes, is read),
   sealed with AES-256-GCM under 32 random bytes kept in `sharing/key`, wrapped by an AES key in the Android
   Keystore (`SharingKey`; no user authentication, never leaves the Keystore). Read at the unlock, in memory while
-  unlocked, wiped on lock. A file the storage cannot give is left as it is and nothing replaces it. One that can
+  unlocked, wiped on lock. A file the storage cannot give is left as it is and nothing replaces it; so is a key the
+  Keystore cannot unwrap now (any failure but the key gone for good: no wrapped key, no Keystore key, its tag
+  failing, the key invalidated): the book stays closed for this unlock, and Sharing, Read a code and Ask say "Sharing
+  could not read its saved requests now. Lock and unlock to try again." Every change is written before it is made: a
+  file that cannot be written (a full disk) changes nothing, said where it happened ("This phone could not keep its
+  requests: its storage could not be written, it may be full. Nothing changed."); only what expired goes from memory
+  all the same, and from the file at the next change written. One that can
   never be read (the key gone, so `SharingKey` made a new one; its content damaged; a version this app does not
   know) is given up at once: the book starts empty, the file goes, and the moment alone is kept for a week in
   `sharing/requests.lost` (no name, no secret; a request lives a week at most). Sharing says it once, a banner
@@ -2687,8 +2709,9 @@ needed each time, come later (ROADMAP).
   runs code as the app on an unlocked phone without the password; that is outside what the app defends against
   (§4), and its cost was losing the requests to every KeePassXC save.
 - **Sending**: a request's or an answer's code is shown at full brightness for a camera, sent as a picture (a PNG
-  of about 1000 px, a caption under the code: "Keething · Alex asks for" and the reason, or "Keething · answer to
-  “…”" and "Code 1 of 2: all are needed"; from `cacheDir/sharing` through a `FileProvider`, cleared when the app
+  of about 1000 px, a caption under the code: "Keething · Alex asks for" and the reason; "Keething · answer to
+  “…”" and "Only the asking phone opens it"; an envelope's "Keething · entries from Anna" and "Opens with the ten
+  pictures Anna gives you"; a part's second line "Code 1 of 2: all are needed"; from `cacheDir/sharing` through a `FileProvider`, cleared when the app
   starts), sent as text (a few words for the person, then the code), or saved to Pictures/Keething. The share
   sheet leaves out Keething's own "Read with Keething" and Keething note (§6.4), as every share sheet of the app does
   (`ShareSheet`, §6.2).
@@ -2705,7 +2728,8 @@ needed each time, come later (ROADMAP).
   a code and Ask for an entry at the foot (on a very large display size "Ask", §6.1). Ask for an entry; Your
   request (the code, the pictures, Send the picture, Send as text, Save picture, delete after a question); Read a
   code (a banner says what a code could not do: cut short, not a Keething code, nothing in what was shared, own
-  request, expired, dates wrong, answered already, not for a request on this phone, code 1 of 2 read); a request
+  request, expired, dates wrong, answered already, not for a request on this phone, its request lost, the saved
+  requests not read, code 1 of 2 read); a request
   to answer (the six places and the 64 pictures to tap; Tap them again, They really differ · delete it; once
   checked, Choose entries); Choose entries (the list with boxes, searched as the list is, the recycle bin left
   out); What to send; the answer (its codes with Previous and Next); an answer received (Save into, Save, Close

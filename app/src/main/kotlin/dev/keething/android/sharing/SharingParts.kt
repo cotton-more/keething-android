@@ -26,6 +26,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +42,12 @@ import dev.keething.android.ui.EntryIcon
 import dev.keething.android.ui.dotsAtLineEnd
 import dev.keething.card.EntryAvatar
 import dev.keething.sharing.pictures.Pictures
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import dev.keething.android.ui.rememberSecondsNow
+import dev.keething.sharing.requests.ShareRequests
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** The monogram of the person a request names, coloured as an entry of that title would be. */
 @Composable
@@ -130,16 +140,40 @@ internal fun BottomActions(content: @Composable ColumnScope.() -> Unit) {
 internal fun TitleBlock(title: String, subtitle: String?, modifier: Modifier = Modifier, overline: String? = null) {
     Column(modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         overline?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+        Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
         subtitle?.let { Text(it.dotsAtLineEnd(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
+}
+
+/**
+ * As the seconds pass, what expired leaves the requests (keething-spec sharing.request AC7): Sharing's lists lose it, and
+ * a screen whose request went closes.
+ */
+@Composable
+internal fun PurgeExpired(requests: ShareRequests) {
+    val now by rememberSecondsNow()
+    LaunchedEffect(now) { withContext(Dispatchers.IO) { requests.purgeExpired() } }
+}
+
+/** What appears by itself is said once as it does (keething-spec app.accessibility): a live region. */
+internal fun Modifier.announced(): Modifier = semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+
+/** A problem said where it happened (the requests not kept, why a save cannot be made), announced once as it appears. */
+@Composable
+internal fun ProblemLine(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        modifier.padding(horizontal = 8.dp).announced(),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.error,
+    )
 }
 
 /** Centred words where a list would be: nothing there, or why not. */
 @Composable
 internal fun Explanation(title: String, text: String, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+        Text(title, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
         Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }

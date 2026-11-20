@@ -76,6 +76,7 @@ import kotlinx.coroutines.withContext
 internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () -> Unit) {
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
     val mine = book?.mine?.firstOrNull { it.request.id == id }
+    PurgeExpired(container.shareRequests)
     LaunchedEffect(mine == null) { if (mine == null) onClose() }
     if (mine == null) return
     val request = mine.request
@@ -108,7 +109,7 @@ internal fun MyRequestScreen(container: AppContainer, id: String, onClose: () ->
             confirmButton = {
                 TextButton(onClick = {
                     deleting = false
-                    container.shareRequests.delete(id)
+                    if (!container.shareRequests.delete(id)) notices.trySend(Notice(uiText(R.string.sharing_not_kept), isProblem = true))
                 }) { Text(stringResource(R.string.sharing_delete)) }
             },
             dismissButton = { TextButton(onClick = { deleting = false }) { Text(stringResource(R.string.sharing_keep_it)) } },

@@ -4,8 +4,10 @@ import dev.keething.card.CryptoWallet
 import dev.keething.card.CryptoAddress
 import dev.keething.card.FieldType
 import dev.keething.card.FieldTypes
+import dev.keething.card.OneTimeCodes
 import dev.keething.card.WalletSecrets
 import dev.keething.domain.secret.Secret
+import dev.keething.domain.text.UserText
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
@@ -35,16 +37,18 @@ public object Sending {
     /**
      * Left out unless the sender turns them on: the one-time code, custom fields that hold a code's secret all the same
      * (`HmacOtp-…`, KeePass's counter-based codes, which the app does not make, or `TimeOtp-…` under a name KeePass
-     * does not read): they hand over the sign-in's second step too;
+     * does not read) or a code's `otpauth://` link (a second code, whether it reads or not): they hand over the
+     * sign-in's second step too;
      * and a wallet's extended public key, which shows all of the wallet (SPEC §10.1).
      */
     public fun leftOutByDefault(entry: Entry): Set<EntryPart> =
-        parts(entry).filter { isSecondStep(it) || isWalletKey(entry, it) }.toSet()
+        parts(entry).filter { isSecondStep(entry, it) || isWalletKey(entry, it) }.toSet()
 
-    /** The one-time code, or a field that holds a code's secret: sending it shares the second step of the sign-in. */
-    public fun isSecondStep(part: EntryPart): Boolean = when (part) {
+    /** The one-time code, or a field that holds a code's secret or link: sending it shares the second step of the sign-in. */
+    public fun isSecondStep(entry: Entry, part: EntryPart): Boolean = when (part) {
         EntryPart.OneTimeCode -> true
-        is EntryPart.Field -> CODE_FIELD_PREFIXES.any { part.name.startsWith(it, ignoreCase = true) }
+        is EntryPart.Field -> CODE_FIELD_PREFIXES.any { part.name.startsWith(it, ignoreCase = true) } ||
+            entry.customFields.any { it.name == part.name && OneTimeCodes.holdsLink(it) }
         else -> false
     }
 
@@ -63,6 +67,12 @@ public object Sending {
         WalletSecrets.notes(entry)?.let { put(EntryPart.Notes, it) }
         WalletSecrets.fields(entry).forEach { (name, kind) -> put(EntryPart.Field(name), kind) }
     }
+
+    /**
+     * Why [entry]'s one-time code stays on this phone although it has code fields: they give no code here (Steam, a
+     * counter-based link, a broken secret), the card's reason; shown as a locked row. Null otherwise.
+     */
+    public fun codeLeftBehind(entry: Entry): UserText? = OneTimeCodes.problem(entry)
 
     /** The parts [entry] has that may go, those with a value, in this order: the standard fields, the custom ones, the code. */
     public fun parts(entry: Entry): List<EntryPart> {

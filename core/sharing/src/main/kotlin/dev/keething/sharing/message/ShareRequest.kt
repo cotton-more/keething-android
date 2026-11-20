@@ -80,13 +80,20 @@ public class ShareRequest private constructor(
             return ShareRequest(name, reason, created, expires, publicKey, bytes.copyOf())
         }
 
+        /** [text] cut to at most [max] code points, never inside one: what a field typed into keeps. */
+        public fun cut(text: String, max: Int): String =
+            if (text.codePointCount(0, text.length) <= max) text else text.substring(0, text.offsetByCodePoints(0, max))
+
         /**
          * One line of text, trimmed, not empty, at most [max] characters (code points), without control or format
-         * characters: a right-to-left override or a zero-width space could make a name look like another.
+         * characters, by code point outside the BMP too: a right-to-left override, a zero-width space or a tag character
+         * could make a name look like another (and the joiner inside some emoji is one).
          */
         public fun isLine(text: String, max: Int): Boolean =
             text.isNotEmpty() && text == text.trim() && text.codePointCount(0, text.length) <= max &&
-                text.none { Character.isISOControl(it) || it == '\u2028' || it == '\u2029' || Character.getType(it) == Character.FORMAT.toInt() }
+                text.codePoints().noneMatch {
+                    Character.isISOControl(it) || it == 0x2028 || it == 0x2029 || Character.getType(it) == Character.FORMAT.toInt()
+                }
     }
 }
 

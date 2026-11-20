@@ -76,6 +76,29 @@ class MessagesTest {
         assertFalse(ShareRequest.isLine("Al\u202Eex", 64))
     }
 
+    // spec: sharing.request/AC2
+    @Test
+    fun aLineIsCountedAndCheckedByCodePoint() {
+        val emoji = "\uD83D\uDE00" // 😀, two UTF-16 units
+        assertTrue(ShareRequest.isLine(emoji.repeat(64), 64), "64 code points, 128 units")
+        assertFalse(ShareRequest.isLine(emoji.repeat(65), 64))
+        assertTrue(ShareRequest.isLine("A".repeat(64), 64))
+        assertFalse(ShareRequest.isLine("A".repeat(65), 64))
+        // Format characters outside the BMP: tag characters make "Alex" another name that looks the same.
+        assertFalse(ShareRequest.isLine("Alex\uDB40\uDC41\uDB40\uDC42", 64), "U+E0041 U+E0042")
+        assertFalse(ShareRequest.isLine("Al\uD834\uDD73ex", 64), "U+1D173")
+        for (bad in listOf("Al\u2028ex", "Al\u2029ex", "Al\u200Dex", "Al\u0007ex", " Alex", "")) assertFalse(ShareRequest.isLine(bad, 64), bad)
+        assertTrue(ShareRequest.isLine("Ана 🙂", 64))
+    }
+
+    @Test
+    fun aFieldIsCutByCodePointNeverInsideOne() {
+        val emoji = "\uD83D\uDE00"
+        assertEquals("A" + emoji.repeat(63), ShareRequest.cut("A" + emoji.repeat(32 * 2), 64))
+        assertEquals("Alex", ShareRequest.cut("Alex", 64))
+        assertEquals("", ShareRequest.cut("Alex", 0))
+    }
+
     @Test
     fun aNumberHasOneEncodingOnly() {
         val w = WireWriter()

@@ -86,6 +86,11 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
 
     /** True when it led somewhere: the rest are not read. */
     private suspend fun handle(message: ByteArray): Boolean {
+        // The requests could not be read at this unlock: nothing here can be kept or opened.
+        if (requests.unreadable.value) {
+            banner = Banner(uiText(R.string.sharing_unreadable_title), uiText(R.string.sharing_unreadable), isProblem = true)
+            return true
+        }
         val read = try {
             ShareCode.read(message)
         } catch (_: MalformedShareException) {
@@ -115,14 +120,17 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
             }
             is ShareCode.Read.Request -> return receive(read.request)
             is ShareCode.Read.Answer -> {
-                val forThisPhone = requests.book.value?.mine?.any { it.request.id == read.answer.requestId } == true
-                if (!forThisPhone) {
-                    banner = Banner(
-                        uiText(R.string.sharing_not_here_title),
-                        uiText(R.string.sharing_not_here_text),
-                        isProblem = true,
-                    )
-                    return false
+                when (requests.whose(read.answer)) {
+                    ShareRequests.Whose.Here -> {}
+                    ShareRequests.Whose.NotHere -> {
+                        banner = Banner(uiText(R.string.sharing_not_here_title), uiText(R.string.sharing_not_here_text), isProblem = true)
+                        return false
+                    }
+                    // keething-spec sharing.book AC3: the request most likely went with the book given up.
+                    ShareRequests.Whose.Lost -> {
+                        banner = Banner(uiText(R.string.sharing_received_lost_title), uiText(R.string.sharing_received_lost_text), isProblem = true)
+                        return false
+                    }
                 }
                 outcomes.send(Outcome.Sealed(ShareCode.text(message)))
                 return true
@@ -166,9 +174,6 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
         val started = TimeSource.Monotonic.markNow()
         val received = try {
             withContext(Dispatchers.Default) { requests.receive(request) }.also { Log.i("Sharing", "request read in ${started.elapsedNow()}") }
-        } catch (failure: Exception) {
-            banner = Banner(uiText(R.string.sharing_read_not_kept_title), uiPlain(failure.message ?: failure.javaClass.simpleName), isProblem = true)
-            return false
         } finally {
             busy = false
         }
@@ -201,6 +206,10 @@ internal class ReadCodeModel(private val requests: ShareRequests, private val pa
                     uiText(R.string.sharing_read_answered_text, request.name),
                     isProblem = false,
                 )
+                return false
+            }
+            ShareRequests.Received.NotKept -> {
+                banner = Banner(uiText(R.string.sharing_read_not_kept_title), uiText(R.string.sharing_not_kept), isProblem = true)
                 return false
             }
             ShareRequests.Received.Closed -> return false

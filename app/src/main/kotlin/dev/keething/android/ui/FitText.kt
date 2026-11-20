@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 
 /**
  * A short label that keeps to one line: with a large font it gets smaller, down to [smallest], before it ends in
@@ -96,7 +98,7 @@ internal fun ButtonLabel(text: String, icon: ImageVector? = null, short: String 
 @Composable
 internal fun BarTitle(title: String, subtitle: String?) {
     Column {
-        FitText(title, smallest = 16.sp)
+        FitText(title, Modifier.semantics { heading() }, smallest = 16.sp)
         if (subtitle != null) {
             FitText(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, smallest = 12.sp)
         }

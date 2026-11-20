@@ -118,6 +118,10 @@
     <string name="sharing_empty_title">Отвечать не на что, ждать нечего</string>
     <string name="sharing_empty_text">Чтобы получить запись, попросите её: ответ придёт кодом, который может открыть только этот телефон. Чтобы дать запись, прочитайте код чужого запроса или отправьте её без запроса: она откроется десятью картинками, которые вы передадите другим способом.</string>
 
+    <string name="sharing_unreadable_title">Сохранённые запросы не прочитаны</string>
+    <string name="sharing_unreadable">Не удалось прочитать сохранённые запросы. Заблокируйте и разблокируйте, чтобы попробовать снова.</string>
+    <string name="sharing_not_a_line">Только обычный текст в одну строку: невидимые символы, в том числе внутри некоторых эмодзи, отправить нельзя.</string>
+    <string name="sharing_not_kept">Этот телефон не смог сохранить запросы: не удалось записать в память, возможно, она заполнена. Ничего не изменилось.</string>
     <string name="sharing_ask_not_kept">Не удалось сохранить запрос на этом телефоне: %1$s.</string>
     <string name="sharing_ask_create">Создать запрос</string>
     <string name="sharing_ask_subtitle">Тот, кого вы просите, ответит кодом, который может открыть только этот телефон.</string>
@@ -194,6 +198,7 @@
     <string name="sharing_review_phrase_why">У кого эти слова, у того и кошелёк, во всех сетях. Чтобы дать кому-то монеты, отправьте их на его адрес.</string>
     <string name="sharing_review_passphrase">Парольная фраза · остаётся на этом телефоне</string>
     <string name="sharing_review_passphrase_why">Вместе с фразой восстановления она открывает кошелёк.</string>
+    <string name="sharing_review_code_stays">Одноразовый код · остаётся на этом телефоне</string>
     <string name="sharing_review_private_key">Закрытый ключ · остаётся на этом телефоне</string>
     <string name="sharing_review_private_key_why">У кого он есть, тот может потратить монеты кошелька. Чтобы дать кому-то монеты, отправьте их на его адрес.</string>
     <string name="sharing_review_never_sent">Не отправляется никогда</string>
@@ -314,6 +319,8 @@
         <item quantity="many">Открыть первую запись</item>
         <item quantity="other">Открыть первую запись</item>
     </plurals>
+    <string name="sharing_received_not_closed">Сохранено, но запрос не закрыт: закройте его в разделе «Поделиться», чтобы ответ не сохранили снова.</string>
+    <string name="sharing_received_not_noted">Сохранено, но телефон не смог это отметить: не сохраняйте эти записи снова из того же кода.</string>
     <string name="sharing_received_saved_then">Сохранено %1$d из %2$d; затем: %3$s</string>
     <plurals name="sharing_received_saving">
         <item quantity="one">Сохранение и проверка: %1$d из %2$d…</item>

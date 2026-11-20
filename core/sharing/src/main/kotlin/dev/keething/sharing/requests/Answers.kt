@@ -1,5 +1,6 @@
 package dev.keething.sharing.requests
 
+import dev.keething.domain.secret.Secret
 import dev.keething.sharing.crypto.Hpke
 import dev.keething.sharing.crypto.SealFailure
 import dev.keething.sharing.crypto.X25519
@@ -26,8 +27,10 @@ internal object Answers {
     }
 
     /** With a given ephemeral key: the vector another implementation checks against (`InteropVectorTest`). */
-    fun seal(request: ShareRequest, payload: AnswerPayload, ephemeral: ByteArray): ShareAnswer {
-        val plain = payload.encode()
+    fun seal(request: ShareRequest, payload: AnswerPayload, ephemeral: ByteArray): ShareAnswer = sealEncoded(request, payload.encode(), ephemeral)
+
+    /** Seals [plain], the encoded content, and wipes it whatever happens. */
+    internal fun sealEncoded(request: ShareRequest, plain: Secret, ephemeral: ByteArray): ShareAnswer {
         try {
             val id = request.idBytes
             val sealed = plain.useBytes { Hpke.SHARING.seal(request.publicKey, INFO + request.digest, ShareAnswer.header(id), it, ephemeral) }

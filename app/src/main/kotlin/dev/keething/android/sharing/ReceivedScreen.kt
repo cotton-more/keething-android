@@ -90,12 +90,16 @@ import dev.keething.android.ui.readableInset
 import dev.keething.android.ui.rememberSecondsNow
 import dev.keething.android.ui.segmentShape
 import dev.keething.card.EntryAvatar
+import dev.keething.card.FieldTypes
+import dev.keething.card.Masking
 import dev.keething.domain.vault.FieldValue
 import dev.keething.sharing.payload.Receiving
 import dev.keething.sharing.payload.SharedEntry
 import dev.keething.sharing.pictures.Pictures
 import dev.keething.sharing.requests.ShareRequests
 import dev.keething.vault.session.SessionState
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 
 /**
  * An answer to a request of mine, or an envelope (SPEC §10): the entries it brings, to look at and copy, and to save as
@@ -163,16 +167,18 @@ internal fun ReceivedScreen(
                                 } else {
                                     it.problem.resolve()
                                 },
+                                Modifier.announced(),
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
+                        if (model.noneTakesEntries) ProblemLine(stringResource(R.string.autofill_save_no_database_takes_entries))
                         val busy = saving as? ReceivedModel.Saving.Busy
                         Button(onClick = model::save, enabled = busy == null && model.group != null, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                             if (busy != null) {
                                 LoadingIndicator(Modifier.size(28.dp))
                                 Spacer(Modifier.size(10.dp))
-                                Text(pluralStringResource(R.plurals.sharing_received_saving, busy.of, busy.done + 1, busy.of))
+                                Text(pluralStringResource(R.plurals.sharing_received_saving, busy.of, busy.done + 1, busy.of), Modifier.announced())
                             } else {
                                 val count = opened.payload.entries.size
                                 Text(pluralStringResource(R.plurals.sharing_received_save, count, count))
@@ -226,8 +232,7 @@ internal fun ReceivedScreen(
             confirmButton = {
                 TextButton(onClick = {
                     closing = false
-                    model.close()
-                    onClose()
+                    if (model.close()) onClose()
                 }) { Text(stringResource(R.string.sharing_received_close_it)) }
             },
             dismissButton = { TextButton(onClick = { closing = false }) { Text(stringResource(R.string.sharing_keep_it)) } },
@@ -295,7 +300,7 @@ private fun EnvelopePictures(model: ReceivedModel, sealed: ReceivedModel.Opening
                 model.unsealing -> Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
                 model.wrongPictures -> Text(
                     stringResource(R.string.sharing_received_wrong_pictures),
-                    Modifier.padding(horizontal = 4.dp),
+                    Modifier.padding(horizontal = 4.dp).announced(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -350,7 +355,9 @@ internal fun receivedRows(entry: SharedEntry, sender: String?): List<ReceivedRow
         when (val value = field.value) {
             is FieldValue.Plain -> {
                 val note = if (sender != null && Receiving.isAddress(entry, field)) uiText(R.string.sharing_received_address_note, sender) else null
-                add(ReceivedRow(uiPlain(field.name), value.text, false, copyable, note))
+                // As the card: masked, the eye and a sensitive copy for what it masks though not protected (card.masking AC2).
+                val masked = Masking.isMasked(FieldTypes(entry.fieldTypes).type(field.name), isProtected = false, value.text)
+                add(ReceivedRow(uiPlain(field.name), value.text, masked, copyable, note))
             }
             is FieldValue.Protected -> add(ReceivedRow(uiPlain(field.name), value.secret.reveal(), true, copyable))
         }
@@ -527,7 +534,12 @@ private fun Saved(saved: ReceivedModel.Saving.Saved, fromRequest: Boolean) {
             Icon(Icons.Rounded.Check, contentDescription = null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
         }
         Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.sharing_received_saved_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        Text(
+            stringResource(R.string.sharing_received_saved_title),
+            Modifier.semantics { heading() }.announced(),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
         Spacer(Modifier.height(8.dp))
         Text(
             pluralStringResource(
@@ -544,6 +556,15 @@ private fun Saved(saved: ReceivedModel.Saving.Saved, fromRequest: Boolean) {
         if (saved.mayNotSync) {
             Spacer(Modifier.height(8.dp))
             Text(MAY_NOT_SYNC.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+        }
+        if (saved.notNoted) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(if (fromRequest) R.string.sharing_received_not_closed else R.string.sharing_received_not_noted),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

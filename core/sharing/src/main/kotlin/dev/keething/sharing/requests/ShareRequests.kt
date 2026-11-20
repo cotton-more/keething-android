@@ -23,13 +23,17 @@ import kotlinx.coroutines.flow.asStateFlow
  * The requests of this phone (SPEC §10): those it made, waiting for an answer, and those it received, to answer.
  * One-time both ways: answering a request removes it, so nothing more can be sent to it; a request of mine goes
  * with its key when its answer was saved, when it is closed, or when it expires. Expired requests go whenever
- * the book is touched.
+ * the book is read or changed ([purgeExpired]).
  *
  * The book is one file, sealed with the local key [open] is given (kept in the Android Keystore, SPEC §10.3),
  * 32 random bytes. It is read at the unlock, held in memory while the vault is unlocked and wiped by [close].
  *
  * The envelopes go through it too: those sealed here are kept with their pictures until they expire or are forgotten,
  * and the ids of those saved here until they expire.
+ *
+ * Every change is written before it is made: when the file cannot be written (a full disk), the change says
+ * NotKept and nothing changed (keething-spec sharing.book AC3); only what expired goes from memory all the same, and from
+ * the file at the next change that is written.
  *
  * Thread-safe; [ask], [receive], [send] and [open] with pictures run Argon2 (about 0.3 s): call them off the main
  * thread.
@@ -52,6 +56,14 @@ public class ShareRequests(
      */
     public val lost: StateFlow<LostBook?> = mutableLost.asStateFlow()
 
+    private val mutableUnreadable = MutableStateFlow(false)
+
+    /**
+     * The book could not be read at this unlock (its file or its key could not be had, perhaps for now): it stays closed,
+     * nothing replaces it, and the next unlock tries again (keething-spec sharing.book AC3). Said on the sharing screens.
+     */
+    public val unreadable: StateFlow<Boolean> = mutableUnreadable.asStateFlow()
+
     private var key: Secret? = null
 
     /**
@@ -66,6 +78,7 @@ public class ShareRequests(
             store.read()
         } catch (_: Exception) {
             localKey.wipe()
+            mutableUnreadable.value = true
             return
         }
         key = localKey
@@ -92,29 +105,45 @@ public class ShareRequests(
         runCatching { store.writeLost(mutableLost.value) }
     }
 
+    /** The book's key could not be had at this unlock: the book stays closed, and that is said ([unreadable]). */
+    public fun cannotOpen(): Unit = synchronized(this) {
+        close()
+        mutableUnreadable.value = true
+    }
+
     public fun close(): Unit = synchronized(this) {
         mutableBook.value?.wipe()
         mutableBook.value = null
         mutableLost.value = null
+        mutableUnreadable.value = false
         key?.wipe()
         key = null
     }
 
-    /** A new request of mine, saved; null while closed. */
-    public fun ask(name: String, reason: String, validFor: Duration): MyRequest? {
+    public sealed interface Asked {
+        public class Made(public val request: MyRequest) : Asked
+
+        /** The file could not be written: no request was made. */
+        public data object NotKept : Asked
+
+        public data object Closed : Asked
+    }
+
+    /** A new request of mine, saved. */
+    public fun ask(name: String, reason: String, validFor: Duration): Asked {
         require(ShareRequest.isLine(name.trim(), ShareRequest.MAX_NAME_LENGTH) && ShareRequest.isLine(reason.trim(), ShareRequest.MAX_REASON_LENGTH))
         require(!validFor.isNegative && !validFor.isZero && validFor <= ShareRequest.MAX_VALIDITY)
         val privateKey = X25519.newPrivateKey(random)
         val request = ShareRequest.create(name, reason, clock.now(), validFor, X25519.publicKey(privateKey))
         val mine = MyRequest(request, Secret.adopt(privateKey), Pictures.of(request))
         synchronized(this) {
+            purgeExpired()
             val book = mutableBook.value
-            if (book == null) {
+            if (book == null || !change(book.with(mine = listOf(mine) + book.mine))) {
                 mine.privateKey.wipe()
-                return null
+                return if (book == null) Asked.Closed else Asked.NotKept
             }
-            change(book.with(mine = listOf(mine) + book.mine))
-            return mine
+            return Asked.Made(mine)
         }
     }
 
@@ -136,6 +165,9 @@ public class ShareRequests(
         public data object Answered : Received
 
         public data object Closed : Received
+
+        /** The file could not be written: not kept. */
+        public data object NotKept : Received
     }
 
     public fun receive(request: ShareRequest): Received {
@@ -145,7 +177,7 @@ public class ShareRequests(
             known(request)?.let { return it }
             val book = mutableBook.value ?: return Received.Closed
             val their = TheirRequest(request, clock.now(), checked = false, pictures = pictures)
-            change(book.with(theirs = listOf(their) + book.theirs))
+            if (!change(book.with(theirs = listOf(their) + book.theirs))) return Received.NotKept
             return Received.Added(their)
         }
     }
@@ -163,44 +195,58 @@ public class ShareRequests(
         }
     }
 
-    public enum class Checked { Matched, Mismatched, Gone }
+    /** NotKept: they matched, but the file could not be written: still not checked. */
+    public enum class Checked { Matched, Mismatched, Gone, NotKept }
 
     /**
      * Their request [id] is checked when [heard], the pictures the asker read out and the user tapped (SPEC §10), are
      * its six in their order; anything else leaves it unchecked, so it cannot be answered.
      */
     public fun check(id: String, heard: List<Int>): Checked = synchronized(this) {
+        purgeExpired()
         val book = mutableBook.value ?: return Checked.Gone
         val their = book.theirs.firstOrNull { it.request.id == id } ?: return Checked.Gone
         if (heard != their.pictures) return Checked.Mismatched
-        change(book.with(theirs = book.theirs.map { if (it === their) TheirRequest(it.request, it.received, true, it.pictures) else it }))
-        Checked.Matched
+        val checked = book.theirs.map { if (it === their) TheirRequest(it.request, it.received, true, it.pictures) else it }
+        if (change(book.with(theirs = checked))) Checked.Matched else Checked.NotKept
     }
 
-    /** Deletes a request either way, one of mine with its key; or forgets the pictures of an envelope sent from here. */
-    public fun delete(id: String): Unit = synchronized(this) {
-        val book = mutableBook.value ?: return
-        book.mine.filter { it.request.id == id }.forEach { it.privateKey.wipe() }
-        change(
+    /**
+     * Deletes a request either way, one of mine with its key; or forgets the pictures of an envelope sent from here.
+     * False when the file could not be written: it stays.
+     */
+    public fun delete(id: String): Boolean = synchronized(this) {
+        purgeExpired()
+        val book = mutableBook.value ?: return true
+        val kept = change(
             book.with(
                 mine = book.mine.filterNot { it.request.id == id },
                 theirs = book.theirs.filterNot { it.request.id == id },
                 sent = book.sent.filterNot { it.envelope.id == id },
             ),
         )
+        if (kept) book.mine.filter { it.request.id == id }.forEach { it.privateKey.wipe() }
+        kept
     }
 
-    /**
-     * Seals [payload] for their request [id] and removes the request: one answer per request. Null when there is
-     * no such request (expired, deleted), or its pictures were not checked.
-     */
-    public fun answer(id: String, payload: AnswerPayload): ShareAnswer? = synchronized(this) {
+    public sealed interface Answering {
+        public class Sealed(public val answer: ShareAnswer) : Answering
+
+        /** No such request (expired, deleted), or its pictures were not checked. */
+        public data object Gone : Answering
+
+        /** The file could not be written: the request stays, unanswered. */
+        public data object NotKept : Answering
+    }
+
+    /** Seals [payload] for their request [id] and removes the request: one answer per request. */
+    public fun answer(id: String, payload: AnswerPayload): Answering = synchronized(this) {
         purgeExpired()
-        val book = mutableBook.value ?: return null
-        val their = book.theirs.firstOrNull { it.request.id == id && it.checked } ?: return null
+        val book = mutableBook.value ?: return Answering.Gone
+        val their = book.theirs.firstOrNull { it.request.id == id && it.checked } ?: return Answering.Gone
         val answer = Answers.seal(their.request, payload, random)
-        change(book.with(theirs = book.theirs.filterNot { it.request.id == id }, answered = book.answered + (id to their.request.expires)))
-        answer
+        val kept = change(book.with(theirs = book.theirs.filterNot { it.request.id == id }, answered = book.answered + (id to their.request.expires)))
+        if (kept) Answering.Sealed(answer) else Answering.NotKept
     }
 
     public sealed interface Opened {
@@ -217,6 +263,26 @@ public class ShareRequests(
         public data object Broken : Opened
     }
 
+    /** Whose request [answer] is for, read before it is opened. */
+    public enum class Whose {
+        Here,
+
+        /** For no request of this phone: closed, expired, or made on another phone. */
+        NotHere,
+
+        /** For no request of this phone, which gave up its book in the last week: most likely for one lost with it. */
+        Lost,
+    }
+
+    public fun whose(answer: ShareAnswer): Whose = synchronized(this) {
+        purgeExpired()
+        when {
+            mutableBook.value?.mine?.any { it.request.id == answer.requestId } == true -> Whose.Here
+            mutableLost.value != null -> Whose.Lost
+            else -> Whose.NotHere
+        }
+    }
+
     public fun open(answer: ShareAnswer): Opened = synchronized(this) {
         purgeExpired()
         val mine = mutableBook.value?.mine?.firstOrNull { it.request.id == answer.requestId }
@@ -228,25 +294,38 @@ public class ShareRequests(
         }
     }
 
+    public sealed interface Sent {
+        public class Kept(public val envelope: SentEnvelope) : Sent
+
+        /** The file could not be written: nothing was sent. */
+        public data object NotKept : Sent
+
+        public data object Closed : Sent
+    }
+
     /**
      * Seals [payload] in a new envelope under ten pictures drawn here, and keeps it with them, [recipient] (only on this
-     * phone, may be empty) and the [titles] of its entries. Null while closed.
+     * phone, may be empty) and the [titles] of its entries.
      */
-    public fun send(payload: AnswerPayload, recipient: String, titles: List<String>, validFor: Duration): SentEnvelope? {
+    public fun send(payload: AnswerPayload, recipient: String, titles: List<String>, validFor: Duration): Sent {
         require(recipient.isEmpty() || ShareRequest.isLine(recipient, ShareRequest.MAX_NAME_LENGTH))
-        if (mutableBook.value == null) return null
+        if (mutableBook.value == null) return Sent.Closed
         val pictures = Pictures.random(Pictures.ENVELOPE_COUNT, random)
         val sent = SentEnvelope(Envelopes.seal(payload, pictures, clock.now(), validFor, random), pictures, recipient, payload.from, titles)
         synchronized(this) {
-            val book = mutableBook.value ?: return null
-            change(book.with(sent = listOf(sent) + book.sent))
-            return sent
+            purgeExpired()
+            val book = mutableBook.value ?: return Sent.Closed
+            return if (change(book.with(sent = listOf(sent) + book.sent))) Sent.Kept(sent) else Sent.NotKept
         }
     }
 
-    /** The share sheet sent envelope [id]'s code, or its pictures, through [component]: the other is offered elsewhere. */
-    public fun sentVia(id: String, pictures: Boolean, component: String): Unit = synchronized(this) {
-        val book = mutableBook.value ?: return
+    /**
+     * The share sheet sent envelope [id]'s code, or its pictures, through [component]: the other is offered elsewhere.
+     * False when the file could not be written: not noted.
+     */
+    public fun sentVia(id: String, pictures: Boolean, component: String): Boolean = synchronized(this) {
+        purgeExpired()
+        val book = mutableBook.value ?: return true
         change(
             book.with(
                 sent = book.sent.map {
@@ -319,16 +398,24 @@ public class ShareRequests(
         }
     }
 
-    /** [envelope]'s entries were saved here: read again, it is not opened, until it expires. */
-    public fun saved(envelope: ShareEnvelope): Unit = synchronized(this) {
-        val book = mutableBook.value ?: return
+    /**
+     * [envelope]'s entries were saved here: read again, it is not opened, until it expires. False when the file could
+     * not be written: not noted.
+     */
+    public fun saved(envelope: ShareEnvelope): Boolean = synchronized(this) {
+        purgeExpired()
+        val book = mutableBook.value ?: return true
         change(book.with(saved = book.saved + (envelope.id to envelope.expires)))
     }
 
     private fun badDates(created: Instant, expires: Instant, now: Instant): Boolean =
         created > now + CLOCK_SKEW || expires > now + ShareRequest.MAX_VALIDITY + CLOCK_SKEW
 
-    private fun purgeExpired() {
+    /**
+     * Removes what expired (keething-spec sharing.request AC7): whenever the book is read or changed, and by the screens
+     * that show it as the seconds pass.
+     */
+    public fun purgeExpired(): Unit = synchronized(this) {
         val book = mutableBook.value ?: return
         val now = clock.now()
         // A request lives a week at most: after that no answer can be for one lost with the book.
@@ -349,8 +436,10 @@ public class ShareRequests(
         ) {
             return
         }
+        // What expired cannot be used anyway: it goes from memory even when the file cannot be written, and from the
+        // file at the next change that is.
         expired.forEach { it.privateKey.wipe() }
-        change(next)
+        if (!change(next)) mutableBook.value = next
     }
 
     private fun RequestBook.with(
@@ -361,15 +450,20 @@ public class ShareRequests(
         saved: Map<String, Instant> = this.saved,
     ): RequestBook = RequestBook(mine, theirs, answered, sent, saved)
 
-    /** The book becomes [next] and is written; a request that went is already wiped by the caller. */
-    private fun change(next: RequestBook) {
-        val key = key ?: return
-        mutableBook.value = next
-        if (next.isEmpty) {
-            runCatching { store.delete() }
-        } else {
-            store.write(RequestBook.seal(next, key, random))
+    /**
+     * [next] is written, then becomes the book; false when it could not be written (the book stays as it was). The
+     * caller wipes a request that went once this said true.
+     */
+    private fun change(next: RequestBook): Boolean {
+        val key = key ?: return false
+        val sealed = if (next.isEmpty) null else RequestBook.seal(next, key, random)
+        try {
+            if (sealed == null) store.delete() else store.write(sealed)
+        } catch (_: Exception) {
+            return false
         }
+        mutableBook.value = next
+        return true
     }
 
     private companion object {

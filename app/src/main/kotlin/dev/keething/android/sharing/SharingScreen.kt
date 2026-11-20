@@ -77,6 +77,8 @@ internal fun SharingScreen(
 ) {
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
     val lost by container.shareRequests.lost.collectAsStateWithLifecycle()
+    val unreadable by container.shareRequests.unreadable.collectAsStateWithLifecycle()
+    PurgeExpired(container.shareRequests)
     val validity by container.settings.requestValidity.collectAsStateWithLifecycle()
     val now by rememberSecondsNow()
     val theirs = book?.theirs.orEmpty()
@@ -120,6 +122,7 @@ internal fun SharingScreen(
         LazyColumn(
             contentPadding = PaddingValues(start = readableInset(), end = readableInset(), top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
         ) {
+            if (unreadable) item(key = "unreadable") { ProblemLine(stringResource(R.string.sharing_unreadable), Modifier.padding(bottom = 16.dp)) }
             // Said once, until OK (keething-spec sharing.book AC3).
             if (lost?.told == false) {
                 item(key = "lost") {
@@ -201,7 +204,7 @@ internal fun SharingScreen(
                     )
                 }
             }
-            if (theirs.isEmpty() && mine.isEmpty() && sent.isEmpty()) {
+            if (theirs.isEmpty() && mine.isEmpty() && sent.isEmpty() && !unreadable) {
                 item(key = "empty") {
                     Explanation(
                         stringResource(R.string.sharing_empty_title),

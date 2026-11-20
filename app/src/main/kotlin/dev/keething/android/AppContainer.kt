@@ -453,7 +453,10 @@ internal class AppContainer(context: Context) {
                         withContext(Dispatchers.IO) {
                             runCatching { sharingKey.load() }
                                 .onSuccess(shareRequests::open)
-                                .onFailure { Log.w("Sharing", "the requests' key: ${it.javaClass.simpleName}") }
+                                .onFailure {
+                                    Log.w("Sharing", "the requests' key: ${it.javaClass.simpleName}")
+                                    shareRequests.cannotOpen()
+                                }
                         }
                     }
                 }

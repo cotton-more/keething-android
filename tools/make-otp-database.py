@@ -9,7 +9,8 @@ and the legacy TOTP Seed / TOTP Settings; further codes (custom fields holding a
 app.codes-view), beside an entry's own code and on their own; two entries with nothing but a title and a code. Most of its codes are KeePass's, so a code written into it takes that format.
 Codes the app cannot use, each shown with its reason (keething-spec card.totp AC6): Steam as KeePassXC writes it
 (`encoder=steam`) and in the legacy fields (`30;S`), a counter-based link, an unknown algorithm. A list of recovery
-codes typed `code` (one used, one empty) beside an empty field (card.recovery-codes, card.fields AC2).
+codes typed `code` (one used, one empty) beside an empty field (card.recovery-codes, card.fields AC2). A card to share:
+an unprotected CVC typed `card.cvc`, an empty field and a second code (sharing.what-goes, sharing.receiving AC1).
 keepassxc-cli writes KDBX 3.1 on import, so the import is merged into a copy of a KDBX 4 fixture (that adds the
 fixture's two entries). With --recycle-bin-off the import itself is written, KDBX 3.1 with `RecycleBinEnabled` False
 (a merge does not carry Meta; keepassxc-cli has no switch for it): a row's long press then offers no Move to the
@@ -71,6 +72,12 @@ TYPED_ENTRIES = [
         ("Recovery_1", "used 2026-10-22 · 1111-2222", True), ("Recovery_2", "3333-4444", True), ("Recovery_3", "", True),
         ("Recovery_4", "5555-6666", True), ("Recovery_5", "7777-8888", True), ("Backup e-mail", "")],
      {f"Recovery_{n}": "code" for n in range(1, 6)}),
+    # An unprotected CVC the card masks by its type: masked on What to send and on the received entry too
+    # (keething-spec sharing.receiving AC1), beside a second code's link and an empty field (sharing.what-goes AC2, AC3).
+    ("Card to share (fictitious)", [
+        ("CVC", "123"), ("Card number", "4111 1111 1111 1111", True), ("Room", ""),
+        ("One-time code 2", "otpauth://totp/Card:me?secret=GEZDGNBVGY3TQOJQ&issuer=Card", True)],
+     {"CVC": "card.cvc", "Card number": "card.number"}),
 ]
 
 # Entries with nothing but their title and a code (deleting the code moves the entry to the recycle bin).

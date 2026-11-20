@@ -159,6 +159,7 @@ internal class ChosenAppReceiver : BroadcastReceiver() {
         val component = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_CHOSEN_COMPONENT, ComponentName::class.java) ?: return
         val pictures = intent.getBooleanExtra(PICTURES, false)
         Log.i("Sharing", if (pictures) "pictures handed to an app" else "code handed to an app")
+        // Not noted when the book cannot be written: the screen then offers both ways again, nothing more.
         (context.applicationContext as KeethingApplication).container.shareRequests.sentVia(id, pictures, component.flattenToString())
     }
 

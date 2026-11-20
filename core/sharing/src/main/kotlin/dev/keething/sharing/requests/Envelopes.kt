@@ -1,5 +1,6 @@
 package dev.keething.sharing.requests
 
+import dev.keething.domain.secret.Secret
 import dev.keething.kdbx.crypto.Argon2
 import dev.keething.sharing.crypto.Hkdf
 import dev.keething.sharing.crypto.SealFailure
@@ -34,8 +35,12 @@ internal object Envelopes {
     /** With a given salt: the vector another implementation checks against (`InteropVectorTest`). */
     fun seal(payload: AnswerPayload, pictures: List<Int>, created: Instant, validFor: Duration, salt: ByteArray): ShareEnvelope {
         require(!validFor.isNegative && !validFor.isZero && validFor <= ShareRequest.MAX_VALIDITY)
+        return sealEncoded(payload.encode(), pictures, created, validFor, salt)
+    }
+
+    /** Seals [plain], the encoded content, and wipes it whatever happens. */
+    internal fun sealEncoded(plain: Secret, pictures: List<Int>, created: Instant, validFor: Duration, salt: ByteArray): ShareEnvelope {
         val header = ShareEnvelope.header(created, validFor, salt)
-        val plain = payload.encode()
         try {
             val ciphertext = plain.useBytes { aead(Cipher.ENCRYPT_MODE, pictures, salt, header, it) }
             return ShareEnvelope.decode(header + ciphertext)

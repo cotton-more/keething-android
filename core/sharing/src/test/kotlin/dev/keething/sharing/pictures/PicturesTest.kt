@@ -13,6 +13,22 @@ class PicturesTest {
         assertEquals(64, Pictures.ALL.size)
         assertEquals(64, Pictures.ALL.map { it.emoji }.toSet().size)
         assertEquals(64, Pictures.ALL.map { it.name.lowercase() }.toSet().size)
+        // What another implementation must match (keething-spec plans/sharing-interop.md §3): the names in order, the
+        // emoji to the byte, the seven written with U+FE0F.
+        assertEquals(
+            "Dog, Cat, Lion, Horse, Unicorn, Pig, Elephant, Rabbit, Panda, Rooster, Penguin, Turtle, Fish, Octopus, Butterfly, " +
+                "Flower, Tree, Cactus, Mushroom, Globe, Moon, Cloud, Fire, Banana, Apple, Strawberry, Corn, Pizza, Cake, Heart, " +
+                "Smiley, Robot, Hat, Glasses, Spanner, Santa, Thumbs Up, Umbrella, Hourglass, Clock, Gift, Light Bulb, Book, " +
+                "Pencil, Paperclip, Scissors, Lock, Key, Hammer, Telephone, Flag, Train, Bicycle, Aeroplane, Rocket, Trophy, Ball, " +
+                "Guitar, Trumpet, Bell, Anchor, Headphones, Folder, Pin",
+            Pictures.ALL.joinToString(", ") { it.name },
+        )
+        val emoji = java.security.MessageDigest.getInstance("SHA-256").digest(Pictures.ALL.joinToString("") { it.emoji }.encodeToByteArray())
+        assertEquals("092fe4b933b3d78a50b2042919920dd5d5720dc069f342cac0b5733cc3760096", emoji.joinToString("") { "%02x".format(it) })
+        assertEquals(
+            listOf("Cloud", "Heart", "Umbrella", "Pencil", "Scissors", "Telephone", "Aeroplane"),
+            Pictures.ALL.filter { it.emoji.endsWith("\uFE0F") }.map { it.name },
+        )
     }
 
     @Test

@@ -4,6 +4,11 @@ import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.sharing.message.MalformedShareException
+import dev.keething.sharing.crypto.X25519
+import dev.keething.sharing.message.ShareEnvelope
+import dev.keething.sharing.message.ShareRequest
+import dev.keething.sharing.requests.Answers
+import dev.keething.sharing.requests.Envelopes
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -142,10 +147,37 @@ class AnswerPayloadTest {
             AnswerPayload("Anna", listOf(SharedEntry("x", customFields = listOf(CustomField.plain("otp", "a"))))),
             AnswerPayload("Anna", listOf(SharedEntry("x", customFields = listOf(CustomField.plain("A", "1"), CustomField.plain("A", "2"))))),
             AnswerPayload("Anna", listOf(SharedEntry("x", fieldTypes = mapOf("missing" to "url")))),
-        )) {
+        ) + listOf("", "Title", "UserName", "URL", "Notes", "TOTP Seed", "TOTP Settings", "TimeOtp-Secret-Base32", "TimeOtp-Period", "TimeOtp-Secret-Hex").map {
+            AnswerPayload("Anna", listOf(SharedEntry("x", customFields = listOf(CustomField.plain(it, "a")))))
+        }) {
             // The sender reads it back by the receiver's rules before anything is sealed.
             assertFailsWith<IllegalArgumentException> { payload.encode() }
         }
+    }
+
+    // spec: sharing.content/AC3
+    @Test
+    fun aOneTimeCodeOutOfRangeOrMoreThan500OfAnythingIsRefused() {
+        fun code(key: Secret = Secret.of("12345678901234567890"), digits: Int = 6, period: Int = 30) =
+            AnswerPayload("Anna", listOf(SharedEntry("x", totp = TotpConfig(key, digits, period))))
+        for (payload in listOf(
+            code(digits = 0), code(digits = 11), code(period = 0), code(period = 86401), code(key = Secret.empty()), code(key = Secret.adopt(ByteArray(1025) { 1 })),
+            AnswerPayload("Anna", listOf(SharedEntry("x", tags = List(501) { "t$it" }))),
+            AnswerPayload("Anna", listOf(SharedEntry("x", customFields = List(501) { CustomField.plain("f$it", "") }))),
+        )) {
+            assertFailsWith<IllegalArgumentException> { payload.encode() }
+        }
+        for (digits in listOf(1, 10)) code(digits = digits).encode()
+        code(period = 86400, key = Secret.adopt(ByteArray(1024) { 1 })).encode()
+        AnswerPayload("Anna", listOf(SharedEntry("x", tags = List(500) { "t$it" }))).encode()
+
+        // An algorithm not known: 0 SHA-1, 1 SHA-256, 2 SHA-512 only.
+        val bytes = code(digits = 7, period = 29).encode().useBytes { it.copyOf() }
+        val at = (0 until bytes.size - 2).first { bytes[it] == 7.toByte() && bytes[it + 1] == 29.toByte() && bytes[it + 2] == 0.toByte() } + 2
+        bytes[at] = 2
+        assertEquals(TotpConfig.Algorithm.entries[2], AnswerPayload.decode(bytes).entries.single().totp?.algorithm)
+        bytes[at] = 3
+        assertFailsWith<MalformedShareException> { AnswerPayload.decode(bytes) }
     }
 
     @Test
@@ -157,6 +189,61 @@ class AnswerPayloadTest {
             assertEquals(0, AnswerPayload("Anna", listOf(SharedEntry(title))).encode().size % 128)
         }
         AnswerPayload("Anna", listOf(SharedEntry("tab\tand\nlines\r"))).encode()
+    }
+
+    /** 01 | [from] | one entry: title "x", no username, [password], no address nor notes, nothing more | padded to 128. */
+    private fun withPassword(password: ByteArray, padding: Int? = null, from: String = "Anna"): ByteArray {
+        val name = from.encodeToByteArray()
+        val body = byteArrayOf(1, name.size.toByte()) + name + byteArrayOf(1, 1, 'x'.code.toByte(), 0) +
+            byteArrayOf(password.size.toByte()) + password + byteArrayOf(0, 0, 0, 0, 0, 0, 0)
+        val pad = padding ?: (128 - body.size - 1)
+        return body + byteArrayOf(pad.toByte()) + ByteArray(pad)
+    }
+
+    @Test
+    fun aSenderNameThatIsNotOneLineIsNeitherSentNorRead() {
+        for (from in listOf("Al\u200Bex", " Anna", "", "Anna\nB", "A".repeat(65))) {
+            assertFailsWith<IllegalArgumentException>(from) { AnswerPayload(from, listOf(SharedEntry("x"))).encode() }
+        }
+        // Crafted, as only another app would: the content is whole, only its sender's name breaks the rule.
+        assertEquals("Anna", AnswerPayload.decode(withPassword("pw".encodeToByteArray(), from = "Anna")).from)
+        for (from in listOf("An\u200Bna", "Anna\uDB40\uDC41", " Anna")) {
+            assertFailsWith<MalformedShareException>(from) { AnswerPayload.decode(withPassword("pw".encodeToByteArray(), from = from)) }
+        }
+    }
+
+    // spec: sharing.content/AC2
+    @Test
+    fun aContentNotPaddedToAMultipleOf128OrWithPaddingNotZeroIsRefused() {
+        val good = withPassword("pw".encodeToByteArray())
+        assertEquals(1, AnswerPayload.decode(good).entries.size)
+        for (padding in listOf(0, 1, 127 - (good.size - 128) - 2)) {
+            val short = withPassword("pw".encodeToByteArray(), padding)
+            assertTrue(short.size % 128 != 0)
+            assertFailsWith<MalformedShareException>("${short.size} bytes") { AnswerPayload.decode(short) }
+        }
+        val notZero = good.copyOf().also { it[it.size - 1] = 1 }
+        assertFailsWith<MalformedShareException> { AnswerPayload.decode(notZero) }
+    }
+
+    // spec: sharing.content/AC3
+    @Test
+    fun aSecretIsUtf8WithoutWhatXmlCannotHold() {
+        fun bytes(vararg b: Int) = ByteArray(b.size) { b[it].toByte() }
+        val good = "pä€😀\tx".encodeToByteArray()
+        assertEquals(Secret.adopt(good.copyOf()), AnswerPayload.decode(withPassword(good)).entries.single().password)
+
+        for (bad in listOf(
+            bytes(0xEF, 0xBF, 0xBF), bytes(0xEF, 0xBF, 0xBE), // U+FFFF, U+FFFE
+            bytes(0xC3, 0x28), bytes(0xC3), bytes(0x80), bytes(0xFF), // not UTF-8
+            bytes(0xC0, 0x80), bytes(0xE0, 0x80, 0x80), // overlong
+            bytes(0xED, 0xA0, 0x80), // a surrogate
+            bytes(0xF4, 0x90, 0x80, 0x80), // beyond U+10FFFF
+            bytes(0x07), bytes(0x00),
+        )) {
+            assertFailsWith<MalformedShareException>(bad.joinToString(" ") { "%02X".format(it) }) { AnswerPayload.decode(withPassword(bad)) }
+            assertFailsWith<IllegalArgumentException> { AnswerPayload("Anna", listOf(SharedEntry("x", password = Secret.adopt(bad.copyOf())))).encode() }
+        }
     }
 
     @Test
@@ -178,5 +265,15 @@ class AnswerPayloadTest {
         assertTrue(secret.useBytes { bytes -> String(bytes, Charsets.ISO_8859_1).contains("k7#Rv9") })
         secret.wipe()
         assertTrue(secret.isWiped)
+
+        // Sealing wipes the encoded content, in an answer and in an envelope.
+        val random = java.security.SecureRandom()
+        val request = ShareRequest.create("Alex", "Wi-Fi", Instant.now(), java.time.Duration.ofDays(1), X25519.publicKey(X25519.newPrivateKey(random)))
+        val forAnswer = AnswerPayload("Anna", listOf(full())).encode()
+        Answers.sealEncoded(request, forAnswer, X25519.newPrivateKey(random))
+        assertTrue(forAnswer.isWiped)
+        val forEnvelope = AnswerPayload("Anna", listOf(full())).encode()
+        Envelopes.sealEncoded(forEnvelope, List(10) { it }, Instant.now(), java.time.Duration.ofDays(1), ByteArray(ShareEnvelope.SALT_SIZE))
+        assertTrue(forEnvelope.isWiped)
     }
 }

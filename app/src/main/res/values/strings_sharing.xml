@@ -130,6 +130,13 @@
     <string name="sharing_empty_title">Nothing to answer, nothing waiting</string>
     <string name="sharing_empty_text">To get an entry, ask for it: the answer comes back as a code only this phone can open. To give one, read the code of someone\'s request, or send it without one: it opens with ten pictures you give another way.</string>
 
+    <!-- The requests' file could not be written (a full disk): said wherever a change was refused -->
+    <!-- The requests could not be read at this unlock (keething-spec sharing.book AC3) -->
+    <string name="sharing_unreadable_title">Saved requests not read</string>
+    <string name="sharing_unreadable">Sharing could not read its saved requests now. Lock and unlock to try again.</string>
+    <string name="sharing_not_a_line">Only plain text on one line: invisible characters, also inside some emoji, cannot be sent.</string>
+    <string name="sharing_not_kept">This phone could not keep its requests: its storage could not be written, it may be full. Nothing changed.</string>
+
     <!-- Ask for an entry (AskScreen) -->
     <!-- %1$s: why, as the system says it -->
     <string name="sharing_ask_not_kept">The request could not be kept on this phone: %1$s.</string>
@@ -221,6 +228,7 @@
     <string name="sharing_review_phrase_why">Whoever has these words has the wallet, on every network. To give someone coins, send them to their address.</string>
     <string name="sharing_review_passphrase">Passphrase · stays on this phone</string>
     <string name="sharing_review_passphrase_why">With the recovery phrase it opens the wallet.</string>
+    <string name="sharing_review_code_stays">One-time code · stays on this phone</string>
     <string name="sharing_review_private_key">Private key · stays on this phone</string>
     <string name="sharing_review_private_key_why">Whoever has it can spend the wallet\'s coins. To give someone coins, send them to their address.</string>
     <string name="sharing_review_never_sent">Never sent</string>
@@ -344,6 +352,8 @@
         <item quantity="other">Open the first entry</item>
     </plurals>
     <!-- %1$d: how many were saved, %2$d: of how many, %3$s: what went wrong -->
+    <string name="sharing_received_not_closed">Saved, but the request is not closed: close it in Sharing, so its answer is not saved again.</string>
+    <string name="sharing_received_not_noted">Saved, but this phone could not note it: do not save these entries again from the same code.</string>
     <string name="sharing_received_saved_then">Saved %1$d of %2$d; then: %3$s</string>
     <!-- Chosen by how many there are; %1$d: the one being saved, %2$d: how many there are -->
     <plurals name="sharing_received_saving">

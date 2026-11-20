@@ -1,13 +1,14 @@
 package dev.keething.android.sharing
 
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import dev.keething.domain.secret.Secret
 import java.io.File
 import java.io.IOException
-import java.security.GeneralSecurityException
 import java.security.KeyStore
 import java.security.SecureRandom
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -21,7 +22,11 @@ import javax.crypto.spec.GCMParameterSpec
  * Blocks: call it off the main thread.
  */
 internal class SharingKey(private val file: File) {
-    /** The key, the caller's to wipe; a new one when there is none or it can no longer be unwrapped. */
+    /**
+     * The key, the caller's to wipe; a new one when there is none or it can never be unwrapped. Throws when the Keystore
+     * fails otherwise (perhaps for now): the book stays closed until the next unlock, and is not given up for a key that
+     * is still there (keething-spec sharing.book AC3).
+     */
     fun load(): Secret {
         unwrap()?.let { return it }
         val key = ByteArray(KEY_SIZE).also(SecureRandom()::nextBytes)
@@ -38,16 +43,22 @@ internal class SharingKey(private val file: File) {
         return Secret.adopt(key)
     }
 
+    /**
+     * Null only when the key is gone for good: no wrapped key (or not of its size), no Keystore key under [ALIAS], one
+     * that does not open it (another key), or one invalidated. Any other failure is thrown.
+     */
     private fun unwrap(): Secret? {
         val wrapped = file.takeIf(File::exists)?.readBytes() ?: return null
         if (wrapped.size != IV_SIZE + KEY_SIZE + TAG_SIZE) return null
+        val key = keystoreKey(create = false) ?: return null
         return try {
-            val key = keystoreKey(create = false) ?: return null
             val cipher = Cipher.getInstance(TRANSFORMATION).apply {
                 init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_SIZE * 8, wrapped, 0, IV_SIZE))
             }
             Secret.adopt(cipher.doFinal(wrapped, IV_SIZE, wrapped.size - IV_SIZE))
-        } catch (_: GeneralSecurityException) {
+        } catch (_: AEADBadTagException) {
+            null
+        } catch (_: KeyPermanentlyInvalidatedException) {
             null
         }
     }

@@ -189,7 +189,7 @@ internal fun ReadCodeScreen(
 @Composable
 private fun BannerView(banner: ReadCodeModel.Banner) {
     Row(
-        Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(OnDark).padding(16.dp),
+        Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(OnDark).padding(16.dp).announced(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(if (banner.isProblem) Icons.Rounded.ErrorOutline else Icons.Rounded.Info, contentDescription = null, tint = Color(0xFF17181A))

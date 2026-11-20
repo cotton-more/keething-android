@@ -1,12 +1,16 @@
 package dev.keething.sharing.payload
 
+import dev.keething.card.CardText
 import dev.keething.card.WalletSecrets.Kind
+import dev.keething.domain.text.UserText
+import dev.keething.totp.TotpText
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.EntryTypeChange
+import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.TotpChange
 import java.time.Instant
 import kotlin.test.Test
@@ -56,6 +60,11 @@ class EntryPartsTest {
         assertNull(shared.totp)
         shared.wipe()
         assertFalse(entry.password.isWiped, "the vault's own secrets stay")
+
+        // Each custom field has a switch, an empty one too: its name can be what it says.
+        val room = Entry("r", title = "Office", customFields = listOf(CustomField.plain("Empty", ""), CustomField.plain("Room", "12")))
+        assertEquals(listOf(EntryPart.Field("Empty"), EntryPart.Field("Room")), Sending.parts(room))
+        assertEquals(emptySet(), Sending.leftOutByDefault(room))
     }
 
     @Test
@@ -64,8 +73,43 @@ class EntryPartsTest {
 
         assertEquals(setOf(EntryPart.Field("HmacOtp-Secret"), EntryPart.Field("HmacOtp-Counter")), Sending.leftOutByDefault(keePass))
         assertEquals(setOf(EntryPart.OneTimeCode), Sending.leftOutByDefault(entry))
-        assertTrue(Sending.isSecondStep(EntryPart.Field("timeotp-secret-hex")))
-        assertFalse(Sending.isSecondStep(EntryPart.Field("Note")))
+        assertTrue(Sending.isSecondStep(keePass, EntryPart.Field("timeotp-secret-hex")))
+        assertFalse(Sending.isSecondStep(keePass, EntryPart.Field("Note")))
+    }
+
+    // spec: sharing.what-goes/AC3
+    @Test
+    fun aFieldHoldingACodesLinkIsASecondStepWhetherItReadsOrNot() {
+        val link = "otpauth://totp/GitHub:alex?secret=JBSWY3DPEHPK3PXP"
+        val codes = entry.copy(
+            customFields = listOf(
+                CustomField.protected("One-time code 2", link),
+                CustomField.plain("Backup code", "  OTPAUTH://totp/Bank?secret=JBSWY3DPEHPK3PXP"),
+                CustomField.plain("Broken", "otpauth://hotp/x"),
+                CustomField.plain("Room", "12"),
+            ),
+            fieldTypes = emptyMap(),
+        )
+
+        assertEquals(
+            setOf(EntryPart.Field("One-time code 2"), EntryPart.Field("Backup code"), EntryPart.Field("Broken"), EntryPart.OneTimeCode),
+            Sending.leftOutByDefault(codes),
+        )
+        assertTrue(Sending.isSecondStep(codes, EntryPart.Field("One-time code 2")))
+        assertFalse(Sending.isSecondStep(codes, EntryPart.Field("Room")))
+        // Its switch stays: turned on, it goes.
+        assertEquals(link, (Sending.shared(codes, emptySet()).customFields.first().value as FieldValue.Protected).secret.reveal())
+    }
+
+    @Test
+    fun codeFieldsThatGiveNoCodeStayBehindWithTheCardsReason() {
+        val steam = CustomField.protected("otp", "otpauth://totp/Steam:alex?secret=GEZDGNBVGY3TQOJQ&encoder=steam")
+        val entry = Entry("s", title = "Steam", codeFields = listOf(steam), hasCodeFields = true)
+
+        assertEquals(UserText.of(CardText.CODE_UNSUPPORTED, UserText.of(TotpText.UNSUPPORTED_STEAM)), Sending.codeLeftBehind(entry))
+        assertFalse(EntryPart.OneTimeCode in Sending.parts(entry))
+        assertNull(Sending.codeLeftBehind(this.entry), "a live code goes, its switch off to start with")
+        assertNull(Sending.codeLeftBehind(Entry("x", title = "No code")))
     }
 
     @Test

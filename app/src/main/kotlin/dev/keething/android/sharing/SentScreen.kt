@@ -101,6 +101,7 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
     BackHandler(onBack = onDone)
     val book by container.shareRequests.book.collectAsStateWithLifecycle()
     val sent = book?.sent?.firstOrNull { it.envelope.id == id }
+    PurgeExpired(container.shareRequests)
     LaunchedEffect(sent == null) { if (sent == null) onDone() }
     if (sent == null) return
     val now by rememberSecondsNow()
@@ -139,7 +140,7 @@ internal fun SentScreen(container: AppContainer, id: String, onDone: () -> Unit)
             confirmButton = {
                 TextButton(onClick = {
                     forgetting = false
-                    container.shareRequests.delete(id)
+                    if (!container.shareRequests.delete(id)) notices.trySend(Notice(uiText(R.string.sharing_not_kept), isProblem = true))
                 }) { Text(stringResource(R.string.sharing_sent_forget_them)) }
             },
             dismissButton = { TextButton(onClick = { forgetting = false }) { Text(stringResource(R.string.sharing_sent_keep_them)) } },
