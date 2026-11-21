@@ -18,3 +18,9 @@ target_compile_options(keething_argon2 PRIVATE
     -O3 -fvisibility=hidden -Wall
     -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.
     -ffile-prefix-map=${CMAKE_BINARY_DIR}=.)
+# Nor the toolchain's own build in it: the NDK for macOS and for Linux (F-Droid's) make the same code, but the
+# compiler's and the linker's .comment name each one's build, and the build ID is a hash of the whole file. So no build
+# ID, and .comment taken out after the link (before AGP strips the library and packs it).
+target_link_options(keething_argon2 PRIVATE -Wl,--build-id=none)
+add_custom_command(TARGET keething_argon2 POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} --remove-section=.comment $<TARGET_FILE:keething_argon2>)

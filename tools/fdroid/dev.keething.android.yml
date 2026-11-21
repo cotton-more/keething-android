@@ -3,8 +3,10 @@
 # The build is reproducible: F-Droid compares its build with our signed APK (Binaries) and ships ours, signed with
 # AllowedAPKSigningKeys (task apk:reproduce makes the same comparison here).
 #
-# Not tried on F-Droid's build server yet (no `fdroid build` run): its JDK 21 (the Gradle toolchain asks for 21, and no
-# toolchain download is set up), CMake 4.1.2 from the SDK, and Gradle 9.8.1 in gradlew-fdroid's list.
+# Tried 2026-11-21 with `fdroid build --on-server` in F-Droid's buildserver image (x86-64; fdroidserver fc2c864): it
+# builds with its JDK 21, Gradle 9.8.1 from gradlew-fdroid, the NDK installed from this recipe and CMake from the SDK.
+# F-Droid deletes the Gradle wrapper (its jar, gradlew, gradlew.bat), and its NDK is the Linux build of the same
+# version: app/build.gradle.kts and core/argon2's CMakeLists.txt keep both out of the APK's bytes.
 
 Categories:
   - Security

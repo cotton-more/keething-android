@@ -15,9 +15,12 @@ commit=${${(M)${(f)info}:#commit=*}#commit=}
 work=$(mktemp -d)/"fresh clone"
 git clone -q --no-checkout . $work
 git -C $work checkout -q $commit
+# As F-Droid's build: the Gradle wrapper deleted from the clone (its jar, gradlew, gradlew.bat), built with another
+# Gradle (here this checkout's wrapper).
+/bin/rm $work/gradle/wrapper/gradle-wrapper.jar $work/gradlew $work/gradlew.bat
 echo "Building $commit in $work"
-(cd $work && ANDROID_HOME=${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools} \
-    ./gradlew -q --no-configuration-cache assembleRelease -Pkeething.timings=false)
+ANDROID_HOME=${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools} \
+    ./gradlew -q -p $work --no-configuration-cache assembleRelease -Pkeething.timings=false
 python3 tools/apk-unsigned.py $apk ${work:h}/from-signed.apk
 if cmp -s ${work:h}/from-signed.apk $work/app/build/outputs/apk/release/app-release-unsigned.apk; then
     echo "Reproduced: $apk is the fresh build of $commit and its signature."

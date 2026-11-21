@@ -14,8 +14,8 @@ plugins {
  * uncommitted changes or not. Written at every build, as the asset `build-info.properties`, not as BuildConfig fields:
  * nothing compiled changes with the time, and the configuration cache keeps no time of its own. The same source makes
  * the same APK (keething-spec app.fdroid-build): the time is SOURCE_DATE_EPOCH's when set, else the commit's when
- * nothing is uncommitted, else the clock's. F-Droid's scanner deletes the Gradle wrapper's jar before it builds; that
- * alone is not an uncommitted change. A release build whose git does not answer (a source without `.git`) and without
+ * nothing is uncommitted, else the clock's. F-Droid deletes the Gradle wrapper (its jar, gradlew and gradlew.bat)
+ * before it builds with a Gradle of its own; that alone is not an uncommitted change. A release build whose git does not answer (a source without `.git`) and without
  * SOURCE_DATE_EPOCH fails, saying so: it would silently be a build of the clock; a debug build goes on.
  */
 abstract class BuildInfo : DefaultTask() {
@@ -52,7 +52,10 @@ abstract class BuildInfo : DefaultTask() {
             return out.toString().trim().takeIf { result.exitValue == 0 }
         }
         val commit = git("rev-parse", "--short", "HEAD").orEmpty()
-        val dirty = git("status", "--porcelain", "--", ".", ":!gradle/wrapper/gradle-wrapper.jar")?.isNotEmpty() == true
+        val dirty = git(
+            "status", "--porcelain", "--", ".",
+            ":!gradle/wrapper/gradle-wrapper.jar", ":!gradlew", ":!gradlew.bat",
+        )?.isNotEmpty() == true
         val epoch = System.getenv("SOURCE_DATE_EPOCH")
         val committed = git("log", "-1", "--format=%ct")
         if (release.get() && epoch == null && committed == null) {

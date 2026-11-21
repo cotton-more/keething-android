@@ -159,7 +159,8 @@ new SHA-256 in `app/third-party-files.txt` (`shasum -a 256 <file>`), in the same
 
 The build is reproducible (keething-spec app.fdroid-build): F-Droid builds the commit itself, compares its APK with
 ours and ships ours. This makes the same comparison here before a release: a fresh clone of the APK's commit (read
-from its About) built in a folder with a space, and the APK without its signing block (`tools/apk-unsigned.py`) found
+from its About) built in a folder with a space, its Gradle wrapper deleted as F-Droid deletes it (the jar,
+`gradlew`, `gradlew.bat`), and the APK without its signing block (`tools/apk-unsigned.py`) found
 the same byte for byte. Only an APK built from a commit with nothing uncommitted can be reproduced; its About's time
 is then the commit's. The recipe F-Droid builds from is `tools/fdroid/dev.keething.android.yml`.
 
