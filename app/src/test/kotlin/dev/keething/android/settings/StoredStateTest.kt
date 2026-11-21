@@ -115,8 +115,8 @@ class StoredStateTest {
         val biometric = BiometricSetup(NoStores, list, store, FixedClock, Dispatchers.Unconfined)
 
         val folder = StoragePlace(StoragePlace.PRIMARY, "Documents/T11-sample")
-        val personal = DatabaseId("942A6403-89D6-4831-901E-04AFBAD82792")
-        val keyed = DatabaseId("5CDD0B85-E855-4913-A19C-529E4C6F918B")
+        val personal = DatabaseId("1A54F654-B251-4665-8091-90E96685CCFA")
+        val keyed = DatabaseId("8A598B2C-1A6C-4F9C-B844-518C23CF46C2")
         assertEquals(listOf(personal, keyed), list.records.map { it.id })
         assertEquals(keyed, list.currentId)
         assertFalse(list.setAside)
@@ -124,7 +124,7 @@ class StoredStateTest {
             assertEquals(FileLocation.InFolder(GRANT_100, folder, "T11 Personal.kdbx"), file)
             assertEquals(null, keyFile)
             assertTrue(useBiometric && fingerprintAsked && inWindow && checkedInChooser)
-            assertEquals(Instant.ofEpochMilli(1_795_255_947_048), lastOpened)
+            assertEquals(Instant.ofEpochMilli(1_795_277_709_901), lastOpened)
         }
         with(list.record(keyed)!!) {
             assertEquals(FileLocation.InFolder(GRANT_100, folder, "T11 Keyed.kdbx"), file)
@@ -137,12 +137,12 @@ class StoredStateTest {
         assertEquals(ThemeChoice.Dark, settings.theme.value)
         assertEquals(personal, settings.quickNoteDatabase.value)
         assertEquals("Sample", store.string("requestName"))
-        assertTrue(biometric.state.value.enabled)
+        assertTrue(biometric.state.value.enabled && biometric.state.value.set)
         assertEquals(30, biometric.state.value.reminderDays)
-        assertEquals("1795255947055", store.string(BiometricSetup.lastTypedKey(personal)))
-        assertEquals("1795256041661", store.string(BiometricSetup.lastTypedKey(keyed)))
+        assertEquals("1795277605315", store.string(BiometricSetup.lastTypedKey(personal)))
+        assertEquals("1795277750725", store.string(BiometricSetup.lastTypedKey(keyed)))
         assertEquals(
-            listOf("$keyed:AgAAAAAAAAAAAAAAAAAAAA==", "$personal:AwAAAAAAAAAAAAAAAAAAAA==", "$personal:AgAAAAAAAAAAAAAAAAAAAA=="),
+            listOf("$keyed:AwAAAAAAAAAAAAAAAAAAAA==", "$personal:AwAAAAAAAAAAAAAAAAAAAA==", "$personal:AgAAAAAAAAAAAAAAAAAAAA=="),
             RecentEntries(store).ids.value,
         )
         with(PasswordGeneratorState(store).options) {
@@ -160,16 +160,16 @@ class StoredStateTest {
         // T11 Personal's backup with its digest; T11 Keyed's, kept by the stopped save before it wrote the digest:
         // listed with its file's date and size, its digest written at its first read.
         val personalBackups = filesOf("1.0.0", "backups").resolve(personal.fileName)
-        val personalName = "T11 Personal 2026-11-21T11-17-14.kdbx"
-        File(personalBackups, personalName).setLastModified(Instant.parse("2026-11-21T10:17:14Z").toEpochMilli())
+        val personalName = "T11 Personal 2026-11-21T17-19-52.kdbx"
+        File(personalBackups, personalName).setLastModified(Instant.parse("2026-11-21T16:19:52Z").toEpochMilli())
         with(FileDatabaseBackups(personalBackups)) {
             assertEquals(listOf(personalName), list().map { it.name })
             assertEquals(listOf(false), list().map { it.damaged })
             assertEquals(8567, read(personalName)?.size)
         }
         val keyedBackups = File(appStorage, "backups").resolve(keyed.fileName)
-        val keyedName = "T11 Keyed 2026-11-21T11-18-46.kdbx"
-        val written = Instant.parse("2026-11-21T10:18:46Z")
+        val keyedName = "T11 Keyed 2026-11-21T17-20-34.kdbx"
+        val written = Instant.parse("2026-11-21T16:20:34Z")
         File(keyedBackups, keyedName).setLastModified(written.toEpochMilli())
         val backups = FileDatabaseBackups(keyedBackups)
         assertEquals(listOf(FileDatabaseBackups.Backup(keyedName, written, 8901, damaged = false)), backups.list())
