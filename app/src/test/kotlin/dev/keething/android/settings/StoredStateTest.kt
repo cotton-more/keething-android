@@ -104,6 +104,80 @@ class StoredStateTest {
         )
     }
 
+    // spec: app.upgrade-safety/AC4
+    @Test
+    fun release100sStateIsAllFoundAfterTheUpdate() {
+        val store = settingsOf("1.0.0")
+
+        SettingsVersion.migrate(store)
+        val list = DatabaseList(store)
+        val settings = AppSettings(store)
+        val biometric = BiometricSetup(NoStores, list, store, FixedClock, Dispatchers.Unconfined)
+
+        val folder = StoragePlace(StoragePlace.PRIMARY, "Documents/T11-sample")
+        val personal = DatabaseId("942A6403-89D6-4831-901E-04AFBAD82792")
+        val keyed = DatabaseId("5CDD0B85-E855-4913-A19C-529E4C6F918B")
+        assertEquals(listOf(personal, keyed), list.records.map { it.id })
+        assertEquals(keyed, list.currentId)
+        assertFalse(list.setAside)
+        with(list.record(personal)!!) {
+            assertEquals(FileLocation.InFolder(GRANT_100, folder, "T11 Personal.kdbx"), file)
+            assertEquals(null, keyFile)
+            assertTrue(useBiometric && fingerprintAsked && inWindow && checkedInChooser)
+            assertEquals(Instant.ofEpochMilli(1_795_255_947_048), lastOpened)
+        }
+        with(list.record(keyed)!!) {
+            assertEquals(FileLocation.InFolder(GRANT_100, folder, "T11 Keyed.kdbx"), file)
+            assertEquals(FileLocation.InFolder(GRANT_100, folder, "hex64.key"), keyFile)
+            assertTrue(!useBiometric && fingerprintAsked && inWindow && checkedInChooser)
+        }
+
+        assertEquals(15.minutes, settings.lockTimeout.value)
+        assertEquals(7.days, settings.requestValidity.value)
+        assertEquals(ThemeChoice.Dark, settings.theme.value)
+        assertEquals(personal, settings.quickNoteDatabase.value)
+        assertEquals("Sample", store.string("requestName"))
+        assertTrue(biometric.state.value.enabled)
+        assertEquals(30, biometric.state.value.reminderDays)
+        assertEquals("1795255947055", store.string(BiometricSetup.lastTypedKey(personal)))
+        assertEquals("1795256041661", store.string(BiometricSetup.lastTypedKey(keyed)))
+        assertEquals(
+            listOf("$keyed:AgAAAAAAAAAAAAAAAAAAAA==", "$personal:AwAAAAAAAAAAAAAAAAAAAA==", "$personal:AgAAAAAAAAAAAAAAAAAAAA=="),
+            RecentEntries(store).ids.value,
+        )
+        with(PasswordGeneratorState(store).options) {
+            assertEquals(PasswordKind.PASSPHRASE, kind)
+            assertEquals(6, passphraseWords)
+            assertEquals(".", separator)
+        }
+        assertEquals(SettingsVersion.CURRENT.toString(), store.string(SettingsVersion.KEY))
+
+        // T11 Keyed's save stopped before the new file went in (its process killed): put right at the next read.
+        val notes = SaveNotes(filesOf("1.0.0", "saves"))
+        assertEquals(emptyList(), notes.unreadable())
+        assertTrue(notes.unsettled(GRANT_100))
+
+        // T11 Personal's backup with its digest; T11 Keyed's, kept by the stopped save before it wrote the digest:
+        // listed with its file's date and size, its digest written at its first read.
+        val personalBackups = filesOf("1.0.0", "backups").resolve(personal.fileName)
+        val personalName = "T11 Personal 2026-11-21T11-17-14.kdbx"
+        File(personalBackups, personalName).setLastModified(Instant.parse("2026-11-21T10:17:14Z").toEpochMilli())
+        with(FileDatabaseBackups(personalBackups)) {
+            assertEquals(listOf(personalName), list().map { it.name })
+            assertEquals(listOf(false), list().map { it.damaged })
+            assertEquals(8567, read(personalName)?.size)
+        }
+        val keyedBackups = File(appStorage, "backups").resolve(keyed.fileName)
+        val keyedName = "T11 Keyed 2026-11-21T11-18-46.kdbx"
+        val written = Instant.parse("2026-11-21T10:18:46Z")
+        File(keyedBackups, keyedName).setLastModified(written.toEpochMilli())
+        val backups = FileDatabaseBackups(keyedBackups)
+        assertEquals(listOf(FileDatabaseBackups.Backup(keyedName, written, 8901, damaged = false)), backups.list())
+        assertFalse(File(keyedBackups, FileDatabaseBackups.DIGESTS).exists())
+        assertEquals(8901, backups.read(keyedName)?.size)
+        assertTrue(File(keyedBackups, FileDatabaseBackups.DIGESTS).readText().endsWith(" 8901 $keyedName\n"))
+    }
+
     /** The release's `settings.xml` as SharedPreferences reads it: every value of this app's is a string. */
     private fun settingsOf(release: String): InMemorySettingsStore {
         val xml = javaClass.getResourceAsStream("/stored/$release/shared_prefs/settings.xml")!!.use {
@@ -152,5 +226,6 @@ class StoredStateTest {
 
     private companion object {
         const val GRANT = "content://com.android.externalstorage.documents/tree/primary%3ASync%2FKeePassBar-test%2FF5"
+        const val GRANT_100 = "content://com.android.externalstorage.documents/tree/primary%3ADocuments%2FT11-sample"
     }
 }
