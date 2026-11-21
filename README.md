@@ -15,8 +15,8 @@ Syncthing, Nextcloud, a NAS, …) and want an Android client that is pleasant to
 
 ## What it does
 
-- Opens your KeePass databases from any folder you choose, several side by side, and follows the file when your sync
-  tool replaces it; a conflict copy is noticed and can be resolved on the phone.
+- Opens your KeePass databases from any folder you choose on the phone's storage, several side by side, and follows
+  the file when your sync tool replaces it; a conflict copy is noticed and can be resolved on the phone.
 - Fingerprint unlock after the first time you type the master password; key files too.
 - Search as you type, also by group (`@group`) and tag (`#tag`).
 - Readable entry cards: custom fields laid out, one-time codes live with their countdown, attachments, the history of
@@ -32,7 +32,8 @@ Syncthing, Nextcloud, a NAS, …) and want an Android client that is pleasant to
 
 KDBX 4 (AES-256 or ChaCha20, Argon2 or AES-KDF). A KDBX 3.1 database (KeePassDX makes new ones so) is shown, and
 changed once you agree to upgrade it to KDBX 4; the 3.1 file is kept beside it. Not supported yet: Twofish and
-hardware keys (YubiKey); the app says so plainly when it meets one.
+hardware keys (YubiKey); the app says so plainly when it meets one. Nor a database opened straight from Google Drive,
+Dropbox or OneDrive: keep it in a folder on the phone that a sync app (Syncthing, FolderSync) keeps up to date.
 
 Android 14 or later.
 

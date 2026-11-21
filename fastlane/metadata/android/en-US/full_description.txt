@@ -31,6 +31,7 @@ KDBX 4 with AES-256 or ChaCha20 and Argon2 or AES-KDF, as KeePassXC, KeePass and
 
 <b>Not supported yet</b>
 Twofish, hardware keys such as YubiKey, Android versions before 14, and languages other than English and Russian.
+A database opened straight from Google Drive, Dropbox or OneDrive: keep it in a folder on the phone that a sync app such as Syncthing or FolderSync keeps up to date.
 
 <b>Source code</b>
 GPL-3.0-or-later. The build is reproducible, so you can check that the APK comes from the published source. Code, issues and the security policy: https://github.com/cotton-more/keething-android
