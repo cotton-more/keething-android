@@ -8,6 +8,7 @@ import androidx.compose.foundation.ComposeFoundationFlags
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.lifecycle.ProcessLifecycleOwner
 import dev.keething.android.databases.DatabaseText
+import dev.keething.android.session.ScreenOffLock
 import dev.keething.argon2.NativeArgon2
 import dev.keething.kdbx.crypto.Argon2Engine
 
@@ -30,6 +31,8 @@ class KeethingApplication : Application() {
         getSystemService(UiModeManager::class.java).setApplicationNightMode(container.settings.theme.value.nightMode)
         // The app's whole process going to the background and back, not one screen (SPEC §4).
         ProcessLifecycleOwner.get().lifecycle.addObserver(container.sessions)
+        // The screen going off on a phone with a screen lock locks every database (keething-spec security.auto-lock AC4).
+        ScreenOffLock(this, container.sessions).register()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

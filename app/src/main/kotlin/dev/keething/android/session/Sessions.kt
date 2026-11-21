@@ -415,6 +415,12 @@ internal class Sessions(
     fun lock() = vaults.lockAll(LockReason.Manual)
 
     /**
+     * The phone's screen went off: with a screen lock every database locks at once, as Lock does; without one only the
+     * timeout locks (keething-spec security.auto-lock AC4). Call it on the main thread.
+     */
+    fun screenTurnedOff(phoneHasScreenLock: Boolean) = vaults.screenTurnedOff(phoneHasScreenLock)
+
+    /**
      * The chooser's run over [ids] (plan AD13): the app's locks end it ([locks]: a stay away past the timeout with nothing
      * open counts too).
      */
@@ -524,6 +530,7 @@ internal class Sessions(
             LockReason.Initial -> "initial"
             LockReason.Manual -> "manual"
             LockReason.Timeout -> "timeout"
+            LockReason.ScreenOff -> "screen off" // not user text
             LockReason.PasswordChanged -> "password changed" // not user text
             LockReason.RestoredOlderKey -> "backup restored, older key" // not user text
             LockReason.AfterQuickTask -> "after a quick task, its reminder due" // not user text

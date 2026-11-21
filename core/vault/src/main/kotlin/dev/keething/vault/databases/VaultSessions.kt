@@ -205,7 +205,7 @@ public class VaultSessions(
 
     // Locking
 
-    /** Locks every database open or opening (Lock, the timeout); told to [observeLocks] also when none was. */
+    /** Locks every database open or opening (Lock, the timeout, the screen off); told to [observeLocks] also when none was. */
     public fun lockAll(reason: LockReason = LockReason.Manual) {
         lockCount++
         val locking = sessions.values.map { it.database.session }.filter { it.state.value !is SessionState.Locked }
@@ -225,6 +225,15 @@ public class VaultSessions(
         session.lock(reason)
         lastReason = reason
         publish()
+    }
+
+    /**
+     * The phone's screen went off. With a screen lock ([phoneHasScreenLock], the app's answer) that is the phone
+     * locking: every database locks at once, as Lock does ([LockReason.ScreenOff]). Without one the phone never locks,
+     * so only the timeout does (keething-spec security.auto-lock AC4).
+     */
+    public fun screenTurnedOff(phoneHasScreenLock: Boolean) {
+        if (phoneHasScreenLock) lockAll(LockReason.ScreenOff)
     }
 
     // The background timeout

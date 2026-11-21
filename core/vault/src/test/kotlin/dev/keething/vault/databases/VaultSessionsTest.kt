@@ -494,6 +494,52 @@ class VaultSessionsTest {
     }
 
     @Test
+    fun theScreenOffOnAPhoneWithAScreenLockLocksEveryDatabaseOpenOrOpeningAtOnceCountedAsTheAppsLock() = runTest {
+        val f = Fixture(this)
+        val held = Held(StandardTestDispatcher(testScheduler))
+        f.ios["/a/w.kdbx"] = held
+        val p = f.add("/a/p.kdbx")
+        val w = f.add("/a/w.kdbx")
+        unlock(f, p)
+        unlock(f, w, wait = false)
+        runCurrent()
+        assertTrue(held.isWaiting, "deriving")
+        val personal = f.vault(p)
+        val told = f.told.size
+
+        f.sessions.movedToBackground() // the screen going off stops the app too
+        f.sessions.screenTurnedOff(phoneHasScreenLock = true)
+        held.release()
+        runCurrent()
+
+        assertEquals(SessionsState.NothingOpen(LockReason.ScreenOff), f.sessions.state.value)
+        assertEquals(listOf<SessionsState>(SessionsState.NothingOpen(LockReason.ScreenOff)), f.told.drop(told), "told once")
+        assertEquals(SessionState.Locked(LockReason.ScreenOff), f.state(p))
+        assertEquals(SessionState.Locked(LockReason.ScreenOff), f.state(w), "the one still opening locks too")
+        assertTrue(personal.isWiped())
+        assertEquals(listOf<LockReason>(LockReason.ScreenOff), f.locks)
+        assertEquals(1, f.sessions.lockCount, "the app's lock, as Lock is")
+    }
+
+    @Test
+    fun theScreenOffOnAPhoneWithoutAScreenLockLeavesTheDatabasesToTheTimeout() = runTest {
+        val f = Fixture(this)
+        val p = f.add("/a/p.kdbx")
+        unlock(f, p)
+
+        f.sessions.movedToBackground()
+        f.sessions.screenTurnedOff(phoneHasScreenLock = false)
+        runCurrent()
+
+        assertEquals(f.open(p), f.sessions.state.value)
+        assertTrue(f.locks.isEmpty())
+        assertEquals(0, f.sessions.lockCount)
+        advanceTimeBy(5.minutes)
+        runCurrent()
+        assertEquals(SessionsState.NothingOpen(LockReason.Timeout), f.sessions.state.value, "the timeout locks as before")
+    }
+
+    @Test
     fun oneDatabaseLockedAloneItsSecretsGoTheOthersStayAndTheAppStaysOpen() = runTest {
         val f = Fixture(this)
         val p = f.add("/a/p.kdbx")

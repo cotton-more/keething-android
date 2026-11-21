@@ -28,13 +28,16 @@ internal class LockViewModel(
     private val offersFingerprint: (Visit) -> Boolean,
     /** Whether a file of the record is there, through its grant, off the main thread ([dev.keething.vault.databases.FilesThere]). */
     private val fileExists: suspend (FileLocation) -> Boolean,
+    /** Every lock screen's typed password: the app's lock empties this one too (keething-spec security.auto-lock AC8). */
+    private val fields: LockScreenFields,
 ) : ViewModel() {
     /**
-     * The typed master password. Kept here, not in the screen's saved state: a saved state would put it
-     * into a Bundle. The `String`s the field makes cannot be wiped (accepted, SPEC §4); the field is
-     * cleared as soon as the unlock starts.
+     * The typed master password and its eye ([TypedPassword]). The `String`s the field makes cannot be wiped (accepted,
+     * SPEC §4); the field is cleared as soon as the unlock starts, and at the app's lock ([LockScreenFields]).
      */
-    val password = TextFieldState()
+    val typed = TypedPassword().also(fields::add)
+
+    val password: TextFieldState get() = typed.text
 
     val session: StateFlow<SessionState> = database.session.state
 
@@ -144,6 +147,7 @@ internal class LockViewModel(
     }
 
     override fun onCleared() {
+        fields.remove(typed)
         password.clearText()
     }
 

@@ -987,7 +987,10 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
 - Secrets are wipeable byte arrays (`Secret`): passwords, protected fields, one-time code keys, attachments.
   Protected values are decrypted from the file straight into them, so the XML in memory never holds a
   password in the clear. Not wipeable, and accepted: a `String` while a value is shown, copied or filled;
-  the typed master password in the text field until it is cleared; unprotected fields (username, notes); Notes,
+  the typed master password in the text field until it is cleared (the unlock starting, another database shown, Back,
+  and every counted lock: the Lock button, the timeout, the screen off, coming back after the timeout with nothing open,
+  which empties every lock screen's field and turns its eye off, as it takes New database's form; keething-spec
+  security.auto-lock AC8, `LockScreenFields`); unprotected fields (username, notes); Notes,
   protected ones too (`Entry.notes` is a string, `Entry.notesProtected` says whether the file protects it, and each
   reader that must not show a protected text asks it; keething-spec `plans/done/android-notes.md` P4, as on the Mac);
   the values in the editor while it is open (Compose's text fields hold strings; the editor goes with the
@@ -1022,8 +1025,17 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   state** (nothing open and why, opening, the open vaults in the window's order) is told once per change, and the
   screens follow it: nothing open clears the list, the search, the card and the editor, the attachments opened
   elsewhere, autofill's matching and the sharing requests, also while another database is still opening.
-- Lock: after N minutes in the background (default 5, a choice of 1, 5, 15, 60; turning the screen off
-  puts the app in the background), and from a button. **One timeout for the app**, not one per database: it runs
+- Lock: after N minutes in the background (default 5, a choice of 1, 5, 15, 60), from a button, and when the screen
+  goes off on a phone with a screen lock. **The screen off** (keething-spec security.auto-lock AC4, the owner's rule of
+  2026-11-21: the timeout is how long Keething stays open while the phone is in use; the phone's lock locks it at once;
+  when it cannot be told whether the phone locked, it locks): an app cannot tell the phone's lock screen coming up from
+  its screen going off, so `ScreenOffLock` (`ACTION_SCREEN_OFF`, registered at the process's start) asks
+  `KeyguardManager.isDeviceSecure` then: with a PIN, pattern or password every open database locks at once, one still
+  opening too, as Lock does (a save keeps its 10 s, the app's lock is counted), its lock screen saying "Locked when the
+  phone's screen went off"; without one the phone never locks, so only the timeout does. Every open database, never a
+  part. Android holds the broadcast for an app it has frozen in the background until the app runs again; on the
+  Pixel 6 it came at once each time, in front and in the background, and coming back showed the lock screen with no
+  list seen first. Coming back after it offers the fingerprint by itself, as after the timeout. **One timeout for the app**, not one per database: it runs
   while the app is in the background and a database is open or opening, from the moment the app left (or the first
   database began to open there: a new database's Create that ended in the background) until the last one locks;
   coming back postpones it for all. The alarm below is set each time this timer starts. Removing the app from recents ends its process, which
@@ -1467,7 +1479,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   is.", Cancel / Remove). Another chosen there joins the others and becomes current: one open shows its vault; one locked is shown with an empty field
   and nothing said of the last one, with Back (and the system back) to the one before while it is open, else with
   nothing open to the chooser (§3.1). A lock screen shown while other
-  databases are open (a chip's tap, ⋮ › Databases, Settings) has Back to them. Then the reason of the last lock; a key file not there is said
+  databases are open (a chip's tap, ⋮ › Databases, Settings) has Back to them. Then the reason of the last lock ("Locked after 5 minutes in the background", "Locked when the
+  phone's screen went off", §4; nothing after Lock or at the start); a key file not there is said
   first (§4); a stored password that went says why ("The fingerprints on this phone changed. Type the password to set
   up the fingerprint again.", "The database password was changed. Type the new one; the fingerprint will use it."),
   also when one fingerprint for several found it (§5), in place of the wrong password it left until one is typed here.
@@ -1630,7 +1643,9 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   warning that it goes to another app and maybe its cloud and history; the warning offers Show as QR). Both
   full-screen views read the password from the vault by the entry's id, close on a lock, and are left with
   Back or ✕. The share sheet shows the text and has its own Copy, which the app cannot mark sensitive or
-  clear: the warning comes first for that reason. Every share sheet the app opens (this one, an address, a bank
+  clear, and is the system's window, outside `FLAG_SECURE`, so its preview of the password can be captured (accepted
+  2026-11-21, keething-spec security.screen-capture and security.clipboard *Platform notes*): the warning comes first
+  for that reason. Every share sheet the app opens (this one, an address, a bank
   account's details, a code's pictures or text, §10.3) leaves out Keething's own targets, "Read with Keething" and
   Keething note (`sharing/ShareSheet`): Keething does not share with itself.
 - **Entry faces** (agreed on the canvas, rows "Entry faces", "More faces" and "Crypto wallets"): a payment card, a

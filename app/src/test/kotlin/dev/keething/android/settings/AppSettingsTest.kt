@@ -8,6 +8,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.minutes
 
 /** The declined type offers by refs (plan AD9; the Mac's D6 `DeclinedTypeOffers`). */
 class AppSettingsTest {
@@ -17,6 +19,21 @@ class AppSettingsTest {
 
     private fun p(id: String) = EntryRef(personal, id).text
     private fun w(id: String) = EntryRef(work, id).text
+
+    @Test
+    fun theLockTimeoutIsFiveMinutesByDefaultOneOfFourChoicesAndAStoredValueOutsideThemReadsAsFive() {
+        assertEquals(5.minutes, AppSettings(store).lockTimeout.value, "nothing stored")
+        assertEquals(listOf(1.minutes, 5.minutes, 15.minutes, 60.minutes), AppSettings.LOCK_TIMEOUTS)
+        for (choice in AppSettings.LOCK_TIMEOUTS) {
+            AppSettings(store).chooseLockTimeout(choice)
+            assertEquals(choice, AppSettings(store).lockTimeout.value, "kept: $choice")
+        }
+        for (stored in listOf("7", "0", "-1", "abc", "")) {
+            store.setString("lockTimeoutMinutes", stored)
+            assertEquals(5.minutes, AppSettings(store).lockTimeout.value, "stored \"$stored\"")
+        }
+        assertFailsWith<IllegalArgumentException> { AppSettings(store).chooseLockTimeout(7.minutes) }
+    }
 
     @Test
     fun notNowIsRememberedByTheEntrysRefTheSameUuidInTheOtherDatabaseIsStillOffered() {

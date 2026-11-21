@@ -29,6 +29,7 @@ internal fun LockReason.notice(timeout: Duration, file: String, wrongInARow: Int
     LockReason.Timeout -> timeout.inWholeMinutes.toInt().let { minutes ->
         LockNotice(uiPlural(R.plurals.unlock_locked_after_minutes, minutes), isProblem = false)
     }
+    LockReason.ScreenOff -> LockNotice(uiText(R.string.unlock_locked_screen_off), isProblem = false)
     LockReason.PasswordChanged -> LockNotice(uiText(R.string.unlock_password_changed), isProblem = true)
     LockReason.RestoredOlderKey -> LockNotice(uiText(R.string.unlock_restored_older_key), isProblem = true)
     is LockReason.UnlockFailed -> LockNotice(failure.describe(file, wrongInARow), isProblem = true)

@@ -6,6 +6,7 @@
         <item quantity="many">Заблокировано через %1$d минут в фоне</item>
         <item quantity="other">Заблокировано через %1$d минуты в фоне</item>
     </plurals>
+    <string name="unlock_locked_screen_off">Заблокировано, когда погас экран телефона</string>
     <string name="unlock_password_changed">Пароль базы изменился. Введите новый.</string>
     <string name="unlock_restored_older_key">Восстановлена резервная копия, сделанная до смены мастер-ключа. Введите тогдашний пароль и тогдашний файл-ключ.</string>
 

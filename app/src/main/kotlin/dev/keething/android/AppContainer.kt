@@ -39,6 +39,7 @@ import dev.keething.android.databases.WindowChooser
 import dev.keething.android.generator.PasswordGeneratorState
 import dev.keething.android.list.RecentEntries
 import dev.keething.android.list.ToldUnlocks
+import dev.keething.android.unlock.LockScreenFields
 import dev.keething.android.recyclebin.RecycleBinMoves
 import dev.keething.android.session.AndroidClock
 import dev.keething.android.session.LockAlarm
@@ -333,6 +334,9 @@ internal class AppContainer(context: Context) {
     /** Logins typed elsewhere, on their way to the save screen (SPEC §7). */
     val pendingSaves = PendingSaves(appScope)
 
+    /** Every lock screen's typed password, emptied at the app's lock (keething-spec security.auto-lock AC8). */
+    val lockScreenFields = LockScreenFields()
+
     /** The requests for entries, both ways (SPEC §10): read when the vault unlocks, wiped when it locks. */
     val shareRequests = ShareRequests(FileSharingStore(File(context.noBackupFilesDir, "sharing/requests")), AndroidClock)
 
@@ -389,9 +393,11 @@ internal class AppContainer(context: Context) {
         // The list's records of before databases.saf that a granted folder already holds: nothing to ask for them (AC13).
         sessions.databases.adoptOldRecords()
         dealWithLeftovers()
-        // A lock takes New database's form, with what was typed, unless it is being created.
+        // A lock takes New database's form, with what was typed, unless it is being created, and every lock screen's typed
+        // password with its eye (keething-spec security.auto-lock AC8).
         sessions.locks.onLock = {
             newDatabases.locked()
+            lockScreenFields.locked()
             masterKeys.locked()
         }
         clearOnLock()

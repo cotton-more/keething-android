@@ -170,7 +170,7 @@ internal fun LockScreen(
             var offered = false
             { _ -> !offered.also { offered = true } }
         }
-        LockViewModel(database, databases, container.sessions.list, offers, container.sessions.filesThere::isThere)
+        LockViewModel(database, databases, container.sessions.list, offers, container.sessions.filesThere::isThere, container.lockScreenFields)
     }
     val linesModel = viewModel(key = "database-lines") { DatabaseLinesModel(container.sessions.list, container.databaseFiles) }
     val screens by linesModel.screens.collectAsStateWithLifecycle()
@@ -708,7 +708,7 @@ private fun PasswordRow(
     onUnlock: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var revealed by remember { mutableStateOf(false) }
+    val revealed = model.typed.revealed
     val focus = remember { FocusRequester() }
     val passwordWanted by model.passwordWanted.collectAsStateWithLifecycle()
     val wantedBefore = remember { model.passwordWanted.value }
@@ -726,7 +726,7 @@ private fun PasswordRow(
                 textObfuscationMode = if (revealed) TextObfuscationMode.Visible else TextObfuscationMode.RevealLastTyped,
                 trailingIcon = {
                     Row {
-                        IconButton(onClick = { revealed = !revealed }) {
+                        IconButton(onClick = { model.typed.revealed = !revealed }) {
                             Icon(
                                 if (revealed) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
                                 contentDescription = stringResource(if (revealed) R.string.unlock_hide_password else R.string.unlock_show_password),

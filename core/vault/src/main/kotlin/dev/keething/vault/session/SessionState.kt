@@ -22,6 +22,12 @@ public sealed interface LockReason {
     /** The app was in the background for the lock timeout (SPEC §4). */
     public data object Timeout : LockReason
 
+    /**
+     * The phone's screen went off while it has a screen lock (a PIN, pattern or password): that counts as the phone
+     * locking, which locks every database at once (keething-spec security.auto-lock AC4).
+     */
+    public data object ScreenOff : LockReason
+
     /** Opening the database failed. */
     public data class UnlockFailed(val failure: OpenFailure) : LockReason
 

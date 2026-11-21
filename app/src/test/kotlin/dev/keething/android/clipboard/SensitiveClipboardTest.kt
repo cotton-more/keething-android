@@ -158,4 +158,30 @@ class SensitiveClipboardTest {
 
         assertNull(f.system.text)
     }
+
+    @Test
+    fun anAlarmInANewProcessKnowsNoCopyClearsInTheBackgroundAndKeepsAnotherAppsCopyInFront() = runTest {
+        // The process that copied is gone; the alarm starts a new one, whose clipboard knows no copy.
+        val background = Fixture(this)
+        background.system.put("s3cret", sensitive = true, token = "t1")
+        background.system.readable = false
+        background.clipboard.clearIfStill("t1")
+        assertNull(background.system.text, "in the background the clipboard cannot be seen: cleared")
+        assertNull(background.alarm.scheduled)
+
+        val inFront = Fixture(this)
+        inFront.system.put("s3cret", sensitive = true, token = "t1")
+        inFront.system.copiedElsewhere("a shopping list")
+        inFront.clipboard.clearIfStill("t1")
+        assertEquals("a shopping list", inFront.system.text, "in front another app's copy is seen and stays")
+
+        val ownInFront = Fixture(this)
+        ownInFront.system.put("s3cret", sensitive = true, token = "t1")
+        ownInFront.clipboard.clearIfStill("t1")
+        assertNull(ownInFront.system.text, "its own copy, by its token: cleared")
+
+        ownInFront.system.put("s3cret", sensitive = true, token = "t1")
+        ownInFront.clipboard.clearIfStill("t1")
+        assertEquals("s3cret", ownInFront.system.text, "only once: the same alarm again does nothing")
+    }
 }

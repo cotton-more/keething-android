@@ -2,10 +2,13 @@ package dev.keething.android.unlock
 
 import dev.keething.android.ui.english
 import dev.keething.vault.opening.OpenFailure
+import dev.keething.vault.session.LockReason
+import kotlin.time.Duration.Companion.minutes
 import dev.keething.vault.opening.OpenFailure.Unsupported.Kind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** What the lock screen and the chooser say about a database that did not open (SPEC §6.2). */
@@ -79,5 +82,15 @@ class LockTextsTest {
         assertTrue(OpenFailure.WrongPasswordOrKeyFile.describe("db.kdbx", wrongInARow = 3).english().contains("YubiKey"))
         assertTrue(OpenFailure.WrongKeyFile.describe("db.kdbx", wrongInARow = 2).english().contains("YubiKey"))
         assertFalse(OpenFailure.Missing.describe("db.kdbx", wrongInARow = 2).english().contains("YubiKey"), "only of a wrong key")
+    }
+
+    @Test
+    fun theTimeoutAndTheScreenOffEachSayWhyItLockedNeitherAsAProblem() {
+        val notice = assertNotNull(LockReason.ScreenOff.notice(5.minutes, "db.kdbx"))
+        assertEquals("Locked when the phone's screen went off", notice.text.english())
+        assertFalse(notice.isProblem)
+        val timeout = assertNotNull(LockReason.Timeout.notice(5.minutes, "db.kdbx"))
+        assertEquals("Locked after 5 minutes in the background", timeout.text.english())
+        assertFalse(timeout.isProblem)
     }
 }
