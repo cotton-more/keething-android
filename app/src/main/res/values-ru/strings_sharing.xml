@@ -201,6 +201,8 @@
     <string name="sharing_review_code_stays">Одноразовый код · остаётся на этом телефоне</string>
     <string name="sharing_review_private_key">Закрытый ключ · остаётся на этом телефоне</string>
     <string name="sharing_review_private_key_why">У кого он есть, тот может потратить монеты кошелька. Чтобы дать кому-то монеты, отправьте их на его адрес.</string>
+    <string name="sharing_review_passkey">Ключ доступа · остаётся на этом телефоне</string>
+    <string name="sharing_review_passkey_why">У кого он есть, тот может войти на сайт от вашего имени.</string>
     <string name="sharing_review_never_sent">Не отправляется никогда</string>
     <plurals name="sharing_review_attachments">
         <item quantity="one">%1$d вложение остаётся на этом телефоне</item>

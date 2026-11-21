@@ -22,6 +22,7 @@ import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.vault.AttachmentChange
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.Entry
+import dev.keething.domain.vault.Passkey
 import dev.keething.domain.vault.EntryChanges
 import dev.keething.domain.vault.FieldValue
 import dev.keething.domain.vault.GroupDestination
@@ -139,6 +140,9 @@ public class EntryEditor private constructor(
 
     public val entryId: String get() = original.id
 
+    /** The entry's passkey, shown as the card shows it; its fields are not edited, a save keeps them (keething-spec card.passkey AC6). */
+    public val passkey: Passkey? get() = original.passkey
+
     /** The fields as loaded, names untrimmed: tidying them is saved with the next change, but is none itself. */
     private val loadedFields = start.fields.map { FieldText(it.name, it.value, it.isProtected) }
 
@@ -152,7 +156,7 @@ public class EntryEditor private constructor(
         if (field.isBlank) return null
         val name = field.name.trim()
         if (name.isEmpty()) return UserText.of(CardText.FIELD_NO_NAME)
-        if (name in EntryChanges.RESERVED_FIELD_NAMES) return UserText.of(CardText.NAME_RESERVED, name)
+        if (EntryChanges.isReserved(name)) return UserText.of(CardText.NAME_RESERVED, name)
         val same = draft.fields.count { !it.isBlank && it.name.trim() == name }
         return if (same > 1) UserText.of(CardText.NAME_TAKEN) else null
     }

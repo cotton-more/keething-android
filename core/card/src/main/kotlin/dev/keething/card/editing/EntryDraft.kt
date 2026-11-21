@@ -162,10 +162,10 @@ public data class EntryDraft(
 
     /** [wanted], or with a number after it when a field (or KeePass itself: "Password") has that name. */
     private fun freeFieldName(wanted: String): String {
-        val taken = fields.map { it.name.trim() }.toSet() + EntryChanges.RESERVED_FIELD_NAMES
+        val taken = fields.map { it.name.trim() }.toSet()
         var name = wanted
         var n = 2
-        while (name in taken) name = "$wanted ${n++}"
+        while (name in taken || EntryChanges.isReserved(name)) name = "$wanted ${n++}"
         return name
     }
 

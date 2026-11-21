@@ -326,7 +326,9 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String?, onT
     val parts = remember(entry) { Sending.parts(entry) }
     val never = remember(entry) { Sending.neverSent(entry) }
     val codeLeft = remember(entry) { Sending.codeLeftBehind(entry) }
-    val rows = parts.size + never.size + 1 + (if (codeLeft != null) 1 else 0) + if (entry.attachments.isNotEmpty()) 1 else 0
+    val passkey = remember(entry) { Sending.passkeyStays(entry) }
+    val passkeyRow = parts.size + never.size + 1 + (if (codeLeft != null) 1 else 0)
+    val rows = passkeyRow + (if (passkey) 1 else 0) + if (entry.attachments.isNotEmpty()) 1 else 0
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 72.dp).clip(segmentShape(0, rows)).background(MaterialTheme.extraColors.row).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -401,6 +403,15 @@ private fun EntryParts(entry: Entry, leftOut: Set<EntryPart>, name: String?, onT
                 stringResource(R.string.sharing_review_code_stays),
                 reason.resolve(),
                 segmentShape(parts.size + never.size + 1, rows),
+            )
+        }
+        // A passkey never goes (keething-spec card.passkey AC5).
+        if (passkey) {
+            LockedRow(
+                stringResource(R.string.card_row_passkey),
+                stringResource(R.string.sharing_review_passkey),
+                stringResource(R.string.sharing_review_passkey_why),
+                segmentShape(passkeyRow, rows),
             )
         }
         if (entry.attachments.isNotEmpty()) {

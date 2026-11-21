@@ -58,7 +58,7 @@ public object CodeEdits {
     public fun nameProblem(entry: Entry, field: String, name: String): UserText? {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return UserText.of(CardText.CODE_NO_NAME)
-        if (trimmed in EntryChanges.RESERVED_FIELD_NAMES) return UserText.of(CardText.NAME_RESERVED, trimmed)
+        if (EntryChanges.isReserved(trimmed)) return UserText.of(CardText.NAME_RESERVED, trimmed)
         return if (trimmed != field && entry.customFields.any { it.name == trimmed }) UserText.of(CardText.NAME_TAKEN) else null
     }
 

@@ -43,6 +43,11 @@ public data class Entry(
      * as it was after it is removed (keething-spec app.codes-view AC5, [TotpChange.Fields]).
      */
     val codeFields: List<CustomField> = emptyList(),
+    /**
+     * A passkey's fields as the file holds them, in file order, protection kept ([Passkey], keething-spec card.passkey):
+     * apart from [customFields], so nothing shows, searches, sends or edits them; a save leaves them as they are.
+     */
+    val passkeyFields: List<CustomField> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
     val expires: Boolean = false,
     val expiryTime: Instant? = null,
@@ -79,11 +84,14 @@ public data class Entry(
      * Whether the entry is a note (keething-spec types.note AC1–AC3; Mac `Entry.isNote`): the one definition the card,
      * the list and the editor share. A stored `note` makes one, whatever else the entry has. Any other stored kind
      * leaves it an ordinary entry. Without one it is a note when its Notes are not blank, its username, password and
-     * URL are blank, and it has no custom fields and no one-time code (attachments allowed); reading it so writes
+     * URL are blank, and it has no custom fields, no passkey and no one-time code (attachments allowed); reading it so writes
      * nothing.
      */
     val isNote: Boolean
-        get() = EntryType.isNote(entryType, notes, username, password, url, customFields.isEmpty() && totp == null && !hasCodeFields)
+        get() = EntryType.isNote(entryType, notes, username, password, url, customFields.isEmpty() && passkeyFields.isEmpty() && totp == null && !hasCodeFields)
+
+    /** The passkey KeePassXC put into the entry, null when it has none. */
+    val passkey: Passkey? get() = Passkey.of(passkeyFields)
 
     public fun isExpired(at: Instant): Boolean = expires && expiryTime != null && expiryTime <= at
 
@@ -92,6 +100,7 @@ public data class Entry(
         password.wipe()
         customFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
         codeFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
+        passkeyFields.forEach { (it.value as? FieldValue.Protected)?.secret?.wipe() }
         totp?.secret?.wipe()
     }
 

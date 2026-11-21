@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.DropdownMenu
@@ -166,6 +167,7 @@ private fun credentialTile(row: FieldRow): Tile? {
         // A code that cannot be used: the same tile, grey (agreed on the canvas "Code that cannot be used", variant A).
         row.kind == FieldRow.Kind.TOTP && row.totp == null -> Tile(Icons.Rounded.VerifiedUser, colors.surfaceContainerHighest, colors.onSurfaceVariant)
         row.kind == FieldRow.Kind.TOTP -> Tile(Icons.Rounded.VerifiedUser, colors.primaryContainer, colors.onPrimaryContainer)
+        row.kind == FieldRow.Kind.PASSKEY -> Tile(Icons.Rounded.VpnKey, colors.tertiaryContainer, colors.onTertiaryContainer)
         row.kind == FieldRow.Kind.URL || row.link != null -> Tile(Icons.Rounded.Language, colors.secondaryContainer, colors.onSecondaryContainer)
         else -> null
     }
@@ -221,6 +223,8 @@ internal fun FieldRowView(
             .clip(shape)
             .background(MaterialTheme.extraColors.row)
             .copyOnTap(row, actions)
+            // A passkey's row is one item, nothing to do on it (keething-spec card.passkey AC7).
+            .then(if (row.kind == FieldRow.Kind.PASSKEY) Modifier.semantics(mergeDescendants = true) {} else Modifier)
             .padding(start = if (tile != null) 14.dp else 18.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -391,6 +395,8 @@ private fun FieldValueText(row: FieldRow, reveal: RevealState) {
         row.isConcealed && !reveal.isRevealed(row.id) -> Text(text, Modifier.spokenMasked(text), style = style, letterSpacing = 2.sp, maxLines = 1)
         row.isConcealed -> Text(colouredSecret(text), style = style, fontFamily = MonospaceFamily)
         row.link != null -> Text(text, style = style, color = MaterialTheme.colorScheme.primary, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        // "webauthn.io · alice" said "webauthn.io, alice".
+        row.kind == FieldRow.Kind.PASSKEY -> Text(text, Modifier.semantics { contentDescription = text.replace(" · ", ", ") }, style = style)
         else -> Text(text, style = style)
     }
 }

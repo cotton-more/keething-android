@@ -227,8 +227,7 @@ internal object EntryEditing {
      * field keeps its element. The one-time code's fields stay where they are.
      */
     private fun setCustomFields(fields: List<CustomField>, entry: XElement) {
-        val reserved = EntryChanges.RESERVED_FIELD_NAMES
-        val existing = strings(entry).filter { it.second !in reserved }
+        val existing = strings(entry).filter { !EntryChanges.isReserved(it.second) }
         val byKey = LinkedHashMap<String, XElement>()
         existing.forEach { (element, key) -> byKey.putIfAbsent(key, element) }
         val anchor = strings(entry).lastOrNull { it.second in EntryChanges.STANDARD_KEYS }?.first
@@ -238,7 +237,7 @@ internal object EntryEditing {
             .forEach { (element, _) -> element.wipeSecrets() }
         var previous = anchor ?: strings(entry).lastOrNull()?.first ?: entry.first("Times")
         for (field in fields) {
-            if (field.name in reserved) continue
+            if (EntryChanges.isReserved(field.name)) continue
             val element = byKey.remove(field.name) ?: XElement("String").apply {
                 append(XElement("Key", field.name))
                 append(XElement("Value"))

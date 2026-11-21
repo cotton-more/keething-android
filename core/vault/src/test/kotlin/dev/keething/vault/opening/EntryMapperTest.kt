@@ -75,6 +75,29 @@ class EntryMapperTest {
         assertTrue(reserved.all { (it.value as FieldValue.Protected).secret.isWiped }, "the code's fields are wiped once read")
     }
 
+    // spec: card.passkey/AC1
+    @Test
+    fun aPasskeysFieldsAreKeptApartFromTheCustomFieldsAsTheFileHasThem() {
+        val passkey = listOf(
+            plain("KPEX_PASSKEY_USERNAME", "alice"), protected("KPEX_PASSKEY_CREDENTIAL_ID", "id"),
+            protected("KPEX_PASSKEY_PRIVATE_KEY_PEM", "pem"), plain("KPEX_PASSKEY_RELYING_PARTY", "webauthn.io"),
+            protected("KPEX_PASSKEY_USER_HANDLE", "handle"), plain("KPEX_PASSKEY_FLAG_BE", "1"), plain("KPEX_PASSKEY_FLAG_BS", "1"),
+            plain("KPXC_PASSKEY_USERNAME", "alice.sb"),
+        )
+        val e = map(raw(listOf(plain("Title", "webauthn.io (Passkey)"), plain("A", "a")) + passkey + plain("B", "b")))
+
+        assertEquals(listOf(CustomField.plain("A", "a"), CustomField.plain("B", "b")), e.customFields)
+        assertEquals(passkey.map { CustomField(it.key, it.value) }, e.passkeyFields)
+        assertEquals("webauthn.io", e.passkey?.site)
+        assertEquals("alice.sb", e.passkey?.user)
+        e.wipe()
+        assertTrue(passkey.mapNotNull { it.value as? FieldValue.Protected }.all { it.secret.isWiped }, "the lock wipes the passkey's secrets")
+
+        val strongboxNameAlone = map(raw(listOf(plain("KPXC_PASSKEY_USERNAME", "alice"))))
+        assertEquals(emptyList(), strongboxNameAlone.customFields, "kept apart all the same")
+        assertNull(strongboxNameAlone.passkey, "no passkey without a KPEX_PASSKEY field")
+    }
+
     @Test
     fun keePasssOwnFieldsAreTheCodeWhenThereIsNoOtpAndNoTotpSeed() {
         val key = "12345678901234567890123456789012"

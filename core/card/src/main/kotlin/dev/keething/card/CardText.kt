@@ -88,6 +88,7 @@ public enum class CardText : TextKey {
     ROW_URL,
     ROW_URL_NUMBERED,
     ROW_ONE_TIME_CODE,
+    ROW_PASSKEY,
     ROW_NOTE,
     ROW_NOTES,
     ROW_VALUE,

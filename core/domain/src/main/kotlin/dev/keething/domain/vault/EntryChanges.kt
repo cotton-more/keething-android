@@ -23,7 +23,7 @@ public data class EntryChanges(
     val notesProtected: Boolean? = null,
     /**
      * The custom fields as they should be afterwards, in order: those missing from it are removed, new ones
-     * added. The one-time code's fields ([RESERVED_FIELD_NAMES]) are never touched through it.
+     * added. The one-time code's and a passkey's fields ([isReserved]) are never touched through it.
      */
     val customFields: List<CustomField>? = null,
     /** The field types as they should be afterwards (Mac SPEC §3.12); empty removes them. */
@@ -73,6 +73,12 @@ public data class EntryChanges(
 
         /** Keys that are not custom fields: the standard ones and the one-time code's. */
         public val RESERVED_FIELD_NAMES: Set<String> = STANDARD_KEYS.toSet() + TOTP_FIELD_NAMES
+
+        /**
+         * A name no custom field can take: a standard one, a one-time code's, a passkey's ([Passkey.isField], kept as
+         * the file has them: keething-spec card.passkey AC6).
+         */
+        public fun isReserved(name: String): Boolean = name in RESERVED_FIELD_NAMES || Passkey.isField(name)
     }
 }
 

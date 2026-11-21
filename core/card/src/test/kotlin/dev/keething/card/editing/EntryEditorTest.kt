@@ -38,6 +38,33 @@ class EntryEditorTest {
 
     private fun EntryDraft.value(index: Int, value: String) = changeField(fields[index].id) { it.copy(value = value) }
 
+    // spec: card.passkey/AC6
+    @Test
+    fun aPasskeysFieldsAreNotEditedTheirNamesAreKeptAndThePasskeyIsShownAsOnTheCard() {
+        val withPasskey = entry.copy(
+            passkeyFields = listOf(
+                CustomField.plain("KPEX_PASSKEY_USERNAME", "alice"),
+                CustomField.plain("KPEX_PASSKEY_RELYING_PARTY", "webauthn.io"),
+                CustomField.protected("KPEX_PASSKEY_PRIVATE_KEY_PEM", "pem"),
+            ),
+        )
+        val editor = EntryEditor.edit(withPasskey, now)
+        assertEquals(listOf("PIN", "Note"), editor.start.fields.map { it.name })
+        assertEquals("webauthn.io", editor.passkey?.site)
+        assertEquals("alice", editor.passkey?.user)
+        assertNull(EntryEditor.edit(entry, now).passkey)
+
+        var draft = editor.start.addField()
+        for (name in listOf("KPEX_PASSKEY_USERNAME", "KPEX_PASSKEY_OTHER", "KPXC_PASSKEY_USERNAME")) {
+            draft = draft.changeField(draft.fields[2].id) { it.copy(name = name, value = "x") }
+            assertEquals("“$name” is a name KeePass uses itself.", editor.fieldProblem(draft, draft.fields[2])?.english(), name)
+        }
+        draft = draft.removeField(draft.fields[2].id).copy(username = "bob")
+        val changes = editor.changes(draft)
+        assertEquals("bob", changes.username)
+        assertNull(changes.customFields, "the passkey's fields are no custom fields to save")
+    }
+
     @Test
     fun onlyWhatChangedIsSaved() {
         val editor = EntryEditor.edit(entry, now)

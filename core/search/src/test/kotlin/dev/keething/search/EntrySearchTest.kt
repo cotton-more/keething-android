@@ -44,6 +44,25 @@ class EntrySearchTest {
         assertEquals(listOf("GitHub"), search(es, "GITHUB"))
     }
 
+    // spec: card.passkey/AC4
+    @Test
+    fun aPasskeyIsFoundByItsSiteAndUserNeverByItsOtherFields() {
+        val passkey = Entry(
+            "p", title = "Demo", passkeyFields = listOf(
+                CustomField.plain("KPEX_PASSKEY_RELYING_PARTY", "webauthn.io"),
+                CustomField.plain("KPEX_PASSKEY_USERNAME", "alice.example"),
+                CustomField.protected("KPEX_PASSKEY_CREDENTIAL_ID", "credentialzz"),
+                CustomField.protected("KPEX_PASSKEY_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----"),
+                CustomField.plain("KPEX_PASSKEY_FLAG_BE", "1"),
+            ),
+        )
+        assertEquals(listOf("Demo"), search(listOf(passkey), "webauthn"))
+        assertEquals(listOf("Demo"), search(listOf(passkey), "alice.example"))
+        for (query in listOf("credentialzz", "PRIVATE KEY", "KPEX", "passkey_flag")) {
+            assertEquals(emptyList(), search(listOf(passkey), query), query)
+        }
+    }
+
     @Test
     fun diacriticsAndYoAreFolded() {
         assertEquals(listOf("Süwag"), hits("suwag"))

@@ -1,5 +1,7 @@
 package dev.keething.android.editor
 
+import dev.keething.domain.vault.Passkey
+import androidx.compose.material.icons.rounded.VpnKey
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import dev.keething.android.quicknote.QuickNoteDatabaseRow
 import dev.keething.android.databases.DatabaseMark
@@ -453,6 +455,7 @@ private fun EditorForm(
     }
     if (editor.showsWebsite(draft)) EditorField(stringResource(R.string.editor_field_website), draft.url, { update(draft.copy(url = it)) }, keyboardType = KeyboardType.Uri)
     OwnCodeRow(editor, draft, update)
+    editor.passkey?.let { PasskeyRow(it) }
     if (!note) {
         // An ordinary entry's protected Notes: their text menu and copies as a secret's.
         EditorField(
@@ -1497,6 +1500,31 @@ private fun ProtectedChip(checked: Boolean, onChange: (Boolean) -> Unit) {
             Icon(if (checked) Icons.Rounded.Lock else Icons.Rounded.LockOpen, contentDescription = null, Modifier.size(FilterChipDefaults.IconSize))
         },
     )
+}
+
+/**
+ * The entry's passkey as the card shows it, its site and user (keething-spec card.passkey AC6, AC7): not edited, its
+ * fields kept by a save; read as one item.
+ */
+@Composable
+private fun PasskeyRow(passkey: Passkey) {
+    val shown = listOf(passkey.site, passkey.user).filter { it.isNotBlank() }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .semantics(mergeDescendants = true) {}
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Icon(Icons.Rounded.VpnKey, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.card_row_passkey), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(shown.joinToString(" · "), Modifier.semantics { contentDescription = shown.joinToString(", ") }, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
 }
 
 /**

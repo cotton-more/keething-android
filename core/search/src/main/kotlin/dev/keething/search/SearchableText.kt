@@ -18,6 +18,8 @@ internal object SearchableText {
             // A further one-time code's link holds its key (keething-spec app.codes-view): its name is searched, not it.
             field.plainText?.takeUnless { it.trimStart().startsWith("otpauth://", ignoreCase = true) }?.let { parts += it }
         }
+        // A passkey by its site and user, never its other fields (keething-spec card.passkey AC4).
+        entry.passkey?.let { parts += it.site; parts += it.user }
         // A newline between fields keeps whitespace-free terms from matching across them.
         return parts.joinToString("\n")
     }

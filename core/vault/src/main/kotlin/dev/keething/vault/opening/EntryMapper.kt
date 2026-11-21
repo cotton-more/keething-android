@@ -8,12 +8,13 @@ import dev.keething.domain.vault.Entry
 import dev.keething.domain.vault.EntryFieldTypes
 import dev.keething.domain.vault.EntryType
 import dev.keething.domain.vault.FieldValue
+import dev.keething.domain.vault.Passkey
 import dev.keething.kdbx.xml.KdbxEntry
 import dev.keething.totp.TotpResolver
 
 /**
  * Applies KeePass's meaning to an entry of the file (Mac `EntryMapper`): which fields are the standard ones,
- * which hold the one-time code, how tags are written, the field types and the kind in its `CustomData`. A secret it does not keep (a duplicate field, the
+ * which hold the one-time code and a passkey, how tags are written, the field types and the kind in its `CustomData`. A secret it does not keep (a duplicate field, the
  * code's fields once read, beside the copy [Entry.codeFields] keeps) is wiped.
  *
  * [binarySizes]: the sizes of the file's attachments, which `Ref`s point into. [iconIds]: the custom icons
@@ -55,6 +56,9 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
             }
         }
 
+        // A passkey's fields (keething-spec card.passkey AC1) are kept apart, as the file has them.
+        val (passkeyFields, otherFields) = customFields.partition { Passkey.isField(it.name) }
+
         return Entry(
             id = raw.uuid,
             title = title,
@@ -66,12 +70,13 @@ internal class EntryMapper(private val binarySizes: List<Int>, private val iconI
             groupPath = raw.groupPath,
             groupId = raw.ancestorGroupUuids.lastOrNull() ?: "",
             tags = raw.tags.split(';', ',').map { it.trim() }.filter { it.isNotEmpty() },
-            customFields = customFields,
+            customFields = otherFields,
             fieldTypes = raw.customData[EntryFieldTypes.CUSTOM_DATA_KEY]?.let(EntryFieldTypes::decode).orEmpty(),
             entryType = raw.customData[EntryType.CUSTOM_DATA_KEY],
             totp = TotpResolver.resolve(totpFields),
             hasCodeFields = totpFields.isNotEmpty(),
             codeFields = codeFields,
+            passkeyFields = passkeyFields,
             attachments = raw.attachments.map { Attachment(it.name, it.ref?.let(binarySizes::getOrNull)) },
             expires = raw.expires,
             expiryTime = raw.expiryTime,

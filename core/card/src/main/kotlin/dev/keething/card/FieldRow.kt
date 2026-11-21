@@ -27,6 +27,9 @@ public object RowIds {
     public const val PASSWORD: String = "password"
     public const val URL: String = "url"
     public const val TOTP: String = "totp"
+
+    /** A passkey kept in the entry (keething-spec card.passkey). */
+    public const val PASSKEY: String = "passkey"
     public const val NOTES: String = "notes"
 
     /** A note's text (SPEC §6.4), first on its card. */
@@ -77,7 +80,7 @@ public data class FieldRow(
     /** A wallet's recovery phrase, its passphrase, a private key: shown, never copied (SPEC §6.2). */
     val neverCopied: Boolean = false,
 ) {
-    public enum class Kind { USERNAME, PASSWORD, URL, TOTP, NOTES, NOTE, CUSTOM, ATTACHMENT }
+    public enum class Kind { USERNAME, PASSWORD, URL, TOTP, PASSKEY, NOTES, NOTE, CUSTOM, ATTACHMENT }
 
     val isProtected: Boolean get() = value is FieldValue.Protected
 

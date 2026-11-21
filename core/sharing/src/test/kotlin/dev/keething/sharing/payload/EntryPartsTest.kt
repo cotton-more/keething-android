@@ -46,6 +46,22 @@ class EntryPartsTest {
         assertEquals(emptyList(), Sending.parts(Entry("x", title = "Only a title")))
     }
 
+    // spec: card.passkey/AC5
+    @Test
+    fun aPasskeyIsNeverAPartNorSentItStaysOnThisPhone() {
+        val withPasskey = entry.copy(
+            passkeyFields = listOf(
+                CustomField.plain("KPEX_PASSKEY_RELYING_PARTY", "webauthn.io"),
+                CustomField.protected("KPEX_PASSKEY_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----"),
+            ),
+        )
+        assertEquals(Sending.parts(entry), Sending.parts(withPasskey))
+        assertTrue(Sending.passkeyStays(withPasskey))
+        assertFalse(Sending.passkeyStays(entry))
+        val shared = Sending.shared(withPasskey, emptySet())
+        assertTrue(shared.customFields.none { it.name.startsWith("KPEX") })
+    }
+
     @Test
     fun byDefaultEverythingButTheCodeGoesAsCopies() {
         val shared = Sending.shared(entry, Sending.leftOutByDefault(entry))

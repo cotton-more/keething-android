@@ -121,6 +121,7 @@ private fun card(key: CardText): Int = when (key) {
     CardText.ROW_URL -> R.string.card_row_url
     CardText.ROW_URL_NUMBERED -> R.string.card_row_url_numbered
     CardText.ROW_ONE_TIME_CODE -> R.string.card_row_one_time_code
+    CardText.ROW_PASSKEY -> R.string.card_row_passkey
     CardText.ROW_NOTE -> R.string.card_row_note
     CardText.ROW_NOTES -> R.string.card_row_notes
     CardText.ROW_VALUE -> R.string.card_row_value

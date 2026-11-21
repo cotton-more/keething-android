@@ -392,7 +392,7 @@ internal object SaveCheck {
         changes.notes?.let { expected = expected.copy(notes = it) }
         changes.notesProtected?.let { expected = expected.copy(notesProtected = it) }
         changes.customFields?.let { fields ->
-            expected = expected.copy(customFields = fields.filter { it.name !in EntryChanges.RESERVED_FIELD_NAMES })
+            expected = expected.copy(customFields = fields.filterNot { EntryChanges.isReserved(it.name) })
         }
         changes.fieldTypes?.let { expected = expected.copy(fieldTypes = it) }
         when (val type = changes.entryType) {

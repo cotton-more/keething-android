@@ -231,6 +231,8 @@
     <string name="sharing_review_code_stays">One-time code · stays on this phone</string>
     <string name="sharing_review_private_key">Private key · stays on this phone</string>
     <string name="sharing_review_private_key_why">Whoever has it can spend the wallet\'s coins. To give someone coins, send them to their address.</string>
+    <string name="sharing_review_passkey">Passkey · stays on this phone</string>
+    <string name="sharing_review_passkey_why">Whoever has it can sign in to the site as you.</string>
     <string name="sharing_review_never_sent">Never sent</string>
     <plurals name="sharing_review_attachments">
         <item quantity="one">%1$d attachment stays on this phone</item>

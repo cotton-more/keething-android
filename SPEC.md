@@ -1631,7 +1631,15 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   the package and a button to its page in the store (`market://details?id=`: the store's own icon when one app opens
   such links, an install icon when several do, none when none does). The field's name shows above only when it is
   the user's own (not `URL`, `URL 2`, `KP2A_URL…`); nothing is fetched or written. Every row that copies on a tap
-  has the same copy button (username, URL, code, custom fields alike). **Edit** is a button at the bottom
+  has the same copy button (username, URL, code, custom fields alike). A **passkey** KeePassXC put into the entry
+  (keething-spec card.passkey; its `KPEX_PASSKEY_*` fields and Strongbox's `KPXC_PASSKEY_USERNAME`, kept apart from
+  the custom fields when the file is read, `Entry.passkeyFields`, as the code's fields are) is one row after the code:
+  a key tile, "Passkey" and "webauthn.io · alice" (its relying party and user), read as one item, nothing to show,
+  copy or open; its private key, credential ID and user handle are never on screen. Search finds the entry by the site
+  and user only; Send to a request shows "Passkey · stays on this phone" as a locked row and sends none of its fields
+  (§10.1); the editor shows the same row, does not list the fields and keeps them as the file has them on a save, and a
+  field cannot be named `KPEX_PASSKEY…` or `KPXC_PASSKEY_USERNAME` (a name KeePass uses itself). An entry with a
+  passkey is no note (§6.4). Signing in with it waits for the idea autofill.passkeys. **Edit** is a button at the bottom
   right, in reach of the thumb; the bar's ⋮ holds Show all or Hide all (while the card has a masked row: every one shown if any is masked,
   else all masked again; keething-spec card.masking AC4), History, Move to group…, Send to a request (§10) and Move to the
   recycle bin (at once, the list offering Undo). **Move to group…** (keething-spec groups.entry-group AC2 from the
@@ -2606,8 +2614,9 @@ creator, §3.5): `created-aes-argon2d.kdbx` (the Mac's default, 64 MiB, 4 lanes,
 alone), each one root group named as the database and no entries; `created.keyx` is Keething's own key file, byte for
 byte as KeePassXC writes one. `fixtures/names/` (password `pw`; `kdbx4-aes-aeskdf.kdbx` with its `Meta` changed and
 written by the phone's own writer, then opened by keepassxc-cli 2.7.12): `family-shared.kdbx` (" Family Shared ",
-`#ff8000`), `family.kdbx` ("Family", no colour), `passwoerter.kdbx` ("Passwörter", `red`). Never use the real database
-in tests.
+`#ff8000`), `family.kdbx` ("Family", no colour), `passwoerter.kdbx` ("Passwörter", `red`). `fixtures/interop/`: the
+databases other KeePass apps made (its README), among them `keepassxc-2.7.12-passkey.kdbx` with a fictitious passkey
+KeePassXC imported (card.passkey). Never use the real database in tests.
 
 ## 10. Sharing entries
 
@@ -2644,7 +2653,8 @@ needed each time, come later (the idea keething-spec `sharing.contacts`).
   `otpauth://`, whether it gives a code or not: a second code such as "One-time code 2", §6.2), with the same warning;
   each keeps its switch, so a code is sent on purpose with one tap. An entry whose code fields give no code here
   (Steam, a counter-based link, a broken secret) has none to send: a locked row "One-time code · stays on this phone"
-  with the card's reason. The title, tags, expiry and the custom fields' types always go; attachments
+  with the card's reason. A passkey never goes: a locked row "Passkey · stays on this phone: whoever has it can sign in
+  to the site as you", none of its fields sent (keething-spec card.passkey AC5). The title, tags, expiry and the custom fields' types always go; attachments
   ("1 attachment stays on this phone"), history and the icon never do. Each part's row shows the start of its value,
   never a protected one nor one the card masks (keething-spec card.masking AC2: a typed CVC or password, a network's
   key, a code's link, a private key): a password, such a field and protected Notes (a note's text by default, §6.4)

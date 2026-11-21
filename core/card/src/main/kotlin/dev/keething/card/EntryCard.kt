@@ -133,7 +133,7 @@ public data class EntryCard(
 
 /**
  * Lays an entry out as card rows (Mac `EntryCardBuilder`): a note's text first (SPEC §6.4); username, password, URL
- * (and additional URLs), the one-time code; a view per kind of entry its typed fields make (payment card, Wi-Fi
+ * (and additional URLs), the one-time code, a passkey; a view per kind of entry its typed fields make (payment card, Wi-Fi
  * network, bank account, identity document, SSH login, crypto wallet); notes, unless they are a note's text; custom
  * fields in file order grouped by 1Password section; the attachments.
  */
@@ -172,6 +172,12 @@ public object EntryCardBuilder {
                     codeProblem = problem,
                 )
             }
+        }
+
+        // A passkey: its site and user, never its key; nothing to copy (keething-spec card.passkey AC2, AC3).
+        entry.passkey?.let { passkey ->
+            val shown = listOf(passkey.site, passkey.user).filter { it.isNotBlank() }.joinToString(" · ")
+            credentials += FieldRow(RowIds.PASSKEY, FieldRow.Kind.PASSKEY, UserText.of(CardText.ROW_PASSKEY), FieldValue.Plain(shown), neverCopied = true)
         }
 
         val sections = mutableListOf<CardSection>()

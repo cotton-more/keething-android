@@ -74,6 +74,12 @@ public object Sending {
      */
     public fun codeLeftBehind(entry: Entry): UserText? = OneTimeCodes.problem(entry)
 
+    /**
+     * [entry] has a passkey, which never goes (keething-spec card.passkey AC5): its fields are no part, and [shared]
+     * leaves them out; shown as a locked row.
+     */
+    public fun passkeyStays(entry: Entry): Boolean = entry.passkey != null
+
     /** The parts [entry] has that may go, those with a value, in this order: the standard fields, the custom ones, the code. */
     public fun parts(entry: Entry): List<EntryPart> {
         val never = neverSent(entry).keys

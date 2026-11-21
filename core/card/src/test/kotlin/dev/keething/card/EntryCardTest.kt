@@ -39,6 +39,55 @@ class EntryCardTest {
 
     private fun FieldRow.shown(reveal: RevealState) = reveal.displayValue(this)
 
+    // spec: card.passkey/AC2
+    @Test
+    fun aPasskeyIsOneRowAfterTheCodeWithItsSiteAndUserNothingToShowOrCopy() {
+        val passkey = listOf(
+            CustomField.plain("KPEX_PASSKEY_USERNAME", "alice"),
+            CustomField.protected("KPEX_PASSKEY_CREDENTIAL_ID", "kLYSiHc0RiozVthp6tdefQ"),
+            CustomField.protected("KPEX_PASSKEY_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----\nMIG\n-----END PRIVATE KEY-----"),
+            CustomField.plain("KPEX_PASSKEY_RELYING_PARTY", "webauthn.io"),
+            CustomField.protected("KPEX_PASSKEY_USER_HANDLE", "ZOwzMXc7UnUbMNun4ut4Vg"),
+            CustomField.plain("KPEX_PASSKEY_FLAG_BE", "1"),
+        )
+        val card = build(richEntry().copy(passkeyFields = passkey))
+
+        assertEquals(
+            listOf("username", "password", "url", "totp", "passkey", "notes", "custom-0", "custom-1", "custom-2", "attachment-0", "attachment-1"),
+            card.rows.map { it.id },
+        )
+        val row = card.rows.single { it.id == RowIds.PASSKEY }
+        assertEquals(FieldRow.Kind.PASSKEY, row.kind)
+        assertEquals("Passkey", row.label.english())
+        assertEquals("webauthn.io · alice", row.shown(RevealState()))
+        assertFalse(row.isCopyable || row.isConcealed || row.link != null, "nothing to show, copy or open")
+        assertEquals(CardSection.Kind.Credentials, card.sections.single { row in it.rows }.kind)
+
+        val siteOnly = build(Entry("p", title = "Site", passkeyFields = passkey.filter { it.name != "KPEX_PASSKEY_USERNAME" }))
+        assertEquals("webauthn.io", siteOnly.rows.single().shown(RevealState()), "an empty part is left out")
+        assertEquals(listOf("passkey"), siteOnly.rows.map { it.id })
+    }
+
+    // spec: card.passkey/AC3
+    @Test
+    fun noRowOfTheCardHoldsThePasskeysSecrets() {
+        val card = build(
+            Entry(
+                "p", title = "webauthn.io (Passkey)", username = "alice", url = "https://webauthn.io", tags = listOf("Passkey"),
+                passkeyFields = listOf(
+                    CustomField.plain("KPEX_PASSKEY_RELYING_PARTY", "webauthn.io"),
+                    CustomField.protected("KPEX_PASSKEY_CREDENTIAL_ID", "credential-id"),
+                    CustomField.protected("KPEX_PASSKEY_PRIVATE_KEY_PEM", "private-key"),
+                    CustomField.protected("KPEX_PASSKEY_USER_HANDLE", "user-handle"),
+                ),
+            ),
+        )
+        val everything = card.rows.flatMap { listOf(it.storedText(), it.revealedText(), it.label.english()) } + card.customFieldNames
+        for (secret in listOf("credential-id", "private-key", "user-handle", "KPEX")) {
+            assertTrue(everything.none { secret in it }, "$secret is nowhere on the card")
+        }
+    }
+
     @Test
     fun rowsAreUsernamePasswordUrlCodeNotesCustomFieldsAttachments() {
         val card = build(richEntry())
