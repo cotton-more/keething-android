@@ -342,20 +342,43 @@ private fun FingerprintOfDatabase(container: AppContainer, id: DatabaseId, line:
     val on = state.enabled && line.usesFingerprint
     val unavailable = state.availability as? BiometricAvailability.Unavailable
     val changeable = on || (state.enabled && unavailable == null)
+    // Open, its password is asked as it is turned on, and stored (keething-spec unlock.biometric AC1, AC11).
+    val database = container.sessions.session(id)
+    val sessionState = database?.session?.state?.collectAsStateWithLifecycle()
+    var asking by remember { mutableStateOf(false) }
+    var storeFailure by remember { mutableStateOf<String?>(null) }
     Row(
         Modifier.fillMaxWidth().toggleable(
             value = on,
             enabled = changeable,
             role = Role.Switch,
-            onValueChange = { scope.launch { deleteFailure = setup.setUseBiometric(id, it) } },
+            onValueChange = { turnOn ->
+                val open = sessionState?.value is SessionState.Unlocked
+                if (turnOn && open && container.sessions.list.record(id)?.isPasswordless != true) {
+                    asking = true
+                } else {
+                    scope.launch { deleteFailure = setup.setUseBiometric(id, turnOn) }
+                }
+            },
         ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(stringResource(R.string.databases_page_use_fingerprint), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
         Switch(checked = on, onCheckedChange = null, enabled = changeable)
     }
+    if (asking && database != null) {
+        FingerprintPasswordDialog(
+            database.biometric, line.name,
+            onDone = { failure ->
+                storeFailure = failure
+                asking = false
+            },
+            onCancel = { asking = false },
+        )
+    }
     val record = container.sessions.list.record(id)
-    val problem = deleteFailure?.let { stringResource(R.string.databases_page_fingerprint_not_deleted, it) }
+    val problem = storeFailure?.takeIf { on }?.let { stringResource(R.string.databases_page_fingerprint_not_set_up, it) }
+        ?: deleteFailure?.let { stringResource(R.string.databases_page_fingerprint_not_deleted, it) }
         ?: state.setupFailures[id]?.takeIf { on }?.let { stringResource(R.string.databases_page_fingerprint_not_set_up, it) }
     Text(
         problem ?: when {
@@ -366,6 +389,8 @@ private fun FingerprintOfDatabase(container: AppContainer, id: DatabaseId, line:
             stored -> stringResource(R.string.databases_page_fingerprint_stored, stringResource(location.describe()))
             else -> stringResource(R.string.databases_page_fingerprint_next_unlock)
         },
+        // What the switch now does, said once as it changes (stored after the password, for one).
+        Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         style = MaterialTheme.typography.bodyMedium,
         color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )

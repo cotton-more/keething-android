@@ -54,6 +54,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.keething.android.ui.StepSlider
 import dev.keething.android.R
 import dev.keething.android.theme.MonospaceFamily
 import dev.keething.android.theme.extraColors
@@ -293,13 +294,9 @@ private val CharacterClass.title: String
 private fun LengthSlider(label: String, value: Int, range: IntRange, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
-        Slider(
-            value = value.toFloat(),
-            onValueChange = { onChange(it.roundToInt()) },
-            valueRange = range.first.toFloat()..range.last.toFloat(),
-            steps = range.last - range.first - 1,
-            modifier = Modifier.weight(1f),
-        )
+        StepSlider(value.toFloat(), range.first.toFloat()..range.last.toFloat(), range.last - range.first - 1, Modifier.weight(1f)) {
+            onChange(it.roundToInt())
+        }
         Text("$value", Modifier.widthIn(min = 28.dp), style = MaterialTheme.typography.bodyLarge, fontFamily = MonospaceFamily)
     }
 }

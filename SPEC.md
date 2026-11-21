@@ -1165,8 +1165,16 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   first deletes what a failed deletion left, or stays off: it would open without anything typed since. With the app's switch off, a database's page says "Off: Unlock with the fingerprint is off in Settings. Once
   it is on, the fingerprint can be turned on here." and its switch cannot be turned on. Turning the app's switch off
   and on again keeps each database's own: those turned on store their passwords again at their next typed unlock.
-- **Storing.** Turning a switch on only sets it: the next typed unlock of that database that opens the vault stores its
-  master password, and every later one stores it again, so a database password changed elsewhere heals the next time
+- **Storing.** A database's Use fingerprint turned on on its page while the database is open asks for its master
+  password once (keething-spec unlock.biometric AC1, AC11; the owner, 2026-11-21: "I turned the fingerprint on, but the
+  app asked for the password all the same"): a dialog "Use the fingerprint", "Type the master password of “Personal”
+  once. It is stored, sealed, and the fingerprint opens “Personal” from now on.", Cancel / Use fingerprint. The password
+  with the key file read now is compared with the key it is open with (`VaultSession.confirmKey`, nothing derived): a
+  match turns the switch on (the app's too, while never set), stores it (`BiometricUnlock.turnOn`) and starts its
+  reminder's days again; a wrong one says "This is not the master password of “Personal”." at the field and changes
+  nothing; Cancel leaves the switch off. Turned on while the database is locked, or for one that opens with its key
+  file alone, a switch only sets it: the next typed unlock of that database that opens the vault stores its
+  master password. Every typed unlock that opens it stores it again, so a database password changed elsewhere heals the next time
   it is typed. A password typed while the vault is open, a wrong one, or one typed on a phone without an enrolled
   strong biometric is never stored; nor is nothing typed (a database that opens with its key file alone, §4); nor one
   whose switch went off, or that left the list, while it was being stored. A password that could not be stored says

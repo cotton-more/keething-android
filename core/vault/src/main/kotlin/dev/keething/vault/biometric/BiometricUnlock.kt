@@ -139,6 +139,24 @@ public sealed interface FingerprintOutcome {
     public data class StorageError(val reason: String) : FingerprintOutcome
 }
 
+/** A database's switch turned on with its password, while it is open (keething-spec unlock.biometric AC1, AC11). */
+public sealed interface PasswordTurnOn {
+    /** The password matched: the switch is on and the password stored. */
+    public data object TurnedOn : PasswordTurnOn
+
+    /** Not the key it is open with: nothing changed. */
+    public data object Wrong : PasswordTurnOn
+
+    /** Not open (any more): nothing to check against, nothing changed. */
+    public data object Locked : PasswordTurnOn
+
+    /** It could not be checked (its key file not read): why, as its lock screen says it; nothing changed. */
+    public data class NotChecked(val failure: OpenFailure) : PasswordTurnOn
+
+    /** The switch or the store failed: why. */
+    public data class Failed(val reason: String) : PasswordTurnOn
+}
+
 /**
  * One database's fingerprint unlock (SPEC §5; Mac `TouchIDUnlock`, Mac SPEC §3.8). Its master password is kept by
  * [setup]'s stores under its [id] and handed to the normal [VaultSession.unlock] after a fingerprint, so the database
@@ -246,6 +264,32 @@ public class BiometricUnlock(
      * next is stored. Returns why a stored password could not be deleted, or null.
      */
     public suspend fun useNextTime(on: Boolean): String? = setup.setUseBiometric(id, on).also { publish() }
+
+    /**
+     * This database's switch turned on while it is open (keething-spec unlock.biometric AC1, AC11): [typed] is checked
+     * against the key it is open with ([VaultSession.confirmKey], nothing derived); a match turns the switch on (the
+     * app's too, while never set) and stores it, so the next unlock is the fingerprint's, and counts as a typed unlock
+     * for the reminder's days. [typed] is wiped either way.
+     */
+    public suspend fun turnOn(typed: Secret): PasswordTurnOn {
+        try {
+            when (val check = session.confirmKey(typed)) {
+                KeyConfirmation.Locked -> return PasswordTurnOn.Locked
+                KeyConfirmation.Wrong -> return PasswordTurnOn.Wrong
+                is KeyConfirmation.Failed -> return PasswordTurnOn.NotChecked(check.failure)
+                is KeyConfirmation.Confirmed -> Unit
+            }
+            if (!setup.state.value.enabled) setup.setEnabled(true)?.let { return PasswordTurnOn.Failed(it) }
+            setup.setUseBiometric(id, true)?.let { return PasswordTurnOn.Failed(it) }
+            dropQuestion()
+            restartDays()
+            val failure = if (typed.isEmpty()) null else storeTyped(typed)
+            return failure?.let(PasswordTurnOn::Failed) ?: PasswordTurnOn.TurnedOn
+        } finally {
+            typed.wipe()
+            publish()
+        }
+    }
 
     /**
      * The answer to [BiometricState.question] (keething-spec unlock.biometric AC4). Use fingerprint turns its own switch on

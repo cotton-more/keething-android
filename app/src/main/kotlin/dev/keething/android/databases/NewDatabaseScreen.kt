@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.StepSlider
 import dev.keething.android.ui.keepOutOfAutofill
 import dev.keething.android.ui.secretToAccessibility
 import dev.keething.domain.storage.StoragePlace
@@ -61,7 +62,6 @@ import androidx.compose.material3.SecureTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -505,12 +505,7 @@ private fun EncryptionPage(model: NewDatabaseModel) {
         }
         Labelled(stringResource(R.string.databases_new_time_to_open)) {
             Text(NewDatabaseModel.seconds(e.seconds).resolve(), style = MaterialTheme.typography.titleMedium)
-            Slider(
-                value = (e.seconds * 10).toFloat(),
-                onValueChange = { model.changeEncryption(e.copy(seconds = it.roundToInt() / 10.0)) },
-                valueRange = 1f..50f,
-                steps = 48,
-            )
+            StepSlider((e.seconds * 10).toFloat(), 1f..50f, steps = 48) { model.changeEncryption(e.copy(seconds = it.roundToInt() / 10.0)) }
             Row {
                 Text(stringResource(R.string.databases_seconds, 0.1), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.databases_seconds_whole, 5), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

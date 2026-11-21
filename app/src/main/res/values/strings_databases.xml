@@ -663,6 +663,11 @@
     <string name="databases_page_backups">Backups</string>
     <string name="databases_page_remove_note">Forgets it on this phone, with its stored password and its backups. The file stays.</string>
     <string name="databases_page_use_fingerprint">Use fingerprint</string>
+    <string name="databases_page_fingerprint_password_title">Use the fingerprint</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_page_fingerprint_password_text">Type the master password of “%1$s” once. It is stored, sealed, and the fingerprint opens “%1$s” from now on.</string>
+    <!-- %1$s: the database's name -->
+    <string name="databases_page_fingerprint_wrong_password">This is not the master password of “%1$s”.</string>
     <!-- %1$s: why, as the system says it -->
     <string name="databases_page_fingerprint_not_deleted">Its stored password could not be deleted: %1$s.</string>
     <!-- %1$s: why, as the system says it -->

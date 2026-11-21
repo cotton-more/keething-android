@@ -303,6 +303,46 @@ class BiometricUnlockTest {
         assertEquals(listOf("pw"), f.stores.saves)
     }
 
+    // spec: unlock.biometric/AC1
+    // spec: unlock.biometric/AC11
+    @Test
+    fun turnedOnWhileOpenItsPasswordIsCheckedAndStoredSoTheNextUnlockIsTheFingerprints() = runTest {
+        val f = fixture()
+        f.list.update(f.id) { it.copy(useBiometric = false, fingerprintAsked = true) }
+        f.typed("pw", ask = false)
+        runCurrent()
+        assertIs<SessionState.Unlocked>(f.session.state.value)
+        assertTrue(f.stores.saves.isEmpty())
+
+        val wrong = Secret.of("not-pw")
+        assertEquals(PasswordTurnOn.Wrong, f.biometric.turnOn(wrong))
+        assertTrue(wrong.isWiped, "the typed password is wiped once checked")
+        assertFalse(state(f).enabled, "a wrong password leaves it off")
+        assertTrue(f.stores.saves.isEmpty())
+
+        val right = Secret.of("pw")
+        assertEquals(PasswordTurnOn.TurnedOn, f.biometric.turnOn(right))
+        assertTrue(right.isWiped)
+        val after = state(f)
+        assertTrue(after.enabled && after.stored)
+        assertEquals(listOf("pw"), f.stores.saves)
+
+        f.session.lock()
+        runCurrent()
+        assertTrue(state(f).canUnlock, "the next unlock is the fingerprint's")
+    }
+
+    // spec: unlock.biometric/AC11
+    @Test
+    fun turnedOnWhileLockedNothingIsAskedNorStored() = runTest {
+        val f = fixture()
+        f.list.update(f.id) { it.copy(useBiometric = false) }
+
+        assertEquals(PasswordTurnOn.Locked, f.biometric.turnOn(Secret.of("pw")))
+        assertFalse(state(f).enabled)
+        assertTrue(f.stores.saves.isEmpty())
+    }
+
     /** A fixture whose database's fingerprint was never chosen, the app's switch on. */
     private suspend fun TestScope.neverChosen(settings: MapSettings = MapSettings()): Fixture = fixture(settings = settings).also {
         it.list.update(it.id) { record -> record.copy(useBiometric = false) }

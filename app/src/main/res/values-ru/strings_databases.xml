@@ -577,6 +577,9 @@
     <string name="databases_page_backups">Резервные копии</string>
     <string name="databases_page_remove_note">Keething забудет её на этом телефоне вместе с сохранённым паролем и резервными копиями. Файл останется.</string>
     <string name="databases_page_use_fingerprint">Входить по отпечатку</string>
+    <string name="databases_page_fingerprint_password_title">Вход по отпечатку</string>
+    <string name="databases_page_fingerprint_password_text">Введите мастер-пароль «%1$s» один раз. Он будет сохранён в зашифрованном виде, и дальше «%1$s» будет открываться по отпечатку.</string>
+    <string name="databases_page_fingerprint_wrong_password">Это не мастер-пароль «%1$s».</string>
     <string name="databases_page_fingerprint_not_deleted">Не удалось удалить её сохранённый пароль: %1$s.</string>
     <string name="databases_page_fingerprint_not_set_up">Не удалось настроить: %1$s. Попытка повторится при следующей разблокировке паролем.</string>
     <string name="databases_page_fingerprint_unavailable">Недоступно: %1$s.</string>
