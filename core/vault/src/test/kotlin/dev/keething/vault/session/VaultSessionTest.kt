@@ -107,11 +107,13 @@ class VaultSessionTest {
         assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.ReadFailed("the card was removed"))), failing.session.state.value)
         assertEquals(0, failing.store.watching)
 
+        // The words need its size (keething-spec app.large-database AC3): the file's, though its bytes were never had.
         val tooLarge = fixture()
         tooLarge.store.beforeRead = { throw OutOfMemoryError("Java heap space") }
         tooLarge.session.unlock(Secret.of("pw"))
         runCurrent()
-        assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.OutOfMemory)), tooLarge.session.state.value)
+        val size = assertNotNull(tooLarge.store.version()).size
+        assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.OutOfMemory(size))), tooLarge.session.state.value)
     }
 
     @Test
@@ -346,7 +348,7 @@ class VaultSessionTest {
         advanceTimeBy(2.seconds)
         runCurrent()
         assertSame(before, f.vault)
-        assertEquals(OpenFailure.OutOfMemory, f.unlockedState.reloadFailure)
+        assertIs<OpenFailure.OutOfMemory>(f.unlockedState.reloadFailure)
 
         f.store.beforeRead = {}
         f.store.change(file.copyOf())

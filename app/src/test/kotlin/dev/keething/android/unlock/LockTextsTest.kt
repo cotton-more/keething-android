@@ -66,7 +66,32 @@ class LockTextsTest {
     @Test
     fun aFileThatCouldNotBeReadOrHadNoMemoryForItsBytesIsSaidAsSuch() {
         assertEquals("The file could not be read (provider died).", OpenFailure.ReadFailed("provider died").describe("db.kdbx").english())
-        assertEquals("Not enough memory to open the database.", OpenFailure.OutOfMemory.describe("db.kdbx").english())
+    }
+
+    @Test
+    fun aDatabaseTooLargeToOpenSaysItsSizeAndWhatToDoAndBesideOthersToLockThemFirst() {
+        val mib = 1L shl 20
+        assertEquals(
+            "Family.kdbx is 160\u00A0MiB, more than this phone gives Keething the memory to open. Keep large files outside the " +
+                "database, or split it into two databases.",
+            OpenFailure.OutOfMemory(160 * mib).describe("/storage/emulated/0/Sync/Family.kdbx").english(),
+        )
+        assertEquals(
+            "Family.kdbx is 160\u00A0MiB, more than this phone gives Keething the memory to open beside the other open " +
+                "databases. Lock them and try again; if it still does not open, keep large files outside the database, or " +
+                "split it into two databases.",
+            OpenFailure.OutOfMemory(160 * mib, othersOpen = true).describe("Family.kdbx").english(),
+        )
+        assertEquals(
+            "Not enough memory to open the database. Keep large files outside the database, or split it into two databases.",
+            OpenFailure.OutOfMemory(null).describe("Family.kdbx").english(),
+            "its size not known",
+        )
+        assertEquals(
+            "Not enough memory to open the database beside the other open databases. Lock them and try again; if it " +
+                "still does not open, keep large files outside the database, or split it into two databases.",
+            OpenFailure.OutOfMemory(null, othersOpen = true).describe("Family.kdbx").english(),
+        )
     }
 
     // spec: app.first-start/AC5

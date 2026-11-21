@@ -1,5 +1,6 @@
 package dev.keething.android.unlock
 
+import dev.keething.android.session.SizeTexts
 import androidx.annotation.StringRes
 import dev.keething.android.R
 import dev.keething.android.ui.UiText
@@ -107,7 +108,12 @@ internal fun OpenFailure.describe(file: String, wrongInARow: Int = 1): UiText = 
     // Damaged is not a wrong password (SPEC §3.2): a sync may have caught the file half-written.
     is OpenFailure.Damaged -> uiText(R.string.unlock_failure_damaged, detail)
     is OpenFailure.ReadFailed -> uiText(R.string.unlock_failure_read_failed, detail)
-    OpenFailure.OutOfMemory -> uiText(R.string.unlock_failure_out_of_memory)
+    // Its size and what to do (keething-spec app.large-database AC3); beside others, to lock them first.
+    is OpenFailure.OutOfMemory -> when (val bytes = fileBytes) {
+        null -> uiText(if (othersOpen) R.string.unlock_failure_out_of_memory_beside else R.string.unlock_failure_out_of_memory)
+        // Its name: the path is over the field already.
+        else -> uiText(if (othersOpen) R.string.unlock_failure_too_large_beside else R.string.unlock_failure_too_large, file.substringAfterLast('/'), SizeTexts.mib(bytes))
+    }
     OpenFailure.Locked -> uiText(R.string.unlock_failure_locked)
 }
 

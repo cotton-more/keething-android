@@ -1,5 +1,6 @@
 package dev.keething.android.list
 
+import dev.keething.android.sharing.announced
 import dev.keething.android.ui.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -149,7 +150,8 @@ internal fun EditCodeSheet(tile: CodeTile, now: State<Instant>, onSave: (TotpCon
             val resources = LocalResources.current
             CodeChoice(stringResource(R.string.list_code_period), (listOf(30, 60) + draft.period).distinct().sorted(), draft.period, { resources.getQuantityString(R.plurals.list_code_period_seconds, it, it) }) { draft = draft.copy(period = it) }
             CodeChoice(stringResource(R.string.list_code_algorithm), TotpConfig.Algorithm.entries, draft.algorithm, { it.title }) { draft = draft.copy(algorithm = it) }
-            problem?.let { Text(it.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+            // Said as it appears (keething-spec app.accessibility AC6).
+            problem?.let { Text(it.resolve(), Modifier.announced(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.list_cancel)) }
                 Button(onClick = {
@@ -403,7 +405,7 @@ private fun CodeInput(large: Boolean, onText: (String) -> String?, onTexts: (Lis
                     label = { Text(stringResource(if (large) R.string.list_code_type_key_or_link else R.string.list_code_type_secret_or_link)) },
                     singleLine = true,
                     isError = problem != null,
-                    supportingText = problem?.let { { Text(it) } },
+                    supportingText = problem?.let { { Text(it, Modifier.announced()) } },
                     visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {

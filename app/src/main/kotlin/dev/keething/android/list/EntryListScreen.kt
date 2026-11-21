@@ -44,7 +44,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -507,12 +506,12 @@ internal fun EntryListScreen(
     val scroll = if (compactHeader) TopAppBarDefaults.pinnedScrollBehavior() else TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var searchFocused by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
-    val gridState = rememberLazyGridState()
+    val codesState = rememberLazyListState()
     // The keyboard takes half the screen: the large header makes room as the search field takes the focus, and comes
     // back when it lets the focus go with the list at its top.
     LaunchedEffect(searchFocused) {
         if (compactHeader) return@LaunchedEffect
-        val atTop = if (codesOnly) gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
+        val atTop = if (codesOnly) codesState.firstVisibleItemIndex == 0 && codesState.firstVisibleItemScrollOffset == 0
         else listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
         if (!searchFocused && !atTop) return@LaunchedEffect
         val bar = scroll.state
@@ -552,7 +551,7 @@ internal fun EntryListScreen(
             if (codesOnly) {
                 val text = query.text.toString()
                 CodeTiles(
-                    state, maxWidth, padding, gridState, now, text, searched = !EntrySearch.isEmpty(text),
+                    state, padding, codesState, now, text, searched = !EntrySearch.isEmpty(text), selected = selected,
                     onCopy = model::copyCode,
                     onCopyNext = model::copyNextCode,
                     onMore = { codeSheet = it },

@@ -36,7 +36,12 @@
     <string name="unlock_failure_damaged">The file is damaged or not completely synced yet (%1$s).</string>
     <!-- %1$s: why, in the storage's own words -->
     <string name="unlock_failure_read_failed">The file could not be read (%1$s).</string>
-    <string name="unlock_failure_out_of_memory">Not enough memory to open the database.</string>
+    <!-- A database too large to open (keething-spec app.large-database AC3). %1$s: the database's file name; %2$s: its size ("160 MiB") -->
+    <string name="unlock_failure_too_large">%1$s is %2$s, more than this phone gives Keething the memory to open. Keep large files outside the database, or split it into two databases.</string>
+    <!-- %1$s: the database's file name; %2$s: its size ("160 MiB") -->
+    <string name="unlock_failure_too_large_beside">%1$s is %2$s, more than this phone gives Keething the memory to open beside the other open databases. Lock them and try again; if it still does not open, keep large files outside the database, or split it into two databases.</string>
+    <string name="unlock_failure_out_of_memory">Not enough memory to open the database. Keep large files outside the database, or split it into two databases.</string>
+    <string name="unlock_failure_out_of_memory_beside">Not enough memory to open the database beside the other open databases. Lock them and try again; if it still does not open, keep large files outside the database, or split it into two databases.</string>
     <string name="unlock_failure_locked">The database locked while it was being opened.</string>
 
     <!-- A database Keething does not read: what it is and what to do (unlock/LockTexts.kt) -->

@@ -12,13 +12,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -44,11 +41,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.keething.android.R
@@ -64,56 +61,52 @@ import dev.keething.android.ui.segmentShape
 import dev.keething.card.TotpDisplay
 import java.time.Instant
 
-/** From this width the tiles go in two columns (keething-spec app.wide-screens). */
-private val TWO_COLUMNS = 840.dp
-
 /**
  * The Codes view (keething-spec app.codes-view AC1–AC3; SPEC §6.2): a tile per one-time code, as an authenticator
- * app lists them. A tap anywhere on a tile copies its code; ⋯ opens [onMore]. Two columns on a wide window. [searched]:
- * something is typed, so an empty view says nothing matches rather than that there are no codes.
+ * app lists them, in one column (on a wide window it stays in the list's pane). A tap anywhere on a tile copies its
+ * code; ⋯ opens [onMore]. [searched]: something is typed, so an empty view says nothing matches rather than that there
+ * are no codes. [selected]: the entry whose card is open beside the view (two panes); its tiles are marked as its rows
+ * are in the list.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun CodeTiles(
     state: ListUiState,
-    width: Dp,
     padding: PaddingValues,
-    gridState: LazyGridState,
+    listState: LazyListState,
     now: State<Instant>,
     query: String,
     searched: Boolean,
+    selected: String?,
     onCopy: (CodeTile) -> Unit,
     onCopyNext: (CodeTile) -> Unit,
     onMore: (CodeTile) -> Unit,
 ) {
-    val columns = if (width >= TWO_COLUMNS) 2 else 1
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(columns),
-        state = gridState,
+    LazyColumn(
+        state = listState,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         for (banner in state.banners) {
-            item(key = banner.key, span = { GridItemSpan(maxLineSpan) }) { Banner(title = banner.title.resolve(), text = banner.text.resolve(), onDismiss = banner.onDismiss, action = banner.action?.let { (label, act) -> label.resolve() to act }) }
+            item(key = banner.key) { Banner(title = banner.title.resolve(), text = banner.text.resolve(), onDismiss = banner.onDismiss, action = banner.action?.let { (label, act) -> label.resolve() to act }) }
         }
         if (state.preparing) {
-            item(key = "preparing", span = { GridItemSpan(maxLineSpan) }) {
+            item(key = "preparing") {
                 Box(Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
             }
         }
         itemsIndexed(state.codes, key = { _, tile -> tile.key }, contentType = { _, _ -> "tile" }) { index, tile ->
-            // One column: a segmented group, as the list's rows; two: each tile on its own.
-            val shape = if (columns == 1) segmentShape(index, state.codes.size) else RoundedCornerShape(20.dp)
+            // A segmented group, as the list's rows.
             CodeTileView(
-                tile, shape, state.icons, now,
+                tile, segmentShape(index, state.codes.size), state.icons, now,
+                selected = tile.entryId == selected,
                 onCopy = { onCopy(tile) },
                 onCopyNext = { onCopyNext(tile) },
                 onMore = { onMore(tile) },
-                modifier = Modifier.animateItem().padding(bottom = if (columns == 1) SegmentGap else 8.dp),
+                modifier = Modifier.animateItem().padding(bottom = SegmentGap),
             )
         }
         if (!state.preparing && state.codes.isEmpty()) {
-            item(key = "nothing", span = { GridItemSpan(maxLineSpan) }) {
+            item(key = "nothing") {
                 // Bare signs alone (`@`, `!`) list nothing and say nothing: the chips offer what they can be.
                 val text = when {
                     searched -> stringResource(R.string.list_codes_no_match, query)
@@ -136,7 +129,7 @@ internal fun CodeTiles(
 /**
  * A code's tile (the canvas's "Codes"): the entry's icon and title, under it the username or a further code's field
  * name (a field icon before it) and where the entry is, as its row says it ([GroupLine]), and the live code large with
- * the next one beside it (keething-spec card.code-timer).
+ * the next one beside it (keething-spec card.code-timer). [selected]: its entry's card is open beside the view.
  */
 @Composable
 private fun CodeTileView(
@@ -144,6 +137,7 @@ private fun CodeTileView(
     shape: Shape,
     icons: CustomIconImages?,
     now: State<Instant>,
+    selected: Boolean,
     onCopy: () -> Unit,
     onCopyNext: () -> Unit,
     onMore: () -> Unit,
@@ -154,7 +148,13 @@ private fun CodeTileView(
     val copyCode = stringResource(R.string.list_copy_code)
     val separator = stringResource(R.string.list_separator)
     val title = tile.title.resolve()
-    Box(modifier.fillMaxWidth().clip(shape).background(MaterialTheme.extraColors.row)) {
+    // The open entry's tiles marked as its rows are (keething-spec app.codes-view, Android's note).
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.extraColors.row),
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -162,8 +162,9 @@ private fun CodeTileView(
                 // The code and its seconds too: the description is all a screen reader says of the tile (keething-spec
                 // app.accessibility AC4).
                 .semantics {
-                    contentDescription = listOf(title, tile.subtitle, display.formatted, left)
+                    contentDescription = listOf(title, tile.subtitle, tile.whereSaid(), display.formatted, left)
                         .filter { it.isNotBlank() }.joinToString(separator)
+                    this.selected = selected
                 }
                 .padding(start = 16.dp, end = 56.dp, top = 14.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),

@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.session.SizeTexts
 import dev.keething.android.R
 import dev.keething.android.ui.UiText
 import dev.keething.android.ui.ui
@@ -121,14 +122,14 @@ internal data class NotOpenDatabase(val line: DatabaseLine, val state: NotOpenSt
             is NotOpenState.NeedsKeyFile ->
                 state.unusable?.let { uiText(R.string.databases_not_open_key_file_unusable_say, state.name, it) }
                     ?: uiText(R.string.databases_not_open_key_file_not_there_say, state.name)
-            is NotOpenState.CannotBeRead -> uiText(
+            is NotOpenState.CannotBeRead -> tooLarge(state.failure) ?: uiText(
                 R.string.databases_not_open_cannot_be_read_say,
                 when (val failure = state.failure) {
                     is OpenFailure.Damaged -> uiText(R.string.databases_not_open_damaged, failure.detail)
                     is OpenFailure.Unsupported -> failure.named()
                     OpenFailure.AccessDenied -> uiText(R.string.databases_not_open_access_denied)
                     is OpenFailure.ReadFailed -> uiText(R.string.databases_not_open_read_failed, failure.detail)
-                    OpenFailure.OutOfMemory -> uiText(R.string.databases_not_open_out_of_memory)
+                    is OpenFailure.OutOfMemory -> uiText(R.string.databases_not_open_out_of_memory)
                     else -> uiText(R.string.databases_not_open_did_not_open)
                 },
             )
@@ -165,7 +166,7 @@ internal object NotOpenDatabases {
         val failure = (reason as? LockReason.UnlockFailed)?.failure
         when (failure) {
             is OpenFailure.KeyFileUnusable -> return NotOpenState.NeedsKeyFile(line.keyFile?.name.orEmpty(), failure.why.ui())
-            is OpenFailure.Unsupported, is OpenFailure.Damaged, is OpenFailure.ReadFailed, OpenFailure.AccessDenied, OpenFailure.OutOfMemory ->
+            is OpenFailure.Unsupported, is OpenFailure.Damaged, is OpenFailure.ReadFailed, OpenFailure.AccessDenied, is OpenFailure.OutOfMemory ->
                 return NotOpenState.CannotBeRead(failure)
             else -> {}
         }
@@ -232,4 +233,13 @@ internal class DatabasesOverview(
             )
         }
     }
+}
+
+/** A database too large to open, its size known: that size and what to do (keething-spec app.large-database AC3). */
+private fun tooLarge(failure: OpenFailure): UiText? {
+    val bytes = (failure as? OpenFailure.OutOfMemory)?.fileBytes ?: return null
+    return uiText(
+        if (failure.othersOpen) R.string.databases_not_open_too_large_beside_say else R.string.databases_not_open_too_large_say,
+        SizeTexts.mib(bytes),
+    )
 }

@@ -1,6 +1,6 @@
 # Files copied into Keething's source from other projects (keething-spec app.dependency-licences AC3), each with its
 # SHA-256, its licence's text in app/src/main/assets/licenses (an entry of About's third-party list) and where it came
-# from. ThirdPartyFilesTest fails on a file in the folders below that no line names, on a line whose file is gone or
+# from. ThirdPartyTest fails on a file in the folders below that no line names, on a line whose file is gone or
 # changed, and on a licence no entry of About shows: a file updated from its source gets its new hash here, in the
 # same commit. Looked at: app/src/main/res/font, app/src/main/assets (but the licences), core/*/src/main/resources,
 # core/argon2/src/main/cpp/phc-winner-argon2 (but KEETHING.md, Keething's own note). Tab-separated.

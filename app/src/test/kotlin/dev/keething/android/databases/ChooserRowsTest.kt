@@ -127,8 +127,10 @@ class ChooserRowsTest {
         assertEquals(ChooserRow.Tone.WARNING, damaged.tone)
         assertTrue(damaged.canCheck && damaged.isChecked, "a sync may have finished it since")
         assertFalse(ChooserRows.offersFingerprint(listOf(damaged)), "the fingerprint is not offered for it alone")
-        assertEquals("Not enough memory", row(failed(OpenFailure.OutOfMemory)).opensWith.english())
-        assertTrue(row(failed(OpenFailure.OutOfMemory)).canCheck)
+        // Nothing is open beside it now: memory may be free (keething-spec app.large-database AC3).
+        assertEquals("Too large to open · 160\u00A0MiB", row(failed(OpenFailure.OutOfMemory(160L shl 20, othersOpen = true))).opensWith.english())
+        assertEquals("Not enough memory", row(failed(OpenFailure.OutOfMemory(null))).opensWith.english())
+        assertTrue(row(failed(OpenFailure.OutOfMemory(160L shl 20))).canCheck)
         assertEquals("Read failed", row(failed(OpenFailure.ReadFailed("provider died"))).opensWith.english())
         assertTrue(row(failed(OpenFailure.ReadFailed("provider died"))).canCheck)
     }

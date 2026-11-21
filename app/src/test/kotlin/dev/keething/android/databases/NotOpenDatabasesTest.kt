@@ -142,7 +142,7 @@ class NotOpenDatabasesTest {
         fun offers(state: NotOpenState) = NotOpenDatabase(line("Work"), state).offersUnlock
         assertTrue(offers(NotOpenState.Locked))
         assertTrue(offers(NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash"))), "a sync may have finished it since")
-        assertTrue(offers(NotOpenState.CannotBeRead(OpenFailure.OutOfMemory)))
+        assertTrue(offers(NotOpenState.CannotBeRead(OpenFailure.OutOfMemory(1L shl 20))))
         assertTrue(offers(NotOpenState.CannotBeRead(OpenFailure.ReadFailed("provider died"))))
         assertFalse(offers(NotOpenState.CannotBeRead(OpenFailure.Unsupported("KDBX 2.0", OpenFailure.Unsupported.Kind.OLD_FORMAT))))
         assertFalse(offers(NotOpenState.CannotBeRead(OpenFailure.AccessDenied)))
@@ -159,6 +159,16 @@ class NotOpenDatabasesTest {
         assertEquals("Its key file work.keyx cannot be used: it is empty", say(NotOpenState.NeedsKeyFile("work.keyx", uiPlain("it is empty"))))
         assertEquals("Cannot be read: damaged or not completely synced yet (a block's hash)", say(NotOpenState.CannotBeRead(OpenFailure.Damaged("a block's hash"))))
         assertEquals("Cannot be read: reading it failed (provider died)", say(NotOpenState.CannotBeRead(OpenFailure.ReadFailed("provider died"))))
+        // keething-spec app.large-database AC3: its size, and beside the open ones, to lock them first.
+        assertEquals(
+            "Too large to open beside the open databases (160\u00A0MiB): lock them and try again",
+            say(NotOpenState.CannotBeRead(OpenFailure.OutOfMemory(160L shl 20, othersOpen = true))),
+        )
+        assertEquals(
+            "Too large for this phone (160\u00A0MiB): keep large files outside it, or split it into two databases",
+            say(NotOpenState.CannotBeRead(OpenFailure.OutOfMemory(160L shl 20))),
+        )
+        assertEquals("Cannot be read: not enough memory to open it", say(NotOpenState.CannotBeRead(OpenFailure.OutOfMemory(null))))
         assertEquals("Wrong password · tap to type it again", say(NotOpenState.WrongPassword))
         assertEquals("Its password was changed elsewhere · tap to type the new one", say(NotOpenState.PasswordChanged))
         assertEquals("Skipped · tap to type its password", say(NotOpenState.Skipped))

@@ -15,7 +15,8 @@ plugins {
  * nothing compiled changes with the time, and the configuration cache keeps no time of its own. The same source makes
  * the same APK (keething-spec app.fdroid-build): the time is SOURCE_DATE_EPOCH's when set, else the commit's when
  * nothing is uncommitted, else the clock's. F-Droid's scanner deletes the Gradle wrapper's jar before it builds; that
- * alone is not an uncommitted change.
+ * alone is not an uncommitted change. A release build whose git does not answer (a source without `.git`) and without
+ * SOURCE_DATE_EPOCH fails, saying so: it would silently be a build of the clock; a debug build goes on.
  */
 abstract class BuildInfo : DefaultTask() {
     @get:Input
@@ -23,6 +24,10 @@ abstract class BuildInfo : DefaultTask() {
 
     @get:Input
     abstract val versionCode: Property<Int>
+
+    /** A release build: no time from git or SOURCE_DATE_EPOCH fails it. */
+    @get:Input
+    abstract val release: Property<Boolean>
 
     @get:Internal
     abstract val repository: DirectoryProperty
@@ -48,7 +53,15 @@ abstract class BuildInfo : DefaultTask() {
         }
         val commit = git("rev-parse", "--short", "HEAD").orEmpty()
         val dirty = git("status", "--porcelain", "--", ".", ":!gradle/wrapper/gradle-wrapper.jar")?.isNotEmpty() == true
-        val built = (System.getenv("SOURCE_DATE_EPOCH") ?: git("log", "-1", "--format=%ct").takeUnless { dirty })
+        val epoch = System.getenv("SOURCE_DATE_EPOCH")
+        val committed = git("log", "-1", "--format=%ct")
+        if (release.get() && epoch == null && committed == null) {
+            throw GradleException(
+                "git does not answer in ${repository.get().asFile} and SOURCE_DATE_EPOCH is not set: a release build " +
+                    "would carry the clock's time and could not be reproduced. Build from a git clone, or set SOURCE_DATE_EPOCH.",
+            )
+        }
+        val built = (epoch ?: committed.takeUnless { dirty })
             ?.toLongOrNull()?.let(Instant::ofEpochSecond) ?: Instant.now().truncatedTo(ChronoUnit.SECONDS)
         // Written by hand: Properties.store would add a time of its own.
         output.file("build-info.properties").get().asFile.writeText(
@@ -156,6 +169,7 @@ androidComponents {
         val info = tasks.register<BuildInfo>("${variant.name}BuildInfo") {
             versionName.set(android.defaultConfig.versionName)
             versionCode.set(android.defaultConfig.versionCode)
+            release.set(variant.buildType == "release")
             repository.set(rootProject.layout.projectDirectory)
             // The time and the working tree change with every build.
             outputs.upToDateWhen { false }

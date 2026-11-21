@@ -349,6 +349,7 @@
     <string name="databases_chooser_damaged">Повреждена или не синхронизирована</string>
     <string name="databases_chooser_not_found_backups">Не найдена · есть копии</string>
     <string name="databases_chooser_out_of_memory">Не хватает памяти</string>
+    <string name="databases_chooser_too_large">Слишком большая · %1$s</string>
     <string name="databases_chooser_read_failed">Ошибка чтения</string>
     <string name="databases_chooser_key_unusable">%1$s нельзя использовать</string>
     <string name="databases_chooser_its_key_unusable">Её файл-ключ нельзя использовать</string>
@@ -424,6 +425,8 @@
     <string name="databases_not_open_access_denied">Keething больше не может читать файл: найдите его</string>
     <string name="databases_not_open_read_failed">ошибка чтения (%1$s)</string>
     <string name="databases_not_open_out_of_memory">не хватает памяти, чтобы её открыть</string>
+    <string name="databases_not_open_too_large_say">Слишком большая для этого телефона (%1$s): храните большие файлы вне базы или разделите её на две</string>
+    <string name="databases_not_open_too_large_beside_say">Слишком большая, чтобы открыть рядом с открытыми базами (%1$s): заблокируйте их и попробуйте снова</string>
     <string name="databases_not_open_did_not_open">она не открылась</string>
     <string name="databases_not_open_wrong_password_say">Неверный пароль · нажмите, чтобы ввести его снова</string>
     <string name="databases_not_open_password_changed_say">Её пароль изменили в другом месте · нажмите, чтобы ввести новый</string>

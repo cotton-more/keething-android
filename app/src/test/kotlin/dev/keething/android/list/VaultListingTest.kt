@@ -5,6 +5,7 @@ import dev.keething.android.databases.DatabaseLabel
 import dev.keething.android.databases.DatabaseMark
 import dev.keething.android.ui.english
 import dev.keething.android.ui.uiText
+import dev.keething.card.EntryAvatar
 import dev.keething.card.ExpiryHint
 import dev.keething.domain.secret.Secret
 import dev.keething.domain.totp.TotpConfig
@@ -134,6 +135,19 @@ class VaultListingTest {
         assertEquals(listOf(false, true, true), tiles.map { it.further })
         assertEquals(secret, tiles[0].totp)
         assertEquals(6, tiles[1].totp.digits)
+    }
+
+    @Test
+    fun aTileIsReadWithWhereItsEntryIsAfterTheUsernameAsItsRowShowsIt() {
+        fun tile(group: List<String>, database: DatabaseMark?) = CodeTile(
+            key = "k", entryId = "e", title = uiText(R.string.list_one_time_code), subtitle = "alex@outlook.com", fieldName = null,
+            totp = secret, avatar = EntryAvatar("M", 0), customIconId = null, group = group, database = database,
+        )
+        val work = DatabaseMark(DatabaseId("W"), DatabaseLabel("Work", "Sync/KeePass"), 2)
+        assertEquals("Finanzen › Banken", tile(listOf("Finanzen", "Banken"), null).whereSaid())
+        assertEquals("Work · Sync/KeePass › Finanzen › Banken", tile(listOf("Finanzen", "Banken"), work).whereSaid())
+        assertEquals("Work · Sync/KeePass", tile(emptyList(), work).whereSaid())
+        assertEquals("", tile(emptyList(), null).whereSaid(), "the root group of the only database: nothing")
     }
 
     // spec: app.codes-view/AC3

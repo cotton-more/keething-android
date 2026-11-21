@@ -10,6 +10,7 @@ import dev.keething.card.Deadline
 import dev.keething.card.DeadlineList
 import dev.keething.card.EntryAvatar
 import dev.keething.card.EntryFace
+import dev.keething.card.GroupPathFormatter
 import dev.keething.card.ExpiryHint
 import dev.keething.card.ImportedFieldName
 import dev.keething.card.OneTimeCodes
@@ -78,6 +79,12 @@ internal data class CodeTile(
     val database: DatabaseMark? = null,
 ) {
     val further: Boolean get() = fieldName != null
+
+    /**
+     * Where its entry is, as its group line shows it, for a screen reader: the database's name while two or more are
+     * open, then the group's path; empty for the root group of the only one.
+     */
+    fun whereSaid(): String = listOfNotNull(database?.label?.full, group.takeIf { it.isNotEmpty() }?.let(GroupPathFormatter::text)).joinToString(" › ")
 }
 
 /** The most pressing date an entry says something ends on, when it ended or ends within 90 days. */

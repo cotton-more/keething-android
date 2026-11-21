@@ -21,7 +21,6 @@ class LicencesTest {
         assertEquals("GPL-3.0-or-later", LICENCE)
     }
 
-    // spec: app.security-policy/AC4
     @Test
     fun theSecurityPolicyIsTheRepositorysAndSaysWhereToReport() {
         val policy = File("../SECURITY.md").readText()

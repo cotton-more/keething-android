@@ -391,6 +391,8 @@
     <string name="databases_chooser_damaged">Damaged or not synced yet</string>
     <string name="databases_chooser_not_found_backups">Not found · has backups</string>
     <string name="databases_chooser_out_of_memory">Not enough memory</string>
+    <!-- %1$s: the database's size ("160 MiB") -->
+    <string name="databases_chooser_too_large">Too large to open · %1$s</string>
     <string name="databases_chooser_read_failed">Read failed</string>
     <!-- %1$s: the key file's name -->
     <string name="databases_chooser_key_unusable">%1$s cannot be used</string>
@@ -482,6 +484,10 @@
     <!-- %1$s: why, in the storage's own words -->
     <string name="databases_not_open_read_failed">reading it failed (%1$s)</string>
     <string name="databases_not_open_out_of_memory">not enough memory to open it</string>
+    <!-- %1$s: the database's size ("160 MiB") -->
+    <string name="databases_not_open_too_large_say">Too large for this phone (%1$s): keep large files outside it, or split it into two databases</string>
+    <!-- %1$s: the database's size ("160 MiB") -->
+    <string name="databases_not_open_too_large_beside_say">Too large to open beside the open databases (%1$s): lock them and try again</string>
     <string name="databases_not_open_did_not_open">it did not open</string>
     <string name="databases_not_open_wrong_password_say">Wrong password · tap to type it again</string>
     <string name="databases_not_open_password_changed_say">Its password was changed elsewhere · tap to type the new one</string>

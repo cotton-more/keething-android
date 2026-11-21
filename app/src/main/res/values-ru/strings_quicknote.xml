@@ -3,6 +3,8 @@
     <string name="quicknote_close">Закрыть</string>
     <string name="quicknote_unlock_purpose">Разблокируйте, чтобы написать быструю заметку</string>
 
+    <string name="quicknote_database_where">%1$s › %2$s</string>
+    <string name="quicknote_database_said">Сохраняется в %1$s, выбрано в %2$s</string>
     <string name="quicknote_saved_to">Сохранено в %1$s</string>
     <string name="quicknote_saved">Сохранено</string>
     <string name="quicknote_no_text">Нет текста для сохранения</string>

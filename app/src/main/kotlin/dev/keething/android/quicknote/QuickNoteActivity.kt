@@ -224,7 +224,9 @@ private fun Locked(container: AppContainer, database: DatabaseId, onClose: () ->
 private fun Editor(container: AppContainer, editor: Showing.Editor, model: QuickNoteModel) {
     val window by container.sessions.window.collectAsStateWithLifecycle()
     val session = remember(window) { container.sessions.session(editor.database) } ?: return
-    // No places: no Save into, and the next new entry's database stays where it was (lastNewEntryDatabase).
+    // No places: no Save into, and the next new entry's database stays where it was (lastNewEntryDatabase). The
+    // setting's database is named instead (keething-spec app.quick-note AC2).
+    val named = remember(window, editor.database) { QuickNoteDatabaseRow.shown(container.sessions.windowMarks(), editor.database) }
     EntryEditorScreen(
         database = session,
         entryId = null,
@@ -233,6 +235,7 @@ private fun Editor(container: AppContainer, editor: Showing.Editor, model: Quick
         onClose = model::editorClosed,
         onSaved = { saved -> model.saved((session.session.state.value as? SessionState.Unlocked)?.vault, saved.ref.entry, saved.mayNotSync) },
         note = editor.note,
+        noteDatabase = named,
         copySecret = { container.clipboard.copy(it, sensitive = true) },
     )
 }

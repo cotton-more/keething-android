@@ -2,6 +2,7 @@ package dev.keething.android.settings
 
 import dev.keething.android.generator.PasswordGeneratorState
 import dev.keething.android.list.RecentEntries
+import dev.keething.android.storage.FileDatabaseBackups
 import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.biometric.BiometricPasswordStores
 import dev.keething.domain.biometric.SeveralOpening
@@ -32,7 +33,8 @@ import org.w3c.dom.Element
 
 /**
  * What each release kept, read by this one (keething-spec app.upgrade-safety AC4): `src/test/resources/stored/<release>`
- * holds that release's `settings` SharedPreferences and a stopped save's note, and everything in them is found again.
+ * holds that release's `settings` SharedPreferences, a stopped save's note and a database's backup, and everything in
+ * them is found again.
  * A release adds its own folder and a test here.
  */
 class StoredStateTest {
@@ -85,6 +87,21 @@ class StoredStateTest {
         val notes = SaveNotes(filesOf("0.0.1", "saves"))
         assertEquals(emptyList(), notes.unreadable())
         assertTrue(notes.unsettled(GRANT), "the stopped save is put right at the next read")
+
+        // A backup kept before a save, in the database's folder, without the digests 0.0.1 did not write: listed with
+        // its file's date and size, and its digest written at its first read.
+        val folder001 = filesOf("0.0.1", "backups").resolve(personal.fileName)
+        val name = "F5 Personal 2026-11-05T21-14-07.kdbx"
+        val written = Instant.parse("2026-11-05T20:14:07Z")
+        File(folder001, name).setLastModified(written.toEpochMilli())
+        val backups = FileDatabaseBackups(folder001)
+        assertEquals(listOf(FileDatabaseBackups.Backup(name, written, 8567, damaged = false)), backups.list())
+        assertFalse(File(folder001, FileDatabaseBackups.DIGESTS).exists())
+        assertEquals(8567, backups.read(name)?.size)
+        assertEquals(
+            "55ef20310f33ae0d0282591a60a59850246235f03b368feea3741a17d95331cf 8567 $name\n",
+            File(folder001, FileDatabaseBackups.DIGESTS).readText(),
+        )
     }
 
     /** The release's `settings.xml` as SharedPreferences reads it: every value of this app's is a string. */

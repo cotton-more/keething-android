@@ -326,6 +326,7 @@ public class VaultSessions(
         val database = factory.start(record, ++made, { list.record(id)?.keyFile }, watching)
         database.session.onStateChange = { changed(id, it) }
         database.session.judgeRoom = { size -> room(id, size) }
+        database.session.othersOpen = { sessions.any { (other, started) -> other != id && started.database.session.state.value is SessionState.Unlocked } }
         database.session.onSavesEnded = ::thaw
         return Started(database, watching)
     }
@@ -358,6 +359,7 @@ public class VaultSessions(
         if (session.state.value !is SessionState.Locked) session.lock(LockReason.Manual)
         session.onStateChange = null
         session.judgeRoom = null
+        session.othersOpen = null
         session.onSavesEnded = null
         session.close()
         started.scope.cancel()

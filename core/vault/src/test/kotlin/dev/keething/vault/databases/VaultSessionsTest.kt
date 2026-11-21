@@ -275,6 +275,22 @@ class VaultSessionsTest {
     // The memory a save needs (keething-spec app.large-database AC3)
 
     @Test
+    fun aDatabaseTooLargeToOpenSaysItsSizeAndWhetherOthersWereOpenBesideIt() = runTest {
+        val f = Fixture(this)
+        val w = f.add("/a/w.kdbx")
+        val p = f.add("/a/p.kdbx")
+        val size = fixtureBytes("kdbx4-aes-aeskdf").size.toLong()
+        f.files.getValue("/a/p.kdbx").beforeRead = { throw OutOfMemoryError("Java heap space") }
+
+        unlock(f, p)
+        assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.OutOfMemory(size, othersOpen = false))), f.state(p), "alone")
+
+        unlock(f, w)
+        unlock(f, p)
+        assertEquals(SessionState.Locked(LockReason.UnlockFailed(OpenFailure.OutOfMemory(size, othersOpen = true))), f.state(p), "beside w")
+    }
+
+    @Test
     fun aDatabaseTooLargeToSaveOpensReadOnlyAndRefusesEveryChangeWithoutReadingItsFile() = runTest {
         val f = Fixture(this)
         val p = f.add("/a/p.kdbx")

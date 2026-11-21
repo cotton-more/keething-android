@@ -103,6 +103,12 @@ public class VaultSession(
      */
     internal var judgeRoom: ((DatabaseSize) -> SaveRoom)? = null
 
+    /**
+     * Whether other databases are open beside it now (the coordinator's): a file too large to open says so, as locking
+     * them may give it the memory (keething-spec app.large-database AC3); none: alone.
+     */
+    internal var othersOpen: (() -> Boolean)? = null
+
     /** Told on the main thread when its last save running ended (a lock may have overtaken it): its memory is free. */
     internal var onSavesEnded: (() -> Unit)? = null
 
@@ -301,7 +307,7 @@ public class VaultSession(
                 is OpenResult.Failed -> {
                     attempt.key.wipe()
                     val wrongKey = result.failure == OpenFailure.WrongPassword
-                    failure = failure ?: if (wrongKey) attempt.rejected else result.failure
+                    failure = failure ?: if (wrongKey) attempt.rejected else result.failure.withOthers()
                     if (!wrongKey) break
                 }
             }
@@ -502,7 +508,7 @@ public class VaultSession(
                     return false
                 }
                 val unlocked = mutableState.value as? SessionState.Unlocked ?: return false
-                set(unlocked.copy(conflictCopies = copies, reloadFailure = result.failure))
+                set(unlocked.copy(conflictCopies = copies, reloadFailure = result.failure.withOthers()))
             }
         }
         true
@@ -863,6 +869,10 @@ public class VaultSession(
             result.opened.attachments.wipe()
         }
     }
+
+    /** Out of memory: with whether others are open beside it now (their memory is the one to free). */
+    private fun OpenFailure.withOthers(): OpenFailure =
+        if (this is OpenFailure.OutOfMemory) copy(othersOpen = this@VaultSession.othersOpen?.invoke() == true) else this
 
     private val OpenResult.failure: OpenFailure? get() = (this as? OpenResult.Failed)?.failure
 

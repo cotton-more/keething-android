@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The launcher's long-press menu: straight to the entries with a one-time code (SPEC §6.2); a quick note from the
+<!-- The launcher's long-press menu: straight to the Codes view, a tile per one-time code (SPEC §6.2); a quick note from the
      clipboard, over whatever is in front (SPEC §6.4). -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut

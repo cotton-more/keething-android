@@ -1,5 +1,6 @@
 package dev.keething.android.about
 
+import dev.keething.android.ui.READABLE_WIDTH
 import android.content.res.AssetManager
 import androidx.annotation.StringRes
 import androidx.activity.compose.BackHandler
@@ -175,7 +176,8 @@ private fun Page(title: String, onClose: () -> Unit, content: @Composable () -> 
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.about_back)) }
             Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
         }
-        Column(Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = 720.dp).padding(horizontal = 8.dp, vertical = 8.dp)) {
+        // At most the readable width, centred (keething-spec app.wide-screens AC5).
+        Column(Modifier.fillMaxWidth().wrapContentWidth().widthIn(max = READABLE_WIDTH).padding(horizontal = 8.dp, vertical = 8.dp)) {
             content()
         }
     }

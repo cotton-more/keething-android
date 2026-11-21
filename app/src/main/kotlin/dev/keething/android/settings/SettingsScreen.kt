@@ -1,5 +1,6 @@
 package dev.keething.android.settings
 
+import dev.keething.android.sharing.announced
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -365,6 +366,8 @@ private fun FingerprintSetting(container: AppContainer) {
     Text(
         problem ?: unavailable?.let { stringResource(R.string.settings_fingerprint_unavailable, it.reason) }
             ?: stringResource(R.string.settings_fingerprint_detail),
+        // A deletion that failed is said as it appears (keething-spec app.accessibility AC6).
+        Modifier.announced(),
         style = MaterialTheme.typography.bodyMedium,
         color = if (problem != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
     )

@@ -9,6 +9,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 
 /** The declined type offers by refs (plan AD9; the Mac's D6 `DeclinedTypeOffers`). */
@@ -33,6 +34,21 @@ class AppSettingsTest {
             assertEquals(5.minutes, AppSettings(store).lockTimeout.value, "stored \"$stored\"")
         }
         assertFailsWith<IllegalArgumentException> { AppSettings(store).chooseLockTimeout(7.minutes) }
+    }
+
+    @Test
+    fun aRequestIsValidThreeDaysByDefaultOneOfThreeChoicesAndAStoredValueOutsideThemReadsAsThree() {
+        assertEquals(3.days, AppSettings(store).requestValidity.value, "nothing stored")
+        assertEquals(listOf(1.days, 3.days, 7.days), AppSettings.REQUEST_VALIDITIES)
+        for (choice in AppSettings.REQUEST_VALIDITIES) {
+            AppSettings(store).chooseRequestValidity(choice)
+            assertEquals(choice, AppSettings(store).requestValidity.value, "kept: $choice")
+        }
+        for (stored in listOf("2", "0", "-3", "30", "abc", "")) {
+            store.setString("requestValidityDays", stored)
+            assertEquals(3.days, AppSettings(store).requestValidity.value, "stored \"$stored\"")
+        }
+        assertFailsWith<IllegalArgumentException> { AppSettings(store).chooseRequestValidity(2.days) }
     }
 
     @Test

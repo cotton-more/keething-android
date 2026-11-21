@@ -59,8 +59,12 @@ public sealed interface OpenFailure {
      */
     public data class ReadFailed(val detail: String) : OpenFailure
 
-    /** The phone has not enough memory for the file's bytes or the key derivation. */
-    public data object OutOfMemory : OpenFailure
+    /**
+     * The phone has not enough memory for the file's bytes (keething-spec app.large-database AC3): [fileBytes], the
+     * file's size (null when even that could not be had), and [othersOpen], whether other databases were open beside
+     * it then, for the words. Key derivation that does not fit is [Unsupported] ([Unsupported.Kind.MEMORY]).
+     */
+    public data class OutOfMemory(val fileBytes: Long?, val othersOpen: Boolean = false) : OpenFailure
 
     /**
      * A lock came while the file was read, and its key was wiped (keething-spec kdbx.hardening AC2, AC6): a key
@@ -72,7 +76,7 @@ public sealed interface OpenFailure {
     public val isWrongKey: Boolean get() = this == WrongPassword || this == WrongPasswordOrKeyFile || this == WrongKeyFile
 
     /** The file could not be read this time, but the next try may read it: a sync may finish it, memory may be free. */
-    public val nextTryMayRead: Boolean get() = this is Damaged || this is ReadFailed || this == OutOfMemory
+    public val nextTryMayRead: Boolean get() = this is Damaged || this is ReadFailed || this is OutOfMemory
 }
 
 /** A database just opened. */
@@ -114,7 +118,7 @@ public open class VaultOpener {
         } catch (_: WipedKeyException) {
             return OpenResult.Failed(OpenFailure.Locked)
         } catch (_: OutOfMemoryError) {
-            return OpenResult.Failed(OpenFailure.OutOfMemory)
+            return OpenResult.Failed(OpenFailure.OutOfMemory(found.bytes.size.toLong()))
         }
         return OpenResult.Opened(database.toOpenedVault(found.version, found.bytes.size.toLong(), stoppedSave = found.stoppedSave))
     }
@@ -129,7 +133,7 @@ public open class VaultOpener {
         } catch (_: IOException) {
             return CopyContents.NotOpened(OpenFailure.AccessDenied)
         } catch (_: OutOfMemoryError) {
-            return CopyContents.NotOpened(OpenFailure.OutOfMemory)
+            return CopyContents.NotOpened(OpenFailure.OutOfMemory(null))
         }
         val database = try {
             KdbxReader.open(bytes, key)
@@ -138,7 +142,7 @@ public open class VaultOpener {
         } catch (_: WipedKeyException) {
             return CopyContents.NotOpened(OpenFailure.Locked)
         } catch (_: OutOfMemoryError) {
-            return CopyContents.NotOpened(OpenFailure.OutOfMemory)
+            return CopyContents.NotOpened(OpenFailure.OutOfMemory(bytes.size.toLong()))
         }
         val sizes = database.binaries.map(Secret::size)
         database.binaries.forEach(Secret::wipe)
@@ -171,7 +175,7 @@ public open class VaultOpener {
         } catch (_: WipedKeyException) {
             return HistoryResult.Failed(OpenFailure.Locked)
         } catch (_: OutOfMemoryError) {
-            return HistoryResult.Failed(OpenFailure.OutOfMemory)
+            return HistoryResult.Failed(OpenFailure.OutOfMemory(found.bytes.size.toLong()))
         }
         val document = database.document
         val sizes = database.binaries.map(Secret::size)
@@ -209,7 +213,14 @@ private fun read(store: DatabaseStore): FileRead = try {
 } catch (failure: IOException) {
     FileRead.Failed(OpenFailure.ReadFailed(failure.message ?: failure.javaClass.simpleName))
 } catch (_: OutOfMemoryError) {
-    FileRead.Failed(OpenFailure.OutOfMemory)
+    FileRead.Failed(OpenFailure.OutOfMemory(sizeOf(store)))
+}
+
+/** The file's size without its bytes, when its storage says it. */
+private fun sizeOf(store: DatabaseStore): Long? = try {
+    store.version()?.size
+} catch (_: Exception) {
+    null
 }
 
 /**

@@ -446,7 +446,12 @@ keeps the new time. The way out is in §3.3 step 7.
   (`OpenFailure.ReadFailed`: "The file could not be read (…)."), and so is no memory for the file's bytes
   (`OutOfMemory`): `VaultOpener` catches both around `store.read()`, never letting them reach the app's scope, where
   they would end the app (keething-spec unlock.lock-screen AC5). An unlock stays locked saying it; a reload keeps the
-  vault and says it over the list; the chooser's row says "Read failed" and can be checked again.
+  vault and says it over the list; the chooser's row says "Read failed" and can be checked again. No memory for the
+  file says its size and what to do (`OutOfMemory(fileBytes, othersOpen)`, keething-spec app.large-database AC3):
+  "Family.kdbx is 160 MiB, more than this phone gives Keething the memory to open. Keep large files outside the
+  database, or split it into two databases."; with other databases open beside it, to lock them and try again first;
+  the chooser's row "Too large to open · 160 MiB", the chip's "Too large to open beside the open databases (160 MiB):
+  lock them and try again".
 - An earlier vault stays intact until the lock (a card may still show one of its entries); the lock wipes
   every vault of the session.
 - **Nothing a file holds crashes the app or locks the user out** (keething-spec kdbx.hardening; the review of the
@@ -942,7 +947,7 @@ SPEC §3.26). The New database screen chooses it (§6.2; keething-spec `plans/do
   and Argon2 memory more than the phone gives the app (lower it on the computer); the list's databases not open say the
   same in a few words ("Cannot be read: encrypted with Twofish"; the chooser's row only "Cannot be read"). A file a
   later try may read (damaged or half-synced, no memory, a read that failed) can be checked in the chooser and says
-  so on its row ("Damaged or not synced yet", "Not enough memory", "Read failed"), and its chip's sheet offers
+  so on its row ("Damaged or not synced yet", "Too large to open · 160 MiB", "Read failed"), and its chip's sheet offers
   Unlock… (keething-spec databases.chooser AC4). A stored password (§5) rejected while the database
   has a key file, or with the key file missing, is kept: the key file may be the wrong part; so is one rejected
   while the key file was chosen, changed or forgotten since the last unlock that opened it (each database's
@@ -1389,9 +1394,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   card's Edit is named by hand). A masked value is read as "Hidden", with only its part in clear ("Card number,
   hidden, ending 1111"), never its dots; a secure field gives accessibility services only its length while hidden
   (Compose's `SecureTextField` gives the typed text itself). A one-time code is read with "N seconds left" and nothing
-  about it is announced as it counts; the Codes view's tile says its title, username, code and seconds. A recovery
+  about it is announced as it counts; the Codes view's tile says its title, username, where its entry is (its row's group line: the database's name
+  with two or more open, then the group's path), code and seconds. A recovery
   phrase's words are read "Word 3, …". Swipes and long presses are labelled actions too; section titles are
-  headings; the list's banners are announced when they appear, as snackbars and the lock screen's failure are.
+  headings; the list's banners are announced when they appear, as snackbars and the lock screen's failure are, and
+  the Codes view's sheets' problems (Edit code's refusal, Add code's) and Settings' fingerprint line when a deletion
+  failed.
   `task a11y:dump` checks the screen shown: a control without a name, a secret in the tree (DEVELOPMENT.md).
 - The generator's words are the EFF large word list (CC BY 3.0 US, `assets/licenses`). A recovery phrase is checked
   against BIP-39's ten word lists (MIT, `assets/licenses`; 184 KB, read when first needed).
@@ -2033,7 +2041,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   every device. After a leak, change it here: the others then ask for the new one."
   Under the list **Open a database…** (it becomes current; one open stays open, §3.1) and **New database…** (§6.2). Then **Quick notes**: "Quick notes go to", Current database or a database of the
   list with its dot, in a menu, and Add the Quick note tile (§6.4). Then the app's fingerprint switch (§5) and,
-  while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5),
+  while it is on, how often to ask for the master password (7, 14, 30 days, Never; §5), **Autofill** (whether
+  Keething fills, and Use Keething for autofill, which opens the system's choice; §7), the
   lock timeout, the **Theme** (System, Light, Dark; keething-spec app.theme-choice: the app's own night mode, kept by the
   system for every window of the app, told again at each start), the **Language** (the app's language as Android keeps it
   for the app: System, English or Русский; the row opens the system's page that changes it; keething-spec
@@ -2108,8 +2117,8 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   database ("Into", only while two or more take entries; the start as a new entry's), and, when that database has an
   entry of the link's issuer as title (folded as the search folds), "Add to “X”" first (its own code when it has none,
   else the next "One-time code N", protected) or "A new entry" (title and username from the link's issuer and account,
-  in the root group); nothing written until Add code. Two columns from
-  840 dp. "Search codes" searches the tiles: the title, the username and a further code's field name, nothing else of
+  in the root group); nothing written until Add code. One column; on a wide window the view is the list's pane, and
+  Open entry opens the card beside it, its tiles marked as the list marks the open entry's rows. "Search codes" searches the tiles: the title, the username and a further code's field name, nothing else of
   the entry (not its URL, notes or other fields), the filters (`@`, `#`, `+`, `!`) as in the list. Reached from the
   launcher shortcut and from the Codes button in the list's header (icon A, the ring, before Sharing); Back (after
   clearing the search) or the arrow goes to the whole list with nothing typed; a lock keeps the view, so the shortcut
@@ -2277,7 +2286,9 @@ app made since the read is taken, never a second one.
 **A quick note's editor** (`EntryEditor.createQuickNote`, `NewNote(text, quick = true)`; app.quick-note AC3): New
 note's editor (protected, the kind written at Save, no username, the dated title) with the text given and the group
 above; the text is in the draft, not the start, so it is a change and Back asks first. The group can be changed. No
-Save into: the setting chose the database.
+Save into: the setting chose the database. With two or more databases in the list, a row where Save into would be
+names it (its dot and name, "Settings › Quick notes" under it; read as one item, "Saved into Personal, chosen in
+Settings › Quick notes"; `QuickNoteDatabaseRow`, app.quick-note AC2).
 
 **A quick note's run** (`app/quicknote` `QuickNoteRun`; app.quick-note AC3, AC4, AC7; the Mac's `QuickNoteRun`): one
 request, from a text handed over (a share or the selection menu, `Source.Given`) or the clipboard (the tile and the
@@ -2542,14 +2553,20 @@ service, the screen it opens and the system's view structure are in `app/autofil
 - The build is reproducible (keething-spec app.fdroid-build): a commit builds the same unsigned APK in any folder, and
   the signed APK is that APK and its signing block alone (signed with v2/v3 only, no v1 since 2026-11-16, the
   alignment kept), so F-Droid can ship our signature; `task apk:reproduce` checks a release against a fresh clone. No
-  dependency block in the APK; F-Droid's recipe is `tools/fdroid/dev.keething.android.yml`.
+  dependency block in the APK; F-Droid's recipe is `tools/fdroid/dev.keething.android.yml`. A release build whose git
+  does not answer (a source without `.git`) and without SOURCE_DATE_EPOCH fails, saying so, rather than take the
+  clock's time; a debug build goes on.
 - Updates keep the same signing key (otherwise Android refuses the update and the app must be uninstalled,
   which deletes the biometric key and settings).
 - An update keeps what the app stores (keething-spec app.upgrade-safety): the `settings` carry `storeVersion`
   (`SettingsVersion`: 1; none was kept before it, 0.0.1), turned into the current one at the start before anything
-  reads them, a step per change of how something is kept; the list (`version`), the saves' notes (`version`) and the
-  fingerprint's files (`KPBR`/`KPBS` 1) carry their own. `app/src/test/resources/stored/<release>` keeps what each
-  release stored, and `StoredStateTest` reads it all back; each release adds its own, and before each one its release
+  reads them, a step per change of how something is kept; the list (`version`), the saves' notes (`version`), the
+  fingerprint's files (`KPBR`/`KPBS` 1) and the sharing book (`version` 2; one not read is given up and said, §10)
+  carry their own. Three carry none and are read leniently: the backups' names (one not matching is not a backup and
+  is left alone), their `.sha256` (a line that does not read is computed again from its copy) and the sharing book's
+  `.lost` (one not read is no note). `app/src/test/resources/stored/<release>` keeps what each release stored (0.0.1:
+  the settings, a stopped save's note and a backup without `.sha256`), and `StoredStateTest` reads it back (what the
+  Keystore holds cannot be in a sample); each release adds its own, and before each one its release
   build is installed over the previous release on the test phone.
 - minSdk 34 (only the owner's phone and an emulator), targetSdk = the newest installed (Android 17).
 - Google's developer verification for side-loaded apps (rolling out 2026–2027): check its state before the

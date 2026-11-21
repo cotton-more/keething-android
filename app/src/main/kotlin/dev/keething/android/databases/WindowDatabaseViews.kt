@@ -1,5 +1,6 @@
 package dev.keething.android.databases
 
+import dev.keething.android.ui.readableInset
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -425,7 +426,9 @@ internal fun DatabasesScreen(
         snackbarHost = { NoticeHost(snackbar) },
     ) { padding ->
         val sections = overview ?: return@Scaffold
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 24.dp)) {
+        // At most the readable width, centred (keething-spec app.wide-screens AC5).
+        val side = readableInset()
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = side, end = side, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 24.dp)) {
             if (sections.open.isNotEmpty()) {
                 item(key = "h/open") { SectionTitle(stringResource(R.string.databases_section_open)) }
                 itemsIndexed(sections.open, key = { _, it -> "o/${it.id.value}" }) { index, line ->

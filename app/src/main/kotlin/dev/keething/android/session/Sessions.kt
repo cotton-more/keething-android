@@ -545,7 +545,7 @@ internal class Sessions(
                 is OpenFailure.Unsupported -> "unsupported"
                 is OpenFailure.Damaged -> "damaged: ${failure.detail}"
                 is OpenFailure.ReadFailed -> "read failed: ${failure.detail}" // not user text
-                OpenFailure.OutOfMemory -> "out of memory" // not user text
+                is OpenFailure.OutOfMemory -> "out of memory" // not user text
                 OpenFailure.Locked -> "locked meanwhile" // not user text
             }
         }

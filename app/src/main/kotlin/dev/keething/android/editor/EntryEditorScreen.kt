@@ -1,5 +1,8 @@
 package dev.keething.android.editor
 
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import dev.keething.android.quicknote.QuickNoteDatabaseRow
+import dev.keething.android.databases.DatabaseMark
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.keething.android.R
@@ -241,6 +244,8 @@ internal fun EntryEditorScreen(
     banner: (@Composable () -> Unit)? = null,
     /** A new entry's other open databases (Save into; keething-spec databases.one-list AC5, AC6). */
     places: NewEntryPlaces? = null,
+    /** A quick note's database, named in a row of its own where Save into would be (keething-spec app.quick-note AC2). */
+    noteDatabase: DatabaseMark? = null,
     /** Another showing of the same screen (after a lock and an unlock): a fresh editor, not the one whose draft went. */
     showing: Int = 0,
     /** A new note's editor and the text it starts with (SPEC §6.4). */
@@ -381,7 +386,7 @@ internal fun EntryEditorScreen(
                     val into = model.chosen?.takeIf { model.offered.isNotEmpty() }
                     val saveInto: (@Composable () -> Unit)? = into?.let {
                         { SaveInto(it, model.offered, model.notOpen?.resolve(), enabled = phase == SavePhase.Editing, onChoose = model::saveInto) }
-                    }
+                    } ?: noteDatabase?.let { { NoteDatabase(it) } }
                     CompositionLocalProvider(LocalSecretCopy provides copySecret) {
                         EditorForm(editor, draft, model::update, model::addCodes, generator, model.knownTags, saveInto, model.groups, model::choose) {
                             AttachmentsSection(editor, draft, model::update, model.readingFiles, model.attachmentProblem?.resolve()) { uris -> model.addFiles(uris, newAttachments) }
@@ -905,6 +910,34 @@ private fun SaveInto(chosen: NewEntryDatabase, offered: List<NewEntryDatabase>, 
             },
             onDismiss = { choosing = false },
         )
+    }
+}
+
+/** A quick note's database: its dot and name, where it is chosen under them, read as one item; not chosen here. */
+@Composable
+private fun NoteDatabase(mark: DatabaseMark) {
+    val colors = databaseColors(mark.colorIndex)
+    val said = QuickNoteDatabaseRow.said(mark).resolve()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clearAndSetSemantics { contentDescription = said }
+            .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(colors.dot))
+            Text(
+                mark.label.full,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = colors.text,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+            )
+        }
+        Text(QuickNoteDatabaseRow.where().resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
