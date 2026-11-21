@@ -138,6 +138,8 @@
     <!-- The entry's one-time code -->
     <string name="editor_code">One-time code</string>
     <string name="editor_code_removed">The one-time code is removed with the save.</string>
+    <string name="editor_passkey_removed">The passkey is removed with the save.</string>
+    <string name="editor_passkey_remove">Remove the passkey</string>
     <string name="editor_code_settings">The code\'s settings</string>
     <string name="editor_code_settings_hide">Hide the code\'s settings</string>
     <string name="editor_code_back">Back to the code the entry had</string>

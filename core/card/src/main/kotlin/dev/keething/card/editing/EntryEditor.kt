@@ -324,6 +324,7 @@ public class EntryEditor private constructor(
             tags = shape.tags,
             expiry = shape.expiry,
             group = if (isNew) null else destination(draft),
+            removePasskey = shape.passkeyRemoved,
             totp = when {
                 shape.codeChanged -> draft.code?.config()?.let { TotpChange.Set(it, TotpSetup.otpauthUri(it, savedTitle(draft), draft.username)) } ?: TotpChange.Remove
                 // A code that cannot be used, saved as typed: each field's protection kept.
@@ -385,6 +386,7 @@ public class EntryEditor private constructor(
         val codeChanged: Boolean,
         val codeFields: Boolean,
         val attachments: List<AttachmentText>?,
+        val passkeyRemoved: Boolean,
     )
 
     private data class FieldText(val name: String, val value: String, val isProtected: Boolean)
@@ -420,6 +422,7 @@ public class EntryEditor private constructor(
             // Only a list that differs from the entry's (AC4).
             attachments = draft.attachments.map { AttachmentText(it.original, it.name.trim(), if (it.isNew) it.id else null) }
                 .takeIf { it != loadedAttachments },
+            passkeyRemoved = draft.passkeyRemoved && original.passkeyFields.isNotEmpty(),
         )
     }
 

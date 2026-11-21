@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -75,6 +76,26 @@ class PasskeyDatabaseTest {
         assertEquals(listOf(CustomField.plain("Added", "on the phone")), after.customFields)
         assertEquals(before, passkeyStrings(store.content!!, entry.id))
         assertEquals(entry.passkey, after.passkey)
+    }
+
+    // spec: card.passkey/AC8
+    @Test
+    fun aRemovedPasskeyGoesWithEveryOneOfItsFieldsAndNothingElse() {
+        val file = fixtureBytes(name)
+        val store = FakeStore(file)
+        val entry = open(store).entries.single { it.title == title }
+        val others = EntryStrings.of(file, key(), entry.id) { !Passkey.isField(it) }
+
+        val saved = VaultSaver(store) { _, _, _ -> }
+            .save(VaultEdit.Update(entry.id, entry.lastModified, EntryChanges(removePasskey = true)), key(), Instant.now())
+
+        val after = assertIs<SaveResult.Saved>(saved).opened.vault.entries.single { it.id == entry.id }
+        assertNull(after.passkey)
+        assertEquals(emptyList(), after.passkeyFields)
+        assertEquals(emptyList(), EntryStrings.of(store.content!!, key(), entry.id, Passkey::isField))
+        assertEquals(others, EntryStrings.of(store.content!!, key(), entry.id) { !Passkey.isField(it) }, "the other fields as they were")
+        assertTrue("Passkey" in after.tags)
+        assertTrue(entry.passkeyFields.filter { it.isProtected }.isNotEmpty())
     }
 
     // spec: card.passkey/AC6

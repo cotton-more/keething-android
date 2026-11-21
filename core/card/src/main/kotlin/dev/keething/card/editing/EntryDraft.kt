@@ -129,6 +129,8 @@ public data class EntryDraft(
     val codeFields: List<CodeFieldDraft>? = null,
     /** The attachments in order: the entry's (perhaps renamed) and new ones (keething-spec edit.attachments). */
     val attachments: List<AttachmentDraft> = emptyList(),
+    /** The entry's passkey removed with the save; Undo puts it back (keething-spec card.passkey AC8). */
+    val passkeyRemoved: Boolean = false,
 ) {
     /** The code field [name] with [value] typed into it. */
     public fun withCodeField(name: String, value: String): EntryDraft =

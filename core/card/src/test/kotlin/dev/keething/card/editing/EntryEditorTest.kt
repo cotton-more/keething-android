@@ -65,6 +65,25 @@ class EntryEditorTest {
         assertNull(changes.customFields, "the passkey's fields are no custom fields to save")
     }
 
+    // spec: card.passkey/AC8
+    @Test
+    fun aRemovedPasskeyIsRemovedWithTheSaveAndUndoBringsItBack() {
+        val withPasskey = entry.copy(
+            tags = listOf("Passkey"),
+            passkeyFields = listOf(CustomField.plain("KPEX_PASSKEY_RELYING_PARTY", "webauthn.io"), CustomField.protected("KPEX_PASSKEY_PRIVATE_KEY_PEM", "pem")),
+        )
+        val editor = EntryEditor.edit(withPasskey, now)
+        assertFalse(editor.start.passkeyRemoved)
+
+        val removed = editor.start.copy(passkeyRemoved = true)
+        assertTrue(editor.isDirty(removed) && editor.canSave(removed))
+        assertEquals(EntryChanges(removePasskey = true), editor.changes(removed), "the passkey alone, the tag Passkey stays")
+
+        val undone = removed.copy(passkeyRemoved = false)
+        assertFalse(editor.isDirty(undone))
+        assertEquals(EntryChanges(), editor.changes(undone))
+    }
+
     @Test
     fun onlyWhatChangedIsSaved() {
         val editor = EntryEditor.edit(entry, now)

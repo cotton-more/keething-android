@@ -174,10 +174,13 @@ public object EntryCardBuilder {
             }
         }
 
-        // A passkey: its site and user, never its key; nothing to copy (keething-spec card.passkey AC2, AC3).
+        // A passkey: its site and user, never its key; nothing to copy; why it is only shown (keething-spec card.passkey AC2, AC3, AC9).
         entry.passkey?.let { passkey ->
             val shown = listOf(passkey.site, passkey.user).filter { it.isNotBlank() }.joinToString(" · ")
-            credentials += FieldRow(RowIds.PASSKEY, FieldRow.Kind.PASSKEY, UserText.of(CardText.ROW_PASSKEY), FieldValue.Plain(shown), neverCopied = true)
+            credentials += FieldRow(
+                RowIds.PASSKEY, FieldRow.Kind.PASSKEY, UserText.of(CardText.ROW_PASSKEY), FieldValue.Plain(shown),
+                neverCopied = true, hint = UserText.of(CardText.PASSKEY_ONLY_SHOWN),
+            )
         }
 
         val sections = mutableListOf<CardSection>()

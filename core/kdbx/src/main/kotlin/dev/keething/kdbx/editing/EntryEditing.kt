@@ -6,6 +6,7 @@ import dev.keething.domain.totp.TotpFormat
 import dev.keething.domain.vault.AttachmentChange
 import dev.keething.domain.vault.CustomField
 import dev.keething.domain.vault.EntryChanges
+import dev.keething.domain.vault.Passkey
 import dev.keething.domain.vault.EntryFieldTypes
 import dev.keething.domain.vault.EntryType
 import dev.keething.domain.vault.EntryTypeChange
@@ -77,6 +78,7 @@ internal object EntryEditing {
         standard("URL", changes.url)
         if (changes.notes != null || changes.notesProtected != null) setNotes(changes.notes, changes.notesProtected, protection.getValue("Notes"), entry)
         changes.customFields?.let { setCustomFields(it, entry) }
+        if (changes.removePasskey) removePasskey(entry)
         changes.fieldTypes?.let { types ->
             setCustomData(EntryFieldTypes.CUSTOM_DATA_KEY, types.takeIf { it.isNotEmpty() }?.let(EntryFieldTypes::encode), entry, now)
         }
@@ -226,6 +228,14 @@ internal object EntryEditing {
      * The custom fields become exactly [fields], in that order (a renamed field keeps its place); an unchanged
      * field keeps its element. The one-time code's fields stay where they are.
      */
+    /** Every one of a passkey's fields gone with its secrets (keething-spec card.passkey AC8). */
+    private fun removePasskey(entry: XElement) {
+        strings(entry).filter { Passkey.isField(it.second) }.forEach { (element, _) ->
+            element.wipeSecrets()
+            entry.remove(element)
+        }
+    }
+
     private fun setCustomFields(fields: List<CustomField>, entry: XElement) {
         val existing = strings(entry).filter { !EntryChanges.isReserved(it.second) }
         val byKey = LinkedHashMap<String, XElement>()

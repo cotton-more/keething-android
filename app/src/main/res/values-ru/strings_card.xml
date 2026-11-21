@@ -95,6 +95,7 @@
     <string name="card_row_url_numbered">URL %1$d</string>
     <string name="card_row_one_time_code">Одноразовый код</string>
     <string name="card_row_passkey">Ключ доступа</string>
+    <string name="card_passkey_only_shown">Хранится так же, как в KeePassXC и KeePassDX. Входить с ним Keething пока не умеет.</string>
     <string name="card_row_note">Заметка</string>
     <string name="card_row_notes">Заметки</string>
     <string name="card_row_value">Значение</string>

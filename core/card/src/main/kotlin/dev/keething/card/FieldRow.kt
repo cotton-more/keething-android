@@ -79,6 +79,8 @@ public data class FieldRow(
     val copiesCompact: Boolean = false,
     /** A wallet's recovery phrase, its passphrase, a private key: shown, never copied (SPEC §6.2). */
     val neverCopied: Boolean = false,
+    /** A line under the value saying why the row is as it is (a passkey's: only shown, keething-spec card.passkey AC9). */
+    val hint: UserText? = null,
 ) {
     public enum class Kind { USERNAME, PASSWORD, URL, TOTP, PASSKEY, NOTES, NOTE, CUSTOM, ATTACHMENT }
 

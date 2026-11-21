@@ -394,6 +394,7 @@ internal object SaveCheck {
         changes.customFields?.let { fields ->
             expected = expected.copy(customFields = fields.filterNot { EntryChanges.isReserved(it.name) })
         }
+        if (changes.removePasskey) expected = expected.copy(passkeyFields = emptyList())
         changes.fieldTypes?.let { expected = expected.copy(fieldTypes = it) }
         when (val type = changes.entryType) {
             is EntryTypeChange.Set -> expected = expected.copy(entryType = type.type.stored)

@@ -95,6 +95,7 @@
     <string name="card_row_url_numbered">URL %1$d</string>
     <string name="card_row_one_time_code">One-time code</string>
     <string name="card_row_passkey">Passkey</string>
+    <string name="card_passkey_only_shown">Kept as KeePassXC and KeePassDX keep it. Signing in with it is not in Keething yet.</string>
     <string name="card_row_note">Note</string>
     <string name="card_row_notes">Notes</string>
     <string name="card_row_value">Value</string>

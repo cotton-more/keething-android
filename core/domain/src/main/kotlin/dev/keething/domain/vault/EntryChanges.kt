@@ -47,6 +47,11 @@ public data class EntryChanges(
      * entry, without a history snapshot of its own. Not used for a new entry ([VaultEdit.Create] names its group).
      */
     val group: GroupDestination? = null,
+    /**
+     * The passkey removed: every one of its fields ([Passkey.isField]) at once, as KeePassXC's
+     * `removePasskeyAttributes`, their secrets wiped (keething-spec card.passkey AC8).
+     */
+    val removePasskey: Boolean = false,
 ) {
     public data class Expiry(val expires: Boolean, val time: Instant?)
 

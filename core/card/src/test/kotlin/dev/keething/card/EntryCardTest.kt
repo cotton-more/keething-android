@@ -68,6 +68,17 @@ class EntryCardTest {
         assertEquals(listOf("passkey"), siteOnly.rows.map { it.id })
     }
 
+    // spec: card.passkey/AC9
+    @Test
+    fun thePasskeysRowSaysWhyItIsOnlyShown() {
+        val card = build(Entry("p", title = "Site", passkeyFields = listOf(CustomField.plain("KPEX_PASSKEY_RELYING_PARTY", "webauthn.io"))))
+        assertEquals(
+            "Kept as KeePassXC and KeePassDX keep it. Signing in with it is not in Keething yet.",
+            card.rows.single().hint?.english(),
+        )
+        assertNull(build(richEntry()).rows.firstNotNullOfOrNull { it.hint })
+    }
+
     // spec: card.passkey/AC3
     @Test
     fun noRowOfTheCardHoldsThePasskeysSecrets() {

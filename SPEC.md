@@ -1635,9 +1635,12 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   (keething-spec card.passkey; its `KPEX_PASSKEY_*` fields and Strongbox's `KPXC_PASSKEY_USERNAME`, kept apart from
   the custom fields when the file is read, `Entry.passkeyFields`, as the code's fields are) is one row after the code:
   a key tile, "Passkey" and "webauthn.io · alice" (its relying party and user), read as one item, nothing to show,
-  copy or open; its private key, credential ID and user handle are never on screen. Search finds the entry by the site
+  copy or open, and under it why: "Kept as KeePassXC and KeePassDX keep it. Signing in with it is not in Keething
+  yet."; its private key, credential ID and user handle are never on screen. Search finds the entry by the site
   and user only; Send to a request shows "Passkey · stays on this phone" as a locked row and sends none of its fields
-  (§10.1); the editor shows the same row, does not list the fields and keeps them as the file has them on a save, and a
+  (§10.1); the editor shows the same row with ✕, does not list the fields and keeps them as the file has them on a
+  save; ✕ leaves "The passkey is removed with the save." with Undo, and the save removes every one of its fields at
+  once, their secrets wiped, the tag `Passkey` kept (card.passkey AC8; `EntryChanges.removePasskey`); a
   field cannot be named `KPEX_PASSKEY…` or `KPXC_PASSKEY_USERNAME` (a name KeePass uses itself). An entry with a
   passkey is no note (§6.4). Signing in with it waits for the idea autofill.passkeys. **Edit** is a button at the bottom
   right, in reach of the thumb; the bar's ⋮ holds Show all or Hide all (while the card has a masked row: every one shown if any is masked,

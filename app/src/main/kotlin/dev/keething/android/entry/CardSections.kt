@@ -242,6 +242,7 @@ internal fun FieldRowView(
             } else {
                 FieldValueText(row, reveal)
             }
+            row.hint?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             row.expiry?.let { hint ->
                 Text(
                     hint.text.resolve(),

@@ -112,6 +112,8 @@
 
     <string name="editor_code">Одноразовый код</string>
     <string name="editor_code_removed">Одноразовый код будет удалён при сохранении.</string>
+    <string name="editor_passkey_removed">Ключ доступа будет удалён при сохранении.</string>
+    <string name="editor_passkey_remove">Удалить ключ доступа</string>
     <string name="editor_code_settings">Настройки кода</string>
     <string name="editor_code_settings_hide">Скрыть настройки кода</string>
     <string name="editor_code_back">Вернуть код, который был у записи</string>
