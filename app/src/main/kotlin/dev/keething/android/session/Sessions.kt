@@ -356,6 +356,9 @@ internal class Sessions(
     }
 
     init {
+        // Whether the phone has a strong biometric, known before any database is: the New database form offers the
+        // fingerprint on a new install by it (keething-spec unlock.biometric AC4).
+        scope.launch { biometric.refresh() }
         // Lock and the timeout, by any way it came: counted once each.
         vaults.observeLocks { reason ->
             Log.i(TAG, "lock all, ${SessionState.Locked(reason).describe()}")
@@ -513,7 +516,7 @@ internal class Sessions(
     }
 
     private fun BiometricState.describe(): String = "fingerprint: " + listOfNotNull(
-        if (appEnabled) "on" else "off",
+        if (appEnabled) "on" else if (appSet) "off" else "never set", // not user text
         if (databaseEnabled) "on for it" else "off for it", // not user text
         "opens with its key file alone".takeIf { passwordless }, // not user text
         when (val availability = availability) {

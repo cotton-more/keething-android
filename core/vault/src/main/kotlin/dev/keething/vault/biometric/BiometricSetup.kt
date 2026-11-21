@@ -23,6 +23,11 @@ import kotlinx.coroutines.withContext
 public data class BiometricSetupState(
     /** The app's switch; off until it is turned on (SPEC §5). */
     val enabled: Boolean,
+    /**
+     * The app's switch was set, on or off; never set (a new install), a database's question still stands and its Yes
+     * turns the app's switch on too (keething-spec unlock.biometric AC1, AC4).
+     */
+    val set: Boolean = enabled,
     /** Ask for each master password after this many days without it being typed; null: never. */
     val reminderDays: Int? = BiometricState.DEFAULT_REMINDER_DAYS,
     /** Null until the first [BiometricSetup.refresh]. */
@@ -56,7 +61,9 @@ public class BiometricSetup(
     private val clock: Clock,
     private val io: CoroutineDispatcher,
 ) {
-    private val mutableState = MutableStateFlow(BiometricSetupState(enabled = settings.string(ENABLED) == ON, reminderDays = reminderDays()))
+    private val mutableState = MutableStateFlow(
+        BiometricSetupState(enabled = settings.string(ENABLED) == ON, set = settings.string(ENABLED) != null, reminderDays = reminderDays()),
+    )
     public val state: StateFlow<BiometricSetupState> = mutableState.asStateFlow()
 
     /**
@@ -78,7 +85,7 @@ public class BiometricSetup(
     }
 
     /**
-     * The app's switch. Turning it on only sets it: each database's password is stored at its next typed unlock, and
+     * The app's switch, never set until it is turned on or off here, or turned on by a database's question. Turning it on only sets it: each database's password is stored at its next typed unlock, and
      * every database's days count from now. Turning it off deletes every stored password; returns why that failed, or
      * null (the switch is off either way).
      */
@@ -89,8 +96,9 @@ public class BiometricSetup(
             refresh()
             if (state.value.stored.isNotEmpty()) deleteAll()?.let { return it }
         }
-        settings.setString(ENABLED, if (enabled) ON else null)
-        mutableState.update { it.copy(enabled = enabled) }
+        // Off is kept as off: a switch never set lets each database's question turn it on (keething-spec unlock.biometric AC4).
+        settings.setString(ENABLED, if (enabled) ON else OFF)
+        mutableState.update { it.copy(enabled = enabled, set = true) }
         if (enabled) {
             list.records.forEach { typedNow(it.id) }
             return null
@@ -315,6 +323,7 @@ public class BiometricSetup(
         internal const val ENABLED = "biometricUnlock"
         internal const val REMINDER = "passwordReminderDays"
         private const val ON = "on"
+        private const val OFF = "off"
         private const val NEVER = "never"
         private const val OLD_LAST_TYPED = "lastTypedUnlock"
         private const val OLD_KEY_FILE_CHANGED = "biometricKeyFileChanged"

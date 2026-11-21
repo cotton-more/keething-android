@@ -167,6 +167,22 @@ class BiometricUnlockTest {
     }
 
     @Test
+    fun theAppsSwitchIsNeverSetOnOrOffAndOffIsRememberedAsOff() = runTest {
+        val settings = MapSettings()
+        val f = fixture(enabled = false, settings = settings)
+        assertFalse(f.setup.state.value.enabled)
+        assertFalse(f.setup.state.value.set, "a new install: never set")
+
+        f.setup.setEnabled(true)
+        assertTrue(f.setup.state.value.set)
+        assertNull(f.setup.setEnabled(false))
+
+        val again = fixture(enabled = false, settings = settings)
+        assertFalse(again.setup.state.value.enabled)
+        assertTrue(again.setup.state.value.set, "turned off is kept as off, not as never set")
+    }
+
+    @Test
     fun turningItOffDeletesEveryStoredPassword() = runTest {
         val f = storedPassword("pw")
         val work = f.add("/db/Work.kdbx")
@@ -334,6 +350,57 @@ class BiometricUnlockTest {
         assertTrue(f.stores.saves.isEmpty(), "no stores nothing")
     }
 
+    // spec: unlock.biometric/AC4
+    @Test
+    fun withTheAppsSwitchNeverSetUseFingerprintTurnsOnTheDatabasesAndTheAppsAndStoresThePassword() = runTest {
+        val settings = MapSettings()
+        val f = fixture(enabled = false, settings = settings)
+        f.list.update(f.id) { it.copy(useBiometric = false) }
+        assertTrue(state(f).canAsk, "never set: the question stands")
+
+        f.typed("pw")
+        runCurrent()
+        assertTrue(state(f).question)
+
+        assertEquals(FingerprintAnswer.TurnedOn, f.biometric.answer(true))
+        val after = state(f)
+        assertTrue(after.appEnabled && after.enabled && after.stored && after.canUnlock)
+        assertEquals(listOf("pw"), f.stores.saves)
+        assertTrue(BiometricSetup(f.stores, f.list, settings, f.clock, StandardTestDispatcher(testScheduler)).state.value.enabled, "kept")
+    }
+
+    // spec: unlock.biometric/AC4
+    @Test
+    fun withTheAppsSwitchNeverSetNoLeavesItNeverSetAndAnotherDatabaseIsStillAsked() = runTest {
+        val f = fixture(enabled = false)
+        f.list.update(f.id) { it.copy(useBiometric = false) }
+        val work = f.add("/db/Work.kdbx")
+        f.list.update(work.id) { it.copy(useBiometric = false) }
+        f.typed("pw")
+        runCurrent()
+
+        assertEquals(FingerprintAnswer.Declined, f.biometric.answer(false))
+
+        assertFalse(f.setup.state.value.enabled || f.setup.state.value.set, "still never set")
+        runCurrent()
+        assertTrue(work.biometric.state.value.canAsk, "Work's question stands")
+        assertTrue(f.stores.saves.isEmpty())
+    }
+
+    // spec: unlock.biometric/AC4
+    @Test
+    fun withTheAppsSwitchTurnedOffNothingIsAsked() = runTest {
+        val f = fixture()
+        f.list.update(f.id) { it.copy(useBiometric = false) }
+        f.setup.setEnabled(false)
+
+        assertFalse(state(f).canAsk)
+        f.typed("pw")
+        runCurrent()
+        assertFalse(state(f).question)
+        assertTrue(f.stores.saves.isEmpty())
+    }
+
     @Test
     fun theQuestionPutAwayAnswersNothingAndTheNextTypedUnlockAsksAgain() = runTest {
         val f = neverChosen()
@@ -441,6 +508,7 @@ class BiometricUnlockTest {
     fun aDatabaseIsAskedOnlyWhileItsFingerprintWasNeverChosen() = runTest {
         val f = fixture(enabled = false)
         f.list.update(f.id) { it.copy(useBiometric = false) }
+        f.setup.setEnabled(false)
         assertFalse(state(f).canAsk, "the app's switch off: nothing to offer")
         f.setup.setEnabled(true)
         assertTrue(state(f).canAsk)

@@ -731,6 +731,20 @@ class CurrentDatabaseTest {
         assertFalse(assertNotNull(f.list.record(notOffered.id)).fingerprintAsked, "the app's switch off: never offered")
     }
 
+    // spec: unlock.biometric/AC4
+    @Test
+    fun aDatabaseMadeWithTheFingerprintCheckedWhileTheAppsSwitchWasNeverSetTurnsTheAppsOnToo() = runTest {
+        val f = Fixture(this)
+        assertFalse(f.setup.state.value.set)
+
+        val created = f.create("/a/First.kdbx", useBiometric = true)
+        assertEquals(UnlockOutcome.Opened, created.opened?.await())
+        runCurrent()
+
+        assertTrue(f.setup.state.value.enabled, "checked on the form: the same Yes as the question's")
+        assertEquals("pw", f.stored(created.id))
+    }
+
     @Test
     fun createdItJoinsTheListIsCurrentOpensAndItsPasswordIsStoredForTheFingerprint() = runTest {
         val f = Fixture(this)

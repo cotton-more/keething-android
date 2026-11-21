@@ -222,7 +222,8 @@ public class CurrentDatabase(
      * the same change of the list as the new one joins it, and its stored password after, so the new one takes nothing of
      * it (its id, backups, stored password). The new one joins the list and the window with its key file (one granted
      * alone in a folder the list reaches goes through that folder, keething-spec databases.saf AC9) and its Use fingerprint, becomes current (nothing closes) and
-     * opens with [key], the key it was made with, as a typed unlock of [password] (its days start; stored for the fingerprint when chosen). A lock since
+     * opens with [key], the key it was made with, as a typed unlock of [password] (its days start; stored for the fingerprint when chosen,
+     * the app's switch turned on with it when it was never set). A lock since
      * Create was tapped ([lockedSince], asked once the list has it) leaves it locked and wipes [key]. The caller may
      * wipe [password] as soon as this returns. [fingerprintChosen]: the form offered the fingerprint, so it was chosen
      * either way and its lock screen does not ask it (keething-spec unlock.biometric AC4).
@@ -237,12 +238,15 @@ public class CurrentDatabase(
         lockedSince: () -> Boolean,
     ): Created {
         listOfNotNull(file.grant, keyFile?.grant).forEach(offered)
+        // Checked on the form while the app's switch was never set: the same Yes as the question's, the app's on too
+        // (keething-spec unlock.biometric AC4). A leftover that could not be deleted keeps it off: nothing is stored then.
+        val switchProblem = if (useBiometric && !biometric.state.value.enabled && !biometric.state.value.set) biometric.setEnabled(true) else null
         val reached = (keyFile as? FileLocation.Granted)?.let { reach(it.at, prefer = file) } ?: keyFile
         // One change: the old record out and the new one in with its key file, so no grant looks unused in between.
         val (record, old) = list.replace(file, reached, useBiometric, fingerprintAsked = fingerprintChosen)
         show(record.id)
         adoptOldRecords()
-        val problem = old?.let { biometric.forget(it.id) }
+        val problem = listOfNotNull(switchProblem, old?.let { biometric.forget(it.id) }).joinToString("; ").ifEmpty { null }
         val database = current.value?.takeIf { it.id == record.id }
         if (database == null || lockedSince()) {
             key.wipe()
@@ -253,7 +257,8 @@ public class CurrentDatabase(
 
     /**
      * What [created] did: the new database's [id], how its opening ends (null: not opened), why an old one's stored
-     * password stayed, and the record it [replaced] (its backups are the caller's to delete).
+     * password stayed or a leftover kept the app's switch off ([problem]), and the record it [replaced] (its backups are
+     * the caller's to delete).
      */
     public class Created(public val id: DatabaseId, public val opened: Deferred<UnlockOutcome>?, public val problem: String?, public val replaced: DatabaseId? = null)
 

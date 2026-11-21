@@ -31,6 +31,8 @@ public enum class SetUpAgain { FINGERPRINTS_CHANGED, PASSWORD_REJECTED }
 public data class BiometricState(
     /** The app's switch (Settings); off until it is turned on (SPEC §5). */
     val appEnabled: Boolean,
+    /** The app's switch was set, on or off: never set, the question stands as while it is on (keething-spec unlock.biometric AC4). */
+    val appSet: Boolean = appEnabled,
     /** The database's own Use fingerprint (its page, the lock screen's question). */
     val databaseEnabled: Boolean,
     /** Its fingerprint was chosen, or not: the lock screen does not ask it again (keething-spec unlock.biometric AC4). */
@@ -78,9 +80,10 @@ public data class BiometricState(
 
     /**
      * A database whose fingerprint was never chosen is asked once whether to use it, after a typed unlock that opened it
-     * (keething-spec unlock.biometric AC4). The app's switch allows it, the phone has a strong biometric.
+     * (keething-spec unlock.biometric AC4). The app's switch allows it, on or never set (not once turned off), and the
+     * phone has a strong biometric.
      */
-    public val canAsk: Boolean get() = appEnabled && !databaseEnabled && !asked && availability == BiometricAvailability.Available
+    public val canAsk: Boolean get() = (appEnabled || !appSet) && !databaseEnabled && !asked && availability == BiometricAvailability.Available
 
     public companion object {
         public const val DEFAULT_REMINDER_DAYS: Int = 14
@@ -144,7 +147,8 @@ public sealed interface FingerprintOutcome {
  * - The fingerprint opens it while the app's switch and its own Use fingerprint are on.
  * - The password is stored after a typed unlock that opened the vault, so a database password changed elsewhere heals
  *   the next time it is typed. Nothing typed stores nothing.
- * - A database whose fingerprint was never chosen is asked after a typed unlock that opened it, when the unlock asks
+ * - A database whose fingerprint was never chosen is asked after a typed unlock that opened it, while the app's switch is
+ *   on or was never set, when the unlock asks
  *   for it (the app's lock screen and the chooser's run; not autofill's, nor a quick note's, which show no list to ask
  *   over) ([answer]): the typed password is kept in memory for the answer, and wiped when it comes, when the database locks or closes, or when the
  *   question no longer stands (its switch set on its page, the app's turned off).
@@ -213,6 +217,7 @@ public class BiometricUnlock(
         val record = list.record(id)
         return BiometricState(
             appEnabled = setupState.enabled,
+            appSet = setupState.set,
             databaseEnabled = record?.useBiometric == true,
             asked = record?.fingerprintAsked == true,
             passwordless = record?.isPasswordless == true,
@@ -244,7 +249,7 @@ public class BiometricUnlock(
 
     /**
      * The answer to [BiometricState.question] (keething-spec unlock.biometric AC4). Use fingerprint turns its own switch on
-     * and stores the password it was just opened with (nothing for one opened with its key file alone); No is kept, and
+     * (and the app's, never set until then) and stores the password it was just opened with (nothing for one opened with its key file alone); No is kept, and
      * it is not asked again; null (put away) answers nothing, and the next typed unlock asks again. The kept password is
      * wiped either way, and the question is gone at once (a second answer finds none).
      */
@@ -258,6 +263,8 @@ public class BiometricUnlock(
                 setup.decline(id)
                 return FingerprintAnswer.Declined
             }
+            // The app's switch never set: Yes turns it on too (keething-spec unlock.biometric AC4).
+            if (!setup.state.value.enabled) setup.setEnabled(true)?.let { return FingerprintAnswer.Failed(it) }
             setup.setUseBiometric(id, true)?.let { return FingerprintAnswer.Failed(it) }
             val failure = if (password.isEmpty()) null else storeTyped(password)
             return failure?.let(FingerprintAnswer::Failed) ?: FingerprintAnswer.TurnedOn

@@ -1133,13 +1133,19 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   has its own **Use fingerprint** besides (`useBiometric` in the list, §3.1), on its page in Settings, and offered once
   by its lock screen (below). The fingerprint opens a database while both are on. The
   app's switch **allows** a database's to be turned on and turns none on itself; a database's never turns the app's
-  on (the owner at `plans/done/android-databases.md` AD5). A database new to the list starts with its own **off**,
+  on (the owner at `plans/done/android-databases.md` AD5), except by the question below. The app's switch is stored as
+  **never set** (a new install, nothing stored; also a switch left off by 1.0.0, which stored nothing for off), **on**
+  or **off** (`biometricUnlock` in the settings: none, `on`, `off`). Never set, it stays off but lets the question be
+  asked as while it is on, and a Yes to it turns the app's on too (keething-spec unlock.biometric AC1, AC4; the owner,
+  2026-11-21, F23: Settings opens only with a database unlocked, so a new user would type the password at every unlock
+  and might never find the switch). Turned off in Settings it is kept as off, and nothing is asked from then on. A database new to the list starts with its own **off**,
   whatever the app's switch: no password is stored for a database nobody turned the fingerprint on for (the Mac's
   rule, a new database taking the app's switch, stored a new database's first typed password unasked). A database
   made on the New database screen (§6.2) has its own as chosen there: "Unlock it with the fingerprint" is shown only
-  while the app's switch is on and starts checked (the owner at AD7), and its password is stored at once, as Create
+  while the app's switch is on, or never set on a phone with a strong biometric (checked, it then turns the app's on
+  too, as the question's Yes), and starts checked (the owner at AD7), and its password is stored at once, as Create
   opens it as a typed unlock (§3.5). **Offered once, after the password** (keething-spec unlock.biometric AC4, the owner
-  2026-11-02): while the app's switch is on, the phone has a strong biometric and a database's own is off and was never
+  2026-11-02): while the app's switch is on or never set, the phone has a strong biometric and a database's own is off and was never
   chosen (`fingerprintAsked` in the list, §3.1: the question answered, its page's switch set either way, or the New
   database form's "Unlock it with the fingerprint" shown), its lock screen has the fingerprint's button beside the field,
   typing or not; it unlocks with what is typed, as the arrow and the keyboard's Done do. A typed unlock that opens it
@@ -1147,11 +1153,12 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
   Unlock beside the field) keeps the typed password in memory (`BiometricUnlock`, `BiometricState.question`) and its
   list asks over itself "Use the fingerprint for “Work”?" ("From now on your fingerprint opens it: the password you just
   typed is kept on this phone, sealed for your fingerprint. Keething asks this once. You can turn it on later on the
-  database's page in Settings.", No / Use fingerprint). Use fingerprint turns its own on and stores that password
+  database's page in Settings.", No / Use fingerprint). Use fingerprint turns its own on (and the app's, if never set) and stores that password
   ("Your fingerprint opens “Work” from now on."; a database that opens with its key file alone has nothing to store);
   No is kept, and only Unlock is beside the field from then on; put away (Back, a tap beside it), the question answers
   nothing and the next typed unlock asks it again. The kept password is wiped at the answer, when the database locks
-  or closes, and when the question no longer stands (its page's switch set, the app's turned off). A wrong password asks
+  or closes, and when the question no longer stands (its page's switch set, the app's turned off). No leaves the app's switch as it was: never set, the
+  other databases are still asked. A wrong password asks
   nothing. A database removed from the list and added again is a new record, asked again. Turning it on asks no
   fingerprint: whoever does it has the open database already, any enrolled finger would pass, and storing needs only
   the keyring's public key (below); the question is answered by whoever typed the password. A switch going on (the app's, or a database's)

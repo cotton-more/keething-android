@@ -3,6 +3,7 @@ package dev.keething.android
 import dev.keething.android.about.AboutPage
 import dev.keething.android.editor.NewEntryPlaces
 import dev.keething.android.editor.savedNotice
+import dev.keething.domain.biometric.BiometricAvailability
 import dev.keething.domain.vault.VaultGroup
 import android.content.Context
 import android.content.pm.ApplicationInfo
@@ -213,7 +214,9 @@ internal class AppContainer(context: Context) {
             folders = starts.distinct(),
             root = root,
             files = GrantedNewDatabaseFiles(places, folderOf, appScope, Dispatchers.IO) { file -> fileOf(file.grant)?.isThere() == true },
-            offersFingerprint = sessions.biometric.state.value.enabled,
+            // On, or never set on a phone with a strong biometric: checked, it turns the app's switch on too
+            // (keething-spec unlock.biometric AC4).
+            offersFingerprint = sessions.biometric.state.value.let { it.enabled || (!it.set && it.availability == BiometricAvailability.Available) },
             scope = appScope,
             io = Dispatchers.IO,
             lockCount = { sessions.lockCount },
@@ -228,7 +231,7 @@ internal class AppContainer(context: Context) {
                 // Offered first: the list's change below keeps those it is reached through, the others go.
                 offerTaken()
                 val file = checkNotNull(places.inFolder(made.path)) { "made where no grant reaches" } // not user text
-                sessions.created(made, file, made.keyFilePath?.let(places::keyFile))?.let { Log.w("Creating", "an old record's stored password stayed: $it") }
+                sessions.created(made, file, made.keyFilePath?.let(places::keyFile))?.let { Log.w("Creating", "the fingerprint's switch or an old record's stored password: $it") }
             } finally {
                 newDatabases.created(model)
             }
