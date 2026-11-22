@@ -15,5 +15,3 @@ local.properties
 # CMake through the NDK, beside its module (core/argon2).
 .cxx/
 
-# Notes for Claude, kept out of the repository for now (the owner, 2026-11-16).
-CLAUDE.md

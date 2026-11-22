@@ -812,7 +812,7 @@ there any more…" (`SaveFailure.FolderGone`), nothing written (keething-spec da
   The app does not merge: the banner says which one is open, and that both can be merged in KeePassXC (Database →
   Merge).
 - **Resolve…** on the banner (keething-spec kdbx.conflict-copies AC6; agreed on the canvas "Conflict copies",
-  https://claude.ai/artifact/2N41uYnE2ERe5rX4Rt95Ra, 2026-11-08) resolves that copy without a merge, one copy at a
+  2026-11-08, not kept) resolves that copy without a merge, one copy at a
   time. Its sheet shows both versions in brief (entries, the newest change of one; the copy opened with a copy of the
   session's key, its secrets wiped at once, `VaultSession.copyContents`) and two choices, each saying what it does and
   asked once more in a dialog before it is done:
@@ -1331,15 +1331,15 @@ side by side (§3.1): one fingerprint opens every one that can (below), a databa
 
 Design, UI and UX matter as much as the file handling: the app must look and feel great, not merely work.
 Screens are designed as clickable mock-ups first and agreed with the owner before they are built. The
-agreed mock-ups (light and dark, every screen of §6.2 including the editor for step 7) are the canvas
-https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
+agreed mock-ups (light and dark, every screen of §6.2 including the editor for step 7) were a canvas, not kept;
+the choices made there:
 - Lock: the fingerprint is the large main button; the password field below it, in thumb reach, with an
   arrow button to unlock; the reason of the last lock as a chip. Changed 2026-11-02 (keething-spec
-  unlock.lock-screen-keyboard, its canvas https://claude.ai/artifact/6Dj42ofwFyNuAu1v9YGE7z): the fingerprint is the
+  unlock.lock-screen-keyboard, its canvas keething-spec `mockups/lock-screen-keyboard/`): the fingerprint is the
   button beside the field in place of the arrow, the key file chosen in the field, no app name.
 - List and card: Expressive segmented groups (rows with small gaps, large outer corners); a list row with a
   one-time code shows the live code as a button that copies it, on a fill that drains over its period (the ring until
-  2026-11-14; keething-spec card.code-timer, its canvas https://claude.ai/artifact/299z7q9vyCatPJ421tQrKH, variant D).
+  2026-11-14; keething-spec card.code-timer, its canvas keething-spec `mockups/code-timer.html`, variant D).
 - A live code on the card, the Codes view's tiles and the editor (card.code-timer): the digits on a tinted fill that drains
   from right to left and fills again in 0.4 s when the next code starts, dimmed over the last five seconds; under them,
   always on a line of its own, "Next in 12 s 731 004", the next code, which takes the code's colour then. A tap on it copies the next
@@ -1352,24 +1352,24 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   or a large font, grows below them (keething-spec `plans/done/android-notes.md` AN5).
 - Show as QR can also show the password as text; the Share… warning points to Show as QR as the safer way.
 - The canvas also has a code pinned to the notification shade; it was dropped (§1).
-- Groups (keething-spec `plans/done/android-groups.md` AG3, agreed 2026-10-31) have a canvas of their own:
-  https://claude.ai/artifact/P3Vn7ihTPMN3yrTA9LmPeE (the group picker, the editor's group row, Groups & tags over
+- Groups (keething-spec `plans/done/android-groups.md` AG3, agreed 2026-10-31) had a canvas of their own, not kept
+  (the group picker, the editor's group row, Groups & tags over
   every open database, a group's sheet and name dialog, Move to…, the card's Move to group…). Changed by the owner at
   AG4: the picker shows one level at a time instead of its drawn tree, the new levels one NEW (the editor, §6.2), a
   path on one line cut as fish shell cuts a directory (the list, §6.2), the card's one place chip instead of its
   database and group chips (the card, §6.2); at AG5 the "Not open:" row lost its lock icon.
-- Conflict copies (keething-spec kdbx.conflict-copies AC6, agreed 2026-11-08) have a canvas of their own:
-  https://claude.ai/artifact/2N41uYnE2ERe5rX4Rt95Ra (the banner's Resolve…, the sheet with both versions, the two
+- Conflict copies (keething-spec kdbx.conflict-copies AC6, agreed 2026-11-08) had a canvas of their own, not kept
+  (the banner's Resolve…, the sheet with both versions, the two
   choices each asked once more, a copy with another key, a read-only database, a failure, dark).
-- Restoring a version (keething-spec edit.history-restore, agreed 2026-11-08) has a canvas of its own:
-  https://claude.ai/artifact/5cZ3wiPf5Q3qen5zArKtcV (History's Go back to this version…, the question with what changes,
+- Restoring a version (keething-spec edit.history-restore, agreed 2026-11-08) had a canvas of its own, not kept
+  (History's Go back to this version…, the question with what changes,
   a full history, going back, the card after it, the recycle bin, a read-only database, a failure, dark).
 - Backups on Remove and Not found (keething-spec T12 databases A1, A6, C5, agreed 2026-11-19, with Other backups… added)
-  have a canvas of their own: https://claude.ai/artifact/LV2FpzThNAdfj8FStc9aeb (Remove's question with backups and with
+  have a canvas of their own: keething-spec `mockups/backups-on-remove/` (Remove's question with backups and with
   its file not found, Not found's newest backup on the line's sheet, the chooser and the page, the restore with the file
   gone, its end and its failures, autofill's save with the sync warning; light and dark).
-- The password reminder (keething-spec unlock.reminder-not-a-lock, agreed 2026-11-13) has a canvas of its own:
-  https://claude.ai/artifact/CN2ZK5AubEyFqM2zS9i7WV (the question over the list, Yes, Check it, a password that does
+- The password reminder (keething-spec unlock.reminder-not-a-lock, agreed 2026-11-13) had a canvas of its own, not kept
+  (the question over the list, Yes, Check it, a password that does
   not match, three tries, a key file alone, a password and a key file, Settings with 14 days and with Never, dark).
 
 ### 6.1 Look and feel
@@ -1631,10 +1631,10 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   nothing to copy (card.fields AC2). A one-time code the app cannot use (a Steam code, a counter-based HOTP link, a
   secret not in Base32, an unknown algorithm; card.totp AC6) keeps its row: the code's tile grey and "This code cannot
   be used here: Steam codes." in the secondary colour, nothing to copy (agreed on the canvas "Code that cannot be
-  used", https://claude.ai/artifact/H2JLkfxuwC8NYXbKFf1iw2, variant A, 2026-11-20); the editor's own refusals say the
+  used", keething-spec `mockups/unusable-code.html`, variant A, 2026-11-20); the editor's own refusals say the
   same reasons. An app's address (`androidapp://<package>`
-  in the URL, a `KP2A_URL…` field or a field typed `url` or untyped; keething-spec card.app-address, canvas
-  https://claude.ai/artifact/M7w5or3TN83mFj1DmRPAkE) is shown as the app the phone has: its own icon in place of the
+  in the URL, a `KP2A_URL…` field or a field typed `url` or untyped; keething-spec card.app-address, its
+  canvas not kept) is shown as the app the phone has: its own icon in place of the
   tile, its name, the address under it, an open button; an app the phone does not have shows the default app icon,
   the package and a button to its page in the store (`market://details?id=`: the store's own icon when one app opens
   such links, an install icon when several do, none when none does). The field's name shows above only when it is
@@ -2001,7 +2001,7 @@ https://claude.ai/artifact/VvguNamsGWxY4zQwsHUaEa. Choices made there:
   its path the lock screen's words, with Locate… or Choose its folder…; not found with a backup that would open, "Family.kdbx
   is not in Sync/KeePass any more. Locate the file, or restore its newest backup, of today, 14:03." with **Restore
   backup…**, which asks its restore in Backups, beside Locate…; keething-spec databases.not-open AC5; the canvas "Backups
-  on Remove and Not found", https://claude.ai/artifact/LV2FpzThNAdfj8FStc9aeb, agreed 2026-11-19; and "Last opened
+  on Remove and Not found", keething-spec `mockups/backups-on-remove/`, agreed 2026-11-19; and "Last opened
   2 weeks ago" when it was), **Name and colour** and **Master key** (below; agreed on the canvas "Database name, colour
   and master key", 2026-11-08), **Key file** (its name and folder, or "None · It opens with its password alone"; Choose… /
   Change…, Forget; "Remembered here by where it is, not its contents: beside the database, or a file chosen alone. It
@@ -2214,7 +2214,7 @@ has one). KeePassXC keeps it through its own edits. The values stay plain text.
 ### 6.4 Notes and quick notes
 
 Built and reviewed (keething-spec `types.note`, `app.quick-note`, `app.quick-note-source`; `plans/done/android-notes.md`,
-the mock-ups on https://claude.ai/artifact/CopWwuG57cu4v8iY6Lnzr9): what a note is, in the file (AN1); the card, the
+the mock-ups on keething-spec `mockups/notes/`): what a note is, in the file (AN1); the card, the
 list, the search and the history (AN2); a note sent whole (§10); the editor, New note and New note from clipboard
 (AN3); where a quick note goes, its editor, its run and the setting (AQ1); Keething note in the share sheet and the
 selection menu (AQ2); where a quick note came from (AQ3); the Quick note tile and the launcher's Note from clipboard

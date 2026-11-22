@@ -137,7 +137,7 @@ the phone, so every `task apk` reaches it), else in `~/Downloads`. It is
 signed with the keystore in `KEYSTORE` (default `~/.keystores/keething.jks`). The default keystore's password
 comes from the login Keychain item `keething-apk-keystore` when there is one (stored once with
 `security add-generic-password -a "$USER" -s keething-apk-keystore -w`, which prompts for it; since 2026-10-29), so
-the script, and Claude, can build without asking; anything running as the user can then sign with that key. Without
+the script, and any tool run on the maintainer's behalf, can build without asking; anything running as the user can then sign with that key. Without
 the item, or for another `KEYSTORE`, apksigner asks. The password reaches apksigner through the environment, never a
 file or the command line. Uncommitted changes are built too (it says so).
 
