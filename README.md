@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/icon.png" width="96" alt="">
+</p>
+
 # Keething for Android
 
 **A KeePass password manager for Android.**
@@ -11,6 +15,11 @@ Syncthing, Nextcloud, a NAS, …) and want an Android client that is pleasant to
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="260" alt="The list of entries">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="260" alt="A crypto wallet's recovery phrase, checked">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="260" alt="A sharing request with its six pictures">
+</p>
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="260" alt="Autofill offering an entry above the keyboard">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="260" alt="The one-time codes with the next one ready">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/8.png" width="260" alt="A Syncthing conflict to resolve, in the dark theme">
 </p>
 
 ## What it does
