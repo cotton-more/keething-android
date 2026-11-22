@@ -164,6 +164,18 @@ from its About) built in a folder with a space, its Gradle wrapper deleted as F-
 the same byte for byte. Only an APK built from a commit with nothing uncommitted can be reproduced; its About's time
 is then the commit's. The recipe F-Droid builds from is `tools/fdroid/dev.keething.android.yml`.
 
+### Releasing
+
+    task release -- 1.0.1
+
+First `versionName` (1.0.1) and `versionCode` (one more than the last) in `app/build.gradle.kts`, and the changelog
+`fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`, committed. `tools/release.sh` then checks that nothing
+is uncommitted and the tag is new, builds and signs the APK, reproduces it from a fresh clone, and shows the notes. Only
+after a typed `yes` it tags HEAD `v<version>`, pushes the tag and creates the GitHub release with
+`Keething-<version>.apk` (the name F-Droid's recipe downloads as `Binaries`), its `.sha256`, the changelog, the APK's
+SHA-256 and the certificate's. IzzyOnDroid and F-Droid find the new tag themselves. A published APK is not replaced:
+its SHA-256 is already quoted.
+
 ### The signing key (once)
 
     mkdir -p ~/.keystores && chmod 700 ~/.keystores

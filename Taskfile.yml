@@ -68,6 +68,14 @@ tasks:
     cmds:
       - tools/apk-reproduce.sh {{.CLI_ARGS}}
 
+  release:
+    desc: "A release published on GitHub: build, reproduce, then (after a typed yes) the tag, its push and the release with the APK: task release -- <version>"
+    requires:
+      vars: [CLI_ARGS]
+    interactive: true
+    cmds:
+      - tools/release.sh {{.CLI_ARGS}}
+
   apk:timings:
     desc: "A measurement build (release, Log.i's timing lines kept), installed on the connected phone; never shipped (DEVELOPMENT.md)"
     cmds:
