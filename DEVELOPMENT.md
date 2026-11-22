@@ -170,13 +170,21 @@ is then the commit's. The recipe F-Droid builds from is `tools/fdroid/dev.keethi
     task release -- minor
 
 When the current `versionName` is published already (its tag exists), it makes the next one: patch 1.2.3 → 1.2.4,
-minor → 1.3.0, major → 2.0.0, `versionCode` one more, and starts its changelog
+minor → 1.3.0, major → 2.0.0, `versionCode` from it (major × 1,000,000 + minor × 1,000 + patch: 1.0.1 is 1000001), and
+starts its changelog
 `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`, then stops: write the changelog (what a user sees in
 F-Droid and on GitHub) and run `task release` again. That run commits the version and the changelog as
 "Version <version>" (anything else uncommitted stops it), builds and signs the APK, reproduces it from a fresh clone and
-shows the notes. Only after a typed `yes` it tags HEAD `v<version>`, pushes main and the tag, and creates the GitHub
+shows the notes. Only after a typed `yes` it tags HEAD `v<version>`, pushes the branch and the tag, and creates the GitHub
 release with `Keething-<version>.apk` (the name F-Droid's recipe downloads as `Binaries`), its `.sha256`, the changelog,
-the APK's SHA-256 and the certificate's. IzzyOnDroid and F-Droid find the new tag themselves. A published APK is not
+the APK's SHA-256 and the certificate's. GitHub's "Latest" is set only when it is the highest version published.
+
+Branches: `main` holds the current version. A new breaking major version is built on a branch of its own and merged into
+main when it is done; from then on main is that version. An older major version still to be fixed gets a branch from its
+last tag (`git switch -c 3.x v3.4.2`): the fix is made there and released from there with `task release -- patch`, and
+not merged into main. The `versionCode` taken from the version keeps every branch's releases unique and in order. A
+phone only moves up: one on 4.x is never offered a 3.x fix, which is for those that cannot take 4.x (a higher minimum
+Android, say). IzzyOnDroid and F-Droid find the new tag themselves. A published APK is not
 replaced: its SHA-256 is already quoted.
 
 ### The signing key (once)

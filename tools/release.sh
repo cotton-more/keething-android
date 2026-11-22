@@ -1,17 +1,21 @@
 #!/bin/zsh
-# Publishes a release on GitHub (DEVELOPMENT.md "Releasing"): tools/release.sh [patch|minor|major]
+# Publishes a release on GitHub from the current branch (DEVELOPMENT.md "Releasing"): tools/release.sh [patch|minor|major]
+# main holds the current version; an older major one is kept on a branch of its own and released from there.
 # The version is app/build.gradle.kts's versionName. When its tag is published already, the next one is made: patch
-# 1.2.3 -> 1.2.4, minor -> 1.3.0, major -> 2.0.0 (asked when not given), versionCode one more, and the changelog
+# 1.2.3 -> 1.2.4, minor -> 1.3.0, major -> 2.0.0 (asked when not given), versionCode from it (major * 1000000 +
+# minor * 1000 + patch: unique across branches, and growing with the version), and the changelog
 # fastlane/metadata/android/en-US/changelogs/<versionCode>.txt started; it stops there to have the changelog written,
 # and the next run goes on with that version. The version's change and its changelog are committed as
 # "Version <version>"; anything else uncommitted stops it. Then it builds and signs the APK (tools/build-apk.sh),
 # reproduces it from a fresh clone (tools/apk-reproduce.sh), and, after a typed "yes", tags HEAD v<version>, pushes
-# main and the tag, and creates the GitHub release with Keething-<version>.apk (the name F-Droid's recipe downloads as
-# Binaries), its .sha256 and the changelog. Nothing public happens before the "yes".
+# the branch and the tag, and creates the GitHub release with Keething-<version>.apk (the name F-Droid's recipe
+# downloads as Binaries), its .sha256 and the changelog; GitHub's "Latest" only when it is the highest version
+# published. Nothing public happens before the "yes".
 set -e
 kind=$1
 [[ -z $kind || $kind == (patch|minor|major) ]] || { echo "usage: $0 [patch|minor|major]"; exit 1 }
 cd "${0:A:h}/.."
+branch=$(git symbolic-ref --short -q HEAD) || { echo "Not on a branch: switch to main or to the old version's branch."; exit 1 }
 gradle=app/build.gradle.kts
 changelogs=fastlane/metadata/android/en-US/changelogs
 marker="(Write what changed, then run task release again.)"
@@ -33,8 +37,11 @@ if published $version; then
         major) next=$((parts[1] + 1)).0.0 ;;
     esac
     published $next && { echo "v$next is published already."; exit 1 }
-    sed -i '' "s/^\( *\)versionName = \"$version\"$/\1versionName = \"$next\"/; s/^\( *\)versionCode = $code$/\1versionCode = $((code + 1))/" $gradle
-    version=$next; code=$((code + 1))
+    parts=(${(s:.:)next})
+    nextCode=$((parts[1] * 1000000 + parts[2] * 1000 + parts[3]))
+    (( parts[2] < 1000 && parts[3] < 1000 && nextCode > code )) || { echo "versionCode $nextCode for $next is not above $code."; exit 1 }
+    sed -i '' "s/^\( *\)versionName = \"$version\"$/\1versionName = \"$next\"/; s/^\( *\)versionCode = $code$/\1versionCode = $nextCode/" $gradle
+    version=$next; code=$nextCode
     [[ -f $changelogs/$code.txt ]] || print -r -- "$marker" > $changelogs/$code.txt
     echo "Version $version (versionCode $code). Write $changelogs/$code.txt, then run task release again."
     exit 0
@@ -71,10 +78,12 @@ cert=$($apksigner verify --print-certs $apk | sed -n 's/.*certificate SHA-256 di
     print "The build is reproducible: built from the tag \`$tag\`, the APK without its signature is the same byte for byte (DEVELOPMENT.md, \"Reproducing a release\")."
 } > $work/notes.md
 
-print "\nReady: $tag on $commit, ${apk:t} ($sha).\n--- notes ---"; cat $work/notes.md; print -- "-------------"
-read "answer?Tag, push main and the tag, and publish on GitHub? Type yes: "
+highest=$( (git tag -l 'v*'; print $tag) | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+latest=false; [[ $highest == $version ]] && latest=true
+print "\nReady: $tag on $commit (branch $branch), ${apk:t} ($sha); GitHub's Latest: $latest.\n--- notes ---"; cat $work/notes.md; print -- "-------------"
+read "answer?Tag, push $branch and the tag, and publish on GitHub? Type yes: "
 [[ $answer == yes ]] || { echo "Nothing published. The APK is in $work."; exit 1 }
 git tag -a $tag -m "Keething $version"
-git push origin HEAD:main $tag
-gh release create $tag $apk $apk.sha256 --verify-tag --title "Keething $version" --notes-file $work/notes.md
+git push origin HEAD:refs/heads/$branch $tag
+gh release create $tag $apk $apk.sha256 --verify-tag --latest=$latest --title "Keething $version" --notes-file $work/notes.md
 echo "Published. A copy of the APK stays in $work."
