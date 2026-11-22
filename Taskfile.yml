@@ -69,9 +69,7 @@ tasks:
       - tools/apk-reproduce.sh {{.CLI_ARGS}}
 
   release:
-    desc: "A release published on GitHub: build, reproduce, then (after a typed yes) the tag, its push and the release with the APK: task release -- <version>"
-    requires:
-      vars: [CLI_ARGS]
+    desc: "A release published on GitHub: task release -- [patch|minor|major] (the next version when the current one is published; asked when not given), then the build, its reproduction and, after a typed yes, the tag and the release with the APK"
     interactive: true
     cmds:
       - tools/release.sh {{.CLI_ARGS}}
